@@ -20,7 +20,8 @@ const routes = new Map([
   ['read', ['读取本地 HTML 的 Markdown 或标题大纲', '<file> [--outline | --section <id>] [--out <file>]']],
   ['viz render', ['把图形声明渲染为独立 SVG 或 HTML', `<source> --out <file.svg|file.html> ${THEME_USAGE} [--width <px>] [--lang <lang>] [--force]`]],
   ['viz schema', ['读取图表 JSON Schema', '[<chart>]']],
-  ['viz palette', ['读取主题色角色和 SVG 骨架', THEME_USAGE]],
+  ['viz palette', ['读取主题色角色、结构图配色和手绘 SVG 骨架', THEME_USAGE]],
+  ['viz measure', ['估算图内文字宽度与换行', '<text>… [--size <px>] [--weight <n>] [--max-width <px>]']],
 ]);
 const artifactGroups = new Set(['doc', 'data', 'ui']);
 const maintenance = new Set(['audit', 'diff', 'style']);

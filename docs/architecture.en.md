@@ -39,6 +39,8 @@ Each theme has a single JSON file for colors and styling. The HTML shell generat
 
 A theme can set `frameInk` to give ordinary diagram frames their own color. Layers, blocks, swimlanes, sequence groups and mind-map branches derive pale fills and strokes from it, and the mind-map root uses the primary text color as ink. Without `frameInk`, these frames take their colors from the data series and `accent`. When the color that comes up is easy to read as a status (the bright red on Cloud Music's light background), set a neutral `frameInk`; when it is the theme's own signature color (Terminal's green), keep it. Data series, numbering, links and explicit status colors stay the same. The optional `tint: { hue, chroma }` controls OKLCH mixing for decorative tints. Claude uses `{ hue: 95, chroma: 1.4 }` to lighten terracotta toward its 95° ivory paper rather than pink.
 
+The same structure colors are exported as CSS variables, such as `--viz-frame-1`, `--viz-node`, `--viz-edge` and `--viz-em`; `htmlview viz palette` lists them all. When a diagram does not fit the built-in families and has to be drawn as SVG by hand, it references only these variables, so it changes along with the built-in diagrams across themes, dark mode and print. `check` also flags overlapping text, text outside its box, lines across text and hidden arrowheads in hand-drawn SVG.
+
 UI mockups have [their own light and dark palettes and series candidates](../skills/html-view/scripts/src/artifacts/ui/theme.mjs), separate from the built-in reading themes.
 
 A minimal `harbor.json` for `--theme-file`:

@@ -102,5 +102,36 @@ KChart.define('core/context', ({ 'core/scene': scene, 'core/theme': themeApi, 'c
     };
     return ctx;
   }
-  return { createContext };
+  function structureRoles({ theme, media = 'screen', tones } = {}) {
+    const ctx = createContext({ theme, media, width: 800 });
+    const d = ctx.design, look = { ...themeApi.defaultStyle, ...d.style, ...d.diagram };
+    // 装饰色可沿用 UI 已发布的线框色，不要求达到数据序列的区分度。
+    if (tones !== undefined && (!Array.isArray(tones) || tones.length !== 6 || ![...tones].every(colorApi.isHex))) {
+      throw new TypeError('Structure tones must contain six hex colors');
+    }
+    const palette = tones && media === 'screen' ? themeApi.paletteOf({ ...d, tones }) : ctx.palette;
+    const colors = {};
+    for (let k = 1; k <= 6; k += 1) {
+      const tone = ctx.frameTone(palette[`tone${k}`]);
+      colors[`frame-${k}`] = ctx.tint(d.bg, tone, 0.45);
+      colors[`frame-${k}-fill`] = ctx.tint(d.bg, tone, 0.07);
+    }
+    const em = ctx.frameTone(palette.accent, true);
+    return Object.freeze({
+      colors: Object.freeze({
+        ...colors,
+        node: d[look.nodeBackground],
+        'node-line': ctx.tint(d.bg, ctx.frameTone(palette.tone1), 0.40),
+        edge: d.fg4,
+        'edge-strong': ctx.color('muted'),
+        em,
+        'on-em': ctx.textOn(em),
+        'em-fill': ctx.tint(d.bg, ctx.frameTone(palette.accent), 0.12),
+        'em-line': ctx.tint(d.bg, ctx.frameTone(palette.accent), 0.45),
+        chip: d.bg,
+      }),
+      radius: look.radius, smallRadius: look.smallRadius, fontFamily: ctx.fontFamily,
+    });
+  }
+  return { createContext, structureRoles };
 });

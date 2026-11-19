@@ -91,7 +91,8 @@ export function createRenderer({ specs, readMap = readMapFile } = {}) {
   });
 }
 
-const metadata = loadModules(['chart/catalog', 'core/theme']);
+const metadata = loadModules(['chart/catalog', 'core/theme', 'core/context']);
+export const { structureRoles } = metadata['core/context'];
 export const { catalog } = metadata['chart/catalog'];
 export const { theme, themes, resolveThemeConfig, validateThemeSnapshot, DEFAULT_THEME, FONT_FAMILY, defaultStyle } = metadata['core/theme'];
 export { modulesFor };

@@ -1,4 +1,4 @@
-import { themes as KTHEMES, theme as resolveTheme, DEFAULT_THEME, defaultStyle } from '../../../kchart/node.mjs';
+import { themes as KTHEMES, theme as resolveTheme, DEFAULT_THEME, defaultStyle, structureRoles } from '../../../kchart/node.mjs';
 import { readAsset } from './assets.mjs';
 
 const builtins = Object.values(KTHEMES);
@@ -30,10 +30,17 @@ function palette(theme) {
     ...Object.fromEntries(theme.tones.map((color, index) => [`--viz-${index + 1}`, color])),
   };
 }
+export function structureProperties({ colors, radius, smallRadius, fontFamily }) {
+  return {
+    ...Object.fromEntries(Object.entries(colors).map(([role, value]) => [`--viz-${role}`, value])),
+    '--viz-radius': `${radius}px`, '--viz-radius-sm': `${smallRadius}px`, '--viz-font': fontFamily,
+  };
+}
+
 export function themeCss(theme, media = 'screen') {
   const value = resolveTheme(theme, { media });
   const selector = `[data-theme="${value.id}"]`;
-  const colors = declarations({ 'color-scheme': value.scheme, '--font-sans': value.fontFamily, ...palette(value) });
+  const colors = declarations({ 'color-scheme': value.scheme, '--font-sans': value.fontFamily, ...palette(value), ...structureProperties(structureRoles({ theme, media })) });
   // Print colors must override even a later screen rule with the same theme id.
   if (media === 'print') return `${selector}[data-theme]{${colors}}`;
   const style = declarations(styleProperties(value.style, defaultStyle));

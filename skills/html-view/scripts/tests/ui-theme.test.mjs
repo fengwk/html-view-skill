@@ -3,6 +3,10 @@ import assert from 'node:assert/strict';
 import { generateTokens, normalizeDesign, normalizeDevice, normalizeLang } from '../src/artifacts/ui/theme.mjs';
 import { ToolError } from '../src/shared/output.mjs';
 import { loadModules } from '../../kchart/modules.mjs';
+import { structureRoles } from '../../kchart/node.mjs';
+import { renderUi } from '../src/artifacts/ui/render.mjs';
+import { renderShell } from '../src/shared/shell.mjs';
+import { structureProperties } from '../src/shared/themes.mjs';
 
 // Theme creation is delegated to core/theme; this checks both schemes stay valid and return CSS for the UI.
 test('UI design produces validated light/dark KChart themes and stable CSS tokens', () => {
@@ -49,6 +53,25 @@ test('wireframe omits red in status and chart colors in both schemes', () => {
     assert.match(css, new RegExp(`--danger: ${theme.danger};`));
   }
   for (const [, hex] of css.matchAll(/--(?:danger-soft|viz-\d): (#[\da-f]{6});/g)) assert.ok(notRed(hex), hex);
+});
+
+// 从生成的 HTML 读取已灰化的实际序列色，核对结构变量没有使用原始序列色。
+test('UI HTML structure tokens follow the emitted wireframe tones in both schemes', () => {
+  const { html, themes } = renderUi({ title: 'Sketch', design: { fidelity: 'wireframe', brand: '#d82420' } }, renderShell);
+  const { tint } = loadModules(['core/color'])['core/color'];
+  for (const scheme of ['light', 'dark']) {
+    const block = html.split(`:root[data-scheme="${scheme}"] {`).slice(1)
+      .map(rule => rule.split('}')[0]).find(rule => rule.includes('--viz-1:'));
+    assert.ok(block, scheme);
+    const css = Object.fromEntries([...block.matchAll(/(--[\w-]+): ([^;]+);/g)].map(([, key, value]) => [key, value]));
+    const tones = Array.from({ length: 6 }, (_, i) => css[`--viz-${i + 1}`]);
+    assert.notDeepEqual(tones, themes[scheme].tones);
+    for (const [token, value] of Object.entries(structureProperties(structureRoles({ theme: themes[scheme], tones })))) {
+      assert.equal(css[token], value, `${scheme} ${token}`);
+    }
+    assert.equal(css['--viz-frame-1'], tint(themes[scheme].bg, tones[0], 0.45));
+    assert.equal(css['--viz-em'], tones[1]);
+  }
 });
 
 // 具名主题可以独立改色；高保真 UI 的默认六序列仍是已发布的取色结果和顺序。

@@ -167,12 +167,21 @@
     }
   }
 
+  function current() {
+    return { screen: state.screenId, state: state.stateName };
+  }
+
+  function notifyChange() {
+    document.dispatchEvent(new CustomEvent('htmlview:change', { detail: current() }));
+  }
+
   function showScreen(id, stateName, options) {
     var screens = allScreens();
     if (!screens.length) return;
     if (state.dialogs.length) closeAllDialogs();
     var target = id ? findScreen(id) : screens[0];
     if (!target) return;
+    var previous = current();
     screens.forEach(function (screen) { setHidden(screen, screen !== target); });
     state.screenId = target.id;
     var names = statesOf(target);
@@ -189,6 +198,7 @@
     if (!(options && options.silent)) {
       try { target.focus({ preventScroll: true }); } catch (err) { target.focus(); }
     }
+    if (!(options && options.initial) && (previous.screen !== state.screenId || previous.state !== state.stateName)) notifyChange();
   }
 
   function setState(name) {
@@ -198,6 +208,7 @@
     if (names.indexOf(name) < 0) return;
     if (state.dialogs.length) closeAllDialogs();
     closeMenus();
+    var changed = state.stateName !== name;
     state.stateName = name;
     applyWhen(screen, name);
     relayoutViz(screen);
@@ -207,6 +218,7 @@
     var active = document.activeElement;
     if (active && active !== document.body && !isVisible(active)) screen.focus();
     scheduleFloating();
+    if (changed) notifyChange();
   }
 
   function syncToggleTriggers(id, expanded) {
@@ -644,7 +656,8 @@
 
   function showToast(message) {
     var host = toastHostNode();
-    while (host.children.length >= 3) dismissToast(host.firstElementChild);
+    var visible = Array.from(host.children).filter(function (node) { return !node.classList.contains('ui-toast-out'); });
+    while (visible.length >= 3) dismissToast(visible.shift());
     var close = el('button', { type: 'button', class: 'ui-toast-close', 'aria-label': t('toastClose') }, el('i', { class: 'icon', 'data-icon': 'close' }));
     var node = el('div', { class: 'ui-toast' }, [
       el('span', { class: 'ui-toast-text' }, message),
@@ -1315,8 +1328,7 @@
     var fromHash = (location.hash || '').replace(/^#/, '');
     var linked = findScreen(fromHash);
     var target = linked || screens[0];
-    state.screenId = target ? target.id : null;
-    showScreen(target ? target.id : null, null, { silent: true, noHash: true });
+    showScreen(target ? target.id : null, null, { silent: true, noHash: true, initial: true });
     // 打开 #scr-… 链接时，浏览器会把该屏滚到视口顶端，藏到吸顶工具栏下面；原型从页首完整显示。
     if (linked) {
       var toTop = function () { if (window.scrollY) window.scrollTo(0, 0); };
@@ -1776,4 +1788,20 @@
   ensureScrim();
   toastHostNode();
   syncMode();
+
+  window.htmlviewUI = Object.freeze({
+    go: function (screenId, name) { if (screenId) showScreen(screenId, name); },
+    state: function (name) {
+      var names = statesOf(currentScreen());
+      if (names.indexOf(name) < 0) {
+        throw new TypeError('未知状态「' + String(name) + '」，可用状态：' + (names.join('、') || '无'));
+      }
+      setState(name);
+    },
+    open: function (id) { openDialog(document.getElementById(id)); },
+    close: function () { closeDialog(state.dialogs[state.dialogs.length - 1]); },
+    toast: function (text) { if (text) showToast(String(text)); },
+    current: current,
+  });
+  if (currentScreen()) notifyChange();
 })();

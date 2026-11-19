@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { getTheme, listThemes, themesCss, readingCss } from '../src/shared/themes.mjs';
+import { structureRoles } from '../../kchart/node.mjs';
+import { getTheme, listThemes, themesCss, readingCss, structureProperties } from '../src/shared/themes.mjs';
 import { auditContent } from '../src/shared/static-audit.mjs';
 import { markdownToContent } from '../src/shared/markdown.mjs';
 import { auditViz, collectViz, vizMarkup } from '../src/shared/viz.mjs';
@@ -11,10 +12,18 @@ import { auditShell, parseShell, renderShell } from '../src/shared/shell.mjs';
 
 test('built-in themes retain KChart color palette and print transforms dark themes via core/theme', () => {
   // Verifies page tokens and chart colors share the runtime source rather than a duplicated palette.
+  const html = renderShell({ kind: 'doc', content: '<p>结构图</p>' });
   for (const { id } of listThemes()) {
     const theme = getTheme(id);
     assert.ok(theme.css.includes(`--viz-1:${theme.tones[0]}`));
     assert.ok(theme.css.includes(`--viz-fg:${theme.fg1}`));
+    for (const [media, suffix] of [['screen', ''], ['print', '[data-theme]']]) {
+      const block = html.split(`[data-theme="${id}"]${suffix}{`)[1]?.split('}')[0].split(';');
+      assert.ok(block);
+      for (const [key, value] of Object.entries(structureProperties(structureRoles({ theme: id, media })))) {
+        assert.ok(block.includes(`${key}:${value}`), `${id}/${media} ${key}`);
+      }
+    }
   }
   const print = themesCss().slice(themesCss().indexOf('@media print'));
   assert.match(print, /data-theme="obsidian"\]\[data-theme\][^}]*--bg:#ffffff/i);

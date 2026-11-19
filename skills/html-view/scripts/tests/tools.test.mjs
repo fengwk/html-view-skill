@@ -6,6 +6,9 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { findBrowser } from '../src/shared/browser.mjs';
+import { loadModules } from '../../kchart/modules.mjs';
+import { resolveThemeConfig, structureRoles } from '../../kchart/node.mjs';
+import { structureProperties } from '../src/shared/themes.mjs';
 
 const BIN = fileURLToPath(new URL('../htmlview', import.meta.url));
 const browserSkip = findBrowser() ? false : '本机没有 Chrome / Chromium，跳过浏览器工具用例';
@@ -103,6 +106,54 @@ test('viz schema 与 palette 通过 KChart 原生 API 返回契约字段', async
   assert.ok(!('accent' in palettePayload.palette));
   assert.ok(!palettePayload.roles.some(({ role }) => role === 'accent'));
   assert.match(palettePayload.svgSkeleton, /^<svg\b/);
+  // 发布的调色板角色必须与页面变量一一对应，模板本身不烘焙颜色。
+  const structure = structureProperties(structureRoles({ theme: 'paper' }));
+  assert.deepEqual(Object.fromEntries(palettePayload.structure.map(({ role, cssVariable, value, purpose }) => {
+    assert.equal(cssVariable, `--viz-${role}`);
+    assert.ok(purpose);
+    return [cssVariable, value];
+  })), structure);
+  assert.equal(palettePayload.tokens.font.family, structure['--viz-font']);
+  assert.equal(`${palettePayload.tokens.radius.frame}px`, structure['--viz-radius']);
+  assert.doesNotMatch(palettePayload.svgSkeleton, /#[\da-f]{3,8}\b|\b(?:style|class)=|<style\b/i);
+  assert.ok(palettePayload.figureTemplate.includes(palettePayload.svgSkeleton));
+});
+
+// 用 KChart 同一套估算与断行验证 CLI 输出，包含中英文和加粗字重。
+test('viz measure returns KChart widths and lines and enforces minimum size', () => {
+  const { fallbackMeasure, wrapText } = loadModules(['core/text'])['core/text'];
+  const samples = ['payment-callback', '订单服务'];
+  const size = 14, weight = 600, maxWidth = 65;
+  const result = invoke(['viz', 'measure', ...samples, '--size', String(size), '--weight', String(weight), '--max-width', String(maxWidth)]);
+  assert.equal(result.exitCode, 0, result.stdout);
+  const itemOf = (text) => ({ text, width: Math.ceil(fallbackMeasure(text, size, weight)) });
+  assert.deepEqual(JSON.parse(result.stdout), { ok: true, size, weight, items: samples.map(text => ({
+    ...itemOf(text), lines: Array.from(wrapText(text, maxWidth, { size, weight }), itemOf),
+  })) });
+  const invalid = invoke(['viz', 'measure', samples[0], '--size', '11']);
+  assert.equal(invalid.exitCode, 2);
+  assert.equal(JSON.parse(invalid.stdout).error.code, 'USAGE');
+  assert.match(JSON.parse(invalid.stdout).error.next, /12px/);
+});
+
+// 通过真实 --theme-file 入口核对生成页的结构样式，尤其是暗色主题的打印回退。
+test('doc new emits custom theme structure variables for screen and print', (t) => {
+  const dir = tempDir(t), configFile = join(dir, 'theme.json'), out = join(dir, 'custom.html');
+  const config = { id: 'sketch-night', extends: 'obsidian', fontFamily: 'monospace', diagram: { radius: 12, smallRadius: 3 } };
+  writeFileSync(configFile, JSON.stringify(config));
+  const result = invoke(['doc', 'new', out, '--type', 'doc', '--title', 'Example', '--theme-file', configFile]);
+  assert.equal(result.exitCode, 0, result.stdout);
+  const page = readFileSync(out, 'utf8');
+  const theme = resolveThemeConfig(config);
+  const id = JSON.parse(result.stdout).theme;
+  assert.match(id, /^custom-sketch-night-[a-f0-9]{64}$/);
+  for (const [media, suffix] of [['screen', ''], ['print', '[data-theme]']]) {
+    const block = page.split(`[data-theme="${id}"]${suffix}{`)[1]?.split('}')[0].split(';');
+    assert.ok(block);
+    for (const [key, value] of Object.entries(structureProperties(structureRoles({ theme, media })))) {
+      assert.ok(block.includes(`${key}:${value}`), `${media} ${key}`);
+    }
+  }
 });
 
 test('viz render 用 Chrome 实测 KChart JSON 并输出 SVG', { skip: browserSkip }, async (t) => {

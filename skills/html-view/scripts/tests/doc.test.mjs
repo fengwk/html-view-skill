@@ -92,6 +92,17 @@ test('doc audit combines shared figure-title diagnostics with the doc-specific l
   assert.ok(unsafeResult.failures.some((failure) => failure.code === 'FORBIDDEN_TAG'));
 });
 
+// A hand-drawn SVG uses the page theme; a fallback does not excuse a misspelled token.
+test('doc audit checks CSS variables in SVG attributes against shipped theme tokens', async () => {
+  const check = (fill) => audit(renderShell({ kind: 'doc', title: '示例', theme: 'claude',
+    attrs: { 'data-layout': 'article' }, meta: { 'doc:type': 'doc' },
+    content: `<svg viewBox="0 0 10 10"><rect width="10" height="10" fill="${fill}" stroke="var(--viz-1)"/></svg>`,
+  }));
+  assert.deepEqual((await check('var(--viz-fg)')).failures, []);
+  const { failures } = await check('var(--viz-frm-1, var(--surface-2))');
+  assert.deepEqual(failures.map(({ code, detail }) => [code, detail]), [['UNKNOWN_TOKEN', '未定义的样式变量 --viz-frm-1']]);
+});
+
 // The stable diff parts include chapter names and remain parseable for integration's document diff command.
 test('parts uses stable unique document chapter keys', () => {
   const html = renderShell({ kind: 'doc', title: '虚构文档', theme: 'claude', meta: { 'doc:type': 'doc' }, content: '<h2 id="a">甲</h2><p>一</p><h2 id="a">甲</h2><p>二</p>' });

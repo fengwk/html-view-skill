@@ -9,6 +9,11 @@ import { applyPrintPaper, readPageRules, resolvePageMetrics } from './page-metri
 
 const FIX = {
   SMALL_TEXT: '字号至少 12px；SVG 按 1:1 绘制，不靠 viewBox 缩放；放不下时让外层容器横向滚动',
+  SVG_TEXT_OVERLAP: '移开或缩短重叠的文字；按 htmlview viz measure 的宽度留出间距，连线标签放在线旁的空白处',
+  SVG_TEXT_OVERFLOW: '按 htmlview viz measure 的宽度加宽图形或换行，左右至少留 8px；超出画布时同步加大 svg 的 width、height 和 viewBox',
+  SVG_LINE_ON_TEXT: '改走线路绕开文字；连线上的标签放一块 var(--viz-chip) 底框，并写在连线之后',
+  SVG_MARKER_MISSING: '把 marker-end 等属性指向本文档里存在的 <marker id>；同一文档内 id 唯一，用图的 id 作前缀',
+  SVG_ARROW_HIDDEN: '连线终点停在框边外，并把连线写在它连接的框之后',
   TEXT_CLIP: '扩大文本元素或允许换行；若省略号截断是有意的，在元素上标记 data-allow-truncate',
   LOW_CONTRAST: '加深文字色或减淡底色；正文对比度至少 4.5:1',
   PAGE_OVERFLOW: '找出超宽元素（SVG、表格、长 URL），放进横向滚动容器或改成自适应宽度',
@@ -134,13 +139,13 @@ function inspectPage(options) {
     return { scope, where: (place ? place + ' › ' : '') + describe(el) };
   };
   // fixFor 选择 FIX 表里的另一条改法；文案只在 Node 侧维护一份。
-  const push = (code, el, detail, fixFor) => {
-    // KChart 图卡以统一 figure/body 展示定位；普通 HTML 表格与图形仍按具体元素检查。
-    const target = el.closest('.viz-body, .viz-figure') || el;
+  const push = (code, el, detail, fixFor, instance = '') => {
+    // 手绘图检查定位到文字；其余检查保留已有的图卡定位方式。
+    const target = code.startsWith('SVG_') ? el : el.closest('.viz-body, .viz-figure') || el;
     const { scope, where } = locationOf(target);
     failures.push({
       code,
-      key: `${fixFor === 'PRINT_TALL_FIGURE' ? 'height:' : ''}${keyOf(target)}`,
+      key: `${fixFor === 'PRINT_TALL_FIGURE' ? 'height:' : ''}${keyOf(target)}${instance ? ':' + instance : ''}`,
       scope,
       where,
       detail,
@@ -285,6 +290,171 @@ function inspectPage(options) {
     return size;
   };
   const round = (value) => Math.round(value * 10) / 10;
+
+  if (viewport === 'desktop') {
+    const opacityCache = new WeakMap();
+    const effectiveOpacity = (el) => {
+      if (!el) return 1;
+      if (!opacityCache.has(el)) {
+        opacityCache.set(el, Number(getComputedStyle(el).opacity) * effectiveOpacity(el.parentElement));
+      }
+      return opacityCache.get(el);
+    };
+    const shown = (el) => visible(el) && effectiveOpacity(el) > 0
+      && !el.closest('defs, symbol, marker, clipPath, mask, pattern');
+    const paintAlpha = (paint) => paint === 'none' || !paint ? 0
+      : isColor(paint) || paint === 'transparent' ? parseColor(paint).a : 1;
+    const contains = (shape, point) => {
+      const { left, right, top, bottom } = shape.box;
+      return point.x >= left && point.x <= right && point.y >= top && point.y <= bottom
+        && shape.el.isPointInFill(point.matrixTransform(shape.inverse));
+    };
+    const documentURL = new URL(document.URL);
+    documentURL.hash = '';
+    const markerId = (value) => {
+      const ref = /^url\((?:"([^"]+)"|'([^']+)'|([^\s)]+))\)$/.exec(value);
+      if (!ref) return null;
+      const address = ref[1] ?? ref[2] ?? ref[3];
+      let url;
+      try { url = new URL(address, documentURL); } catch { return null; }
+      if (!url.hash) return null;
+      const hash = url.hash.slice(1);
+      url.hash = '';
+      if (url.href !== documentURL.href) return null;
+      try { return decodeURIComponent(hash); } catch { return hash; }
+    };
+    // 沿路径以最多 1 个屏幕像素的步长累加距离，兼顾曲线与非等比缩放。
+    const arrowBackPoint = (el, ctm, length, scale, start) => {
+      const at = (distance) => el.getPointAtLength(start ? distance : length - distance);
+      let previous = at(0).matrixTransform(ctm);
+      let remaining = 4;
+      let distance = 0;
+      for (let i = 0; i < 2000 && distance < length; i += 1) {
+        const next = Math.min(length, distance + 1 / scale);
+        const local = at(next);
+        const point = local.matrixTransform(ctm);
+        const step = Math.hypot(point.x - previous.x, point.y - previous.y);
+        if (step >= remaining) return at(distance + (next - distance) * remaining / step);
+        if (next === length) return local;
+        remaining -= step;
+        distance = next;
+        previous = point;
+      }
+      return null;
+    };
+    const overflowSides = (box, outer) => [
+      ['左', outer.left - box.left], ['右', box.right - outer.right],
+      ['上', outer.top - box.top], ['下', box.bottom - outer.bottom],
+    ].filter(([, px]) => px > 1).map(([side, px]) => `${side}侧 ${round(px)}px`).join('、');
+
+    for (const svg of document.querySelectorAll('svg:not(svg svg)')) {
+      if (!inContent(svg) || !shown(svg) || svg.closest('[aria-hidden="true"], .viz-figure:has(> pre[data-viz])')) continue;
+      const texts = [...svg.querySelectorAll('text')]
+        .filter((el) => el.ownerSVGElement === svg && shown(el))
+        .map((el) => ({ el, text: el.textContent.trim(), box: el.getBoundingClientRect() }))
+        .filter(({ text, box }) => text && box.width > 0 && box.height > 0);
+      if (!texts.length) continue;
+
+      const counts = {};
+      const full = (code) => counts[code] >= 20;
+      const report = (code, el, detail, instance) => {
+        if (full(code)) return;
+        push(code, el, detail, undefined, instance);
+        counts[code] = (counts[code] || 0) + 1;
+      };
+      const missingCode = 'SVG_MARKER_MISSING';
+      const arrowCode = 'SVG_ARROW_HIDDEN';
+      const shapes = [];
+      const opaqueShapes = [];
+      const connectors = [];
+      for (const el of svg.querySelectorAll('*')) {
+        if (el.ownerSVGElement !== svg || !shown(el)) continue;
+        const cs = getComputedStyle(el);
+        const missing = new Set();
+        const markers = [cs.markerStart, cs.markerMid, cs.markerEnd].map((value) => {
+          const id = markerId(value);
+          if (!id) return false;
+          if (document.getElementById(id) instanceof SVGMarkerElement) return true;
+          if (!missing.has(id)) report(missingCode, el, `箭头引用 #${id} 不存在`, id);
+          missing.add(id);
+          return false;
+        });
+        const kind = el.localName;
+        if (!/^(rect|circle|ellipse|polygon|path|line|polyline)$/.test(kind)) continue;
+        const ctm = el.getScreenCTM();
+        if (!ctm) continue;
+        const fill = paintAlpha(cs.fill) * Number(cs.fillOpacity);
+        const stroke = parseFloat(cs.strokeWidth) > 0 && paintAlpha(cs.stroke) * Number(cs.strokeOpacity) > 0;
+        if (stroke && (kind === 'line' || kind === 'polyline'
+          || (kind === 'path' && (cs.fill === 'none' || Number(cs.fillOpacity) === 0)))) {
+          connectors.push({ el, ctm, start: markers[0], end: markers[2] });
+        }
+        const container = kind !== 'line' && kind !== 'polyline'
+          && !(kind === 'path' && cs.fill === 'none') && (fill > 0 || stroke);
+        // 渐变、图案等 paint server 的计算值不能确定采样处的 alpha。
+        const opaque = kind !== 'line' && isColor(cs.fill) && fill * effectiveOpacity(el) >= 0.9;
+        if (!container && !opaque) continue;
+        const shape = { el, box: el.getBoundingClientRect(), inverse: ctm.inverse() };
+        if (container) shapes.push(shape);
+        if (opaque) opaqueShapes.push(shape);
+      }
+
+      const overlapCode = 'SVG_TEXT_OVERLAP';
+      const overflowCode = 'SVG_TEXT_OVERFLOW';
+      const svgBox = svg.getBoundingClientRect();
+      for (const [i, { el, box }] of texts.entries()) {
+        for (let j = 0; j < i && !full(overlapCode); j += 1) {
+          const other = texts[j];
+          const w = Math.min(box.right, other.box.right) - Math.max(box.left, other.box.left);
+          const h = Math.min(box.bottom, other.box.bottom) - Math.max(box.top, other.box.top);
+          if (w > 2 && h > 2) report(overlapCode, el, `与「${other.text}」重叠 ${round(w)}×${round(h)}px`, keyOf(other.el));
+        }
+        if (full(overflowCode)) continue;
+        const center = new DOMPoint(box.left + box.width / 2, box.top + box.height / 2);
+        const container = shapes.findLast((shape) => after(shape.el, el) && contains(shape, center));
+        const shapeSides = container && overflowSides(box, container.box);
+        if (shapeSides) report(overflowCode, el, `超出容器：${shapeSides}`);
+        const canvasSides = overflowSides(box, svgBox);
+        if (canvasSides) report(overflowCode, el, `超出 SVG 画布：${canvasSides}`, 'canvas');
+      }
+
+      const lineCode = 'SVG_LINE_ON_TEXT';
+      for (const { el, ctm, start, end } of connectors) {
+        const checkArrow = !full(arrowCode) && (start || end);
+        if (full(lineCode) && !checkArrow) continue;
+        const length = el.getTotalLength();
+        if (!(length > 0)) continue;
+        // 取变换的最大伸缩率，让未触及上限时的采样间距不超过 2 个屏幕像素。
+        const scale = (Math.hypot(ctm.a + ctm.d, ctm.b - ctm.c)
+          + Math.hypot(ctm.a - ctm.d, ctm.b + ctm.c)) / 2;
+        const masks = opaqueShapes.filter((shape) => after(el, shape.el));
+        const masked = (local, point) => masks.some((shape) => contains(shape, point)
+          && insideClip(shape.el, local.matrixTransform(el.getCTM())));
+        if (checkArrow && masks.length && scale > 0 && [true, false].some((fromStart) => {
+          if (fromStart ? !start : !end) return false;
+          const back = arrowBackPoint(el, ctm, length, scale, fromStart);
+          return back && masked(back, back.matrixTransform(ctm));
+        })) report(arrowCode, el, '箭头被后面绘制的图形盖住');
+        if (full(lineCode)) continue;
+        const steps = Math.min(1999, Math.max(1, Math.ceil(length * scale / 2)));
+        const remaining = new Set(texts);
+        for (let i = 0; i <= steps && remaining.size && !full(lineCode); i += 1) {
+          const local = el.getPointAtLength(length * i / steps);
+          const point = local.matrixTransform(ctm);
+          const hits = [];
+          for (const item of remaining) {
+            const { left, right, top, bottom } = item.box;
+            if (point.x > left + 2 && point.x < right - 2 && point.y > top + 2 && point.y < bottom - 2) hits.push(item);
+          }
+          if (!hits.length || masked(local, point)) continue;
+          for (const item of hits) {
+            report(lineCode, item.el, '被连线穿过', keyOf(el));
+            remaining.delete(item);
+          }
+        }
+      }
+    }
+  }
 
   if (viewport === 'desktop' || viewport === 'mobile') {
     for (const el of document.body.querySelectorAll('*')) {

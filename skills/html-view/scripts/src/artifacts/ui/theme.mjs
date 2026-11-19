@@ -1,5 +1,7 @@
 import { loadModules } from '../../../../kchart/modules.mjs';
+import { structureRoles } from '../../../../kchart/node.mjs';
 import { fail } from '../../shared/output.mjs';
+import { structureProperties } from '../../shared/themes.mjs';
 
 const modules = loadModules(['core/color', 'core/theme']);
 const color = modules['core/color'];
@@ -167,7 +169,12 @@ function cssFor(theme, design, scheme, adjusted) {
     `  --font: ${theme.fontFamily};`,
     `  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;`,
   );
-  theme.tones.forEach((hex, index) => lines.push(`  --viz-${index + 1}: ${design.fidelity === 'wireframe' ? color.mix(hex, scheme === 'light' ? '#666666' : '#bbbbbb', 0.55) : hex};`));
+  const tones = theme.tones.map((hex) => design.fidelity === 'wireframe'
+    ? color.mix(hex, scheme === 'light' ? '#666666' : '#bbbbbb', 0.55) : hex);
+  tones.forEach((hex, index) => lines.push(`  --viz-${index + 1}: ${hex};`));
+  for (const [token, value] of Object.entries(structureProperties(structureRoles({ theme, tones })))) {
+    lines.push(`  ${token}: ${value};`);
+  }
   lines.push('}');
   return lines.join('\n');
 }

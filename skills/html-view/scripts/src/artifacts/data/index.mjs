@@ -7,7 +7,8 @@ import { vizMarkup, auditViz } from '../../shared/viz.mjs';
 import { markdownToContent } from '../../shared/markdown.mjs';
 import { auditContent } from '../../shared/static-audit.mjs';
 import { escapeHtml, scanElements, innerHtml, decodeEntities } from '../../shared/html-util.mjs';
-import { themeCss } from '../../shared/themes.mjs';
+import { readingCss, themeCss } from '../../shared/themes.mjs';
+import { readAsset } from '../../shared/assets.mjs';
 import { selectTheme, themeId, themeOptions, THEME_USAGE } from '../../shared/theme-file.mjs';
 import { emit, fail, ToolError } from '../../shared/output.mjs';
 import { parseArgs } from '../../shared/args.mjs';
@@ -24,7 +25,7 @@ const escape=escapeHtml;
 // 标题层级、锚点、id 和页面标题要看整页才能判断，留给 build 后的 audit。
 const PAGE_CONTEXT_CODES=new Set(['HEADING_SKIP','BROKEN_ANCHOR','DUPLICATE_ID','TITLE_MISMATCH']);
 let dataCss;
-async function narrativeMarkupIssues(content,where){dataCss??=await readFile(path.resolve(here,'../../../../assets/page/data.css'),'utf8');return auditContent(content,{kind:'data',css:dataCss}).failures.filter(item=>!PAGE_CONTEXT_CODES.has(item.code)).map(item=>issue(CODES.BAD_TEXT,'error',where,`叙述 Markdown 中的 HTML 不能通过 audit（${item.code}）：${item.detail}`,item.fix||'改用 Markdown 写法，或删除该 HTML'));}
+async function narrativeMarkupIssues(content,where){dataCss??=[readingCss(),readAsset('page/viz.css'),readAsset('page/data.css')].join('\n');return auditContent(content,{kind:'data',css:dataCss}).failures.filter(item=>!PAGE_CONTEXT_CODES.has(item.code)).map(item=>issue(CODES.BAD_TEXT,'error',where,`叙述 Markdown 中的 HTML 不能通过 audit（${item.code}）：${item.detail}`,item.fix||'改用 Markdown 写法，或删除该 HTML'));}
 const optionsSpec={force:{type:'boolean'},out:{type:'string'},...themeOptions,lang:{type:'string'}};
 const buildUsage=`htmlview data build <report.json> --out <file> ${THEME_USAGE} [--lang <lang>] [--force]`;
 const styleUsage=`htmlview style <file> ${THEME_USAGE}`;

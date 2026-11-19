@@ -129,6 +129,97 @@ test('UI shell preserves select/date required-value-change behavior, navigation,
   assert.deepEqual(restored, { shots: 0, screen: false, svg: true });
 });
 
+// Drive inline handlers in real Chrome, including a pointer click that would hit a leftover scrim.
+test('inline UI API shares navigation, state, dialog, toast and change events', async (t) => {
+  const dir = mkdtempSync(join(tmpdir(), 'htmlview-ui-api-'));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const file = join(dir, 'api.html');
+  const content = `
+<section class="screen" id="scr-1" data-title="起点">
+  <button data-action="go">脚本跳转</button><button data-go="scr-2" data-go-state="已完成">声明式跳转</button>
+</section>
+<section class="screen" id="scr-2" data-title="操作" data-states="准备,加载中,已完成">
+  <nav class="side-nav"><a class="side-nav-item" data-go="scr-2" href="#scr-2">操作</a></nav>
+  <p data-when="已完成">已完成</p><p data-when="加载中" data-next="已完成">加载中</p>
+  <button data-action="state">加载</button><button data-action="open">打开</button><button data-action="toast">保存</button>
+  <dialog class="dialog" id="dlg"><button data-action="close">关闭</button></dialog>
+</section>
+<script>
+  const apiEvents = [];
+  document.addEventListener('htmlview:change', event => apiEvents.push(event.detail));
+  for (const [name, run] of Object.entries({
+    go: () => htmlviewUI.go('scr-2', '已完成'),
+    state: () => htmlviewUI.state('加载中'),
+    open: () => htmlviewUI.open('dlg'),
+    close: () => htmlviewUI.close(),
+    toast: () => htmlviewUI.toast('已保存'),
+  })) document.querySelector('[data-action="' + name + '"]').addEventListener('click', run);
+</script>`;
+  writeFileSync(file, renderUi({ title: '界面 API', device: 'mobile', content }, renderShell).html);
+  const browser = await launchBrowser();
+  t.after(() => browser.close());
+  const page = await browser.newPage();
+  t.after(() => page.close());
+  await page.setViewport({ width: 390, height: 844 });
+  await page.goto(pathToFileURL(file).href);
+
+  const click = (selector) => page.evaluate(`document.querySelector(${JSON.stringify(selector)}).click()`);
+  const nav = () => page.json(`JSON.stringify({ current: htmlviewUI.current(), hash: location.hash,
+    focused: document.activeElement.id, nav: document.querySelector('.side-nav-item').getAttribute('aria-current'),
+    shown: !document.querySelector('[data-when="已完成"]').hidden })`);
+  await click('[data-action="go"]');
+  const completed = { screen: 'scr-2', state: '已完成' };
+  const jumped = await nav();
+  assert.deepEqual(jumped, { current: completed, hash: '#scr-2', focused: 'scr-2', nav: 'page', shown: true });
+  await page.evaluate(`(() => {
+    const select = document.querySelector('#ui-bar select');
+    select.value = 'scr-1';
+    select.dispatchEvent(new Event('change', { bubbles: true }));
+  })()`);
+  await click('[data-go-state]');
+  assert.deepEqual(await nav(), jumped);
+  assert.deepEqual(await page.json('JSON.stringify(apiEvents)'), [
+    { screen: 'scr-1', state: '' }, completed, { screen: 'scr-1', state: '' }, completed,
+  ]);
+
+  const stateEvents = await page.json(`(async () => {
+    const start = apiEvents.length;
+    const finished = new Promise(resolve => document.addEventListener('htmlview:change', function done(event) {
+      if (event.detail.state !== '已完成') return;
+      document.removeEventListener('htmlview:change', done);
+      resolve();
+    }));
+    document.querySelector('[data-action="state"]').click();
+    const loadingVisible = !document.querySelector('[data-when="加载中"]').hidden;
+    await finished;
+    return JSON.stringify({ loadingVisible, changes: apiEvents.slice(start) });
+  })()`);
+  assert.deepEqual(stateEvents, { loadingVisible: true, changes: [{ screen: 'scr-2', state: '加载中' }, completed] });
+  assert.deepEqual(await page.json(`JSON.stringify((() => {
+    try { htmlviewUI.state('不存在'); } catch (error) {
+      return { frozen: Object.isFrozen(htmlviewUI), type: error.name, message: error.message };
+    }
+  })())`), { frozen: true, type: 'TypeError', message: '未知状态「不存在」，可用状态：准备、加载中、已完成' });
+
+  await click('[data-action="open"]');
+  assert.equal(await page.evaluate(`document.querySelector('#dlg').open && !document.querySelector('.ui-scrim').hidden`), true);
+  await click('[data-action="close"]');
+  assert.equal(await page.evaluate(`!document.querySelector('#dlg').open && document.querySelector('.ui-scrim').hidden`), true);
+  const point = await page.json(`JSON.stringify((() => {
+    const { x, y, width, height } = document.querySelector('[data-action="toast"]').getBoundingClientRect();
+    return { x: x + width / 2, y: y + height / 2 };
+  })())`);
+  await page.send('Input.dispatchMouseEvent', { type: 'mousePressed', ...point, button: 'left', clickCount: 1 });
+  await page.send('Input.dispatchMouseEvent', { type: 'mouseReleased', ...point, button: 'left', clickCount: 1 });
+  assert.equal(await page.evaluate(`document.querySelector('.ui-toast-text')?.textContent`), '已保存');
+  // The oldest toast animates out asynchronously; a burst must not block on its removal.
+  const activeToasts = await page.json(`(() => {
+    for (const text of ['甲', '乙', '丙', '丁']) htmlviewUI.toast(text);
+    return JSON.stringify([...document.querySelectorAll('.ui-toast:not(.ui-toast-out) .ui-toast-text')].map(node => node.textContent));
+  })()`);
+  assert.deepEqual(activeToasts, ['乙', '丙', '丁']);
+});
+
 // 深色线框稿打印时也应保留风险标记，而不是从默认打印色板取回红色。
 test('dark UI wireframes print a neutral chart status mark', async (t) => {
   const dir = mkdtempSync(join(tmpdir(), 'htmlview-ui-wireframe-'));

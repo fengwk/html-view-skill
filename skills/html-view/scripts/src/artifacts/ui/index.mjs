@@ -16,8 +16,9 @@ import { DEFAULTS, generateTokens, normalizeDesign, normalizeDevice, normalizeLa
 const usageNew = 'htmlview ui new <file> --title <标题> --device mobile|desktop|responsive --screens "屏幕一,屏幕二" [选项]';
 const usageStyle = 'htmlview style <file> [--lang <lang>] [--device mobile|desktop|responsive] [--fidelity wireframe|mockup] [--brand #hex] [--scheme light|dark] [--radius 0-16] [--density compact|regular]';
 const icons = loadModules(['core/icons'])['core/icons'];
+const UI_CSS = readAsset('page/ui.css');
 const UI_CLASSES = (() => {
-  const css = readAsset('page/ui.css').replace(/\/\*[\s\S]*?\*\//g, ' ');
+  const css = UI_CSS.replace(/\/\*[\s\S]*?\*\//g, ' ');
   const names = new Set();
   for (const rule of css.matchAll(/([^{}]+)\{/g)) for (const match of rule[1].matchAll(/\.(-?[_a-zA-Z][\w-]*)/g)) names.add(match[1]);
   return names;
@@ -36,6 +37,36 @@ function cssUsesFixedColor(css) {
     return /^(?:color|background(?:-[\w-]+)?|border(?:-[\w-]+)*|outline(?:-[\w-]+)?|box-shadow|text-shadow|fill|stroke|stop-color|caret-color|accent-color|--[\w-]+)$/i.test(property)
       && hardcodedColor(declaration.slice(colon + 1));
   });
+}
+
+function splitSelectorList(value) {
+  const parts = [];
+  const closers = [];
+  let start = 0;
+  let quote = '';
+  for (let i = 0; i < value.length; i += 1) {
+    const char = value[i];
+    if (char === '\\') { i += 1; continue; }
+    if (quote) {
+      if (char === quote) quote = '';
+      continue;
+    }
+    if (char === '/' && value[i + 1] === '*') {
+      const end = value.indexOf('*/', i + 2);
+      if (end < 0) break;
+      i = end + 1;
+      continue;
+    }
+    if (char === '"' || char === "'") quote = char;
+    else if (char === '(' || char === '[') closers.push(char === '(' ? ')' : ']');
+    else if (char === closers.at(-1)) closers.pop();
+    else if (char === ',' && !closers.length) {
+      parts.push(value.slice(start, i));
+      start = i + 1;
+    }
+  }
+  parts.push(value.slice(start));
+  return parts;
 }
 
 function readUi(html, file) {
@@ -207,6 +238,7 @@ export async function audit(html, { file = '文件' } = {}) {
     }
   }
   const allTags = tagsOf(content);
+  const hasInlineScript = allTags.some(({ name, attrs, closing }) => name === 'script' && !closing && !Object.hasOwn(attrs, 'src'));
   const formRanges = allTags.filter((tag) => tag.name === 'form' && !tag.closing).map((open) => ({
     start: open.start,
     end: allTags.find((tag) => tag.name === 'form' && tag.closing && tag.start > open.start)?.end ?? content.length,
@@ -231,7 +263,7 @@ export async function audit(html, { file = '文件' } = {}) {
       const value = selector[1].trim();
       if (value.startsWith('@')) continue;
       if (/^(?:from|to|\d+(?:\.\d+)?%)(?:\s*,|$)/i.test(value) && /@keyframes\b/i.test(css)) continue;
-      if (value.split(',').some((part) => !part.trim().startsWith('.x-'))) addFailure(failures, content, contentLine, 'CUSTOM_STYLE', index + selector.index, '自定义 CSS 选择器必须以 x- class 起头', '将选择器改为 .x-…，并只扩展界面稿专属元素');
+      if (splitSelectorList(value).some((part) => !part.trim().startsWith('.x-'))) addFailure(failures, content, contentLine, 'CUSTOM_STYLE', index + selector.index, '自定义 CSS 选择器必须以 x- class 起头', '将选择器改为 .x-…，并只扩展界面稿专属元素');
     }
   }
   for (const element of allTags) {
@@ -252,12 +284,18 @@ export async function audit(html, { file = '文件' } = {}) {
     }
     const nativeFormAction = name === 'button' && ['submit', 'reset'].includes(attrs.type) && formRanges.some((range) => start > range.start && start < range.end);
     // data-close 是无值属性；其余动作必须有目标或反馈文字。
-    const declared = Object.hasOwn(attrs, 'data-close') || ['data-go', 'data-open', 'data-toggle', 'data-tab', 'data-toast', 'data-state-to', 'href', 'data-note'].some((key) => attrs[key]?.trim());
-    if (!element.closing && !nativeFormAction && (name === 'button' || name === 'a') && !declared) {
+    const control = !element.closing && (name === 'button' || name === 'a');
+    const action = control && attrs['data-action']?.trim();
+    if (action && !hasInlineScript) {
+      addFailure(failures, content, contentLine, 'ORPHAN_ACTION', start, `data-action「${action}」没有内容区脚本处理`,
+        `在内容区行内 script 中用 [data-action="${action}"] 绑定事件，或改用 data-go、data-state-to 等声明式属性`);
+    }
+    const declared = (action && hasInlineScript) || Object.hasOwn(attrs, 'data-close') || ['data-go', 'data-open', 'data-toggle', 'data-tab', 'data-toast', 'data-state-to', 'href', 'data-note'].some((key) => attrs[key]?.trim());
+    if (control && !nativeFormAction && !declared) {
       const end = content.indexOf(`</${name}>`, start);
       const text = (attrs['aria-label'] || (end < 0 ? '' : content.slice(start, end).replace(/<[^>]*>/g, ''))).trim().slice(0, 40);
       const line = contentLine + String(content).slice(0, start).split('\n').length - 1;
-      notes.push({ code: 'INERT_CONTROL', line, message: `第 ${line} 行 <${name}>${text ? `「${text}」` : ''} 没有声明原型交互；加 data-go、data-state-to、data-open、data-close、data-toast 等，或改成不可点的元素` });
+      notes.push({ code: 'INERT_CONTROL', line, message: `第 ${line} 行 <${name}>${text ? `「${text}」` : ''} 没有声明原型交互；加 data-go、data-state-to、data-open、data-close、data-toast 或由行内脚本处理的 data-action 等，或改成不可点的元素` });
     }
   }
   const requiredModules = modulesForContent(content);
@@ -265,7 +303,7 @@ export async function audit(html, { file = '文件' } = {}) {
   if (missingModules.length) failures.push({ code: 'VIZ_MODULES', line: contentLine, detail: `外壳缺少图形模块：${missingModules.join(', ')}`, fix: '使用 htmlview style 重新生成包含当前图表的外壳' });
   const staticResult = auditContent(content, {
     kind: 'ui', css: [...doc.styles, ...styleBlocks.map(([, css]) => css)].join('\n'), lang: doc.lang, contentLine,
-    allowStyle: true, allowScript: true,
+    allowStyle: true, allowScript: true, tokenCss: `${UI_CSS}\n${generateTokens(doc.design).css}`,
   });
   const vizResult = auditViz(content, { lang: doc.lang, theme: doc.design.scheme === 'dark' ? 'obsidian' : 'paper', contentLine });
   // Native forms are part of the UI contract; the general document auditor rejects them for other artifacts.

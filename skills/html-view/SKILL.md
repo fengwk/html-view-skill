@@ -13,7 +13,7 @@ description: 生成、检查和导出离线单文件 HTML 文档、数据报表�
 |---|---|---|
 | 便于阅读和批注的技术方案、报告、说明、纪要或一页纸 | 有 Markdown 用 `doc build`；直接编辑 HTML 用 `doc new` | 先读[文档流程](references/artifacts/doc.md)；手写 HTML 组件、加交叉引用或处理评论时读[文档组件](references/artifacts/doc-components.md) |
 | 要核对经营数字、口径和图表的报表或 Dashboard | 从上游汇总文件建数据包；`data validate` 后 `data build` | 先读[报表流程](references/artifacts/data.md)，改字段、指标、图或叙述时读[数据包](references/artifacts/data-package.md)；做 Dashboard 时读[看板设计](references/guides/dashboard.md) |
-| 展示屏幕、状态或交互流程的线框、高保真稿或原型 | `ui new` 后填每个屏幕，用真实控件取值 | 先读[界面稿流程](references/artifacts/ui.md)，选组件或写交互时读[组件索引](references/artifacts/ui-components.md)；画数据看板时读[看板设计](references/guides/dashboard.md) |
+| 展示屏幕、状态或交互流程的线框、高保真稿或原型 | `ui new` 后填每个屏幕，用真实控件取值 | 先读[界面稿流程](references/artifacts/ui.md)，选组件或写交互时读[组件索引](references/artifacts/ui-components.md)；定版式、配色或手写组件时读[界面设计](references/guides/ui-design.md)；画数据看板时读[看板设计](references/guides/dashboard.md) |
 | 单张 SVG 或离线图页 | 选下表图族，写声明，再 `viz render` | 数据图先读[声明通则](references/charts/common.md)，再读所选图族；结构图直接读对应图族 |
 | 读取、检查、截图或导出本地 HTML | 使用 `read`、`check`、`shot`、`export` 或 `embed` | 参数和检查结果见[显示与导出](references/guides/check-export.md) |
 
@@ -44,7 +44,7 @@ description: 生成、检查和导出离线单文件 HTML 文档、数据报表�
 | 系统如何分层、容器和依赖在哪里？ | `C4Context`、`C4Container`、`C4Component`、`C4Dynamic`、`C4Deployment`、`architecture-beta`、`block-beta`、原生 `layers`、`blocks` | [架构](references/diagrams/architecture.md) |
 | 手头已有受控 Mermaid 数值图？ | `pie`、`xychart`、`sankey-beta`、`radar-beta`、`treemap-beta` | [Mermaid 数值图](references/diagrams/time.md#mermaid-数值图)；新数据图用上方 KChart 图型 |
 
-Markdown 用 `kchart`、`mermaid`、`layers`、`blocks`、`swimlane` 围栏；手写 HTML 用 `<pre data-viz="语法">`，转义其中的 HTML 特殊字符。文档图题写在声明中：KChart `title`，结构图前言 `title:` 或该语法支持的标题语句。图题和图中文字与正文用同一种语言。个别图必须手写 SVG 时，先读[主题色角色](references/guides/custom-svg.md)。
+Markdown 用 `kchart`、`mermaid`、`layers`、`blocks`、`swimlane` 围栏；手写 HTML 用 `<pre data-viz="语法">`，转义其中的 HTML 特殊字符。文档图题写在声明中：KChart `title`，结构图前言 `title:` 或该语法支持的标题语句。图题和图中文字与正文用同一种语言。内置图族放不下或表达不了时，如嵌套过深、关系过多或机制示意，先拆成总图和分图；仍需手画时读[手写 SVG](references/guides/custom-svg.md)。
 
 ## 命令速查
 
@@ -58,7 +58,7 @@ Markdown 用 `kchart`、`mermaid`、`layers`、`blocks`、`swimlane` 围栏；�
 | 换主题或界面配色 | 文档／报表／单图 HTML：`htmlview style file.html --theme paper`（`htmlview style --list` 列出主题）；界面稿：`htmlview style file.html --scheme dark` |
 | 显示检查、截图、导出 | `htmlview check file.html`；`htmlview shot file.html --select 'figure'`；`htmlview export file.html --format pdf`；整页长图 `htmlview export file.html --format png` |
 | 读取正文、内嵌本地资源 | `htmlview read file.html [--outline 或 --section id]`；`htmlview embed file.html` |
-| 独立图、字段约束、主题色 | `htmlview viz render spec.json --out chart.svg`；`htmlview viz schema bar`；`htmlview viz palette --theme paper` |
+| 独立图、字段约束、主题色、手写图量字 | `htmlview viz render spec.json --out chart.svg`；`htmlview viz schema bar`；`htmlview viz palette --theme paper`；`htmlview viz measure '订单服务' --size 13` |
 
 用户自带配色时用 `--theme-file <JSON>`，字段和示例见[主题文件](references/guides/themes.md)。主题随 HTML 内嵌；界面稿使用独立品牌配色。
 

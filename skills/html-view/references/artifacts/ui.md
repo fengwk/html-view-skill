@@ -64,8 +64,29 @@ KChart 图表只使用 `pre[data-viz="kchart"]` 声明。不要用 HTML 数据�
 
 ## 组件和自定义样式
 
-使用 [ui-components.md](ui-components.md) 列出的实际组件 class、图标名和 `data-*` 属性。自定义内容样式放在内容区开头的 `<style>` 内；类名以 `x-` 开始，颜色使用主题 CSS 变量、`currentColor` 或透明色，不写固定颜色。每个 `<input>`、`<select>` 和 `<textarea>` 都应有标签。
+先用 [ui-components.md](ui-components.md) 列出的组件 class、图标名和 `data-*` 属性。聊天气泡、播放器、时间轴、画布这类清单里没有的部分再手写。版式、字号和配色的取舍见[界面设计](../guides/ui-design.md)。
+
+- 自定义样式集中写在内容区开头唯一的 `<style>` 里。选择器以 `.x-` 开头；at 规则只用 `@media`、`@container`、`@supports` 和以 `x-` 命名的 `@keyframes`。
+- 颜色、字号、间距、圆角和阴影只取[样式变量](ui-components.md#样式变量)、`currentColor` 或透明色，不写固定颜色；这样明暗切换和品牌色会自动生效。自己的变量先在同一个 `<style>` 里以 `--x-` 开头定义再用；引用不存在的变量时，`audit` 报 `UNKNOWN_TOKEN`。
+- 每个 `<input>`、`<select>` 和 `<textarea>` 都应有标签。新增 `data-icon` 或图表后运行 `htmlview style <file>`，装入对应图标和图模块。
+
+## 行内脚本
+
+声明式属性表达不了的原型逻辑，如播放进度、本地发送消息、筛选列表，写在内容区的行内 `<script>` 里。脚本不加载外部文件、不发网络请求，数据用虚构样例。
+
+- 由脚本处理的按钮或链接加 `data-action="名称"`，脚本用 `[data-action="名称"]` 绑定事件。`audit` 据此认定控件有交互；内容区没有脚本时报 `ORPHAN_ACTION`。
+- 切屏、切状态、开关弹窗和提示调用 `window.htmlviewUI`，不要自己改 `hidden` 或调用原生 `dialog.close()`，否则导航、焦点和遮罩不会同步。
+
+| 调用 | 作用 |
+|---|---|
+| `htmlviewUI.go('scr-x', '状态')` | 同 `data-go` 加 `data-go-state`；省略状态时进入该屏的默认状态 |
+| `htmlviewUI.state('状态')` | 同 `data-state-to`；状态名不存在时抛出错误 |
+| `htmlviewUI.open('dialog-id')`、`htmlviewUI.close()` | 同 `data-open`、`data-close`；`close()` 关闭最上层的弹窗 |
+| `htmlviewUI.toast('文字')` | 同 `data-toast` |
+| `htmlviewUI.current()` | 返回 `{ screen, state }` |
+
+屏幕或状态变化后，`document` 会收到 `htmlview:change` 事件，`event.detail` 为 `{ screen, state }`；需要跟着状态更新的脚本监听它。
 
 ## 验证
 
-生成或改动后先运行 `htmlview audit <file>`，再运行 `htmlview diff <old> <new>` 查看屏幕增删和修改。显示检查应覆盖工具栏切换屏幕/状态/宽度/明暗、控件的点按和键盘操作、必填表单校验，以及带图表的屏幕主题重排；移动和桌面宽度均需检查。截图或导出由共享 HTML 工具完成，内容区应仍可作为独立、离线的原型阅读。
+生成或改动后先运行 `htmlview audit <file>`，再运行 `htmlview diff <old> <new>` 查看屏幕增删和修改。显示检查应覆盖工具栏切换屏幕/状态/宽度/明暗、控件的点按和键盘操作、必填表单校验，以及带图表的屏幕主题重排；移动和桌面宽度均需检查。`htmlview shot <file> --mode export --out shots` 为每个屏幕、状态、宽度和弹层各截一张图，逐张打开看；手写的部分还要切到深色再看一遍。内容区应仍可作为独立、离线的原型阅读。

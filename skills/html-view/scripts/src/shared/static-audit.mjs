@@ -61,6 +61,10 @@ const classNames = (css) => {
   return classes;
 };
 const colorsIn = (value) => COLOR_VALUE.test(value) || COLOR_NAMES.test(value);
+// Mask comments and strings without shifting source offsets.
+const cssCode = (css) => css.replace(/\/\*[\s\S]*?\*\/|"(?:\\[\s\S]|[^"\\])*"|'(?:\\[\s\S]|[^'\\])*'/g,
+  (text) => text.replace(/[^\r\n]/g, ' '));
+const tokenNames = (css) => new Set(Array.from(cssCode(css).matchAll(/(?:^|[;{])\s*(--[\w\u0080-\uFFFF-]+)\s*:/g), (match) => match[1]));
 
 function auditResourceUrls(values, source, offset, label, contentLine, where, failures) {
   const code = resourceCode(values);
@@ -154,7 +158,7 @@ function auditMarkup(source, contentLine, failures) {
 
 export function auditContent(content, {
   kind = 'doc', css = '', lang = 'zh-CN', contentLine = 1,
-  allowStyle = false, allowScript = false, title, ...options
+  allowStyle = false, allowScript = false, title, tokenCss = css, ...options
 } = {}) {
   const source = String(content);
   const failures = [];
@@ -164,6 +168,17 @@ export function auditContent(content, {
   const tree = parseHTML(source);
   const elements = [];
   walkElements(tree, (element) => elements.push(element));
+  const ui = kind === 'ui';
+  const contentCss = ui ? elements.filter(({ name }) => name === 'style').map(rawText) : [];
+  const allowedTokens = tokenNames([tokenCss, ...contentCss].join('\n'));
+  const tokenFix = ui ? '按 ui-components.md「样式变量」一节选用已有变量；自定义变量先在内容区 style 里以 --x- 开头定义'
+    : '用 htmlview viz palette 列出的变量，如 --viz-fg、--viz-frame-1';
+  function auditTokens(value, start, where, exactOffset = false) {
+    for (const match of value.matchAll(/(?<![\w\u0080-\uFFFF-])var\(\s*(--[\w\u0080-\uFFFF-]+)\s*(?=[,)])/gi)) {
+      const name = match[1];
+      if (!allowedTokens.has(name)) failures.push(makeFailure('UNKNOWN_TOKEN', source, start + (exactOffset ? match.index : 0), `未定义的样式变量 ${name}`, tokenFix, contentLine, where));
+    }
+  }
   const ids = new Map();
   const anchors = [];
   const headings = [];
@@ -177,6 +192,8 @@ export function auditContent(content, {
       const attr = rawName.toLowerCase();
       const value = decodeEntities(rawValue);
       auditResourceAttribute(element, attr, value, source, contentLine, failures);
+      if (!ui) auditTokens(value, start, where);
+      else if (attr === 'style') auditTokens(cssCode(value), start, where);
       if (attr === 'style') {
         if (!allowStyle) failures.push(makeFailure('INLINE_STYLE', source, start, '此产物不允许行内 style', '由产物样式表或允许的组件规则表达样式', contentLine, where));
         if (/@import/i.test(value)) failures.push(makeFailure('DANGEROUS_STYLE', source, start, '行内 style 不允许 @import', '仅保留静态、内嵌且受控的 CSS 声明', contentLine, where));
@@ -208,7 +225,11 @@ export function auditContent(content, {
       headingLevel = level;
       headings.push(element);
     }
-    if (name === 'style') auditCss(rawText(element), source, start, contentLine, where, failures);
+    if (name === 'style') {
+      const style = rawText(element);
+      auditCss(style, source, start, contentLine, where, failures);
+      if (ui) auditTokens(cssCode(style), element.children[0]?.start ?? start, where, true);
+    }
   }
 
   for (const anchor of anchors) if (!ids.has(anchor.value)) failures.push(makeFailure('BROKEN_ANCHOR', source, anchor.start, `锚点目标不存在：#${anchor.value}`, '为目标添加 id，或修正链接地址', contentLine, anchor.where));
