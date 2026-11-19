@@ -55,7 +55,8 @@ function fixture(t, shell) {
 function assertLink(directory, skill) {
   const path = join(directory, 'html-view');
   assert.ok(lstatSync(path).isSymbolicLink(), `${path} must be a link, not a copy`);
-  assert.equal(realpathSync(path), realpathSync(skill));
+  // Native resolution normalizes Windows short names as well as following the junction.
+  assert.equal(realpathSync.native(path), realpathSync.native(skill));
   return path;
 }
 
