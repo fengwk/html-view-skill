@@ -1,10 +1,15 @@
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
-import { implementations } from '../src/diagram/time.js';
+import { implementations as time } from '../src/diagram/time.js';
+import { implementations as git } from '../src/diagram/gitgraph.js';
+import { implementations as kanban } from '../src/diagram/kanban.js';
+import { implementations as packet } from '../src/diagram/packet.js';
+import { implementations as quadrant } from '../src/diagram/quadrant.js';
 import { createContext as context } from '../src/core/context.js';
 import { renderScene } from '../src/core/svg.js';
 import { themes } from '../src/core/theme.js';
 
+const implementations = { ...time, ...git, ...kanban, ...packet, ...quadrant };
 const info = (kind, overrides = {}) => ({ kind, lang: 'en', options: {}, firstLine: 2, headerLine: 1, ...overrides });
 function render(source, kind, options = {}) {
   const [, ...body] = source.split('\n');
@@ -27,7 +32,7 @@ test('all seven Mermaid time and grid subsets render scenes', () => {
     ['journey\ntitle Checkout\nsection Cart\nOpen cart: 4: User, Shop\nPay: 2: User', 'journey'],
     ['gitGraph\ncommit id: "first"\nbranch feature\ncommit id: "feature-1"\ncheckout main\ncommit tag: "v1"\nmerge feature id: "merge-1"', 'gitGraph'],
     ['kanban\ntodo[待办]\n  task1[任务]\ndone[完成]\n  task2[发布]', 'kanban'],
-    ['packet-beta\n0-7: "Source"\n8-15: "Type"', 'packet-beta'],
+    ['packet-beta\n0-7: "Source"\n8-15: "Type"', 'packet'],
     ['quadrantChart\ntitle Priorities\nx-axis Low --> High\ny-axis Weak --> Strong\nquadrant-1 Urgent\nquadrant-2 Plan\nquadrant-3 Later\nquadrant-4 Delegate\nAlpha: 0.8, 0.7', 'quadrantChart'],
   ];
   for (const [source, kind] of examples) {
@@ -62,7 +67,7 @@ test('kanban, timeline and packet size their own label space', () => {
   const timeline = render('timeline\n2026 : Start', 'timeline', { width: 268 }).laid.scene;
   assert.equal(timeline.width, 268);
   assert.equal(timeline.children.find(node => node.tag === 'line').attrs.x1, 24);
-  const packet = render('packet-beta\n0-0: "Long Bit Name"\n1-31: "Payload"', 'packet-beta', { width: 268 }).laid.scene;
+  const packet = render('packet-beta\n0-0: "Long Bit Name"\n1-31: "Payload"', 'packet', { width: 268 }).laid.scene;
   const [first, second] = packet.children.filter(node => node.tag === 'rect');
   assert.ok(first.attrs.height > 34, 'the narrow field wraps instead of overlapping the second field');
   assert.equal(first.attrs.x + first.attrs.width, second.attrs.x);
@@ -111,7 +116,7 @@ test('unsupported or invalid syntax returns source-line diagnostics', () => {
   const result = implementations.gantt.parse('section Work\nTask : 2024-02-30, 2024-03-01', info('gantt', { firstLine: 8 }));
   assert.ok(result.errors.length > 0);
   assert.ok(result.errors.some(error => error.line === 9), JSON.stringify(result.errors));
-  assert.ok(implementations['packet-beta']);
+  assert.ok(implementations['packet']);
   assert.ok(implementations.quadrantChart);
 });
 
