@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { readFileSync, statSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { themes, DEFAULT_THEME, resolveThemeConfig, validateThemeSnapshot } from '../../../kchart/node.mjs';
+import { themes, DEFAULT_THEME, resolveThemeConfig, validateThemeSnapshot } from '../../../vendor/kchart/esm/node.js';
 import { fail } from './output.mjs';
 import { THEME_USAGE } from './theme-options.mjs';
 

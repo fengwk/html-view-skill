@@ -1,6 +1,6 @@
 import { parseArgs } from '../shared/args.mjs';
 import { emit } from '../shared/output.mjs';
-import { schema } from '../../../kchart/node.mjs';
+import { schema } from '../../../vendor/kchart/esm/node.js';
 
 const USAGE = 'htmlview viz schema [chart]';
 

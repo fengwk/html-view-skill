@@ -3,8 +3,7 @@ import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { dirname, join, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
-import { catalog, render } from '../../kchart/node.mjs';
-import { diagram, diagramTypes } from '../../kchart/diagram.mjs';
+import { catalog, diagram, diagramTypes, render } from '../../vendor/kchart/esm/node.js';
 import { markdownToContent } from '../src/shared/markdown.mjs';
 import { VIZ_SYNTAXES } from '../src/shared/viz.mjs';
 

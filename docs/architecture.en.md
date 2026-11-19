@@ -2,14 +2,23 @@
 
 [简体中文](architecture.md) · English
 
-`htmlview` produces offline single-file HTML. It builds and maintains reading documents, data reports and UI mockups, and it also reads, checks and exports local HTML. Data charts and diagrams come from the separate KChart library. No third-party rendering runtime is installed, and no generated browser bundle is kept in the repository.
+`htmlview` produces offline single-file HTML. It builds and maintains reading documents, data reports and UI mockups, and it also reads, checks and exports local HTML. Data charts and diagrams come from the separate KChart library: the library lives in `packages/kchart`, and its build is mirrored verbatim into `skills/html-view/vendor/kchart` inside the skill. No third-party rendering runtime is installed, and the mirrored build is never edited by hand.
 
 | Boundary | Implementation |
 |---|---|
 | Commands and output | `scripts/htmlview` dispatches `doc`, `data`, `ui`, `viz` and the shared commands; structured failures carry a suggested next step |
 | Outputs | `scripts/src/artifacts/{doc,data,ui,viz}` each own their skeleton, their specific audits and their diff units, and never import each other |
 | Shared shell | `scripts/src/shared/` handles the HTML content markers, theme variables, chart validation and module selection; `scripts/src/tools/` relies on the shared browser, document parsing and print settings |
-| Rendering core | `kchart/src/core` owns themes, text measurement, geometry, scenes and SVG; `chart` and `diagram` hold the data charts and the diagrams |
+| Rendering core | `packages/kchart/src/core` owns themes, text measurement, geometry, scenes and SVG; `chart` and `diagram` hold the data charts and the diagrams |
+| Build and mirror | In `packages/kchart`, `npm run build` writes `dist/` (ESM entries, browser units and assets), and `npm run vendor` mirrors it to `skills/html-view/vendor/kchart`. html-view uses the mirrored `esm/node.js` for rendering and mirrored `esm/core/` modules for existing helpers; it never imports the library source at runtime |
+
+The repository has three layers with separate jobs:
+
+- `packages/kchart/`: the KChart library itself, with `src/`, `assets/` (themes, icons, maps), `tests/`, `docs/` (declaration reference), `README.md` and `NOTICE.md`. Develop, test and publish here.
+- `skills/html-view/`: the skill itself, with the CLI, the reference docs and `vendor/kchart/`. The skill keeps zero runtime dependencies and installs by plain git clone.
+- `skills/html-view/vendor/kchart/`: the build mirror written by `npm run vendor`. It is committed, never edited by hand, and `npm run vendor -- --check` or CI reports any difference from a fresh build.
+
+To upgrade KChart, change the sources in `packages/kchart`, build, then vendor again; html-view's code, tests, `docs/showcase` and documentation all follow the mirror without changing how they call it.
 
 ## Content and shell
 
@@ -19,7 +28,7 @@ Charts are stored as `pre[data-viz]` with the type `kchart`, `mermaid`, `layers`
 
 ## Layout and checks
 
-`kchart/src/modules.json` is the single source for module dependencies and the chart registry. DOM-free parsing and layout run in both Node and the browser. In the browser, text is measured with Canvas, and charts are laid out again when the width, theme or print media changes. Data charts and diagrams share one SVG serializer. Readable text and complete geometry come first: when needed, the chart canvas grows and scrolls horizontally inside its frame, rather than silently switching to a different layout on narrow screens.
+`packages/kchart/src/families.json` registers the chart families and the source `import` statements decide module dependencies; `npm run build` turns them into ESM entries, one browser unit per module and a `units.json` manifest, and `npm run vendor` mirrors `dist/` into the skill verbatim. DOM-free parsing and layout run in both Node and the browser. In the browser, text is measured with Canvas, and charts are laid out again when the width, theme or print media changes. Data charts and diagrams share one SVG serializer. Readable text and complete geometry come first: when needed, the chart canvas grows and scrolls horizontally inside its frame, rather than silently switching to a different layout on narrow screens.
 
 `audit` checks the inputs and the integrity of the output. `check` tests real device widths, the printed page and browser errors. `shot` and `export` wait for the layout of the current media. Print checks and export share the same page measurement, and PDF export refuses to write a file when content would be clipped horizontally or a chart is taller than one page. Use `--paper a4-landscape` for wide charts and `--paper a3-portrait` for tall ones; if it still doesn't fit, deliver the full SVG or have the author rearrange the content. Automated tests don't replace looking at the output.
 
@@ -33,7 +42,7 @@ Charts are stored as `pre[data-viz]` with the type `kchart`, `mermaid`, `layers`
 | The brand color or light/dark scheme of a UI mockup | `htmlview style prototype.html --brand '#a84624' --scheme light`. Mockups derive their theme from the brand color and don't take `--theme`. |
 | Your own colors through the KChart API | Pass a `theme` object to `render()` or `diagram()`. You can spread a built-in theme and override the fields you need; no library change or CLI registration is required. |
 | Apply your own theme | `htmlview style report.html --theme-file harbor.json`. Inherit a built-in theme and set only the roles you want to change. The resolved theme travels inside the HTML, with no JSON file to share. |
-| Add a built-in theme | Put the reviewed `<id>.json` in [`kchart/assets/themes/`](../skills/html-view/kchart/assets/themes/). The CLI, KChart, shared tests and gallery generator find it automatically. No CSS or chart registration is needed. Regenerate the README comparison when publishing. |
+| Add a built-in theme | Put the reviewed `<id>.json` in [`packages/kchart/assets/themes/`](../packages/kchart/assets/themes/), then run `npm ci`, `npm run build` and `npm run vendor` in `packages/kchart` to carry it into the skill's `vendor/kchart`. The CLI, KChart, shared tests and gallery generator find it automatically. No CSS or chart registration is needed. Regenerate the README comparison when publishing. |
 
 Each theme has a single JSON file for colors and styling. The HTML shell generates its CSS variables from it, and KChart uses the resolved roles directly. Recoloring an existing theme needs no CSS or chart changes. `tones[1]` is the second data series and `accent` is the shell's highlight color; they are different roles. A handful of arbitrary hex values is not enough: a palette covers background, text, strokes, states and six series colors, and must pass the contrast and color-vision checks. After adding a theme, check narrow screens, real charts and printing; dark themes still print with the Paper palette.
 
@@ -65,7 +74,7 @@ These pages are in Chinese:
 
 - [Skill entry and chart index](../skills/html-view/SKILL.md)
 - [CLI, automated tests and gallery maintenance](../skills/html-view/scripts/README.md)
-- [KChart API, package and license](../skills/html-view/kchart/README.md)
+- [KChart API, package and license](../packages/kchart/README.md) (third-party assets are in the [asset notice](../packages/kchart/NOTICE.md), map region keys in [REGIONS.md](../packages/kchart/assets/maps/REGIONS.md))
 - [Chart coverage and counterexamples](chart-coverage.md)
 
 [Gallery and samples](showcase/README.en.md) are available in English.

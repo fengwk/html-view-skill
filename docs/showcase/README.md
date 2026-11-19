@@ -4,6 +4,8 @@
 
 README 中的图片都由当前实现生成。文档和报表的名称、内容和数据均为合成示例；界面稿没有连接业务服务。中英文样例使用同一组数字和同样的结构，只有文字不同。
 
+这里所有图都用技能内的构建镜像 `skills/html-view/vendor/kchart` 渲染，与 CLI 运行时使用同一个导入入口。升级 KChart 时先在 `packages/kchart` 改库、`npm run build` 后用 `npm run vendor` 刷新镜像，再重新生成本页的图；不要手改镜像文件。
+
 <a id="examples"></a>
 
 ## 复现四种 HTML

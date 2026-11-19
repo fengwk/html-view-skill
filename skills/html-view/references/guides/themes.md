@@ -49,4 +49,4 @@ HTML 内嵌解析后的主题，不保存主题文件路径。删除 JSON 或把
 
 ## 新增内置主题
 
-先用 `--theme-file` 在真实文档、数据图和结构图上预览，同一份 JSON 审查通过后放进 [`kchart/assets/themes/`](../../kchart/assets/themes/)。文件名必须是 `<id>.json`，填写 `id`、`name`、`en`、`desc`；可用非负整数 `order` 控制展示位置，省略则排在有 `order` 的主题之后。CLI、KChart、通用测试和图库生成器会自动发现它。不改 CSS、模块清单、测试主题列表或图型代码。发布仓库时重新生成 README 的主题对照图，不手改图库表格。
+先用 `--theme-file` 在真实文档、数据图和结构图上预览，同一份 JSON 审查通过后放进库的 [`packages/kchart/assets/themes/`](../../../../packages/kchart/assets/themes/)。文件名必须是 `<id>.json`，填写 `id`、`name`、`en`、`desc`；可用非负整数 `order` 控制展示位置，省略则排在有 `order` 的主题之后。在 `packages/kchart` 运行 `npm run build` 和 `npm run vendor`，把新主题连同构建物带进技能的 `vendor/kchart`。CLI、KChart、通用测试和图库生成器会自动发现它，不改 CSS、测试主题列表或图型代码。发布仓库时重新生成 README 的主题对照图，不手改图库表格。

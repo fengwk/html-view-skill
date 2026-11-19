@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { loadModules } from '../../../../kchart/modules.mjs';
+import { has as hasIcon } from '../../../../vendor/kchart/esm/core/icons.js';
 import { parseArgs } from '../../shared/args.mjs';
 import { emit, fail } from '../../shared/output.mjs';
 import { readAsset } from '../../shared/assets.mjs';
@@ -15,7 +15,6 @@ import { DEFAULTS, generateTokens, normalizeDesign, normalizeDevice, normalizeLa
 
 const usageNew = 'htmlview ui new <file> --title <标题> --device mobile|desktop|responsive --screens "屏幕一,屏幕二" [选项]';
 const usageStyle = 'htmlview style <file> [--lang <lang>] [--device mobile|desktop|responsive] [--fidelity wireframe|mockup] [--brand #hex] [--scheme light|dark] [--radius 0-16] [--density compact|regular]';
-const icons = loadModules(['core/icons'])['core/icons'];
 const UI_CSS = readAsset('page/ui.css');
 const UI_CLASSES = (() => {
   const css = UI_CSS.replace(/\/\*[\s\S]*?\*\//g, ' ');
@@ -234,7 +233,7 @@ export async function audit(html, { file = '文件' } = {}) {
       if (attrs['data-toggle'] && !tagsOf(content).some((item) => item.attrs.id === attrs['data-toggle'])) addFailure(failures, content, contentLine, 'BROKEN_TARGET', screen.start + element.start, `data-toggle 目标不存在：${attrs['data-toggle']}`, '改为内容区里存在的目标 id', where);
       if (attrs['data-tab'] && !tagsOf(content).some((item) => item.attrs.id === attrs['data-tab'])) addFailure(failures, content, contentLine, 'BROKEN_TARGET', screen.start + element.start, `data-tab 面板不存在：${attrs['data-tab']}`, '改为现有 tabpanel 的 id', where);
       if (attrs['data-next'] && !attrs['data-when']) addFailure(failures, content, contentLine, 'UNKNOWN_STATE', screen.start + element.start, 'data-next 需要与 data-when 同用', '给自动推进元素添加 data-when，或删除 data-next', where);
-      if (attrs['data-icon'] && !icons.has(attrs['data-icon'])) addFailure(failures, content, contentLine, 'UNKNOWN_ICON', screen.start + element.start, `core/icons 中没有图标：${attrs['data-icon']}`, '改用 core/icons 已登记的图标名', where);
+      if (attrs['data-icon'] && !hasIcon(attrs['data-icon'])) addFailure(failures, content, contentLine, 'UNKNOWN_ICON', screen.start + element.start, `core/icons 中没有图标：${attrs['data-icon']}`, '改用 core/icons 已登记的图标名', where);
     }
   }
   const allTags = tagsOf(content);

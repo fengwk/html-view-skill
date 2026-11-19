@@ -3,12 +3,12 @@ import assert from 'node:assert/strict';
 import { readFileSync, writeFileSync, mkdtempSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { createRenderer } from '../../kchart/node.mjs';
-import { createRenderer as createDiagramRenderer } from '../../kchart/diagram.mjs';
+import { createRenderer, runtimeSource } from '../../vendor/kchart/esm/node.js';
 import { launchBrowser } from '../src/shared/browser.mjs';
 import { renderShell } from '../src/shared/shell.mjs';
 
-const runtime = readFileSync(new URL('../../kchart/src/runtime.js', import.meta.url), 'utf8');
+// The shipped page runtime comes from the vendored build, exactly as shell.mjs embeds it.
+const runtime = runtimeSource();
 const temp = (name) => mkdtempSync(join('/var/tmp', `htmlview-runtime-${name}-`));
 
 // 意图：真实 Chrome 验证宽图不按已选布局缩放、滚动后仍以图锚点居中；显示空图框后由 ResizeObserver 首次排版。
@@ -47,7 +47,7 @@ test('runtime keeps wide SVG at 1:1, centers its anchor, and lays out a revealed
 // 意图：宽流程图按打印版心重排，内容放不下也不能用缩小 SVG 掩盖裁切。
 test('runtime preserves 1:1 geometry for a diagram wider than the print column', async () => {
   const source = `---\ntitle: 失败按有限退避重试，30 分钟无回执只查询一次\n---\nflowchart TD\n  A[Outbox 发布任务] --> B[Kafka 消费并校验状态]\n  B --> C[调用渠道网关]\n  C --> D{渠道结果}\n  D -->|明确成功| E[等待回执]\n  D -->|明确失败| F{是否可重试且未达上限}\n  F -->|是| G[按 1、5、15 分钟计划重试]\n  G --> C\n  F -->|否| H[标记失败并告警]\n  E --> I{30 分钟内收到回执}\n  I -->|是| J[去重并更新状态]\n  I -->|否| K[主动查询一次]\n  K --> L{查询结果可确定}\n  L -->|是| J\n  L -->|否| M[保留未知状态并告警]`;
-  const renderer = createDiagramRenderer({ sources: [{ syntax: 'mermaid', source }] });
+  const renderer = createRenderer({ sources: [{ syntax: 'mermaid', source }] });
   const dir = temp('mermaid-print');
   const file = join(dir, 'fixture.html');
   const css = readFileSync(new URL('../../assets/page/viz.css', import.meta.url), 'utf8');

@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { catalog, schema as kchartSchema, validate as validateKChart } from '../../../../kchart/node.mjs';
+import { catalog, schema as kchartSchema, validate as validateKChart } from '../../../../vendor/kchart/esm/node.js';
 import { compareValues, directionOf, formatDelta, formatValue, roundPercentage } from './format.mjs';
 import { compareMonth, parseMonth, shiftMonth } from './period.mjs';
 import { CODES, issue } from './errors.mjs';

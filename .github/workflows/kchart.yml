@@ -1,0 +1,47 @@
+name: KChart library and HTML View
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/kchart.yml'
+      - 'packages/kchart/**'
+      - 'skills/html-view/**'
+      - 'docs/showcase/**'
+  pull_request:
+    paths:
+      - '.github/workflows/kchart.yml'
+      - 'packages/kchart/**'
+      - 'skills/html-view/**'
+      - 'docs/showcase/**'
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      TMPDIR: /var/tmp
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: packages/kchart/package-lock.json
+      - run: npm ci
+        working-directory: packages/kchart
+      - run: npm test
+        working-directory: packages/kchart
+      # Vitest's global setup builds dist/ before the library tests run.
+      - run: npm run vendor -- --check
+        working-directory: packages/kchart
+      - name: Test HTML View with Chrome
+        run: |
+          export CHROME_PATH="$(command -v google-chrome)"
+          "$CHROME_PATH" --version
+          node --test skills/html-view/scripts/tests/*.test.mjs

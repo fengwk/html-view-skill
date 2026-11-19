@@ -8,7 +8,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { createRenderer, themes } from '../../../kchart/node.mjs';
+import { createRenderer, themes } from '../../../vendor/kchart/esm/node.js';
 import { launchBrowser } from '../../src/shared/browser.mjs';
 import { inspectPageExpression } from '../../src/shared/render-audit.mjs';
 import { htmlPage, hydrateMetrics, loadMeasurementPage, pageInspectionExpression } from './kchart-gallery.mjs';

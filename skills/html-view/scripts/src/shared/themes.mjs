@@ -1,4 +1,4 @@
-import { themes as KTHEMES, theme as resolveTheme, DEFAULT_THEME, defaultStyle, structureRoles } from '../../../kchart/node.mjs';
+import { themes as KTHEMES, theme as resolveTheme, DEFAULT_THEME, defaultStyle, structureRoles } from '../../../vendor/kchart/esm/node.js';
 import { readAsset } from './assets.mjs';
 
 const builtins = Object.values(KTHEMES);

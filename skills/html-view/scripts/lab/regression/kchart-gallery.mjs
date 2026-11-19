@@ -5,10 +5,10 @@ import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { isDeepStrictEqual } from 'node:util';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { createRenderer } from '../../../kchart/node.mjs';
+import { createRenderer } from '../../../vendor/kchart/esm/node.js';
 import { launchBrowser } from '../../src/shared/browser.mjs';
 import { getTheme, listThemes, readingCss } from '../../src/shared/themes.mjs';
-import { KCHART_CASES } from '../../../kchart/tests/kchart-cases.mjs';
+import { KCHART_CASES } from '../../../../../packages/kchart/tests/kchart-cases.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, '../../..');
@@ -153,7 +153,7 @@ function geometryLog(scene, inspection) {
 
 function buildVersion(renderer) {
   const bundle = renderer.bundleSource();
-  const sourceHash = createHash('sha256').update(bundle).update(read(fileURLToPath(import.meta.url))).update(read(new URL('../../../kchart/tests/kchart-cases.mjs', import.meta.url))).digest('hex');
+  const sourceHash = createHash('sha256').update(bundle).update(read(fileURLToPath(import.meta.url))).update(read(new URL('../../../../../packages/kchart/tests/kchart-cases.mjs', import.meta.url))).digest('hex');
   let commit = 'unknown';
   try { commit = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim(); } catch { /* 导出的源码树没有 git 时仍可生成，只是不记录 commit */ }
   return { commit, sourceHash };
@@ -249,7 +249,7 @@ export async function generateGallery({ out, chromePath, caseIds = [], themes = 
   const index = {
     generatedAt: new Date().toISOString(),
     visualAcceptance: 'not-performed',
-    renderer: 'html-view/kchart/node.mjs createRenderer; actual Chrome canvas text metrics',
+    renderer: 'html-view/vendor/kchart/esm/node.js createRenderer; actual Chrome canvas text metrics',
     sourceVersion: version,
     viewportWidths: selected.widths,
     themes: selected.themes,

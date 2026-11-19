@@ -8,7 +8,7 @@ import { pathToFileURL } from 'node:url';
 import vm from 'node:vm';
 import { launchBrowser } from '../src/shared/browser.mjs';
 
-import { browserSource } from '../../kchart/node.mjs';
+import { browserSource } from '../../vendor/kchart/esm/node.js';
 
 const runtime = browserSource([{ chart: 'network', interaction: ['inspect', 'focus', 'pan-zoom', 'drag'] }]);
 

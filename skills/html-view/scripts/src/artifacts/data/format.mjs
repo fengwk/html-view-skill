@@ -1,6 +1,4 @@
-import { loadModules } from '../../../../kchart/modules.mjs';
-
-const { decimalRound, quantityParts } = loadModules(['core/format'])['core/format'];
+import { decimalRound, quantityParts } from '../../../../vendor/kchart/esm/core/format.js';
 const isEnglish = (lang) => /^en\b/i.test(String(lang ?? 'zh'));
 const isHanStart = (unit) => /^\p{Script=Han}/u.test(unit);
 const grouped = (whole) => whole.replace(/\B(?=(\d{3})+(?!\d))/g, ',');

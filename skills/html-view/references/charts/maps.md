@@ -10,7 +10,7 @@
 
 - 必需角色：`longitude`、`latitude`；可选：`value`、`label`、`id`。经度范围 -180 至 180，纬度 -90 至 90；每行都要有编码字段。
 
-内置地图使用本地边界资产，[地区键说明](../../kchart/assets/maps/REGIONS.md)列出特殊地区键及美国州界覆盖范围。外部 GeoJSON 由调用方提供准确地区键并标注来源。
+内置地图使用本地边界资产，[地区键说明](../../../../packages/kchart/assets/maps/REGIONS.md)列出特殊地区键及美国州界覆盖范围。外部 GeoJSON 由调用方提供准确地区键并标注来源。
 
 ## 可运行示例
 

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { render } from '../../kchart/node.mjs';
+import { render } from '../../vendor/kchart/esm/node.js';
 import { launchBrowser } from '../src/shared/browser.mjs';
 
 // 意图：在真实 Chrome 像素里，短扇区的描边尖角不能跨进相邻扇区；接缝仍可见且不拦截鼠标。

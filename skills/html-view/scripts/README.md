@@ -2,13 +2,14 @@
 
 使用 Node.js 22+。在本目录运行 `node htmlview --help`；浏览器命令自动寻找 Chrome/Chromium/Edge，也可设置 `CHROME_PATH`。脚本按自身位置定位资产，不取其他技能目录或工作目录中的脚本。
 
-从技能根目录运行：
+从仓库根目录安装 KChart 的开发依赖，再运行技能测试：
 
 ```sh
-node --test kchart/tests/*.test.mjs scripts/tests/*.test.mjs
-(cd assets/vendor && sha256sum -c prism.js.sha256)
+(cd packages/kchart && npm ci && npm test)
+TMPDIR=/var/tmp node --test skills/html-view/scripts/tests/*.test.mjs
+(cd skills/html-view/assets/vendor && sha256sum -c prism.js.sha256)
 ```
 
 Prism 为离线代码高亮，包含上游 MIT 声明。`prism.js.sha256` 固定随技能发布的实际文件。
 
-视觉复现：`node scripts/lab/showcase/generate.mjs` 生成完整筛选展册；`scripts/lab/regression/kchart-gallery.mjs` 和 `kchart-fuzz.mjs` 用实际 Chrome 验证边界与随机样本，参数见文件开头。图库、外壳和浏览器脚本均从声明及模块现场组装，不把整包构建物写回源码。KChart 的两个程序入口及独立测试见 [库说明](../kchart/README.md)；该 README 随独立 npm 包分发。
+视觉复现：`node scripts/lab/showcase/generate.mjs` 生成完整筛选展册；`scripts/lab/regression/kchart-gallery.mjs` 和 `kchart-fuzz.mjs` 用实际 Chrome 验证边界与随机样本，参数见文件开头。图库和外壳使用 `skills/html-view/vendor/kchart` 中的构建产物，浏览器脚本按声明选择所需单元。库的源码、API 及独立测试见 [KChart 库说明](../../../packages/kchart/README.md)。新增内置主题时，把 JSON 放入 `packages/kchart/assets/themes/`，再在 `packages/kchart` 运行 `npm run build && npm run vendor`。

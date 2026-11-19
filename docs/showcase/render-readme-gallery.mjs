@@ -7,7 +7,7 @@ import { mkdtemp, mkdir, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { catalog, createRenderer, diagramTypes } from '../../skills/html-view/kchart/node.mjs';
+import { catalog, createRenderer, diagramTypes } from '../../skills/html-view/vendor/kchart/esm/node.js';
 import { launchBrowser } from '../../skills/html-view/scripts/src/shared/browser.mjs';
 import { galleryCases } from './gallery-cases.mjs';
 
