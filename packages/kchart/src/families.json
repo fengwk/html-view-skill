@@ -213,6 +213,19 @@
       "requirementDiagram": {
         "topic": "data-model"
       },
+      "architecture-beta": {
+        "topic": "architecture"
+      },
+      "block-beta": {
+        "topic": "architecture"
+      },
+      "zenuml": {
+        "topic": "sequence"
+      }
+    }
+  },
+  "diagram/c4": {
+    "diagrams": {
       "C4Context": {
         "topic": "architecture"
       },
@@ -227,15 +240,6 @@
       },
       "C4Deployment": {
         "topic": "architecture"
-      },
-      "architecture-beta": {
-        "topic": "architecture"
-      },
-      "block-beta": {
-        "topic": "architecture"
-      },
-      "zenuml": {
-        "topic": "sequence"
       }
     }
   },
