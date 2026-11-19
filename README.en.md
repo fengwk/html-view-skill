@@ -142,7 +142,7 @@ Documents, reports and single-chart HTML files can switch themes without changin
 </details>
 <!-- themes:end -->
 
-Use `htmlview style report.html --theme obsidian` to switch to a built-in theme, or `--theme-file harbor.json` to apply your own. The theme is embedded in the HTML, so there is no JSON file to share alongside it. To add a built-in theme, put one JSON file in the [theme directory](skills/html-view/kchart/assets/themes/), review the rendered samples, then refresh this section with the [gallery generator](docs/showcase/README.en.md#readme-gallery). UI mockups take their colors from `--brand` and `--scheme`. [Theme format and maintenance →](docs/architecture.en.md#themes)
+Use `htmlview style report.html --theme obsidian` to switch to a built-in theme, or `--theme-file harbor.json` to apply your own. The theme is embedded in the HTML, so there is no JSON file to share alongside it. To add a built-in theme, put the JSON in the [library theme directory](packages/kchart/assets/themes/), run `npm run build` and `npm run vendor` in `packages/kchart` to carry it into the skill, then review the rendered samples and refresh this section with the [gallery generator](docs/showcase/README.en.md#readme-gallery). UI mockups take their colors from `--brand` and `--scheme`. [Theme format and maintenance →](docs/architecture.en.md#themes)
 
 <a id="gallery"></a>
 
@@ -660,10 +660,12 @@ node skills/html-view/scripts/htmlview export notification-platform.html --forma
 
 `check` uses a real browser to test narrow screens, overflow inside charts and the printed page. PDF export stops when something would be clipped instead of shrinking charts or text. Try A4 landscape for wide charts and A3 portrait for tall ones; if it still doesn't fit, rearrange the content or attach the full SVG. Before sharing HTML, check the metadata in its source: documents may record the Markdown source path, and reports embed their sources and calculation evidence.
 
-Further reading, in Chinese: [skill entry](skills/html-view/SKILL.md) · [CLI and regression tests](skills/html-view/scripts/README.md) · [installer tests](scripts/tests/install.test.mjs) · [KChart API](skills/html-view/kchart/README.md) · [architecture and themes](docs/architecture.md) (the architecture notes also exist [in English](docs/architecture.en.md)).
+Further reading, in Chinese: [skill entry](skills/html-view/SKILL.md) · [CLI and regression tests](skills/html-view/scripts/README.md) · [installer tests](scripts/tests/install.test.mjs) · [KChart API](packages/kchart/README.md) · [architecture and themes](docs/architecture.md) (the architecture notes also exist [in English](docs/architecture.en.md)).
+
+To change KChart, work in `packages/kchart`; once `npm ci && npm test` passes, `npm run build && npm run vendor` mirrors the build into `skills/html-view/vendor/kchart`. The skill imports only that mirror, so installing it never needs npm. See [the architecture notes](docs/architecture.en.md) for the layout and build flow.
 
 <a id="license"></a>
 
 ## License
 
-Original code and documentation are under the [MIT License](LICENSE). Prism keeps its [upstream MIT license](skills/html-view/assets/vendor/prism.js). Terms for icons, brand marks and Natural Earth map data are in the [third-party notice](skills/html-view/kchart/NOTICE.md). See the [acknowledgments](NOTICE.md) for the source of the dashboard design guidance.
+Original code and documentation are under the [MIT License](LICENSE). Prism keeps its [upstream MIT license](skills/html-view/assets/vendor/prism.js). Terms for icons, brand marks and Natural Earth map data are in the [third-party notice](packages/kchart/NOTICE.md). See the [acknowledgments](NOTICE.md) for the source of the dashboard design guidance.

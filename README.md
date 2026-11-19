@@ -140,7 +140,7 @@ Agent 生成 HTML 后会运行 `htmlview audit` 检查内容和资源，再用 `
 </details>
 <!-- themes:end -->
 
-用 `htmlview style report.html --theme obsidian` 换成内置主题，或用 `--theme-file harbor.json` 应用自己的配色。HTML 会内嵌主题，分享时不用附上 JSON。新增内置主题只需在[主题目录](skills/html-view/kchart/assets/themes/)加一份 JSON，审查实际样张后用[图谱生成器](docs/showcase/README.md#readme-gallery)刷新本节。界面稿的配色由 `--brand` 和 `--scheme` 控制。[主题格式与维护 →](docs/architecture.md#themes)
+用 `htmlview style report.html --theme obsidian` 换成内置主题，或用 `--theme-file harbor.json` 应用自己的配色。HTML 会内嵌主题，分享时不用附上 JSON。新增内置主题要把 JSON 放进[库的主题目录](packages/kchart/assets/themes/)，再在 `packages/kchart` 运行 `npm run build` 和 `npm run vendor` 带进技能，审查实际样张后用[图谱生成器](docs/showcase/README.md#readme-gallery)刷新本节。界面稿的配色由 `--brand` 和 `--scheme` 控制。[主题格式与维护 →](docs/architecture.md#themes)
 
 <a id="gallery"></a>
 
@@ -648,10 +648,12 @@ node skills/html-view/scripts/htmlview export notification-platform.html --forma
 
 `check` 用真实浏览器检查窄屏、图内溢出和打印版心；PDF 遇到裁切会停止，不会缩小图或字号。宽图可试 A4 横向，高图可试 A3 纵向；仍放不下就重排，或附上完整 SVG。分享 HTML 前请检查源码中的元数据：文档可能含 Markdown 源路径，报表内嵌了来源和计算证据。
 
-[技能入口](skills/html-view/SKILL.md) · [CLI 与回归测试](skills/html-view/scripts/README.md) · [安装测试](scripts/tests/install.test.mjs) · [KChart API](skills/html-view/kchart/README.md) · [架构与主题扩展](docs/architecture.md)
+[技能入口](skills/html-view/SKILL.md) · [CLI 与回归测试](skills/html-view/scripts/README.md) · [安装测试](scripts/tests/install.test.mjs) · [KChart API](packages/kchart/README.md) · [架构与主题扩展](docs/architecture.md)
+
+改 KChart 时在 `packages/kchart` 开发，`npm ci && npm test` 通过后 `npm run build && npm run vendor` 把构建物镜像到 `skills/html-view/vendor/kchart`；技能只从镜像导入，安装时不需要 npm。目录分工和构建流程见[实现约定](docs/architecture.md)。
 
 <a id="license"></a>
 
 ## 许可
 
-自有源码与文档采用 [MIT License](LICENSE)。Prism 保留其[上游 MIT 许可](skills/html-view/assets/vendor/prism.js)；图标、品牌商标和 Natural Earth 地图数据的条款见[第三方资产声明](skills/html-view/kchart/NOTICE.md)；看板设计指南的出处见[致谢](NOTICE.md)。
+自有源码与文档采用 [MIT License](LICENSE)。Prism 保留其[上游 MIT 许可](skills/html-view/assets/vendor/prism.js)；图标、品牌商标和 Natural Earth 地图数据的条款见[第三方资产声明](packages/kchart/NOTICE.md)；看板设计指南的出处见[致谢](NOTICE.md)。

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { structureRoles } from '../../kchart/node.mjs';
+import { runtimeSource, structureRoles } from '../../vendor/kchart/esm/node.js';
 import { getTheme, listThemes, themesCss, readingCss, structureProperties } from '../src/shared/themes.mjs';
 import { auditContent } from '../src/shared/static-audit.mjs';
 import { markdownToContent } from '../src/shared/markdown.mjs';
@@ -77,7 +77,11 @@ test('shell assembles declared diagram/chart modules, local map data, and runtim
   assert.ok(parsed.modules.includes('chart/maps'));
   assert.ok(parsed.modules.some((module) => module.startsWith('diagram/')));
   assert.match(html, /\"assets\":\{\"world\":/);
-  assert.match(html, /mountSource/);
+  // The page runtime is embedded verbatim from the vendored build and mounted once: no hand-copied substitute.
+  const runtime = runtimeSource();
+  assert.equal(html.split(runtime).length - 1, 1, 'shell 内嵌且只内嵌一份 vendor 运行时');
+  assert.match(html, /globalThis\.KChart&&globalThis\.KChart\.mount\)globalThis\.KChart\.mount\(document,/);
+  assert.match(runtime, /mountClones:|relayout:/);
 });
 
 test('Markdown recognizes only the five visualization fences; ordinary JSON stays code', () => {

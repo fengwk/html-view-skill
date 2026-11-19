@@ -2,8 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { generateTokens, normalizeDesign, normalizeDevice, normalizeLang } from '../src/artifacts/ui/theme.mjs';
 import { ToolError } from '../src/shared/output.mjs';
-import { loadModules } from '../../kchart/modules.mjs';
-import { structureRoles } from '../../kchart/node.mjs';
+import { contrast, deltaE2000, tint } from '../../vendor/kchart/esm/core/color.js';
+import { structureRoles } from '../../vendor/kchart/esm/node.js';
 import { renderUi } from '../src/artifacts/ui/render.mjs';
 import { renderShell } from '../src/shared/shell.mjs';
 import { structureProperties } from '../src/shared/themes.mjs';
@@ -18,7 +18,6 @@ test('UI design produces validated light/dark KChart themes and stable CSS token
   assert.match(css, /:root\[data-scheme="dark"\]/);
   assert.match(css, /--control-h: 32px/);
   assert.ok(Array.isArray(adjusted));
-  const color = loadModules(['core/color'])['core/color'];
   for (const scheme of ['light', 'dark']) {
     const block = css.match(new RegExp(`:root\\[data-scheme="${scheme}"\\] \\{([^}]+)`))[1];
     const token = (name) => block.match(new RegExp(`--${name}: ([^;]+);`))[1];
@@ -26,11 +25,11 @@ test('UI design produces validated light/dark KChart themes and stable CSS token
     const accentSoft = token('accent-soft');
     const accentText = token('accent-text');
     const statusSoft = token('ok-soft');
-    assert.ok(color.contrast(foreground, themes[scheme].accent) >= 4.5);
-    assert.ok(color.contrast(accentText, accentSoft) >= 4.5);
-    assert.ok(color.contrast(accentText, themes[scheme].surface) >= 4.5);
-    assert.ok(color.deltaE2000(accentSoft, themes[scheme].surface) < color.deltaE2000(accentSoft, themes[scheme].accent));
-    assert.ok(color.deltaE2000(statusSoft, themes[scheme].surface) < color.deltaE2000(statusSoft, themes[scheme].ok));
+    assert.ok(contrast(foreground, themes[scheme].accent) >= 4.5);
+    assert.ok(contrast(accentText, accentSoft) >= 4.5);
+    assert.ok(contrast(accentText, themes[scheme].surface) >= 4.5);
+    assert.ok(deltaE2000(accentSoft, themes[scheme].surface) < deltaE2000(accentSoft, themes[scheme].accent));
+    assert.ok(deltaE2000(statusSoft, themes[scheme].surface) < deltaE2000(statusSoft, themes[scheme].ok));
   }
 });
 
@@ -58,7 +57,6 @@ test('wireframe omits red in status and chart colors in both schemes', () => {
 // 从生成的 HTML 读取已灰化的实际序列色，核对结构变量没有使用原始序列色。
 test('UI HTML structure tokens follow the emitted wireframe tones in both schemes', () => {
   const { html, themes } = renderUi({ title: 'Sketch', design: { fidelity: 'wireframe', brand: '#d82420' } }, renderShell);
-  const { tint } = loadModules(['core/color'])['core/color'];
   for (const scheme of ['light', 'dark']) {
     const block = html.split(`:root[data-scheme="${scheme}"] {`).slice(1)
       .map(rule => rule.split('}')[0]).find(rule => rule.includes('--viz-1:'));

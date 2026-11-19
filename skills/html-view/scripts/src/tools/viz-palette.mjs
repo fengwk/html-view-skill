@@ -1,7 +1,7 @@
 import { parseArgs } from '../shared/args.mjs';
 import { emit } from '../shared/output.mjs';
 import { selectTheme, themeId, themeOptions, THEME_USAGE } from '../shared/theme-file.mjs';
-import { createRenderer, structureRoles } from '../../../kchart/node.mjs';
+import { createRenderer, structureRoles } from '../../../vendor/kchart/esm/node.js';
 import { structureProperties } from '../shared/themes.mjs';
 
 const USAGE = `htmlview viz palette ${THEME_USAGE}`;

@@ -1,6 +1,5 @@
 import { createHash } from 'node:crypto';
-import { readFileSync } from 'node:fs';
-import { browserSource, createRenderer, theme as resolveTheme, DEFAULT_THEME } from '../../../kchart/node.mjs';
+import { browserSource, createRenderer, runtimeSource, theme as resolveTheme, DEFAULT_THEME } from '../../../vendor/kchart/esm/node.js';
 import { ToolError } from './output.mjs';
 import { decodeEntities, lineAt, scanElements } from './html-util.mjs';
 import { contentMarkerRegions, contentMarkers, START, END } from './content-regions.mjs';
@@ -41,7 +40,7 @@ function metaMarkup(source) {
 }
 
 function currentRuntime() {
-  return readFileSync(new URL('../../../kchart/src/runtime.js', import.meta.url), 'utf8');
+  return runtimeSource();
 }
 function throwVizFailures(result) {
   if (!result.failures.length) return;

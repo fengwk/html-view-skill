@@ -1,7 +1,7 @@
 // 统计与比较图族的随机声明。每个生成器只产出符合 spec.js 契约的数据，不迁就当前实现的版面。
 // rungs 的单位符号有文档上限（全图 ≤2000，且单个符号必须达到可读尺寸），否则实现抛 CHART_FIT。
 // unitMark 由试渲染收到该上限内；数值形态本身仍按画像覆盖。
-import { render } from '../../../../kchart/node.mjs';
+import { render } from '../../../../vendor/kchart/esm/node.js';
 
 const MAX_SYMBOLS = 2000;
 

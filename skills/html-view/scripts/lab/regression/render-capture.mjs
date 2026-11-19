@@ -12,13 +12,17 @@
 // measured differences are reported as noise, not regressions. No times are stored.
 import { execFileSync, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { isDeepStrictEqual, parseArgs } from 'node:util';
 import { galleryCases } from '../../../../../docs/showcase/gallery-cases.mjs';
+import { KCHART_CASES } from '../../../../../packages/kchart/tests/kchart-cases.mjs';
+import * as kchart from '../../../vendor/kchart/esm/node.js';
 import { launchBrowser } from '../../src/shared/browser.mjs';
 import { documentSize } from '../../src/tools/clip.mjs';
+
+const { diagram } = kchart;
 
 const skill = fileURLToPath(new URL('../../../', import.meta.url));
 const cli = join(skill, 'scripts/htmlview');
@@ -29,13 +33,7 @@ function runCli(...args) {
   execFileSync(process.execPath, [cli, ...args], { stdio: ['ignore', 'pipe', 'inherit'] });
 }
 
-async function matrix(save, corpusFile) {
-  const vendor = join(skill, 'vendor/kchart/esm/node.js');
-  const vendored = existsSync(vendor);
-  const kchart = await import(pathToFileURL(vendored ? vendor : join(skill, 'kchart/node.mjs')));
-  const { diagram } = vendored ? kchart : await import(pathToFileURL(join(skill, 'kchart/diagram.mjs')));
-  const movedCases = resolve(skill, '../../packages/kchart/tests/kchart-cases.mjs');
-  const { KCHART_CASES } = await import(pathToFileURL(existsSync(movedCases) ? movedCases : join(skill, 'kchart/tests/kchart-cases.mjs')));
+function matrix(save, corpusFile) {
   const svg = (id, lang, render, recordDiagnostics = false) => {
     for (const theme of Object.keys(kchart.themes).sort()) for (const media of ['screen', 'print']) for (const width of [360, 780]) {
       const entry = `${id}/${lang}/${theme}-${media}-${width}.svg`;
@@ -70,10 +68,9 @@ async function matrix(save, corpusFile) {
       svg(`corpus/${encodeURIComponent(file)}-${blockIndex}`, 'en', options => diagram(source, options), true);
     }
   }
-  return kchart;
 }
 
-function buildPages(out, kchart) {
+function buildPages(out) {
   const inputs = join(out, 'inputs');
   mkdirSync(inputs);
   const doc = join(inputs, 'doc.md');
@@ -147,10 +144,10 @@ async function capture(out, corpusFile) {
     }
     entries.set(entry, { sha256: sha256(bytes), bytes: Buffer.byteLength(bytes), ...(metrics && { metrics }) });
   };
-  const kchart = await matrix(save, corpusFile);
+  matrix(save, corpusFile);
   const diagnostics = [...entries.keys()].filter(key => key.endsWith('.diagnostics.json')).length;
   console.log(`Captured ${entries.size - diagnostics} SVGs and ${diagnostics} corpus diagnostics`);
-  const pages = buildPages(out, kchart);
+  const pages = buildPages(out);
   await inOneTab(async page => {
     for (const entry of pages) {
       const url = pathToFileURL(join(out, entry)).href;

@@ -1,7 +1,7 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { render as renderKChart, theme as kchartTheme } from '../../../../kchart/node.mjs';
+import { render as renderKChart, theme as kchartTheme } from '../../../../vendor/kchart/esm/node.js';
 import { renderShell, parseShell, auditShell } from '../../shared/shell.mjs';
 import { vizMarkup, auditViz } from '../../shared/viz.mjs';
 import { markdownToContent } from '../../shared/markdown.mjs';

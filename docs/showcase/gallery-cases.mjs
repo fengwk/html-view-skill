@@ -1,6 +1,6 @@
 // Curated inputs for the README gallery, in Chinese and English.
 // Every number describes a fictional coffee chain; none comes from a real business.
-// The regression suite keeps its own adversarial inputs in skills/html-view/kchart/tests/kchart-cases.mjs.
+// The regression suite keeps its own adversarial inputs in packages/kchart/tests/kchart-cases.mjs.
 
 const pick = lang => (zh, en) => (lang === 'en' ? en : zh);
 

@@ -2,14 +2,23 @@
 
 简体中文 · [English](architecture.en.md)
 
-`htmlview` 生成离线单文件 HTML，维护阅读文档、数据报表和界面稿，也负责本地 HTML 的阅读、检查与导出。数据图和结构图由独立的 KChart 库输出。不安装第三方渲染运行时，不在仓库维护生成的浏览器包。
+`htmlview` 生成离线单文件 HTML，维护阅读文档、数据报表和界面稿，也负责本地 HTML 的阅读、检查与导出。数据图和结构图由独立的 KChart 库输出：库源码在 `packages/kchart`，构建物原样镜像到技能内的 `skills/html-view/vendor/kchart`。不安装第三方渲染运行时，不手工改构建物。
 
 | 边界 | 实现 |
 |---|---|
 | 命令与输出 | `scripts/htmlview` 按 `doc`、`data`、`ui`、`viz` 及通用命令分发；结构化失败携带下一步建议 |
 | 产物 | `scripts/src/artifacts/{doc,data,ui,viz}` 各负责自己的骨架、特有审计和 diff 单元；不互相引用 |
 | 共享外壳 | `scripts/src/shared/` 统一 HTML 内容标记、主题变量、图形校验及模块选择；`scripts/src/tools/` 依赖共用浏览器、文档解析和打印参数 |
-| 渲染内核 | `kchart/src/core` 管主题、测字、几何、场景和 SVG；`chart` 与 `diagram` 分别管理数据图和结构图 |
+| 渲染内核 | `packages/kchart/src/core` 管主题、测字、几何、场景和 SVG；`chart` 与 `diagram` 分别管理数据图和结构图 |
+| 构建与镜像 | 在 `packages/kchart` 用 `npm run build` 产出 `dist/`（ESM 入口、浏览器单元与资源），再用 `npm run vendor` 镜像到 `skills/html-view/vendor/kchart`。html-view 的渲染走镜像的 `esm/node.js`，已有辅助功能取自镜像的 `esm/core/` 模块；运行时不引用库源码 |
+
+仓库分三层，职责不交叉：
+
+- `packages/kchart/`：KChart 库本体，含 `src/`、`assets/`（主题、图标、地图）、`tests/`、`docs/`（声明参考）、`README.md` 和 `NOTICE.md`。在这里开发、测试和发布。
+- `skills/html-view/`：技能本身，包含 CLI、参考文档和 `vendor/kchart/`。技能仍是零运行时依赖，按 git clone 安装即可用。
+- `skills/html-view/vendor/kchart/`：由 `npm run vendor` 生成的构建镜像。它随仓库提交，不手改；`npm run vendor -- --check` 或 CI 在不一致时报错。
+
+升级 KChart 时在 `packages/kchart` 改源码，构建后重新镜像；html-view 的代码、测试、`docs/showcase` 与文档都跟着镜像走，不改调用方式。
 
 ## 内容和外壳
 
@@ -19,7 +28,7 @@
 
 ## 布局与检查
 
-`kchart/src/modules.json` 是模块依赖和图型登记的正本。DOM-free 解析与布局能在 Node 和浏览器使用；浏览器宿主用 Canvas 测字，宽度、主题或打印媒体变化后重排。结构图和数据图共享 SVG 序列化。可读字和完整几何优先；需要时放宽图内画布并允许图框内横向滚动，不将窄屏默默变成别的构图。
+`packages/kchart/src/families.json` 登记图型，源码的 `import` 决定模块依赖；`npm run build` 据此产出 ESM 入口、逐模块的浏览器单元和 `units.json` 清单，`npm run vendor` 把 `dist/` 原样镜像到技能。DOM-free 解析与布局能在 Node 和浏览器使用；浏览器宿主用 Canvas 测字，宽度、主题或打印媒体变化后重排。结构图和数据图共享 SVG 序列化。可读字和完整几何优先；需要时放宽图内画布并允许图框内横向滚动，不将窄屏默默变成别的构图。
 
 `audit` 检查输入及产物完整性，`check` 检查实际设备宽度、打印版心与浏览器错误。`shot` 和 `export` 等待当前媒体布局。打印时检查与导出共用版心测量；发现横向裁切或图高超过单页时拒绝写 PDF。宽图可用 `--paper a4-landscape`，高图可用 `--paper a3-portrait`；仍放不下时交付完整 SVG 或由作者重排。自动测试不替代样张目检。
 
@@ -33,7 +42,7 @@
 | 调整界面稿的品牌色或明暗 | `htmlview style prototype.html --brand '#a84624' --scheme light`。界面稿从品牌色派生主题，不用 `--theme`。 |
 | 在 KChart 程序接口中用自己的配色 | 传 `theme` 对象给 `render()` 或 `diagram()`。可展开一套内置主题，再覆盖必要的字段；不必改库源码或注册 CLI 主题。 |
 | 应用自定义主题 | `htmlview style report.html --theme-file harbor.json`。可继承内置主题，只写要改的角色。HTML 保存解析后的主题，分享时不需要原 JSON。见[完整字段和示例](../skills/html-view/references/guides/themes.md)。 |
-| 添加内置主题 | 把审核通过的 `<id>.json` 放入 [`kchart/assets/themes/`](../skills/html-view/kchart/assets/themes/)。CLI、KChart、通用测试和图库生成器自动发现，不需要再登记 CSS 或图型。发布时用生成器刷新 README 对照图。 |
+| 添加内置主题 | 把审核通过的 `<id>.json` 放入 [`packages/kchart/assets/themes/`](../packages/kchart/assets/themes/)，然后在 `packages/kchart` 运行 `npm ci`、`npm run build` 和 `npm run vendor`，把新主题带进技能的 `vendor/kchart`。CLI、KChart、通用测试和图库生成器自动发现它，不需要再登记 CSS 或图型。发布时用生成器刷新 README 对照图。 |
 
 主题 JSON 是配色和样式的唯一配置来源；HTML 外壳从它生成 CSS 变量，KChart 直接使用解析出的角色。已有主题只换颜色时，不需要改 CSS 文件或图型；改第 2 条数据序列用 `tones[1]`，改外壳强调色用 `accent`，两者是不同角色，但应取同一色系，否则链接和图中重点系列会是两种强调色。不要只给一组任意 HEX：调色盘要覆盖背景、文字、描边、状态和六个序列色，并通过对比度与色觉区分校验。新增主题后需验证窄屏、真实图表和打印；深色主题打印仍采用 Paper 色板。
 
@@ -47,5 +56,5 @@
 
 - [技能入口与图型索引](../skills/html-view/SKILL.md)
 - [CLI、自动测试与图库维护](../skills/html-view/scripts/README.md)
-- [KChart API、程序包与许可](../skills/html-view/kchart/README.md)
+- [KChart API、程序包与许可](../packages/kchart/README.md)（第三方资产见[资产声明](../packages/kchart/NOTICE.md)，地图地区键见[REGIONS.md](../packages/kchart/assets/maps/REGIONS.md)）
 - [图谱与样例](showcase/README.md) · [图型覆盖和反例](chart-coverage.md)

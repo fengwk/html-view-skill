@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { cpSync, existsSync, linkSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, linkSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -86,13 +86,32 @@ test('theme-file data build and style preserve evidence; validation is a write g
   assert.equal(existsSync(alias), true);
 });
 
-// Add one file to an isolated copy. No registration or generated assets are allowed in this setup.
-test('one JSON file is enough to register a built-in theme in the CLI and browser bundle', (t) => {
+// A theme JSON becomes available to the CLI and browser only after rebuilding and vendoring KChart.
+test('one JSON file plus the build+vendor step registers a built-in theme in the CLI and browser bundle', (t) => {
   const at = temp(t);
-  for (const name of ['kchart', 'assets', 'scripts/src', 'scripts/htmlview']) cpSync(new URL(`../../${name}`, import.meta.url), at(name), { recursive: true });
+  const library = at('packages/kchart');
+  const skill = at('skills/html-view');
+  for (const name of ['assets', 'scripts/src', 'scripts/htmlview', 'vendor/kchart']) {
+    cpSync(new URL(`../../${name}`, import.meta.url), join(skill, name), { recursive: true });
+  }
+  // The library project is copied without its build output; the vendored artifacts come from our own build.
+  mkdirSync(library, { recursive: true });
+  for (const name of ['package.json', 'node.js', 'page-api.js', 'src', 'assets', 'scripts', 'LICENSE', 'NOTICE.md']) {
+    cpSync(new URL(`../../../../packages/kchart/${name}`, import.meta.url), join(library, name), { recursive: true });
+  }
+  symlinkSync(new URL('../../../../packages/kchart/node_modules', import.meta.url), join(library, 'node_modules'), 'dir');
+  const lib = (script, ...args) => {
+    const result = spawnSync(process.execPath, [join(library, 'scripts', script), ...args], { cwd: library, encoding: 'utf8', timeout: 180000 });
+    assert.ifError(result.error);
+    assert.equal(result.status, 0, result.stdout + result.stderr);
+  };
   const id = 'single-file-probe';
-  writeFileSync(at(`kchart/assets/themes/${id}.json`), JSON.stringify({ id, name: '样例', en: 'Example', desc: 'Synthetic test theme', accent: '#12635e' }));
-  const cli = at('scripts/htmlview');
+  const cli = join(skill, 'scripts/htmlview');
+  // The theme JSON alone is not registration any more: the shipped build has not seen it yet.
+  writeFileSync(join(library, 'assets/themes', `${id}.json`), JSON.stringify({ id, name: '样例', en: 'Example', desc: 'Synthetic test theme', accent: '#12635e' }));
+  assert.equal(run(['style', '--list'], 0, cli).themes.some((item) => item.id === id), false);
+  lib('build.mjs');
+  lib('vendor.mjs');
   assert.ok(run(['style', '--list'], 0, cli).themes.some((item) => item.id === id));
   const out = at('doc.html');
   const md = at('source.md');

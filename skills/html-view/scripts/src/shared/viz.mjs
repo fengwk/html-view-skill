@@ -1,4 +1,4 @@
-import { createRenderer, modulesFor, parse } from '../../../kchart/node.mjs';
+import { createRenderer, modulesFor, parse } from '../../../vendor/kchart/esm/node.js';
 import { decodeEntities, scanElements } from './html-util.mjs';
 
 export const VIZ_SYNTAXES = Object.freeze(['kchart', 'mermaid', 'layers', 'blocks', 'swimlane']);

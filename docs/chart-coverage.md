@@ -1,6 +1,6 @@
 # KChart 覆盖映射与反例
 
-本表用 51 个对照场景说明 KChart 支持的静态表现、可选交互和范围限制。它们对应[回归样例的参考 ID](../skills/html-view/kchart/tests/kchart-cases.mjs)，与当前注册的 45 个基础图型计数口径不同。字段与限制见[数据图声明](../skills/html-view/kchart/docs/declaring-charts.md)。
+本表用 51 个对照场景说明 KChart 支持的静态表现、可选交互和范围限制。它们对应[回归样例的参考 ID](../packages/kchart/tests/kchart-cases.mjs)，与当前注册的 45 个基础图型计数口径不同。字段与限制见[数据图声明](../packages/kchart/docs/declaring-charts.md)。
 
 ## 1. 图型与表现对照
 
@@ -76,7 +76,7 @@ Mermaid mindmap 转入树模型；其余 Mermaid 图种仍使用原文本，不�
 
 ## 4. 反例与预期
 
-声明示例见 [kchart-examples.json](../skills/html-view/kchart/tests/kchart-examples.json)。其中数据全部虚构，用于说明当前协议下的预期接受/拒绝语义；该文件是示例，不是校验器测试运行报告。自动验证以当前实现测试为准。
+声明示例见 [kchart-examples.json](../packages/kchart/tests/kchart-examples.json)。其中数据全部虚构，用于说明当前协议下的预期接受/拒绝语义；该文件是示例，不是校验器测试运行报告。自动验证以当前实现测试为准。
 
 | 风险 | 必须得到的行为 |
 |---|---|

@@ -3,9 +3,8 @@
 import { lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
-import { createRenderer } from '../../../kchart/node.mjs';
-import { createRenderer as createDiagramRenderer } from '../../../kchart/diagram.mjs';
-import { KCHART_CASES } from '../../../kchart/tests/kchart-cases.mjs';
+import { createRenderer } from '../../../vendor/kchart/esm/node.js';
+import { KCHART_CASES } from '../../../../../packages/kchart/tests/kchart-cases.mjs';
 import { DIAGRAMS, MINDMAP_LAYOUTS } from './diagram-fixtures.mjs';
 
 const GENERATOR_ID = 'html-view/scripts/lab/showcase/generate.mjs';
@@ -95,7 +94,7 @@ const diagramItems = [...DIAGRAMS, ...MINDMAP_LAYOUTS.map(layout => ({
 if (DIAGRAMS.length !== 30 || DIAGRAMS.filter(item => item.syntax === 'mermaid').length !== 27) {
   throw new Error(`结构图输入预期 27 种 Mermaid + 3 种原生，实际 ${DIAGRAMS.length} 条`);
 }
-const diagramRenderer = createDiagramRenderer({ sources: diagramItems.map(({ source, syntax }) => ({ source, syntax })) });
+const diagramRenderer = createRenderer({ sources: diagramItems.map(({ source, syntax }) => ({ source, syntax })) });
 const diagramRecords = diagramItems.map(item => ({
   id: item.id, family: item.id.startsWith('diagram-mindmap-') ? '脑图布局' : '结构图', title: item.id,
   chart: item.id, kind: item.id.startsWith('diagram-mindmap-') ? 'mindmap-layout' : 'diagram',
@@ -180,6 +179,6 @@ for (const group of previewGroups) {
   writeOutput(`${group.id}.svg`, contactSheet);
 }
 const previewNames = ['theme-matrix.svg', 'diagram-matrix.svg', ...previewGroups.map(group => `${group.id}.svg`)];
-const manifest = { generator: GENERATOR_ID, engine: 'html-view/kchart', width: WIDTH, themes: THEMES, baseChartCount: baseCharts.length, controlledVariantCount: variantItems.length, mermaidCount: 27, nativeDiagramCount: 3, mindmapLayoutCount: MINDMAP_LAYOUTS.length, records: records.length, renderedSvgCount: renders, curatedPreviews: previewNames };
+const manifest = { generator: GENERATOR_ID, engine: 'html-view/vendor/kchart/esm/node.js', width: WIDTH, themes: THEMES, baseChartCount: baseCharts.length, controlledVariantCount: variantItems.length, mermaidCount: 27, nativeDiagramCount: 3, mindmapLayoutCount: MINDMAP_LAYOUTS.length, records: records.length, renderedSvgCount: renders, curatedPreviews: previewNames };
 writeOutput('manifest.json', `${JSON.stringify(manifest, null, 2)}\n`);
 console.log(`KChart showcase: ${baseCharts.length} base chart types, ${variantItems.length} controlled variants, ${DIAGRAMS.length} diagrams, ${MINDMAP_LAYOUTS.length} mindmap layouts; ${renders} SVGs in ${out}`);

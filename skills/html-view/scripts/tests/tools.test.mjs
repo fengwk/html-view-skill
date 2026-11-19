@@ -6,8 +6,8 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { findBrowser } from '../src/shared/browser.mjs';
-import { loadModules } from '../../kchart/modules.mjs';
-import { resolveThemeConfig, structureRoles } from '../../kchart/node.mjs';
+import { fallbackMeasure, wrapText } from '../../vendor/kchart/esm/core/text.js';
+import { resolveThemeConfig, structureRoles } from '../../vendor/kchart/esm/node.js';
 import { structureProperties } from '../src/shared/themes.mjs';
 
 const BIN = fileURLToPath(new URL('../htmlview', import.meta.url));
@@ -121,7 +121,6 @@ test('viz schema 与 palette 通过 KChart 原生 API 返回契约字段', async
 
 // 用 KChart 同一套估算与断行验证 CLI 输出，包含中英文和加粗字重。
 test('viz measure returns KChart widths and lines and enforces minimum size', () => {
-  const { fallbackMeasure, wrapText } = loadModules(['core/text'])['core/text'];
   const samples = ['payment-callback', '订单服务'];
   const size = 14, weight = 600, maxWidth = 65;
   const result = invoke(['viz', 'measure', ...samples, '--size', String(size), '--weight', String(weight), '--max-width', String(maxWidth)]);

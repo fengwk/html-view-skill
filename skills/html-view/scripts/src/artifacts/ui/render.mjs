@@ -1,8 +1,7 @@
-import { loadModules } from '../../../../kchart/modules.mjs';
+import { resolve as resolveIcon } from '../../../../vendor/kchart/esm/core/icons.js';
 import { readAsset } from '../../shared/assets.mjs';
 import { darkMockupPrint, generateTokens, normalizeDesign, normalizeDevice, normalizeLang } from './theme.mjs';
 
-const iconModule = loadModules(['core/icons'])['core/icons'];
 const escapeHtml = (value) => String(value).replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
 const jsonForScript = (value) => JSON.stringify(value).replace(/<\/script/gi, '<\\/script');
 
@@ -12,7 +11,7 @@ function iconMarkup(content) {
   for (const match of String(content).matchAll(/\bdata-icon\s*=\s*(["'])([^"']+)\1/gi)) names.add(match[2]);
   const result = {};
   for (const name of names) {
-    const icon = iconModule.resolve(name);
+    const icon = resolveIcon(name);
     if (!icon) continue;
     result[name] = icon.elements.map(({ tag, attrs }) => `<${tag}${Object.entries(attrs).map(([key, value]) => ` ${key}="${escapeHtml(value)}"`).join('')} />`).join('');
   }

@@ -1,6 +1,6 @@
+import { fallbackMeasure, wrapText } from '../../../vendor/kchart/esm/core/text.js';
 import { parseArgs } from '../shared/args.mjs';
 import { emit, fail } from '../shared/output.mjs';
-import { loadModules } from '../../../kchart/modules.mjs';
 
 const USAGE = 'htmlview viz measure <text>… [--size <px>] [--weight <n>] [--max-width <px>]';
 const options = {
@@ -17,7 +17,6 @@ export async function run(argv) {
   if (!Number.isFinite(weight) || weight <= 0) fail('USAGE', '--weight 必须是正数', { next: USAGE });
   if (maxWidth !== undefined && (!Number.isFinite(maxWidth) || maxWidth <= 0)) fail('USAGE', '--max-width 必须是正数', { next: USAGE });
 
-  const { fallbackMeasure, wrapText } = loadModules(['core/text'])['core/text'];
   const itemOf = (text) => ({ text, width: Math.ceil(fallbackMeasure(text, size, weight)) });
   const items = positionals.map((text) => ({
     ...itemOf(text),

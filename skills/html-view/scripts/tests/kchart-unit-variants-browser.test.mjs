@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { createRenderer } from '../../kchart/node.mjs';
+import { createRenderer } from '../../vendor/kchart/esm/node.js';
 import { launchBrowser } from '../src/shared/browser.mjs';
 
 // 意图：真实 Chromium 检查单位变体 SVG 的剪裁、文字可读性和像素可见图标。

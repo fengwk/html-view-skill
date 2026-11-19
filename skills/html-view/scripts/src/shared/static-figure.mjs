@@ -7,8 +7,7 @@ import { escapeHtml } from './html-util.mjs';
 import { renderShell } from './shell.mjs';
 import { withBrowser } from './browser.mjs';
 import { inferLang } from './locale.mjs';
-import { createRenderer, theme as resolveTheme } from '../../../kchart/node.mjs';
-import { createRenderer as createDiagramRenderer, detectSyntax } from '../../../kchart/diagram.mjs';
+import { createRenderer, detectSyntax, theme as resolveTheme } from '../../../vendor/kchart/esm/node.js';
 
 export const VIZ_WIDTH = 'viz:width';
 export const VIZ_SOURCE_ID = 'viz-source';
@@ -94,7 +93,7 @@ export async function measureFigure(source, { theme, width, lang, standalone }) 
   } else {
     const syntax = detectSyntax(source);
     input = { source, syntax };
-    const renderer = createDiagramRenderer({ sources: [input] });
+    const renderer = createRenderer({ sources: [input] });
     const diagnostics = renderer.check(source, { syntax, theme, lang });
     if (diagnostics.length) fail('USAGE', '结构图源码不符合语法契约', {
       next: '按 diagnostics 中的位置与改法修正源码', details: { diagnostics },

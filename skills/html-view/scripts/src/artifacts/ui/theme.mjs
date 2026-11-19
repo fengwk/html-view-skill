@@ -1,11 +1,7 @@
-import { loadModules } from '../../../../kchart/modules.mjs';
-import { structureRoles } from '../../../../kchart/node.mjs';
+import * as color from '../../../../vendor/kchart/esm/core/color.js';
+import { FONT_FAMILY, structureRoles, theme as validateTheme } from '../../../../vendor/kchart/esm/node.js';
 import { fail } from '../../shared/output.mjs';
 import { structureProperties } from '../../shared/themes.mjs';
-
-const modules = loadModules(['core/color', 'core/theme']);
-const color = modules['core/color'];
-const { theme: validateTheme, FONT_FAMILY } = modules['core/theme'];
 
 // UI has its own surfaces and text roles: a built-in reading theme can be edited without changing a prototype.
 const UI_BASE = {

@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { KCHART_CASES } from '../../kchart/tests/kchart-cases.mjs';
-import { catalog, createRenderer } from '../../kchart/node.mjs';
+import { KCHART_CASES } from '../../../../packages/kchart/tests/kchart-cases.mjs';
+import { catalog, createRenderer } from '../../vendor/kchart/esm/node.js';
 import { geometryFailures, inspectVariantImplementation, measurementExpression, pageInspectionExpression, parseArgs, selectGalleryCases } from '../lab/regression/kchart-gallery.mjs';
 
 const renderer = createRenderer();
