@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { createPageApi } from './page-api.js';
 import { createRegistry } from './src/chart/registry.js';
+import { validate as validateSpec } from './src/chart/spec.js';
 import { prepareSource } from './src/diagram/source.js';
 import families from './src/families.json';
 
@@ -142,7 +143,7 @@ export function createRenderer({ specs, sources, readMap = readMapFile } = {}) {
 function rendererFor(roots, diagramOnly, readMap) {
   const modules = Object.fromEntries(roots.map(id => [id, modulesByPath[`./src/${id}.js`]]));
   // ESM modules are shared, but each renderer still sees only its selected layouts, in dependency order.
-  const registry = createRegistry();
+  const registry = createRegistry(validateSpec);
   for (const unit of Object.values(modules)) unit.install?.(registry);
   const api = createPageApi(modules, unloadedVariants(roots), diagramTypes, diagramOnly, registry);
   let browser;

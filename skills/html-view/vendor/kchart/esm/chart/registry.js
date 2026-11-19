@@ -13,7 +13,7 @@ var registry_exports = /* @__PURE__ */ __exportAll({
 	register: () => register,
 	render: () => render
 });
-function createRegistry(validate$1 = validate) {
+function createRegistry(validate) {
 	const layouts = /* @__PURE__ */ new Map();
 	const decorators = /* @__PURE__ */ new Map();
 	const cannotMutate = () => {
@@ -47,8 +47,8 @@ function createRegistry(validate$1 = validate) {
 		for (const name of list) decorators.set(name, decorator);
 	}
 	function layout(input, options = {}) {
-		if (typeof validate$1 !== "function") throw new TypeError("渲染器未绑定声明校验器");
-		const { errors, data: spec } = validate$1(input);
+		if (typeof validate !== "function") throw new TypeError("渲染器未绑定声明校验器");
+		const { errors, data: spec } = validate(input);
 		if (errors.length) throw new ExpectedDiagnostic("图表声明校验失败", errors);
 		if (!spec) throw new TypeError("声明校验器未返回图表");
 		const name = spec.chart;

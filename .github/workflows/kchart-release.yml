@@ -15,10 +15,14 @@ jobs:
       run:
         working-directory: packages/kchart
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
         with:
           node-version: '24'
+          registry-url: 'https://registry.npmjs.org'
+      # Trusted publishing (OIDC, no stored token) needs npm >= 11.5.1.
       - run: npm install --global npm@11
       - name: Verify tag matches package version
         run: node --input-type=module -e 'import pkg from "./package.json" with { type: "json" }; if (process.env.GITHUB_REF_NAME !== `kchart-v${pkg.version}`) throw new Error(`Tag must be kchart-v${pkg.version}`);'

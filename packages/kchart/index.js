@@ -38,7 +38,7 @@ export async function render(spec, options = {}) {
     import('./src/chart/registry.js'), import('./src/chart/spec.js'), import('./src/chart/context.js'),
     Promise.all([...bases].map(id => loadFamily[id]())), decorator && loadFamily[decorator.family](), map?.(),
   ]);
-  const registry = registryModule.createRegistry();
+  const registry = registryModule.createRegistry(chartSpec.validate);
   for (const layout of layouts) layout.install(registry);
   variants?.install(registry);
   const api = createPageApi({

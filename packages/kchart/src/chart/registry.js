@@ -4,7 +4,7 @@ import { containText } from '../core/scene.js';
 import { renderScene } from '../core/svg.js';
 import { ExpectedDiagnostic } from '../core/diagnostics.js';
 
-function createRegistry(validate = validateSpec) {
+function createRegistry(validate) {
   const layouts = new Map();
   const decorators = new Map();
   const cannotMutate = () => { throw new TypeError('KChart.layouts is read-only'); };

@@ -74,7 +74,7 @@
       "core/svg",
       "core/diagnostics"
     ],
-    "bytes": 2452
+    "bytes": 2441
   },
   "chart/relations": {
     "file": "units/chart/relations.js",

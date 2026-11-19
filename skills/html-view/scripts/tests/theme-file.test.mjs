@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { cpSync, existsSync, linkSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, linkSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -96,8 +96,9 @@ test('one JSON file plus the build+vendor step registers a built-in theme in the
   }
   // The library project is copied without its build output; the vendored artifacts come from our own build.
   mkdirSync(library, { recursive: true });
-  for (const name of ['package.json', 'node.js', 'page-api.js', 'src', 'assets', 'scripts', 'LICENSE', 'NOTICE.md']) {
-    cpSync(new URL(`../../../../packages/kchart/${name}`, import.meta.url), join(library, name), { recursive: true });
+  const packageRoot = new URL('../../../../packages/kchart/', import.meta.url);
+  for (const name of readdirSync(packageRoot)) {
+    if (!['node_modules', 'dist', 'tests'].includes(name)) cpSync(new URL(name, packageRoot), join(library, name), { recursive: true });
   }
   symlinkSync(new URL('../../../../packages/kchart/node_modules', import.meta.url), join(library, 'node_modules'), 'dir');
   const lib = (script, ...args) => {

@@ -9,7 +9,7 @@ import { mindmap_exports } from "./chart/mindmap.js";
 import { multivariate_exports } from "./chart/multivariate.js";
 import { createRegistry, registry_exports } from "./chart/registry.js";
 import { relations_exports } from "./chart/relations.js";
-import { spec_exports } from "./chart/spec.js";
+import { spec_exports, validate as validate$1 } from "./chart/spec.js";
 import { stat_compare_exports } from "./chart/stat-compare.js";
 import { stat_trend_exports } from "./chart/stat-trend.js";
 import { statistics_exports } from "./chart/statistics.js";
@@ -243,7 +243,7 @@ function createRenderer({ specs, sources, readMap = readMapFile } = {}) {
 }
 function rendererFor(roots, diagramOnly, readMap) {
 	const modules = Object.fromEntries(roots.map((id) => [id, modulesByPath[`./src/${id}.js`]]));
-	const registry = createRegistry();
+	const registry = createRegistry(validate$1);
 	for (const unit of Object.values(modules)) unit.install?.(registry);
 	const api = createPageApi(modules, unloadedVariants(roots), diagramTypes, diagramOnly, registry);
 	let browser;
