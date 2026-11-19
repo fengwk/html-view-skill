@@ -8,7 +8,7 @@
 
 技能不只管排版。拿到零散笔记、会议记录或 JSON 时，Agent 先按读者要做的事重排内容；做 Dashboard 时，先定这一屏回答什么问题，再把强调色只留给需要处理的那一项。
 
-[快速开始](#quick-start) · [交付样张](#showcase) · [**45 种数据图与 30 种结构图**](#gallery) · [内置主题](#themes) · [安装说明](#install) · [更新与卸载](#update-uninstall)
+[快速开始](#quick-start) · [交付样张](#showcase) · [内置主题](#themes) · [**45 种数据图与 30 种结构图**](#gallery) · [安装说明](#install) · [更新与卸载](#update-uninstall)
 
 <p align="center"><a href="docs/showcase/previews/zh-CN/dashboard-hero.png"><picture><source media="(max-width: 600px)" srcset="docs/showcase/previews/zh-CN/dashboard-mobile.png"><img src="docs/showcase/previews/zh-CN/dashboard-hero.png" width="840" alt="Claude 暖白主题的虚构咖啡经营看板：四张指标卡、收入走势和渠道对比"></picture></a></p>
 
@@ -69,11 +69,84 @@ Agent 生成 HTML 后会运行 `htmlview audit` 检查内容和资源，再用 `
 
 [样例源码与复现方式 →](docs/showcase/README.md)
 
+<a id="themes"></a>
+
+## 内置主题
+
+文档、报表和单图 HTML 都可以换主题，内容和数据不变。先横向比较同一张图的配色，再展开同一份文档，看强调色、编号、状态色和结构框的差别。
+
+<!-- themes:begin -->
+<table>
+<tr>
+<td colspan="2" align="center"><a href="docs/showcase/gallery/zh-CN/theme-claude.svg"><img src="docs/showcase/gallery/zh-CN/theme-claude.svg" width="360" alt="Claude"></a><br><b>Claude</b><br><sub><code>陶土 · 亮色</code></sub></td>
+</tr>
+<tr>
+<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/zh-CN/theme-paper.svg"><img src="docs/showcase/gallery/zh-CN/theme-paper.svg" width="360" alt="Paper"></a><br><b>Paper</b><br><sub><code>素白 · 亮色</code></sub></td>
+<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/zh-CN/theme-obsidian.svg"><img src="docs/showcase/gallery/zh-CN/theme-obsidian.svg" width="360" alt="Obsidian"></a><br><b>Obsidian</b><br><sub><code>黑曜 · 暗色</code></sub></td>
+</tr>
+<tr>
+<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/zh-CN/theme-tokyo.svg"><img src="docs/showcase/gallery/zh-CN/theme-tokyo.svg" width="360" alt="Tokyo Night"></a><br><b>Tokyo Night</b><br><sub><code>夜都 · 暗色</code></sub></td>
+<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/zh-CN/theme-kanagawa.svg"><img src="docs/showcase/gallery/zh-CN/theme-kanagawa.svg" width="360" alt="Kanagawa"></a><br><b>Kanagawa</b><br><sub><code>神奈川 · 暗色</code></sub></td>
+</tr>
+<tr>
+<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/zh-CN/theme-terminal.svg"><img src="docs/showcase/gallery/zh-CN/theme-terminal.svg" width="360" alt="Terminal"></a><br><b>Terminal</b><br><sub><code>终端 · 暗色</code></sub></td>
+<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/zh-CN/theme-cloudmusic.svg"><img src="docs/showcase/gallery/zh-CN/theme-cloudmusic.svg" width="360" alt="Cloud Music"></a><br><b>Cloud Music</b><br><sub><code>云音 · 亮色</code></sub></td>
+</tr>
+</table>
+
+**完整样张**：同一份文档在各主题下的效果。点主题名展开，一次只展开一套。
+
+<details name="theme-page" open>
+<summary><b>Claude</b> · 陶土 · 亮色</summary>
+
+<a href="docs/showcase/gallery/zh-CN/theme-claude-page.png"><img src="docs/showcase/gallery/zh-CN/theme-claude-page.png" width="780" alt="Claude 主题下的同一份样张：指标卡、柱图、分层图和提示条"></a>
+
+</details>
+<details name="theme-page">
+<summary><b>Paper</b> · 素白 · 亮色</summary>
+
+<a href="docs/showcase/gallery/zh-CN/theme-paper-page.png"><img src="docs/showcase/gallery/zh-CN/theme-paper-page.png" width="780" alt="Paper 主题下的同一份样张：指标卡、柱图、分层图和提示条"></a>
+
+</details>
+<details name="theme-page">
+<summary><b>Obsidian</b> · 黑曜 · 暗色</summary>
+
+<a href="docs/showcase/gallery/zh-CN/theme-obsidian-page.png"><img src="docs/showcase/gallery/zh-CN/theme-obsidian-page.png" width="780" alt="Obsidian 主题下的同一份样张：指标卡、柱图、分层图和提示条"></a>
+
+</details>
+<details name="theme-page">
+<summary><b>Tokyo Night</b> · 夜都 · 暗色</summary>
+
+<a href="docs/showcase/gallery/zh-CN/theme-tokyo-page.png"><img src="docs/showcase/gallery/zh-CN/theme-tokyo-page.png" width="780" alt="Tokyo Night 主题下的同一份样张：指标卡、柱图、分层图和提示条"></a>
+
+</details>
+<details name="theme-page">
+<summary><b>Kanagawa</b> · 神奈川 · 暗色</summary>
+
+<a href="docs/showcase/gallery/zh-CN/theme-kanagawa-page.png"><img src="docs/showcase/gallery/zh-CN/theme-kanagawa-page.png" width="780" alt="Kanagawa 主题下的同一份样张：指标卡、柱图、分层图和提示条"></a>
+
+</details>
+<details name="theme-page">
+<summary><b>Terminal</b> · 终端 · 暗色</summary>
+
+<a href="docs/showcase/gallery/zh-CN/theme-terminal-page.png"><img src="docs/showcase/gallery/zh-CN/theme-terminal-page.png" width="780" alt="Terminal 主题下的同一份样张：指标卡、柱图、分层图和提示条"></a>
+
+</details>
+<details name="theme-page">
+<summary><b>Cloud Music</b> · 云音 · 亮色</summary>
+
+<a href="docs/showcase/gallery/zh-CN/theme-cloudmusic-page.png"><img src="docs/showcase/gallery/zh-CN/theme-cloudmusic-page.png" width="780" alt="Cloud Music 主题下的同一份样张：指标卡、柱图、分层图和提示条"></a>
+
+</details>
+<!-- themes:end -->
+
+用 `htmlview style report.html --theme obsidian` 换成内置主题，或用 `--theme-file harbor.json` 应用自己的配色。HTML 会内嵌主题，分享时不用附上 JSON。新增内置主题只需在[主题目录](skills/html-view/kchart/assets/themes/)加一份 JSON，审查实际样张后用[图谱生成器](docs/showcase/README.md#readme-gallery)刷新本节。界面稿的配色由 `--brand` 和 `--scheme` 控制。[主题格式与维护 →](docs/architecture.md#themes)
+
 <a id="gallery"></a>
 
 ## KChart 图谱
 
-HTML View 的图表由自带的 KChart 库绘制：**45 种数据图、38 项受控变体、27 种 Mermaid 子集图型、3 种原生结构图、8 种脑图布局**。下面每一种都有一张真实渲染的样张，统一使用 Claude 配色。每张图占一格，两列对齐；宽图占满一行，不为拼图缩小文字。手机上 GitHub 会把两列按屏宽缩小，点击图片可打开原尺寸 SVG。
+HTML View 的图表由自带的 KChart 库绘制：**45 种数据图、38 项受控变体、27 种 Mermaid 子集图型、3 种原生结构图、8 种脑图布局**。下面每一种都有一张真实渲染的样张，统一使用 Claude 配色，其他主题见[内置主题](#themes)。每张图占一格，两列对齐；宽图占满一行，不为拼图缩小文字。手机上 GitHub 会把两列按屏宽缩小，点击图片可打开原尺寸 SVG。
 
 [生成可筛选的完整图库 →](docs/showcase/README.md#full-gallery)
 
@@ -522,32 +595,6 @@ HTML View 的图表由自带的 KChart 库绘制：**45 种数据图、38 项受
 </tr>
 </table>
 <!-- gallery:end -->
-
-<a id="themes"></a>
-
-## 同一张图，不同主题
-
-<!-- themes:begin -->
-<table>
-<tr>
-<td colspan="2" align="center"><a href="docs/showcase/gallery/zh-CN/theme-claude.svg"><img src="docs/showcase/gallery/zh-CN/theme-claude.svg" width="360" alt="Claude"></a><br><b>Claude</b><br><sub><code>陶土 · 亮色</code></sub></td>
-</tr>
-<tr>
-<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/zh-CN/theme-paper.svg"><img src="docs/showcase/gallery/zh-CN/theme-paper.svg" width="360" alt="Paper"></a><br><b>Paper</b><br><sub><code>素白 · 亮色</code></sub></td>
-<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/zh-CN/theme-obsidian.svg"><img src="docs/showcase/gallery/zh-CN/theme-obsidian.svg" width="360" alt="Obsidian"></a><br><b>Obsidian</b><br><sub><code>黑曜 · 暗色</code></sub></td>
-</tr>
-<tr>
-<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/zh-CN/theme-tokyo.svg"><img src="docs/showcase/gallery/zh-CN/theme-tokyo.svg" width="360" alt="Tokyo Night"></a><br><b>Tokyo Night</b><br><sub><code>夜都 · 暗色</code></sub></td>
-<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/zh-CN/theme-kanagawa.svg"><img src="docs/showcase/gallery/zh-CN/theme-kanagawa.svg" width="360" alt="Kanagawa"></a><br><b>Kanagawa</b><br><sub><code>神奈川 · 暗色</code></sub></td>
-</tr>
-<tr>
-<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/zh-CN/theme-terminal.svg"><img src="docs/showcase/gallery/zh-CN/theme-terminal.svg" width="360" alt="Terminal"></a><br><b>Terminal</b><br><sub><code>终端 · 暗色</code></sub></td>
-<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/zh-CN/theme-cloudmusic.svg"><img src="docs/showcase/gallery/zh-CN/theme-cloudmusic.svg" width="360" alt="Cloud Music"></a><br><b>Cloud Music</b><br><sub><code>云音 · 亮色</code></sub></td>
-</tr>
-</table>
-<!-- themes:end -->
-
-用 `htmlview style report.html --theme obsidian` 换成内置主题，或用 `htmlview style report.html --theme-file harbor.json` 应用自己的配色。HTML 会内嵌主题，分享时不用附上 JSON。新增内置主题只需在主题目录加一份 JSON，再检查实际样张。[主题格式与维护 →](docs/architecture.md#themes)
 
 <a id="install"></a>
 

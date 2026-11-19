@@ -8,8 +8,9 @@
   "extends": "paper",
   "name": "港湾",
   "en": "Harbor",
-  "desc": "白底、深青色链接、灰色结构框。",
+  "desc": "白底、深青链接与编号，数据系列以海青和黄铜为主，结构框用灰色。",
   "accent": "#12635e",
+  "tones": ["#23272c", "#13807a", "#8c6d46", "#0e4744", "#7c8088", "#5d7fa6"],
   "frameInk": "#677471",
   "style": { "radius": 12, "smallRadius": 6, "numberColor": "accent" },
   "diagram": { "radius": 4, "smallRadius": 4 }
@@ -23,7 +24,9 @@ htmlview style reading.html --theme-file harbor.json
 htmlview audit reading.html
 ```
 
-`doc new`、`doc build`、`data build`、`viz render`、`viz palette` 和 `style` 均支持该选项。`--theme` 与 `--theme-file` 二选一。界面稿仍用 `--brand` 和 `--scheme`。
+示例把页面强调色 `accent` 和第二数据系列 `tones[1]` 设为同一色系，链接、编号和图中的重点系列才协调。只改 `accent` 时，系列色仍是继承主题的色相，同一页会出现两种强调色。
+
+`doc new`、`doc build`、`data build`、`viz render`、`viz palette` 和 `style` 均支持该选项。`viz palette` 输出的 `chartAccent` 是图内强调色，等于 `tones[1]`，不是页面的 `accent`。`--theme` 与 `--theme-file` 二选一。界面稿仍用 `--brand` 和 `--scheme`。
 
 HTML 内嵌解析后的主题，不保存主题文件路径。删除 JSON 或把 HTML 分享到另一台机器后，仍可审计、检查、截图、导出。`style file.html` 保留随页主题，也可以换成另一套；单图 HTML 会用随页声明重新渲染静态 SVG，需要 Chrome 或 Chromium。单独的 SVG 已含所选色值，换色时从声明重新运行 `viz render`。
 
@@ -36,8 +39,8 @@ HTML 内嵌解析后的主题，不保存主题文件路径。删除 JSON 或把
 | `bg`、`surface`、`surface2`、`line`、`line2` | 页面底、卡片底、次级表面、细线、较深边线。 |
 | `fg1`–`fg4`、`accent` | 四级文字颜色；`accent` 用于链接和页面强调。 |
 | `new`、`info`、`ok`、`warn`、`danger`、`ext` | 新增、信息、正常、提醒、风险、外部关系。 |
-| `tones` | 按顺序填写六个数据系列色，整体替换继承的数组；不是页面强调色。 |
-| `frameInk`、`tint` | `frameInk` 是部分普通结构框的基色，不代替状态色。`tint` 为 `{ "hue": 95, "chroma": 1.4 }` 这样的装饰浅底混色参数：`0 ≤ hue < 360`，`1 ≤ chroma ≤ 2`。用 `null` 清除继承值。 |
+| `tones` | 按顺序填写六个数据系列色，整体替换继承的数组。`tones[1]` 也是单系列图里被强调的柱、点和参考线的颜色，应与 `accent` 同色系。 |
+| `frameInk`、`tint` | `frameInk` 是分层图、能力块、泳道、时序分组和脑图分支这些普通框的基色，不影响数据系列和状态色。未设置时，这些框从 `tones` 和 `accent` 取色，分层、能力块和泳道按顺序轮换系列色；这些颜色里有红、绿这类容易读成状态的颜色时，设一个中性的 `frameInk`。`tint` 为 `{ "hue": 95, "chroma": 1.4 }` 这样的装饰浅底混色参数：`0 ≤ hue < 360`，`1 ≤ chroma ≤ 2`。用 `null` 清除继承值。 |
 | `fontFamily` | 正文和图形共用的本地字体列表，例如 `"system-ui, sans-serif"`。 |
 | `style` | `radius`、`smallRadius` 为 0–24px；`soft` 为 0–0.25 的淡底混色比例。`nodeBackground`、`blockBackground`、`codeBackground` 可选 `bg`、`surface`、`surface2`；`blockBackground` 还可选 `transparent`，`codeBackground` 还可选 `node`（跟随 `nodeBackground`）。`displayFont` 选本地字体列表或 `sans`，`displayWeight` 为 100–900 的整数。`numberFont` 选 `sans` 或 `mono`；`numberStyle` 选 `decimal` 或 `decimal-leading-zero`；`numberColor`、`listMarker` 选文字、状态、`accent` 或 `tone1`–`tone6` 颜色角色。 |
 | `diagram` | 覆盖结构图的 `radius`、`smallRadius`、`soft`、`nodeBackground`，未覆盖的跟随 `style`；`null` 清除继承的结构图覆盖。 |

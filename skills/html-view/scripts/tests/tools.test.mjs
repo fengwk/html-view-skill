@@ -98,6 +98,10 @@ test('viz schema 与 palette 通过 KChart 原生 API 返回契约字段', async
   assert.equal(paletteResult.exitCode, 0);
   assert.equal(palettePayload.theme, 'paper');
   assert.ok(Array.isArray(palettePayload.roles));
+  // 图内强调色与主题 JSON 的页面强调色 accent 是不同角色，输出不得再用 accent 命名。
+  assert.equal(palettePayload.palette.chartAccent, palettePayload.palette.tone2);
+  assert.ok(!('accent' in palettePayload.palette));
+  assert.ok(!palettePayload.roles.some(({ role }) => role === 'accent'));
   assert.match(palettePayload.svgSkeleton, /^<svg\b/);
 });
 

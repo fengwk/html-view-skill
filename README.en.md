@@ -8,7 +8,7 @@ Give your agent Markdown, pre-aggregated CSV/JSON or a product flow, and it hand
 
 The skill covers more than layout. Given loose notes, meeting minutes or JSON, the agent first reorders the content around what the reader has to do. For a dashboard, it settles the one question the screen answers, then saves the accent color for the item that needs attention.
 
-[Quick start](#quick-start) · [What you get](#showcase) · [**45 data charts and 30 diagrams**](#gallery) · [Built-in themes](#themes) · [Install details](#install) · [Update and uninstall](#update-uninstall)
+[Quick start](#quick-start) · [What you get](#showcase) · [Built-in themes](#themes) · [**45 data charts and 30 diagrams**](#gallery) · [Install details](#install) · [Update and uninstall](#update-uninstall)
 
 <p align="center"><a href="docs/showcase/previews/en/dashboard-hero.png"><picture><source media="(max-width: 600px)" srcset="docs/showcase/previews/en/dashboard-mobile.png"><img src="docs/showcase/previews/en/dashboard-hero.png" width="840" alt="Fictional coffee operations dashboard in the warm Claude theme: four KPI cards, a revenue trend and a channel comparison"></picture></a></p>
 
@@ -71,11 +71,84 @@ One prototype: the overview on desktop, the channel and date filters on a phone.
 
 [Sample sources and how to reproduce them →](docs/showcase/README.en.md)
 
+<a id="themes"></a>
+
+## Built-in themes
+
+Documents, reports and single-chart HTML files can switch themes without changing their content or data. Compare one chart across every theme first, then open the same document to compare accents, numbering, status colors and diagram frames.
+
+<!-- themes:begin -->
+<table>
+<tr>
+<td colspan="2" align="center"><a href="docs/showcase/gallery/en/theme-claude.svg"><img src="docs/showcase/gallery/en/theme-claude.svg" width="360" alt="Claude"></a><br><b>Claude</b><br><sub><code>light theme</code></sub></td>
+</tr>
+<tr>
+<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/en/theme-paper.svg"><img src="docs/showcase/gallery/en/theme-paper.svg" width="360" alt="Paper"></a><br><b>Paper</b><br><sub><code>light theme</code></sub></td>
+<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/en/theme-obsidian.svg"><img src="docs/showcase/gallery/en/theme-obsidian.svg" width="360" alt="Obsidian"></a><br><b>Obsidian</b><br><sub><code>dark theme</code></sub></td>
+</tr>
+<tr>
+<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/en/theme-tokyo.svg"><img src="docs/showcase/gallery/en/theme-tokyo.svg" width="360" alt="Tokyo Night"></a><br><b>Tokyo Night</b><br><sub><code>dark theme</code></sub></td>
+<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/en/theme-kanagawa.svg"><img src="docs/showcase/gallery/en/theme-kanagawa.svg" width="360" alt="Kanagawa"></a><br><b>Kanagawa</b><br><sub><code>dark theme</code></sub></td>
+</tr>
+<tr>
+<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/en/theme-terminal.svg"><img src="docs/showcase/gallery/en/theme-terminal.svg" width="360" alt="Terminal"></a><br><b>Terminal</b><br><sub><code>dark theme</code></sub></td>
+<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/en/theme-cloudmusic.svg"><img src="docs/showcase/gallery/en/theme-cloudmusic.svg" width="360" alt="Cloud Music"></a><br><b>Cloud Music</b><br><sub><code>light theme</code></sub></td>
+</tr>
+</table>
+
+**Full page samples**: the same document in each theme. Click a theme name to open it; one stays open at a time.
+
+<details name="theme-page" open>
+<summary><b>Claude</b> · light theme</summary>
+
+<a href="docs/showcase/gallery/en/theme-claude-page.png"><img src="docs/showcase/gallery/en/theme-claude-page.png" width="780" alt="The same document in the Claude theme: KPI cards, a column chart, a layered diagram and a warning note"></a>
+
+</details>
+<details name="theme-page">
+<summary><b>Paper</b> · light theme</summary>
+
+<a href="docs/showcase/gallery/en/theme-paper-page.png"><img src="docs/showcase/gallery/en/theme-paper-page.png" width="780" alt="The same document in the Paper theme: KPI cards, a column chart, a layered diagram and a warning note"></a>
+
+</details>
+<details name="theme-page">
+<summary><b>Obsidian</b> · dark theme</summary>
+
+<a href="docs/showcase/gallery/en/theme-obsidian-page.png"><img src="docs/showcase/gallery/en/theme-obsidian-page.png" width="780" alt="The same document in the Obsidian theme: KPI cards, a column chart, a layered diagram and a warning note"></a>
+
+</details>
+<details name="theme-page">
+<summary><b>Tokyo Night</b> · dark theme</summary>
+
+<a href="docs/showcase/gallery/en/theme-tokyo-page.png"><img src="docs/showcase/gallery/en/theme-tokyo-page.png" width="780" alt="The same document in the Tokyo Night theme: KPI cards, a column chart, a layered diagram and a warning note"></a>
+
+</details>
+<details name="theme-page">
+<summary><b>Kanagawa</b> · dark theme</summary>
+
+<a href="docs/showcase/gallery/en/theme-kanagawa-page.png"><img src="docs/showcase/gallery/en/theme-kanagawa-page.png" width="780" alt="The same document in the Kanagawa theme: KPI cards, a column chart, a layered diagram and a warning note"></a>
+
+</details>
+<details name="theme-page">
+<summary><b>Terminal</b> · dark theme</summary>
+
+<a href="docs/showcase/gallery/en/theme-terminal-page.png"><img src="docs/showcase/gallery/en/theme-terminal-page.png" width="780" alt="The same document in the Terminal theme: KPI cards, a column chart, a layered diagram and a warning note"></a>
+
+</details>
+<details name="theme-page">
+<summary><b>Cloud Music</b> · light theme</summary>
+
+<a href="docs/showcase/gallery/en/theme-cloudmusic-page.png"><img src="docs/showcase/gallery/en/theme-cloudmusic-page.png" width="780" alt="The same document in the Cloud Music theme: KPI cards, a column chart, a layered diagram and a warning note"></a>
+
+</details>
+<!-- themes:end -->
+
+Use `htmlview style report.html --theme obsidian` to switch to a built-in theme, or `--theme-file harbor.json` to apply your own. The theme is embedded in the HTML, so there is no JSON file to share alongside it. To add a built-in theme, put one JSON file in the [theme directory](skills/html-view/kchart/assets/themes/), review the rendered samples, then refresh this section with the [gallery generator](docs/showcase/README.en.md#readme-gallery). UI mockups take their colors from `--brand` and `--scheme`. [Theme format and maintenance →](docs/architecture.en.md#themes)
+
 <a id="gallery"></a>
 
 ## KChart gallery
 
-Charts in HTML View are drawn by its bundled KChart library: **45 data charts, 38 controlled variants, 27 Mermaid subset diagrams, 3 native diagrams and 8 mind-map layouts**. Every one of them appears below as a real render in the Claude palette, one per cell in a two-column grid. Wide charts get a full row instead of shrinking their text to fit. On a phone GitHub scales both columns down to the screen; click an image to open the full-size SVG.
+Charts in HTML View are drawn by its bundled KChart library: **45 data charts, 38 controlled variants, 27 Mermaid subset diagrams, 3 native diagrams and 8 mind-map layouts**. Every one of them appears below as a real render in the Claude palette (see [Built-in themes](#themes) for the others), one per cell in a two-column grid. Wide charts get a full row instead of shrinking their text to fit. On a phone GitHub scales both columns down to the screen; click an image to open the full-size SVG.
 
 [Build the full, filterable gallery →](docs/showcase/README.en.md#full-gallery)
 
@@ -534,32 +607,6 @@ Charts in HTML View are drawn by its bundled KChart library: **45 data charts, 3
 </tr>
 </table>
 <!-- gallery:end -->
-
-<a id="themes"></a>
-
-## One chart, different themes
-
-<!-- themes:begin -->
-<table>
-<tr>
-<td colspan="2" align="center"><a href="docs/showcase/gallery/en/theme-claude.svg"><img src="docs/showcase/gallery/en/theme-claude.svg" width="360" alt="Claude"></a><br><b>Claude</b><br><sub><code>light theme</code></sub></td>
-</tr>
-<tr>
-<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/en/theme-paper.svg"><img src="docs/showcase/gallery/en/theme-paper.svg" width="360" alt="Paper"></a><br><b>Paper</b><br><sub><code>light theme</code></sub></td>
-<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/en/theme-obsidian.svg"><img src="docs/showcase/gallery/en/theme-obsidian.svg" width="360" alt="Obsidian"></a><br><b>Obsidian</b><br><sub><code>dark theme</code></sub></td>
-</tr>
-<tr>
-<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/en/theme-tokyo.svg"><img src="docs/showcase/gallery/en/theme-tokyo.svg" width="360" alt="Tokyo Night"></a><br><b>Tokyo Night</b><br><sub><code>dark theme</code></sub></td>
-<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/en/theme-kanagawa.svg"><img src="docs/showcase/gallery/en/theme-kanagawa.svg" width="360" alt="Kanagawa"></a><br><b>Kanagawa</b><br><sub><code>dark theme</code></sub></td>
-</tr>
-<tr>
-<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/en/theme-terminal.svg"><img src="docs/showcase/gallery/en/theme-terminal.svg" width="360" alt="Terminal"></a><br><b>Terminal</b><br><sub><code>dark theme</code></sub></td>
-<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/en/theme-cloudmusic.svg"><img src="docs/showcase/gallery/en/theme-cloudmusic.svg" width="360" alt="Cloud Music"></a><br><b>Cloud Music</b><br><sub><code>light theme</code></sub></td>
-</tr>
-</table>
-<!-- themes:end -->
-
-Use `htmlview style report.html --theme obsidian` to switch to a built-in theme, or `htmlview style report.html --theme-file harbor.json` to apply your own. The theme is embedded in the HTML, so there is no JSON file to share alongside it. To add a built-in theme, drop one JSON file into the theme directory and review the rendered samples. [Theme format and maintenance →](docs/architecture.en.md#themes)
 
 <a id="install"></a>
 

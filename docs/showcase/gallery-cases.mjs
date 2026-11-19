@@ -488,11 +488,37 @@ export function galleryCases(lang) {
     data: [[L('8月', 'Aug'), 18, 11], [L('9月', 'Sep'), 22, 16], [L('10月', 'Oct'), 19, 27]].map(([month, store, online]) => ({ month, store: store * 1000, online: online * 1000 })),
     encode: { category: 'month', value: ['store', 'online'] }, fields: series(['store', L('门店', 'In-store')], ['online', L('线上', 'Online')]), unit: L('单', 'orders'),
   };
+  // Below the chart comparison, one short document per theme shows what a single chart cannot: page accent, heading
+  // numbers, status colors, cards and diagram frames. It reuses the comparison data; the CLI builds it as a one-pager.
+  const pageChart = { ...themeSpec, title: L('10 月线上订单首次超过门店', 'In October, online orders passed in-store for the first time') };
+  const stat = (value, unit, label, delta, kind) => `<div class="stat"><div class="stat-v">${value}<small>${unit}</small></div><div class="stat-l">${label}</div><div class="stat-d"${kind ? ` data-k="${kind}"` : ''}>${delta}</div></div>`;
+  const themePage = [
+    `# ${L('会员小程序改版 · 第 3 周', 'Member app redesign · Week 3')}`,
+    L('本页是主题样张，名称和数字均为虚构。各层改动见[系统分层](#sec-2)，灰度前要处理的问题列在文末。',
+      'This page is a theme sample; every name and number is fictional. [System layers](#sec-2) shows what changes in each layer, and the issue to fix before the canary is at the end.'),
+    ['<div class="stats">',
+      stat(L('2.7', '27K'), L('万单', 'orders'), L('10 月线上订单', 'Online orders in October'), L('较 9 月 +69%', '+69% vs September'), 'ok'),
+      stat('96.4', '%', L('支付成功率', 'Payment success rate'), L('低于目标 97%', 'Below the 97% target'), 'warn'),
+      stat('3', L('项', 'issues'), L('待处理问题', 'Open issues'), L('本周新增 1 项', '1 new this week')),
+      '</div>'].join('\n'),
+    `## ${L('线上订单追上门店', 'Online orders catch up')}`,
+    '```kchart\n' + JSON.stringify(pageChart) + '\n```',
+    `## ${L('系统分层', 'System layers')}`,
+    ['```layers', '---', `title: ${L('一笔会员订单经过的三层', 'The three layers a member order passes through')}`, '---', 'layers',
+      `- ${L('触达', 'Reach')}`, `  - ${L('渠道: 小程序, 外卖平台, 门店收银', 'Channels: App, Delivery apps, Store POS')}`,
+      `- ${L('交易', 'Transaction')}`, `  - ${L('订单: 下单, 支付, 退款', 'Orders: Place, Pay, Refund')}`, `  - ${L('会员: 积分, 优惠券', 'Membership: Points, Coupons')}`,
+      `- ${L('履约', 'Fulfilment')}`, `  - ${L('门店: 制作屏, 叫号', 'Store: Prep screen, Pickup call')}`, `  - ${L('配送: 骑手调度', 'Delivery: Rider dispatch')}`,
+      '```'].join('\n'),
+    `> [!WARNING]\n> ${L('支付回调偶发超时。灰度前补齐重试，并在退款页提示处理进度。', 'Payment callbacks occasionally time out. Add retries before the canary, and show refund progress on the refund page.')}`,
+  ].join('\n\n') + '\n';
   const words = {
     sections: { chart: L('数据图', 'Data charts'), diagram: L('结构图', 'Diagrams'), variant: L('受控变体', 'Variants') },
     themes: L('同一张图，不同主题', 'One chart, different themes'),
+    themePages: L('**完整样张**：同一份文档在各主题下的效果。点主题名展开，一次只展开一套。',
+      '**Full page samples**: the same document in each theme. Click a theme name to open it; one stays open at a time.'),
+    pageAlt: name => L(`${name} 主题下的同一份样张：指标卡、柱图、分层图和提示条`, `The same document in the ${name} theme: KPI cards, a column chart, a layered diagram and a warning note`),
     scheme: { light: L('亮色', 'light'), dark: L('暗色', 'dark') },
     layout: id => `mindmap / ${id}`,
   };
-  return { charts, diagrams, storeTree, groups, variantGroups, variantLabel, variantSpec, themeSpec, words };
+  return { charts, diagrams, storeTree, groups, variantGroups, variantLabel, variantSpec, themeSpec, themePage, words };
 }

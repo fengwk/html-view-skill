@@ -1,10 +1,12 @@
 // Render the README gallery in Chinese and English into a new temporary directory:
-// one SVG tile per sample, embeddable Markdown tables and a coverage manifest. Publish the result with sync-readme.mjs.
+// one SVG tile per sample, one full-page PNG per built-in theme, embeddable Markdown fragments and a coverage manifest.
+// Publish the result with sync-readme.mjs.
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import { mkdtemp, mkdir, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { catalog, createRenderer, diagramTypes } from '../../skills/html-view/kchart/node.mjs';
 import { launchBrowser } from '../../skills/html-view/scripts/src/shared/browser.mjs';
 import { galleryCases } from './gallery-cases.mjs';
@@ -15,6 +17,10 @@ const LANGS = ['zh-CN', 'en'];
 const CELL = 360, WIDE = 780, PAD = 9, PAD_Y = 16, SWATCH_ROW = 26, RADIUS = 12, TALL = 520;
 const esc = value => String(value).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;');
 const safeScript = value => value.replace(/<\/script/gi, '<\\/script');
+const cli = fileURLToPath(new URL('../../skills/html-view/scripts/htmlview', import.meta.url));
+const htmlview = (...args) => JSON.parse(execFileSync(process.execPath, [cli, ...args], { encoding: 'utf8' }));
+// Page samples are real documents captured at the wide-tile width and 2× pixels; the bottom margin matches the page's top.
+const PAGE_SCALE = 2, PAGE_MARGIN = 28;
 
 // Build every sample for one language and prove that the gallery covers the whole catalog exactly once.
 function samplesFor(lang, catalog, diagramTypes) {
@@ -136,6 +142,7 @@ async function writeRows(dir, entries, lang) {
 const report = { counts, languages: {} };
 const browser = await launchBrowser();
 try {
+  // One tab only: a second tab would push this one into the background, where Chrome stops painting it.
   const page = await browser.newPage();
   await page.setViewport({ width: 900, height: 1000 });
   await page.goto(pathToFileURL(artwork).href);
@@ -179,6 +186,30 @@ try {
     }
     record.groups.push({ id: 'themes', title: cases.words.themes, count: themes.length, rows: await writeRows(dir, plates, lang) });
 
+    // The same short document in every theme, built and audited by the CLI, then captured from the top of the page
+    // to the end of its content. The tab returns to the chart renderer after the map previews below.
+    const pageDir = join(out, 'pages', lang);
+    await mkdir(pageDir, { recursive: true });
+    const pageSource = join(pageDir, 'theme-page.md');
+    await writeFile(pageSource, cases.themePage);
+    record.themePages = [];
+    for (const [index, themeItem] of themes.entries()) {
+      const html = join(pageDir, `${themeItem.id}.html`);
+      htmlview('doc', 'build', pageSource, '--type', 'one-pager', '--theme', themeItem.id, '--lang', lang, '--out', html);
+      const audit = htmlview('audit', html);
+      assert.equal(audit.pass, true, `${lang} ${themeItem.id} page: ${JSON.stringify(audit.failures)}`);
+      await page.setViewport({ width: WIDE, height: 900, deviceScaleFactor: PAGE_SCALE });
+      await page.goto(pathToFileURL(html).href);
+      await page.evaluate('(async()=>{await document.fonts.ready;await window.KChart?.ready();return true;})()');
+      const box = await page.json(`JSON.stringify({scrollWidth:document.documentElement.scrollWidth,
+        bottom:Math.max(...[...document.querySelectorAll('#main section > *')].map(node=>node.getBoundingClientRect().bottom+scrollY))})`);
+      assert.ok(box.scrollWidth <= WIDE, `${lang} ${themeItem.id} page overflows: ${box.scrollWidth}px`);
+      const height = Math.ceil(box.bottom + PAGE_MARGIN);
+      const filename = `theme-${themeItem.id}-page.png`;
+      await writeFile(join(dir, filename), await page.screenshot({ x: 0, y: 0, width: WIDE, height }));
+      record.themePages.push({ id: themeItem.id, filename, width: WIDE, height, title: themeItem.en, key: plates[index].item.key });
+    }
+
     // Map geometry is heavy. The README loads a 2× PNG that links to the unscaled vector tile.
     for (const tile of record.groups.find(group => group.id === 'geography').rows.flat()) {
       tile.preview = tile.filename.replace(/\.svg$/, '.png');
@@ -208,7 +239,11 @@ try {
         ...kindGroups.map(group => groupMarkdown(group))].join('\n\n');
     }).join('\n\n');
     await writeFile(join(out, `gallery.${lang}.md`), fragment + '\n');
-    await writeFile(join(out, `themes.${lang}.md`), groupMarkdown(record.groups.find(group => group.id === 'themes'), false) + '\n');
+    // GitHub keeps <details name>, prefixing it the same way for every block, so browsers that support exclusive
+    // details keep one theme open at a time; others fall back to independent toggles. The first built-in theme starts open.
+    const pageDetails = record.themePages.map((tile, index) => `<details name="theme-page"${index ? '' : ' open'}>\n<summary><b>${esc(tile.title)}</b> · ${esc(tile.key)}</summary>\n\n`
+      + `<a href="${prefix}/${tile.filename}"><img src="${prefix}/${tile.filename}" width="${tile.width}" alt="${esc(cases.words.pageAlt(tile.title))}"></a>\n\n</details>`).join('\n');
+    await writeFile(join(out, `themes.${lang}.md`), [groupMarkdown(record.groups.find(group => group.id === 'themes'), false), cases.words.themePages, pageDetails].join('\n\n') + '\n');
     report.languages[lang] = record;
   }
 } finally { await browser.close(); }

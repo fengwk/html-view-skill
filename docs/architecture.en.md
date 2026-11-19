@@ -37,7 +37,7 @@ Charts are stored as `pre[data-viz]` with the type `kchart`, `mermaid`, `layers`
 
 Each theme has a single JSON file for colors and styling. The HTML shell generates its CSS variables from it, and KChart uses the resolved roles directly. Recoloring an existing theme needs no CSS or chart changes. `tones[1]` is the second data series and `accent` is the shell's highlight color; they are different roles. A handful of arbitrary hex values is not enough: a palette covers background, text, strokes, states and six series colors, and must pass the contrast and color-vision checks. After adding a theme, check narrow screens, real charts and printing; dark themes still print with the Paper palette.
 
-A theme can set `frameInk` to give ordinary diagram frames their own color. Layers, swimlanes, sequence groups and mind-map branches derive pale fills and strokes from it, and the mind-map root uses the primary text color as ink. Cloud Music uses neutral gray so a group is not mistaken for a warning; this does not change data series, numbering, links or explicit status colors. Themes without `frameInk` keep their previous colors. The optional `tint: { hue, chroma }` controls OKLCH mixing for decorative tints. Claude uses `{ hue: 95, chroma: 1.4 }` to lighten terracotta toward its 95° ivory paper rather than pink.
+A theme can set `frameInk` to give ordinary diagram frames their own color. Layers, blocks, swimlanes, sequence groups and mind-map branches derive pale fills and strokes from it, and the mind-map root uses the primary text color as ink. Without `frameInk`, these frames take their colors from the data series and `accent`. Cloud Music has a bright red series, so its `frameInk` is a neutral gray that keeps a group from reading as a warning; data series, numbering, links and explicit status colors stay the same. The optional `tint: { hue, chroma }` controls OKLCH mixing for decorative tints. Claude uses `{ hue: 95, chroma: 1.4 }` to lighten terracotta toward its 95° ivory paper rather than pink.
 
 UI mockups have [their own light and dark palettes and series candidates](../skills/html-view/scripts/src/artifacts/ui/theme.mjs), separate from the built-in reading themes.
 
@@ -47,10 +47,13 @@ A minimal `harbor.json` for `--theme-file`:
 {
   "extends": "paper",
   "accent": "#12635e",
+  "tones": ["#23272c", "#13807a", "#8c6d46", "#0e4744", "#7c8088", "#5d7fa6"],
   "frameInk": "#677471",
   "style": { "radius": 12, "numberColor": "accent" }
 }
 ```
+
+Keep `accent` (links and numbering) and `tones[1]` (the second data series, also the highlight inside charts) in the same hue family; changing only `accent` leaves the charts in the inherited hue. In `htmlview viz palette` output, `chartAccent` is that in-chart highlight and equals `tones[1]`.
 
 To ship it as a built-in theme, name it `harbor.json` and also set `id`, `name`, `en` and `desc`. See the [full field reference (Chinese)](../skills/html-view/references/guides/themes.md).
 
