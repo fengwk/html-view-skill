@@ -1,12 +1,10 @@
-import { test } from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
-import { loadModules } from '../modules.mjs';
-
-const graph = loadModules(['diagram/graph-parse'])['diagram/graph-parse'];
+import { parseGraph, parseFlow } from '../src/diagram/graph-parse.js';
 
 // 意图：flow 分组展开为笛卡尔积、子图嵌套归属与诊断行号都必须保留原源码行。
 test('flowchart 解析分组、子图与绝对行号', () => {
-  const { model, errors } = graph.parseGraph('subgraph grp[组]\n A[入口] & C --> F & G\n subgraph nested[内]\n B{判断}\n end\nend\nA -->', {
+  const { model, errors } = parseGraph('subgraph grp[组]\n A[入口] & C --> F & G\n subgraph nested[内]\n B{判断}\n end\nend\nA -->', {
     kind: 'flowchart', header: 'flowchart LR', headerLine: 5, firstLine: 6, lang: 'zh',
   });
   assert.equal(model.direction, 'LR');
@@ -19,7 +17,7 @@ test('flowchart 解析分组、子图与绝对行号', () => {
 
 // 意图：state 复合状态层级、框节点边引用和超限错误需反映旧受控语义。
 test('stateDiagram-v2 保留复合嵌套与非法闭合诊断', () => {
-  const { model, errors } = graph.parseGraph('state Outer {\n state Inner {\n A --> B : go\n }\n}\n}', {
+  const { model, errors } = parseGraph('state Outer {\n state Inner {\n A --> B : go\n }\n}\n}', {
     kind: 'stateDiagram-v2', header: 'stateDiagram-v2', headerLine: 1, firstLine: 2,
   });
   assert.deepEqual(Array.from(model.subgraphs, frame => frame.id), ['Outer', 'Inner']);
@@ -29,7 +27,7 @@ test('stateDiagram-v2 保留复合嵌套与非法闭合诊断', () => {
 
 // 意图：ER 关系端点基数、虚线关系、字段键和非法基数语法须有明确解析结果。
 test('erDiagram 解析基数、字段与非法关系', () => {
-  const { model, errors } = graph.parseGraph('USER {\n int id PK\n}\nORDER ||..o{ USER : owns\nA ?--o{ B', {
+  const { model, errors } = parseGraph('USER {\n int id PK\n}\nORDER ||..o{ USER : owns\nA ?--o{ B', {
     kind: 'erDiagram', header: 'erDiagram', headerLine: 1, firstLine: 2,
   });
   assert.equal(model.edges.length, 1);
@@ -43,9 +41,9 @@ test('erDiagram 解析基数、字段与非法关系', () => {
 // 意图：旧解析器的 30 节点与 3 层子图保护属于受控语法边界，需在第一个越界位置报告。
 test('flowchart 节点数和子图深度保留上限', () => {
   const nodes = Array.from({ length: 31 }, (_, i) => `N${i}`).join('\n');
-  const result = graph.parseGraph(nodes, { kind: 'flowchart', header: 'flowchart TB', headerLine: 1, firstLine: 2 });
+  const result = parseGraph(nodes, { kind: 'flowchart', header: 'flowchart TB', headerLine: 1, firstLine: 2 });
   assert.ok(result.errors.some(item => /节点 31 个，超过上限 30/.test(item.message)));
-  const nested = graph.parseGraph('subgraph A\nsubgraph B\nsubgraph C\nsubgraph D\nend', { kind: 'flowchart', header: 'flowchart TB', headerLine: 1, firstLine: 2 });
+  const nested = parseGraph('subgraph A\nsubgraph B\nsubgraph C\nsubgraph D\nend', { kind: 'flowchart', header: 'flowchart TB', headerLine: 1, firstLine: 2 });
   assert.ok(nested.errors.some(item => /子图嵌套 4 层/.test(item.message)));
 });
 
@@ -120,7 +118,7 @@ test('flow/state/ER 复杂样例保留结构并报告不支持语法', () => {
     const [header, ...body] = source.split('\n');
     const kind = /^(flowchart|graph)\b/i.test(header) ? 'flowchart'
       : /^stateDiagram(?:-v2)?\b/i.test(header) ? 'stateDiagram-v2' : 'erDiagram';
-    const result = graph.parseGraph(body.join('\n'), { kind, header, headerLine: 1, firstLine: 2, lang: 'zh' });
+    const result = parseGraph(body.join('\n'), { kind, header, headerLine: 1, firstLine: 2, lang: 'zh' });
     assert.equal(result.errors.length, 0, source);
     assert.ok(result.model.nodes.length > 0, source);
   }
@@ -135,21 +133,21 @@ test('flow/state/ER 复杂样例保留结构并报告不支持语法', () => {
     const [header, ...body] = source.split('\n');
     const kind = /^(flowchart|graph)\b/i.test(header) ? 'flowchart'
       : /^stateDiagram(?:-v2)?\b/i.test(header) ? 'stateDiagram-v2' : 'erDiagram';
-    const result = graph.parseGraph(body.join('\n'), { kind, header, headerLine: 1, firstLine: 2 });
+    const result = parseGraph(body.join('\n'), { kind, header, headerLine: 1, firstLine: 2 });
     assert.ok(result.errors.length > 0, source);
   }
-  const cardinalities = graph.parseGraph('A ||--|| B\nC |o--o| D\nE }o--|{ F\nG }|--o{ H', { kind: 'erDiagram', header: 'erDiagram', headerLine: 1, firstLine: 2 });
+  const cardinalities = parseGraph('A ||--|| B\nC |o--o| D\nE }o--|{ F\nG }|--o{ H', { kind: 'erDiagram', header: 'erDiagram', headerLine: 1, firstLine: 2 });
   assert.equal(cardinalities.model.edges.length, 4);
-  const depth = graph.parseGraph('subgraph a [A]\nsubgraph b [B]\nsubgraph c [C]\nsubgraph d [D]\nA', { kind: 'flowchart', header: 'flowchart TB', headerLine: 1, firstLine: 2 });
+  const depth = parseGraph('subgraph a [A]\nsubgraph b [B]\nsubgraph c [C]\nsubgraph d [D]\nA', { kind: 'flowchart', header: 'flowchart TB', headerLine: 1, firstLine: 2 });
   assert.ok(depth.errors.length > 0);
-  const nested = graph.parseGraph('state A {\nstate B {\nstate C {\n[*] --> X\n}\n}\n}', { kind: 'stateDiagram-v2', header: 'stateDiagram-v2', headerLine: 1, firstLine: 2 });
+  const nested = parseGraph('state A {\nstate B {\nstate C {\n[*] --> X\n}\n}\n}', { kind: 'stateDiagram-v2', header: 'stateDiagram-v2', headerLine: 1, firstLine: 2 });
   assert.equal(nested.model.subgraphs.length, 2);
 });
 
 
 // 意图：公共 parseFlow 供跨图族复用，必须接收真实行号并对非法方向安全回退。
 test('parseFlow 使用调用方绝对行号并限制方向', () => {
-  const { model, errors } = graph.parseFlow([{ text: 'A --> B', line: 42 }], { direction: 'sideways' });
+  const { model, errors } = parseFlow([{ text: 'A --> B', line: 42 }], { direction: 'sideways' });
   assert.equal(model.direction, 'TB');
   assert.deepEqual(Array.from(model.edges, edge => edge.line), [42]);
   assert.equal(errors.length, 0);

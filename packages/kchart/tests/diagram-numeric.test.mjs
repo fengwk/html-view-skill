@@ -1,29 +1,20 @@
 import assert from 'node:assert/strict';
-import { test } from 'node:test';
-import { loadSlice } from './diagram-slice.mjs';
+import { test } from 'vitest';
+import { implementations as composition } from '../src/diagram/numeric-composition.js';
+import { implementations as xy } from '../src/diagram/numeric-xy.js';
+import { implementations as sankey } from '../src/diagram/numeric-sankey.js';
+import { implementations as radar } from '../src/diagram/numeric-radar.js';
+import { createContext } from '../src/core/context.js';
+import { renderScene } from '../src/core/svg.js';
 
-const modules = loadSlice({
-  'diagram/numeric-parse': ['diagram/support'],
-  'diagram/numeric-common': ['chart/registry', 'chart/spec', 'core/diagnostics', 'diagram/support'],
-  'diagram/numeric-composition': ['diagram/numeric-parse', 'diagram/numeric-common'],
-  'diagram/numeric-xy': ['diagram/numeric-parse', 'diagram/numeric-common'],
-  'diagram/numeric-sankey': ['diagram/numeric-parse', 'diagram/numeric-common'],
-  'diagram/numeric-radar': ['diagram/numeric-parse', 'diagram/numeric-common'],
-}, [
-  'chart/catalog', 'chart/spec', 'chart/registry', 'chart/context',
-  'chart/basic', 'chart/composition', 'chart/multivariate', 'chart/relations',
-  'diagram/support', 'core/svg',
-]);
-const implementations = Object.assign({}, ...[
-  'diagram/numeric-composition', 'diagram/numeric-xy', 'diagram/numeric-sankey', 'diagram/numeric-radar',
-].map(name => modules[name].implementations));
+const implementations = Object.assign({}, composition, xy, sankey, radar);
 const info = (kind, firstLine = 3, options = {}) => ({ kind, syntax: 'mermaid', header: kind, headerLine: firstLine - 1, firstLine, options, lang: 'zh' });
 const layout = (kind, parsed, sourceInfo = info(kind), renderOptions = {}) => {
-  const ctx = modules['core/context'].createContext(renderOptions);
+  const ctx = createContext(renderOptions);
   const measure = (text, { size = 12, weight = 400 } = {}) => ctx.measure(text, size, weight);
   return implementations[kind].layout(parsed.model, { width: renderOptions.width || 640, lang: sourceInfo.lang, measure, ctx, renderOptions }, sourceInfo);
 };
-const svgFor = (laid, renderOptions = {}) => modules['core/svg'].renderScene(laid.scene, renderOptions);
+const svgFor = (laid, renderOptions = {}) => renderScene(laid.scene, renderOptions);
 
 // 所有语法都经真实图族 layout 和共享 serializer 产出 SVG，并保留标题与轴名。
 test('五种 Mermaid 数值图经所属 KChart 图族排版', () => {
@@ -109,14 +100,14 @@ test('KChart 数值诊断映射回对应 Mermaid 记录', () => {
 test('print、主题和 frame 由共享 KChart API 保持', () => {
   const sourceInfo = info('xychart', 10);
   const parsed = implementations['xychart'].parse('title Long sales heading\nx-axis Month [Jan,Feb]\ny-axis Revenue 0 --> 8\nbar [3,6]', sourceInfo);
-  const measureContext = modules['core/context'].createContext({ theme: 'paper', media: 'print' });
+  const measureContext = createContext({ theme: 'paper', media: 'print' });
   let measureCalls = 0;
   const options = { theme: 'paper', media: 'print', frame: true, measure: (text, size = 12, weight = 400) => { measureCalls += 1; return measureContext.measure(text, size, weight); } };
   const framed = layout('xychart', parsed, sourceInfo, options);
   const framedSvg = svgFor(framed, options);
   assert.equal((framedSvg.match(/<text[^>]*>Long sales heading<\/text>/g) || []).length, 1);
   assert.equal((framedSvg.match(/<text[^>]*>Month · Revenue<\/text>/g) || []).length, 1);
-  const theme = modules['core/context'].createContext(options);
+  const theme = createContext(options);
   assert.ok(framedSvg.includes(theme.color('tone1')));
   assert.ok(framedSvg.includes(theme.color('fg')));
   assert.ok(measureCalls > 0);
@@ -135,7 +126,7 @@ test('print、主题和 frame 由共享 KChart API 保持', () => {
   assert.equal(titleLines.join(''), longTitle);
 
   const fault = new TypeError('external measure failure');
-  const ctx = modules['core/context'].createContext({ theme: 'paper' });
+  const ctx = createContext({ theme: 'paper' });
   const pieModel = implementations.pie.parse('title Pie\nA : 3\nB : 2', info('pie', 10)).model;
   assert.throws(() => implementations.pie.layout(
     pieModel,

@@ -1,10 +1,8 @@
-import { test } from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
-import { loadModules } from '../modules.mjs';
+import { parseGraph } from '../src/diagram/graph-parse.js';
+import { layoutGraph } from '../src/diagram/graph-layout.js';
 
-const graph = loadModules(['diagram/graph-parse', 'diagram/graph-layout']);
-const parseGraph = graph['diagram/graph-parse'].parseGraph;
-const layoutGraph = graph['diagram/graph-layout'].layoutGraph;
 const plain = value => JSON.parse(JSON.stringify(value));
 const measure = (value, { size, weight }) => [...String(value)].length * size * (weight >= 600 ? 1.04 : 1);
 

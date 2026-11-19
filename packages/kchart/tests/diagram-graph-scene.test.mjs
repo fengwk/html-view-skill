@@ -1,15 +1,14 @@
-import { test } from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
-import { loadModules } from '../modules.mjs';
+import { implementations } from '../src/diagram/graph.js';
+import { createContext } from '../src/core/context.js';
+import { renderScene } from '../src/core/svg.js';
 
-const modules = loadModules(['diagram/graph', 'core/context', 'core/svg']);
-const implementations = modules['diagram/graph'].implementations;
-
-const ctx = modules['core/context'].createContext({ theme: 'paper' });
+const ctx = createContext({ theme: 'paper' });
 const render = (kind, model, nodes, edges = [], frames = []) => {
   const impl = implementations[kind];
   const result = impl.scene({ width: 240, height: 120, model, nodes, edges, frames }, ctx, { title: 'Fixture' });
-  return modules['core/svg'].renderScene(result, { prefix: 'slice' });
+  return renderScene(result, { prefix: 'slice' });
 };
 
 // 意图：实际 parser/layout 接线需识别 flowchart 结构并生成节点边几何，而不经过假转接。

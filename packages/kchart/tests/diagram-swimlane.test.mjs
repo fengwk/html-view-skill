@@ -1,9 +1,10 @@
-import { test } from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
-import { loadModules } from '../modules.mjs';
+import { implementations } from '../src/diagram/swimlane.js';
+import { createContext } from '../src/core/context.js';
+import { renderScene } from '../src/core/svg.js';
 
-const core = loadModules(['diagram/swimlane', 'core/context', 'core/svg']);
-const implementation = core['diagram/swimlane'].implementations.swimlane;
+const implementation = implementations.swimlane;
 const measure = (text, { size }) => [...text].length * size * .55;
 const plain = (value) => JSON.parse(JSON.stringify(value));
 
@@ -35,9 +36,9 @@ test('lays out back edges and decision nodes in both directions without DOM APIs
   assert.equal(geometry.nodes.find(({ id }) => id === 'B').diamond, true);
   assert.equal(geometry.edges.filter(({ back }) => back).length, 1);
   assert.ok(geometry.edges[0].label, 'label is attached to the edge routing geometry');
-  const context = core['core/context'].createContext({ width: geometry.width });
+  const context = createContext({ width: geometry.width });
   const scene = implementation.scene(geometry, context);
-  const svg = core['core/svg'].renderScene(scene, { frame: false });
+  const svg = renderScene(scene, { frame: false });
   assert.match(svg, /<svg/);
   assert.match(svg, /marker-end="url\(#kc-/);
   assert.match(svg, /data-kc-back="true"/);

@@ -1,12 +1,13 @@
-import { test } from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
-import { loadModules } from '../modules.mjs';
+import { implementations } from '../src/diagram/layers.js';
+import { createContext } from '../src/core/context.js';
+import { renderScene } from '../src/core/svg.js';
+import * as support from '../src/diagram/support.js';
 
-const modules = loadModules(['diagram/layers', 'core/context', 'core/svg']);
-const implementation = modules['diagram/layers'].implementations.layers;
-const support = modules['diagram/support'];
+const implementation = implementations.layers;
 const create = (source, width = 800, lang = 'zh-CN', theme = 'paper') => {
-  const ctx = modules['core/context'].createContext({ width, lang, theme });
+  const ctx = createContext({ width, lang, theme });
   const parsed = implementation.parse(source, { kind: 'layers', syntax: 'native', lang, firstLine: 2, options: {} });
   const geometry = implementation.layout(parsed.model, { width, lang, ctx, measure: support.measureOf(ctx) });
   return { ctx, parsed, geometry };
@@ -73,7 +74,7 @@ test('layer geometry keeps equal-height rows and fitted minimum width across nar
 test('layer scenes carry their own resolved theme styling in standalone SVG', () => {
   const { ctx, geometry } = create('- Backend | services\n  - API {ext}: +Added, ~Changed, =Existing, Plain\n  - Storage {db}: PostgreSQL');
   const model = implementation.scene(geometry, ctx, { kind: 'layers' });
-  const rendered = modules['core/svg'].renderScene(model, { theme: ctx.design });
+  const rendered = renderScene(model, { theme: ctx.design });
   assert.match(rendered, /<svg/);
   assert.match(rendered, /stroke-dasharray="5 4"/);
   assert.match(rendered, /database-rim/);
@@ -91,7 +92,7 @@ test('layer scenes carry their own resolved theme styling in standalone SVG', ()
 // 目标：Claude 的分组框与普通能力框按主题 tint 变浅（读作浅橙而非鲑粉），状态色节点仍按原色相变浅。
 test('layer tints follow the theme tint while status colors keep their own hue', () => {
   const { ctx, geometry } = create('- 触达\n  - 渠道: 小程序\n- 交易\n  - 订单: +下单, 支付', 800, 'zh-CN', 'claude');
-  const rendered = modules['core/svg'].renderScene(implementation.scene(geometry, ctx, { kind: 'layers' }), { theme: ctx.design });
+  const rendered = renderScene(implementation.scene(geometry, ctx, { kind: 'layers' }), { theme: ctx.design });
   const { bg } = ctx.design, tone2 = ctx.color('tone2');
   assert.notEqual(ctx.tint(bg, tone2, .45), ctx.mix(bg, tone2, .45));
   for (const color of [ctx.tint(bg, tone2, .07), ctx.tint(bg, tone2, .45), ctx.tint(bg, tone2, .4), ctx.mix(bg, ctx.design.new, .4)]) assert.ok(rendered.includes(color), `missing ${color}`);

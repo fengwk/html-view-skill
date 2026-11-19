@@ -1,12 +1,10 @@
-import { test } from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
-import { loadSlice } from './diagram-slice.mjs';
-import { themes } from '../node.mjs';
+import { implementations } from '../src/diagram/time.js';
+import { createContext as context } from '../src/core/context.js';
+import { renderScene } from '../src/core/svg.js';
+import { themes } from '../src/core/theme.js';
 
-const modules = loadSlice({ 'diagram/time': ['diagram/support'] });
-const { implementations } = modules['diagram/time'];
-const context = modules['core/context'].createContext;
-const renderScene = modules['core/svg'].renderScene;
 const info = (kind, overrides = {}) => ({ kind, lang: 'en', options: {}, firstLine: 2, headerLine: 1, ...overrides });
 function render(source, kind, options = {}) {
   const [, ...body] = source.split('\n');

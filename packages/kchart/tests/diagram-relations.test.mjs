@@ -1,10 +1,11 @@
-import { test } from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
-import { loadModules } from '../modules.mjs';
-import { diagram } from '../diagram.mjs';
+import { implementations } from '../src/diagram/relations.js';
+import { createContext } from '../src/core/context.js';
+import { themes } from '../src/core/theme.js';
+import { contrast } from '../src/core/color.js';
+import { diagram } from '../dist/esm/node.js';
 
-const core = loadModules(['diagram/relations', 'core/svg']);
-const { implementations } = core['diagram/relations'];
 const samples = {
   classDiagram: 'classDiagram\nclass Animal {\n+name: string\n+eat()\n}\nAnimal <|-- Dog\nDog "1" *-- "*" Paw : owns',
   requirementDiagram: 'requirementDiagram\nfunctionalRequirement checkout {\nid: REQ-1\ntext: Finish checkout\n}\nAPI - satisfies -> checkout',
@@ -18,7 +19,7 @@ const samples = {
   zenuml: 'zenuml\nClient\nAPI\nClient->API: request\nClient.call()',
 };
 const parse = (kind, body) => plain(implementations[kind].parse(body, { kind, lang: 'en', firstLine: 2, options: {} }));
-const context = core['core/context'].createContext({ width: 800, lang: 'en' });
+const context = createContext({ width: 800, lang: 'en' });
 const plain = value => JSON.parse(JSON.stringify(value));
 const elements = ({ children }) => children.flatMap(node => [node, ...(node.children ? elements(node) : [])]);
 
@@ -193,8 +194,6 @@ test('ZenUML fits its participant boxes inside the SVG', () => {
   const boxes = elements(result.scene).filter(node => node.meta?.kind === 'participant');
   assert.equal(boxes.length, 2);
   assert.ok(boxes.every(({ attrs }) => attrs.x >= 12 && attrs.x + attrs.width <= result.scene.width - 12));
-  const { themes } = core['core/theme'];
-  const { contrast } = core['core/color'];
   for (const [theme, design] of Object.entries(themes)) {
     const rendered = diagram(samples.zenuml, { theme, width: 600, frame: false });
     assert.equal(rendered.scene.width, 600);
