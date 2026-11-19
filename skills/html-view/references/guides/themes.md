@@ -40,7 +40,7 @@ HTML 内嵌解析后的主题，不保存主题文件路径。删除 JSON 或把
 | `fg1`–`fg4`、`accent` | 四级文字颜色；`accent` 用于链接和页面强调。 |
 | `new`、`info`、`ok`、`warn`、`danger`、`ext` | 新增、信息、正常、提醒、风险、外部关系。 |
 | `tones` | 按顺序填写六个数据系列色，整体替换继承的数组。`tones[1]` 也是单系列图里被强调的柱、点和参考线的颜色，应与 `accent` 同色系。 |
-| `frameInk`、`tint` | `frameInk` 是分层图、能力块、泳道、时序分组和脑图分支这些普通框的基色，不影响数据系列和状态色。未设置时，这些框从 `tones` 和 `accent` 取色，分层、能力块和泳道按顺序轮换系列色；这些颜色里有红、绿这类容易读成状态的颜色时，设一个中性的 `frameInk`。`tint` 为 `{ "hue": 95, "chroma": 1.4 }` 这样的装饰浅底混色参数：`0 ≤ hue < 360`，`1 ≤ chroma ≤ 2`。用 `null` 清除继承值。 |
+| `frameInk`、`tint` | `frameInk` 是分层图、能力块、泳道、时序分组和脑图分支这些普通框的基色，不影响数据系列和状态色。未设置时，这些框从 `tones` 和 `accent` 取色，分层、能力块和泳道按顺序轮换系列色。轮到的颜色容易被读成状态时（亮底上的鲜红），设一个中性的 `frameInk`；轮到的颜色就是主题主色时（终端的绿），保留原色即可。`tint` 为 `{ "hue": 95, "chroma": 1.4 }` 这样的装饰浅底混色参数：`0 ≤ hue < 360`，`1 ≤ chroma ≤ 2`。用 `null` 清除继承值。 |
 | `fontFamily` | 正文和图形共用的本地字体列表，例如 `"system-ui, sans-serif"`。 |
 | `style` | `radius`、`smallRadius` 为 0–24px；`soft` 为 0–0.25 的淡底混色比例。`nodeBackground`、`blockBackground`、`codeBackground` 可选 `bg`、`surface`、`surface2`；`blockBackground` 还可选 `transparent`，`codeBackground` 还可选 `node`（跟随 `nodeBackground`）。`displayFont` 选本地字体列表或 `sans`，`displayWeight` 为 100–900 的整数。`numberFont` 选 `sans` 或 `mono`；`numberStyle` 选 `decimal` 或 `decimal-leading-zero`；`numberColor`、`listMarker` 选文字、状态、`accent` 或 `tone1`–`tone6` 颜色角色。 |
 | `diagram` | 覆盖结构图的 `radius`、`smallRadius`、`soft`、`nodeBackground`，未覆盖的跟随 `style`；`null` 清除继承的结构图覆盖。 |
