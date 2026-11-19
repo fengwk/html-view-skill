@@ -1,5 +1,7 @@
 node_modules/
 package-lock.json
+!/packages/kchart/package-lock.json
+/packages/kchart/dist/
 *.tgz
 *.log
 .env

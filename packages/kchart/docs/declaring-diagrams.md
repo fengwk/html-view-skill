@@ -3,7 +3,7 @@
 `diagram(source, options)` 解析、校验并排版，返回 `{ svg, scene, diagnostics }`。`check(source, options)` 只解析和校验。`diagramTypes` 列出规范图型、别名、`syntax` 和诊断 `topic`。KChart 支持下列受控 Mermaid 语法，不运行 Mermaid 官方运行时，也不执行图中指令或回调。
 
 ```js
-import { check, diagram } from 'kchart/diagram';
+import { check, diagram } from './dist/esm/node.js';
 
 const source = `flowchart LR
   A[请求] --> B{校验}

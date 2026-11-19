@@ -1,3 +1,5 @@
-KChart.define('diagram/numeric-radar', ({ 'diagram/numeric-parse': parser, 'diagram/numeric-common': common }) => ({
-  implementations: { 'radar-beta': { parse: parser.parseRadar, validate: (model, info) => common.validate(model, info), layout: (model, options, info) => common.render(model, options, info) } },
-}));
+import { parseRadar } from './numeric-parse.js';
+import { render, validate } from './numeric-common.js';
+import '../chart/multivariate.js';
+
+export const implementations = { 'radar-beta': { parse: parseRadar, validate, layout: render } };

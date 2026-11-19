@@ -1,0 +1,1 @@
+KChartUnits["diagram/numeric-composition"]=(function(e,t,n){Object.defineProperty(e,Symbol.toStringTag,{value:`Module`});var r=e=>({parse:e,validate:(e,t)=>(0,n.validate)(e,t),layout:(e,t,r)=>(0,n.render)(e,t,r)});return e.implementations={pie:r(t.parsePie),"treemap-beta":r(t.parseTreemap)},e})({},KChartUnits[`diagram/numeric-parse`],KChartUnits[`diagram/numeric-common`]);

@@ -1,0 +1,138 @@
+// src/families.json
+var families_default = {
+	"chart/basic": { "charts": [
+		"line",
+		"area",
+		"column",
+		"bar",
+		"share",
+		"funnel"
+	] },
+	"chart/statistics": { "charts": [
+		"waffle",
+		"sparkline",
+		"small-multiples",
+		"bullet",
+		"dumbbell",
+		"slope",
+		"waterfall",
+		"histogram",
+		"boxplot",
+		"scatter",
+		"heatmap"
+	] },
+	"chart/composition": { "charts": [
+		"pie",
+		"donut",
+		"radial-share",
+		"rose",
+		"gauge",
+		"treemap",
+		"sunburst"
+	] },
+	"chart/distribution": { "charts": [
+		"interval",
+		"candlestick",
+		"strip",
+		"violin"
+	] },
+	"chart/multivariate": { "charts": [
+		"stream",
+		"split-compare",
+		"combo",
+		"bubble-matrix",
+		"calendar",
+		"tally",
+		"bump",
+		"radar",
+		"parallel",
+		"launch-fan"
+	] },
+	"chart/mindmap": { "charts": ["mindmap", "tree"] },
+	"chart/relations": { "charts": [
+		"network",
+		"sankey",
+		"threads"
+	] },
+	"chart/maps": { "charts": ["choropleth", "geo-scatter"] },
+	"chart/unit-variants": { "variants": {
+		"bar": [
+			"rungs",
+			"pictorial",
+			"lollipop"
+		],
+		"column": [
+			"rungs",
+			"pictorial",
+			"lollipop"
+		],
+		"dumbbell": ["rungs"],
+		"waterfall": ["rungs"],
+		"histogram": ["rungs"]
+	} },
+	"chart/variants": { "variants": {
+		"line": ["counter", "barcode"],
+		"share": ["ticks"],
+		"funnel": ["hourglass"],
+		"scatter": ["plumb"],
+		"heatmap": ["dots", "arc"],
+		"waffle": ["field"]
+	} },
+	"diagram/graph": { "diagrams": {
+		"flowchart": {
+			"topic": "flow",
+			"aliases": ["graph"]
+		},
+		"stateDiagram-v2": {
+			"topic": "flow",
+			"aliases": ["stateDiagram"]
+		},
+		"erDiagram": { "topic": "data-model" }
+	} },
+	"diagram/layers": { "diagrams": { "layers": {
+		"syntax": "layers",
+		"topic": "architecture"
+	} } },
+	"diagram/blocks": { "diagrams": { "blocks": {
+		"syntax": "blocks",
+		"topic": "architecture"
+	} } },
+	"diagram/swimlane": { "diagrams": { "swimlane": {
+		"syntax": "swimlane",
+		"topic": "flow"
+	} } },
+	"diagram/sequence": { "diagrams": { "sequenceDiagram": { "topic": "sequence" } } },
+	"diagram/mindmap": { "diagrams": { "mindmap": { "topic": "hierarchy" } } },
+	"diagram/time": { "diagrams": {
+		"gantt": { "topic": "time" },
+		"timeline": { "topic": "time" },
+		"journey": { "topic": "flow" },
+		"gitGraph": { "topic": "time" },
+		"kanban": { "topic": "time" },
+		"packet-beta": { "topic": "time" },
+		"quadrantChart": { "topic": "time" }
+	} },
+	"diagram/relations": { "diagrams": {
+		"classDiagram": { "topic": "data-model" },
+		"requirementDiagram": { "topic": "data-model" },
+		"C4Context": { "topic": "architecture" },
+		"C4Container": { "topic": "architecture" },
+		"C4Component": { "topic": "architecture" },
+		"C4Dynamic": { "topic": "architecture" },
+		"C4Deployment": { "topic": "architecture" },
+		"architecture-beta": { "topic": "architecture" },
+		"block-beta": { "topic": "architecture" },
+		"zenuml": { "topic": "sequence" }
+	} },
+	"diagram/numeric-composition": { "diagrams": {
+		"pie": { "topic": "composition" },
+		"treemap-beta": { "topic": "composition" }
+	} },
+	"diagram/numeric-xy": { "diagrams": { "xychart": {
+		"topic": "trend",
+		"aliases": ["xychart-beta"]
+	} } },
+	"diagram/numeric-sankey": { "diagrams": { "sankey-beta": { "topic": "network" } } },
+	"diagram/numeric-radar": { "diagrams": { "radar-beta": { "topic": "matrix" } } }
+};
+export { families_default as default };

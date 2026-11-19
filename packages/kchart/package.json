@@ -1,14 +1,23 @@
 {
-  "name": "kchart",
+  "name": "@fengwk/kchart",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "license": "MIT",
   "description": "Deterministic, offline SVG charts and a controlled Mermaid subset",
-  "engines": { "node": ">=22" },
+  "engines": { "node": ">=22.12" },
   "exports": {
-    "./chart": "./node.mjs",
-    "./diagram": "./diagram.mjs"
+    ".": "./dist/esm/node.js",
+    "./page-api": "./dist/esm/page-api.js"
   },
-  "files": ["*.mjs", "src/", "assets/", "docs/", "NOTICE.md"],
-  "scripts": { "test": "node --test tests/*.test.mjs" }
+  "files": ["dist/", "LICENSE", "NOTICE.md", "README.md"],
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "test": "vitest run",
+    "vendor": "node scripts/vendor.mjs"
+  },
+  "devDependencies": {
+    "vite": "^8.3.8",
+    "vitest": "^5.1.1"
+  }
 }

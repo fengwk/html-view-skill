@@ -1,0 +1,388 @@
+{
+  "chart/basic": {
+    "file": "units/chart/basic.js",
+    "deps": [
+      "chart/registry"
+    ],
+    "bytes": 26435
+  },
+  "chart/catalog": {
+    "file": "units/chart/catalog.js",
+    "deps": [],
+    "bytes": 4042
+  },
+  "chart/composition": {
+    "file": "units/chart/composition.js",
+    "deps": [
+      "chart/registry"
+    ],
+    "bytes": 15139
+  },
+  "chart/context": {
+    "file": "units/chart/context.js",
+    "deps": [
+      "core/context",
+      "core/format",
+      "core/scale",
+      "chart/fields"
+    ],
+    "bytes": 4657
+  },
+  "chart/distribution": {
+    "file": "units/chart/distribution.js",
+    "deps": [
+      "chart/registry"
+    ],
+    "bytes": 8696
+  },
+  "chart/fields": {
+    "file": "units/chart/fields.js",
+    "deps": [
+      "core/format"
+    ],
+    "bytes": 1287
+  },
+  "chart/maps": {
+    "file": "units/chart/maps.js",
+    "deps": [
+      "chart/registry"
+    ],
+    "bytes": 12424
+  },
+  "chart/mindmap": {
+    "file": "units/chart/mindmap.js",
+    "deps": [
+      "chart/registry",
+      "core/theme"
+    ],
+    "bytes": 8769
+  },
+  "chart/multivariate": {
+    "file": "units/chart/multivariate.js",
+    "deps": [
+      "chart/registry",
+      "core/geometry"
+    ],
+    "bytes": 27779
+  },
+  "chart/registry": {
+    "file": "units/chart/registry.js",
+    "deps": [
+      "chart/spec",
+      "chart/context",
+      "core/scene",
+      "core/svg",
+      "core/diagnostics"
+    ],
+    "bytes": 2452
+  },
+  "chart/relations": {
+    "file": "units/chart/relations.js",
+    "deps": [
+      "chart/registry"
+    ],
+    "bytes": 20415
+  },
+  "chart/spec": {
+    "file": "units/chart/spec.js",
+    "deps": [
+      "chart/catalog"
+    ],
+    "bytes": 39633
+  },
+  "chart/stat-compare": {
+    "file": "units/chart/stat-compare.js",
+    "deps": [
+      "core/geometry",
+      "core/format"
+    ],
+    "bytes": 6769
+  },
+  "chart/stat-trend": {
+    "file": "units/chart/stat-trend.js",
+    "deps": [],
+    "bytes": 4441
+  },
+  "chart/statistics": {
+    "file": "units/chart/statistics.js",
+    "deps": [
+      "chart/registry",
+      "core/geometry",
+      "chart/stat-compare",
+      "chart/stat-trend"
+    ],
+    "bytes": 21292
+  },
+  "chart/unit-variants": {
+    "file": "units/chart/unit-variants.js",
+    "deps": [
+      "chart/registry",
+      "chart/basic",
+      "chart/statistics",
+      "core/geometry",
+      "core/icons"
+    ],
+    "bytes": 13558
+  },
+  "chart/variants": {
+    "file": "units/chart/variants.js",
+    "deps": [
+      "chart/registry",
+      "chart/basic",
+      "chart/statistics",
+      "core/geometry"
+    ],
+    "bytes": 12211
+  },
+  "core/color": {
+    "file": "units/core/color.js",
+    "deps": [],
+    "bytes": 3704
+  },
+  "core/context": {
+    "file": "units/core/context.js",
+    "deps": [
+      "core/scene",
+      "core/theme",
+      "core/color",
+      "core/text",
+      "core/scale",
+      "core/geometry",
+      "core/diagnostics"
+    ],
+    "bytes": 4611
+  },
+  "core/diagnostics": {
+    "file": "units/core/diagnostics.js",
+    "deps": [],
+    "bytes": 392
+  },
+  "core/format": {
+    "file": "units/core/format.js",
+    "deps": [
+      "core/scale"
+    ],
+    "bytes": 3133
+  },
+  "core/geometry": {
+    "file": "units/core/geometry.js",
+    "deps": [],
+    "bytes": 3013
+  },
+  "core/icon-data": {
+    "file": "units/core/icon-data.js",
+    "deps": [],
+    "bytes": 131501
+  },
+  "core/icons": {
+    "file": "units/core/icons.js",
+    "deps": [
+      "core/icon-data"
+    ],
+    "bytes": 1606
+  },
+  "core/scale": {
+    "file": "units/core/scale.js",
+    "deps": [],
+    "bytes": 2172
+  },
+  "core/scene": {
+    "file": "units/core/scene.js",
+    "deps": [],
+    "bytes": 3700
+  },
+  "core/svg": {
+    "file": "units/core/svg.js",
+    "deps": [
+      "core/context",
+      "core/scene"
+    ],
+    "bytes": 2664
+  },
+  "core/text": {
+    "file": "units/core/text.js",
+    "deps": [],
+    "bytes": 2940
+  },
+  "core/theme": {
+    "file": "units/core/theme.js",
+    "deps": [
+      "core/color"
+    ],
+    "bytes": 12694
+  },
+  "diagram/blocks": {
+    "file": "units/diagram/blocks.js",
+    "deps": [
+      "diagram/support",
+      "core/icons"
+    ],
+    "bytes": 17870
+  },
+  "diagram/graph-layout": {
+    "file": "units/diagram/graph-layout.js",
+    "deps": [
+      "diagram/support"
+    ],
+    "bytes": 58428
+  },
+  "diagram/graph-parse": {
+    "file": "units/diagram/graph-parse.js",
+    "deps": [
+      "diagram/support"
+    ],
+    "bytes": 17752
+  },
+  "diagram/graph": {
+    "file": "units/diagram/graph.js",
+    "deps": [
+      "diagram/support",
+      "diagram/graph-parse",
+      "diagram/graph-layout",
+      "core/geometry"
+    ],
+    "bytes": 7108
+  },
+  "diagram/layers": {
+    "file": "units/diagram/layers.js",
+    "deps": [
+      "diagram/support"
+    ],
+    "bytes": 9881
+  },
+  "diagram/mindmap": {
+    "file": "units/diagram/mindmap.js",
+    "deps": [
+      "diagram/support",
+      "chart/spec",
+      "chart/registry",
+      "chart/mindmap"
+    ],
+    "bytes": 4037
+  },
+  "diagram/numeric-common": {
+    "file": "units/diagram/numeric-common.js",
+    "deps": [
+      "diagram/support",
+      "chart/spec",
+      "chart/registry",
+      "core/diagnostics"
+    ],
+    "bytes": 4556
+  },
+  "diagram/numeric-composition": {
+    "file": "units/diagram/numeric-composition.js",
+    "deps": [
+      "diagram/numeric-parse",
+      "diagram/numeric-common",
+      "chart/composition"
+    ],
+    "bytes": 376
+  },
+  "diagram/numeric-parse": {
+    "file": "units/diagram/numeric-parse.js",
+    "deps": [
+      "diagram/support"
+    ],
+    "bytes": 8671
+  },
+  "diagram/numeric-radar": {
+    "file": "units/diagram/numeric-radar.js",
+    "deps": [
+      "diagram/numeric-parse",
+      "diagram/numeric-common",
+      "chart/multivariate"
+    ],
+    "bytes": 296
+  },
+  "diagram/numeric-sankey": {
+    "file": "units/diagram/numeric-sankey.js",
+    "deps": [
+      "diagram/numeric-parse",
+      "diagram/numeric-common",
+      "chart/relations"
+    ],
+    "bytes": 299
+  },
+  "diagram/numeric-xy": {
+    "file": "units/diagram/numeric-xy.js",
+    "deps": [
+      "diagram/numeric-parse",
+      "diagram/numeric-common",
+      "chart/basic",
+      "chart/multivariate"
+    ],
+    "bytes": 337
+  },
+  "diagram/registry": {
+    "file": "units/diagram/registry.js",
+    "deps": [
+      "diagram/source",
+      "diagram/support",
+      "core/context",
+      "core/scene",
+      "core/svg",
+      "core/diagnostics"
+    ],
+    "bytes": 4451
+  },
+  "diagram/relations": {
+    "file": "units/diagram/relations.js",
+    "deps": [
+      "diagram/support",
+      "diagram/graph-parse",
+      "diagram/graph-layout",
+      "core/geometry"
+    ],
+    "bytes": 20759
+  },
+  "diagram/sequence": {
+    "file": "units/diagram/sequence.js",
+    "deps": [
+      "diagram/support"
+    ],
+    "bytes": 18608
+  },
+  "diagram/source": {
+    "file": "units/diagram/source.js",
+    "deps": [
+      "diagram/support"
+    ],
+    "bytes": 6040
+  },
+  "diagram/support": {
+    "file": "units/diagram/support.js",
+    "deps": [
+      "core/text",
+      "core/theme"
+    ],
+    "bytes": 2542
+  },
+  "diagram/swimlane": {
+    "file": "units/diagram/swimlane.js",
+    "deps": [
+      "diagram/support",
+      "diagram/graph-parse"
+    ],
+    "bytes": 22809
+  },
+  "diagram/time": {
+    "file": "units/diagram/time.js",
+    "deps": [
+      "diagram/support"
+    ],
+    "bytes": 15097
+  },
+  "interaction": {
+    "file": "units/interaction.js",
+    "deps": [
+      "chart/fields"
+    ],
+    "bytes": 12414
+  },
+  "runtime": {
+    "file": "units/runtime.js",
+    "deps": [],
+    "bytes": 8081
+  }
+}

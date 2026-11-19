@@ -1,0 +1,53 @@
+图标子集许可与商标说明
+========================
+
+本文件随 KChart 的受控图标子集发布。子集基于下列上游版本，
+不包含全库，使用时无需另装图标库。
+
+来源与范围
+----------
+
+- 通用图标：Tabler Icons outline，上游 Tabler Icons v3.46.0
+  （https://github.com/tabler/tabler-icons/releases/tag/v3.46.0，
+  commit 8ac7d81b72ece11072ef25ea9fd92e80c6f3c9fc）。
+- 品牌图标：Simple Icons 16.28.0
+  （https://github.com/simple-icons/simple-icons/releases/tag/16.28.0，
+  commit fc91ef03ec113d06627b2d47c1f9644ca202b6f9）。
+- 处理：只保留 path、circle、ellipse、rect、line、polyline、polygon 的几何属性；
+  去掉注释、标题、尺寸和原有颜色，绘制时继承 currentColor。
+
+Tabler Icons — MIT License
+--------------------------
+
+Copyright (c) 2020-2026 Paweł Kuna
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+Simple Icons — CC0 与商标
+-------------------------
+
+Simple Icons 项目以 CC0 1.0 发布
+（https://github.com/simple-icons/simple-icons/blob/16.28.0/LICENSE.md）。
+CC0 不表示每一个品牌标志本身都是 CC0。品牌标志可能另有许可、使用规范或商标限制。
+使用前应核对当前 Simple Icons 元数据、品牌方规范和上游声明
+（https://github.com/simple-icons/simple-icons/blob/16.28.0/DISCLAIMER.md）。
+
+CC0 和收录在本子集中都不授予商标许可。品牌名称与标志归各自权利人所有；
+本子集只提供单色几何形状，用于说明架构或技术栈，不表示背书、合作或授权关系。
+不要把这些标志用于暗示官方身份、重新着色后冒充品牌，或违反品牌使用规范的场合。

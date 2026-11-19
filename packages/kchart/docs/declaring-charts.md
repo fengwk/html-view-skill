@@ -1,13 +1,13 @@
 # 声明与渲染 KChart 数据图
 
-本文是 KChart 数据图声明的独立用法说明。图型字段和约束以当前 `node.mjs` 导出的 `catalog`、`schema()` 与 `validate()` 为准；字段组合不要从相似图型推测。
+本文是 KChart 数据图声明的独立用法说明。图型字段和约束以当前 `dist/esm/node.js` 导出的 `catalog`、`schema()` 与 `validate()` 为准；字段组合不要从相似图型推测。
 
 ## 最短用法
 
-在 KChart 库目录中用 Node.js 22+ 执行；无需安装依赖。把完整声明赋给 `spec`，`render()` 的诊断为空且 SVG 存在时才算成功：
+在 KChart 库目录中用 Node.js 22.12+ 执行 `npm ci && npm run build` 后运行示例。把完整声明赋给 `spec`，`render()` 的诊断为空且 SVG 存在时才算成功：
 
 ```js
-import { render } from './node.mjs';
+import { render } from './dist/esm/node.js';
 
 const spec = {
   chart: 'bar',

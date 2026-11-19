@@ -1,5 +1,9 @@
-KChart.define('diagram/numeric-xy', ({ 'diagram/numeric-parse': parser, 'diagram/numeric-common': common }) => {
-  const parse = (body, info) => parser.parseXy(body, info);
-  const bind = { parse, validate: (model, info) => common.validate(model, info), layout: (model, options, info) => common.render(model, options, info) };
-  return { implementations: { xychart: bind } };
-});
+import { parseXy } from './numeric-parse.js';
+import { render, validate } from './numeric-common.js';
+import '../chart/basic.js';
+import '../chart/multivariate.js';
+
+const parse = (body, info) => parseXy(body, info);
+const bind = { parse, validate: (model, info) => validate(model, info), layout: (model, options, info) => render(model, options, info) };
+
+export const implementations = { xychart: bind };

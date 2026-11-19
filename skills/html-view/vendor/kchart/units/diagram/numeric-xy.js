@@ -1,0 +1,1 @@
+KChartUnits["diagram/numeric-xy"]=(function(e,t,n){return Object.defineProperty(e,Symbol.toStringTag,{value:`Module`}),e.implementations={xychart:{parse:(e,n)=>(0,t.parseXy)(e,n),validate:(e,t)=>(0,n.validate)(e,t),layout:(e,t,r)=>(0,n.render)(e,t,r)}},e})({},KChartUnits[`diagram/numeric-parse`],KChartUnits[`diagram/numeric-common`]);

@@ -1,0 +1,1 @@
+KChartUnits["diagram/numeric-sankey"]=(function(e,t,n){return Object.defineProperty(e,Symbol.toStringTag,{value:`Module`}),e.implementations={"sankey-beta":{parse:t.parseSankey,validate:n.validate,layout:n.render}},e})({},KChartUnits[`diagram/numeric-parse`],KChartUnits[`diagram/numeric-common`]);

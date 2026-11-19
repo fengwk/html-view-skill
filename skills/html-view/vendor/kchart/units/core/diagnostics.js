@@ -1,0 +1,1 @@
+KChartUnits["core/diagnostics"]=(function(e){Object.defineProperty(e,Symbol.toStringTag,{value:`Module`});var t=class extends Error{constructor(e,t){super(e),this.errors=t,this.code=t[0]?.code,t.length===1&&t[0].fix&&(this.fix=t[0].fix)}};function n(e,n){let r=`图型不适用：${e}。${n}`;throw new t(r,[{code:`CHART_FIT`,message:r,fix:n}])}return e.ExpectedDiagnostic=t,e.fit=n,e})({});
