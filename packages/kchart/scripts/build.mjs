@@ -1,5 +1,5 @@
 // Builds the KChart distribution. One pipeline, no dependencies beyond vite 8 (Rolldown):
-//   dist/esm/        preserveModules ESM, unminified: node.js, page-api.js and every src/**/*.js
+//   dist/esm/        preserveModules ESM, unminified: public entries, page-api.js and every src/**/*.js
 //   dist/units/      one minified classic-script IIFE per src module; imports resolve via KChartUnits["<id>"]
 //   dist/page-api.js classic IIFE that defines the page API as the name KChartPageApi
 //   dist/units.json  { "<id>": { file, deps, bytes } } with deps in source statement order
@@ -74,8 +74,20 @@ const chunkOf = (result) => (Array.isArray(result) ? result : [result])
   .flatMap((item) => item.output ?? [])
   .find((output) => output.type === 'chunk');
 
-// Stage 1: ESM. Every source module and both entry modules stay separate chunks; Node builtins stay external.
-const esmEntries = { node: requireEntry(join(root, 'node.js')), 'page-api': requireEntry(join(root, 'page-api.js')) };
+// Stage 1: keep ESM modules separate so consumers can split on the same dynamic imports.
+const esmEntries = Object.fromEntries(['node', 'page-api', 'index', 'mermaid']
+  .map(name => [name, requireEntry(join(root, `${name}.js`))]));
+const familyIds = Object.keys(JSON.parse(read(join(srcRoot, 'families.json'))));
+const familyLoader = '\0kchart-families';
+const familyPlugin = {
+  name: 'kchart-family-loader',
+  resolveId: (id) => id === 'virtual:kchart-families' ? familyLoader : null,
+  load(id) {
+    if (id !== familyLoader) return null;
+    const loaders = familyIds.map((name) => `${JSON.stringify(name)}: () => import(${JSON.stringify(posix(join(srcRoot, `${name}.js`)))})`);
+    return `export const loadFamily = { ${loaders.join(',\n')} };`;
+  },
+};
 for (const unit of units) esmEntries[unit.id] = unit.file;
 
 rmSync(distRoot, { recursive: true, force: true });
@@ -83,6 +95,7 @@ await build({
   configFile: false,
   root,
   logLevel: 'warn',
+  plugins: [familyPlugin],
   build: {
     outDir: join(distRoot, 'esm'),
     emptyOutDir: true,
@@ -165,12 +178,14 @@ writeFileSync(join(distRoot, 'page-api.js'), `${pageApiChunk.code}\n`);
 
 // Stage 4: make the mirrored ESM independent of the enclosing package, and ship runtime assets.
 writeFileSync(join(distRoot, 'esm/package.json'), '{"type":"module"}\n');
+cpSync(join(root, 'types'), join(distRoot, 'esm'), { recursive: true });
 cpSync(join(root, 'assets/maps'), join(distRoot, 'assets/maps'), { recursive: true });
 for (const file of ['assets/ICONS-LICENSE.txt', 'LICENSE', 'NOTICE.md']) cpSync(join(root, file), join(distRoot, file));
 
 // The build fails rather than ship a partial or machine-dependent dist.
 const expected = [
-  'esm/node.js', 'esm/page-api.js', 'page-api.js', 'units.json',
+  'esm/node.js', 'esm/index.js', 'esm/mermaid.js', 'esm/page-api.js', 'page-api.js', 'units.json',
+  'esm/index.d.ts', 'esm/mermaid.d.ts', 'esm/node.d.ts',
   'assets/maps/world.geojson', 'assets/maps/us-states.geojson', 'assets/ICONS-LICENSE.txt', 'LICENSE', 'NOTICE.md',
   ...units.flatMap((unit) => [`esm/${unit.id}.js`, `units/${unit.id}.js`]),
 ];
@@ -180,7 +195,7 @@ const known = new Set(records.map(([id]) => id));
 const unknown = records.flatMap(([id, record]) => record.deps.filter((dep) => !known.has(dep)).map((dep) => `${id} → ${dep}`));
 if (unknown.length) throw new Error(`单元依赖未登记：${unknown.join(', ')}`);
 
-const textFiles = listFiles(distRoot, (name) => name.endsWith('.js') || name.endsWith('.json') || /^(?:LICENSE|NOTICE\.md|.*\.txt)$/.test(name));
+const textFiles = listFiles(distRoot, (name) => name.endsWith('.js') || name.endsWith('.d.ts') || name.endsWith('.json') || /^(?:LICENSE|NOTICE\.md|.*\.txt)$/.test(name));
 const machinePaths = textFiles.filter((file) => read(file).includes(root));
 if (machinePaths.length) throw new Error(`构建产物包含绝对路径：${machinePaths.map((file) => posix(relative(distRoot, file))).join(', ')}`);
 

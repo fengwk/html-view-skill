@@ -1,48 +1,56 @@
 # KChart
 
-KChart 从声明生成静态 SVG，支持 45 种数据图、27 种 Mermaid 图型的受控子集和 3 种原生结构图。在本目录用 Node.js 22.12+ 运行 `npm ci && npm run build`，然后从 `dist/esm/node.js` 导入同步 API。通过 `npm pack` 本地安装后也可从 `@fengwk/kchart` 导入。
+[简体中文](README.zh-CN.md)
 
-## 数据图
+KChart renders declarative charts and diagrams to deterministic SVG without a DOM, a runtime dependency, or a remote rendering service. Install with `npm install @fengwk/kchart`. Node.js consumers need Node 22.12 or later; all entries are ESM and include TypeScript declarations.
+
+## Browser and async Node API
 
 ```js
-import { render, schema } from './dist/esm/node.js';
-
-const spec = {
+// Keep this import inside a lazy Markdown renderer (or the handler that needs it).
+const { diagram, render } = await import('@fengwk/kchart');
+const flow = await diagram('flowchart LR\nA --> B', { width: 480, prefix: 'flow-1' });
+const bars = await render({
   chart: 'bar',
-  title: '本月订单',
-  data: [{ region: '华东', orders: 120 }, { region: '华南', orders: 85 }],
+  data: [{ region: 'East', orders: 120 }, { region: 'South', orders: 85 }],
   encode: { category: 'region', value: 'orders' },
-  unit: '单',
-};
-const { svg, scene, diagnostics } = render(spec, { width: 480, theme: 'paper' });
-if (diagnostics.length) throw new Error(diagnostics.map(({ message }) => message).join('；'));
-console.log(svg);
+}, { theme: 'paper', prefix: 'bars-1' });
 ```
 
-- `parse(text)` 校验 JSON 文本，保留重复键的位置；`validate(spec)` 校验对象，不做布局。`schema(chart?)` 查看全部或单个图型的字段；`catalog` 列出图型。
-- `render()` 返回 `{ svg, scene, diagnostics }`。声明不合规，或数据无法用所选图型清楚呈现时，只返回诊断。内部异常原样抛出。
-- `theme(idOrObject, { media })` 返回主题快照。内置主题由 `assets/themes/<id>.json` 自动装入；`resolveThemeConfig(config)` 将同格式的继承式配置解析为可同时传给数据图和结构图的快照。自定义主题可用 `frameInk` 单独设置普通结构框的基础色，不改变数据序列色。还可加可选的 `tint: { hue, chroma }`，让结构图分组、泳道和脑图分支的浅底在 OKLCH 中从 `hue` 过渡到原色，彩度乘以 `chroma`（1–2），避免暖色变浅后发粉。`render()` 接受 `width`、`lang`、`theme`、`media`、`frame`、`prefix`，以及 `measure(text, size, weight, fontFamily)`。内嵌 `<figure>` 已有标题、来源时，用 `frame: false` 避免重复。单页放多张图时，为每张图传入不同的 `prefix`。
-- `browserSource(specs)` 按声明选择模块，返回可以嵌入 HTML 的脚本文本，暴露 `globalThis.KChart`。图形渲染不访问 DOM。声明了交互时，脚本才包括 `attach(svgElement, spec)`；宿主自行插入 SVG 和绑定交互。内置地图在 Node 中从本地资产读取；浏览器端由宿主提供 `options.assets`，不发网络请求。
+`render(spec, options?)` and `diagram(source, options?)` resolve to `{ svg, scene, diagnostics }`. For invalid input or a layout that cannot be rendered, `svg` and `scene` are `null`; unexpected failures reject. `check(source, { syntax, lang }?)` resolves to the parse/validation diagnostics without laying out the diagram. The diagram syntax defaults to `mermaid`; use `layers`, `blocks`, or `swimlane` for native diagrams. `catalog` and `diagramTypes` expose the supported types and diagram aliases synchronously.
 
-## 结构图
+Render options include `width`, `lang`, `theme`, `media`, `frame`, `prefix`, and `measure(text, size, weight, fontFamily)`. Set `frame: false` if your host already supplies a figure frame. Give each inline SVG a unique `prefix`; allow horizontal scrolling if a diagram needs more room than the requested width.
+
+A production Vite build splits chart and diagram families at dynamic imports. Make the Markdown component itself a dynamic import (for example with `React.lazy`) to defer the facade as well. Shared dependencies can be reused between families. For a map chart, only the requested built-in map (`world` or `us-states`) is loaded; `options.assets` can supply your own map data instead. Browser imports do not use the Node entry or fetch map data from third-party services.
+
+## Synchronous Node API
 
 ```js
-import { check, diagram, diagramTypes } from './dist/esm/node.js';
-
-const source = 'flowchart LR\n  A[提交申请] --> B{审核}\n  B -->|通过| C[归档]';
-const options = { width: 480, theme: 'paper' };
-const diagnostics = check(source); // 只解析和校验，不执行排版。
-if (diagnostics.length) throw new Error(diagnostics[0].message);
-console.log(diagram(source, options).svg);
+import { diagram, schema } from '@fengwk/kchart/node';
+console.log(diagram('flowchart LR\nA --> B').svg);
+console.log(schema('bar'));
 ```
 
-- `diagram(source, options)` 返回 `{ svg, scene, diagnostics }`。默认 `syntax: 'mermaid'`，原生结构图使用 `layers`、`blocks` 或 `swimlane`；`diagramTypes` 列出图型、别名和诊断分组。
-- 结构图接受与数据图相同的 `width`、`lang`、`theme`、`media`、`frame`、`prefix` 和 `measure`。图放不下时可以返回更宽的 SVG，宿主应让图框可滚动而不缩小字号。`frame: false` 适合已有图题的宿主图框，Mermaid 正文中的标题和轴名仍显示。
-- Mermaid 仅支持受控子集，不加载官方包或远程资源。前言区可写 `title`；脑图可通过 `config.layout` 选择 `bilateral`、`right`、`left`、`radial`、`org`、`brace`、`fishbone`、`timeline`。脑图状态用独立一行 `:::new` 等表达；样式、图标指令和回调不执行，并返回定位到源码的诊断。
-- `browserSource([chartSpec, { source, syntax }])` 组装混合入口；只需要结构图 API 时，使用 `createRenderer({ sources: [{ source, syntax }] }).bundleSource()`。两种脚本都暴露 `globalThis.KChart`，宿主只应选一个插入。
+The Node entry provides synchronous `render`, `diagram`, `check`, `parse`, `validate`, `schema`, and `dataTable`. Use `createRenderer({ specs })` to select families for a set of declarations, or `createRenderer({ sources })` for a diagram-only renderer. `browserSource(specs)` (or a renderer's `bundleSource()`) generates a classic script for offline pages, exposing `globalThis.KChart`. For that classic script, supply map data via `options.assets`; the synchronous Node renderer reads built-in maps from disk. `runtimeSource()` supplies the optional offline page runtime.
 
-挂载浏览器宿主时，在 `browserSource()` 后加载 `runtimeSource()` 返回的脚本，再 `KChart.mount(root, options)`；截图或导出前等待 `KChart.ready()`，媒体变更可调用 `KChart.relayout({ media: 'print' })`。
+## Mermaid-style facade
 
-详细输入见[数据图](docs/declaring-charts.md)和[结构图](docs/declaring-diagrams.md)。`src/families.json` 登记图型，源码 `import` 决定依赖。[MIT License](LICENSE) 适用于 KChart 自有源码。[NOTICE](NOTICE.md) 记录上游资产来源与各自的许可。
+```js
+const mermaid = await import('@fengwk/kchart/mermaid');
+mermaid.initialize({ theme: 'paper' });
+const { svg, diagramType, diagnostics } = await mermaid.render('preview-1', 'graph LR\nA --> B');
+```
 
-在本库目录中运行 `npm test` 验证构建及浏览器单元。`npm run vendor` 将已构建的 `dist/` 镜像到 html-view；`npm run vendor -- --check` 检查该镜像是否一致。
+`initialize(config)` replaces the default KChart render options; the render ID supplies the SVG prefix unless a per-call prefix is provided. `render(id, text, options?)` rejects invalid diagrams with an `Error` carrying `diagnostics`. `parse(text, { suppressErrors }?)` resolves to `{ diagramType }`, or to `false` for invalid input when suppression is enabled; otherwise it rejects with diagnostics. Synchronous `detectType(text)` returns the canonical type for a recognized Mermaid header, without validating the body, and throws for unknown types.
+
+This facade supports KChart's documented Mermaid subset, not the entire Mermaid API. It does not run callbacks or return DOM binding functions.
+
+## Themes and supported types
+
+`themes` lists the built-in palettes; `theme('paper')` returns a reusable snapshot. Pass a built-in ID or a snapshot as `options.theme`, and use `media: 'print'` for print colors. The Node entry also exposes `resolveThemeConfig(config)` for inherited custom themes.
+
+See [chart declarations](https://github.com/fengwk/html-view-skill/blob/main/packages/kchart/docs/declaring-charts.md) and [diagram declarations](https://github.com/fengwk/html-view-skill/blob/main/packages/kchart/docs/declaring-diagrams.md) for inputs, supported types, and Mermaid limitations.
+
+KChart is [MIT licensed](LICENSE). See [NOTICE](NOTICE.md) for asset sources and licenses.
+
+From a source checkout, run `npm ci && npm run build` in `packages/kchart` before `npm pack`. See the [changelog](CHANGELOG.md) for release notes.

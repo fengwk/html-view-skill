@@ -1,16 +1,25 @@
 {
   "name": "@fengwk/kchart",
   "version": "0.1.0",
-  "private": true,
   "type": "module",
   "license": "MIT",
   "description": "Deterministic, offline SVG charts and a controlled Mermaid subset",
   "engines": { "node": ">=22.12" },
-  "exports": {
-    ".": "./dist/esm/node.js",
-    "./page-api": "./dist/esm/page-api.js"
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/fengwk/html-view-skill.git",
+    "directory": "packages/kchart"
   },
-  "files": ["dist/", "LICENSE", "NOTICE.md", "README.md"],
+  "homepage": "https://github.com/fengwk/html-view-skill/tree/main/packages/kchart#readme",
+  "bugs": "https://github.com/fengwk/html-view-skill/issues",
+  "keywords": ["charts", "diagrams", "mermaid", "svg", "visualization"],
+  "publishConfig": { "access": "public" },
+  "exports": {
+    ".": { "types": "./dist/esm/index.d.ts", "default": "./dist/esm/index.js" },
+    "./mermaid": { "types": "./dist/esm/mermaid.d.ts", "default": "./dist/esm/mermaid.js" },
+    "./node": { "types": "./dist/esm/node.d.ts", "default": "./dist/esm/node.js" }
+  },
+  "files": ["dist/", "LICENSE", "NOTICE.md", "README.md", "README.zh-CN.md", "CHANGELOG.md"],
   "scripts": {
     "build": "node scripts/build.mjs",
     "test": "vitest run",
