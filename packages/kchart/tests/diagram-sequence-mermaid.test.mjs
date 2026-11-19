@@ -39,7 +39,8 @@ test('longest arrow matching preserves all 26 spellings', () => {
   const marker = head => head === 'arrow' ? 'url(#seq-arrow)' : `url(#seq-arrow-${head})`;
   routes.forEach(({ attrs }, i) => {
     const [token, head, start] = arrows[i];
-    assert.equal(attrs['marker-start'], start ? marker(start) : undefined);
+    const reverseShape = { top: 'bottom', bottom: 'top', 'stick-top': 'stick-bottom', 'stick-bottom': 'stick-top' };
+    assert.equal(attrs['marker-start'], start ? marker(reverseShape[start] || start) : undefined);
     assert.equal(attrs['marker-end'], head === 'none' ? undefined : marker(head));
     assert.equal(Boolean(attrs['stroke-dasharray']), token.includes('--'));
   });
@@ -114,6 +115,7 @@ end`);
   assert.ok(branches.every(e => e.y > e.host.box.y && e.y < e.host.box.y + e.host.box.h));
   const rects = layout.events.filter(e => e.kind === 'open' && e.type === 'rect');
   assert.ok(rects[2].box.y + rects[2].box.h < rects[1].box.y + rects[1].box.h);
+  assert.ok(rects[1].box.x < rects[2].box.x && rects[2].right < rects[1].right);
   assert.equal((svg.match(/fill-opacity="0.1"/g) || []).length, 3);
 });
 
@@ -122,4 +124,17 @@ test('menu statements accept and ignore URLs', () => {
   const { errors, svg } = render('participant A\nlink A: Unsafe @ javascript:alert(1)\nlinks A: {"Docs": "https://example.test"}');
   assert.deepEqual(errors.map(e => [e.line, e.code, e.severity]), [[3, 'IGNORED_INTERACTION', 'warning']]);
   assert.doesNotMatch(svg, /<a\s|href=|javascript:|example\.test/);
+});
+
+// At the raised limits the scene scrolls instead of clipping stacked bars or participant heads.
+test('20 participants and 200 messages render with a single width warning', () => {
+  const actors = Array.from({ length: 20 }, (_, i) => `participant P${i}`);
+  const calls = Array.from({ length: 200 }, (_, i) => i < 8 ? 'P19->>+P0: start' : 'P0->>P19: work');
+  const { layout, scene } = render(['title: Work queue', ...actors, ...calls].join('\n'));
+  assert.equal(scene.heading, 'Work queue');
+  assert.deepEqual(layout.errors.map(e => e.code), ['LARGE_DIAGRAM']);
+  assert.equal(layout.actors.length, 20);
+  assert.equal(layout.events.filter(e => e.kind === 'message').length, 200);
+  assert.ok(layout.activations.every(bar => bar.x >= 0 && bar.y + bar.h === layout.actors[0].life.y2));
+  assert.match(parse([...actors, ...calls, 'P0->>P19'].join('\n')).errors[0].message, /200/);
 });

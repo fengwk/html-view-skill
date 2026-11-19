@@ -63,7 +63,7 @@ function parse(source, info) {
   const byId = new Map();
   const statements = [];
   const stack = [];
-  let messages = 0;
+  let messages = 0, title;
   let pendingCreate, pendingDestroy;
   const warned = new Set();
   const warnOnce = (code, line, ...messages) => {
@@ -102,6 +102,8 @@ function parse(source, info) {
       return;
     }
     const line = raw.trim();
+    const heading = /^title(?:\s*:\s*|\s+)(.+)$/i.exec(line);
+    if (heading) { title = decodeText(heading[1]); return; }
     const decl = /^(?:(create)\s+)?(participant|actor)\s+([^\s@]+)(?:\s*@\{([^}]*)\})?(?:\s+as\s+(.+))?$/i.exec(line);
     if (decl) {
       const [, create, keyword, id, rawMeta, alias] = decl;
@@ -251,7 +253,7 @@ function parse(source, info) {
     if (item.destroy) depth.delete(item.destroy);
   }
   if (!participants.length) errors.push(issue(lang, firstLine, '图中没有参与者', 'The diagram has no participants', '写 participant，或写一条 A->>B: 消息', 'Add a participant or a message such as A->>B: text'));
-  return { model: { type: 'sequence', participants, statements }, errors };
+  return { model: { type: 'sequence', participants, statements, title }, errors };
 }
 
 function layout(model, { measure, width, lang }) {
@@ -365,6 +367,23 @@ function layout(model, { measure, width, lang }) {
     if (i > 0) { bump(i, headHalf[i - 1] + headHalf[i] + 16); floor[i] = Math.max(floor[i], headHalf[i - 1] + headHalf[i] + 16); }
   });
   for (let i = 1; i < count; i += 1) floor[i] = Math.max(floor[i], 24);
+  const activeDepths = new Map();
+  const leftExtent = [...headHalf];
+  for (const event of events) {
+    const start = event.activateOn || (event.type === 'activate' && event.id);
+    const stop = event.deactivateOn || (event.type === 'deactivate' && event.id);
+    if (start) {
+      const depth = activeDepths.get(start) || 0;
+      activeDepths.set(start, depth + 1);
+      const i = actorAt(start).index;
+      leftExtent[i] = Math.max(leftExtent[i], 5 + depth * 7);
+    }
+    if (stop) activeDepths.set(stop, (activeDepths.get(stop) || 1) - 1);
+    if (event.destroy) activeDepths.delete(event.destroy);
+  }
+  for (let i = 0; i < count; i += 1) if (leftExtent[i] > headHalf[i]) {
+    bump(i, leftExtent[i] + (i > 0 ? headHalf[i - 1] + 16 : 12));
+  }
   for (const event of events) {
     if (event.kind === 'note') {
       if (event.place !== 'over') bump(event.place === 'left' ? actorAt(event.ids[0]).index : actorAt(event.ids.at(-1)).index + 1, event.textW + 28);
@@ -408,8 +427,13 @@ function layout(model, { measure, width, lang }) {
       let left = xs[event.lo] - (event.type === 'box' ? headHalf[event.lo] + 4 : pad);
       let right = xs[event.hi] + (event.type === 'box' ? headHalf[event.hi] + 4 : pad);
       for (const inner of contained.get(event) || []) {
-        if (inner.kind === 'message' && inner.lines.length) {
+        if (inner.kind === 'message') {
           const a = xs[actorAt(inner.from).index], b = xs[actorAt(inner.to).index];
+          if (inner.create) {
+            const half = actorAt(inner.create).head.w / 2;
+            left = Math.min(left, b - half - 8);
+            right = Math.max(right, b + half + 8);
+          }
           if (a === b) right = Math.max(right, a + 52 + inner.textW + 8);
           else {
             const mid = (a + b) / 2;
@@ -421,8 +445,8 @@ function layout(model, { measure, width, lang }) {
           left = Math.min(left, note.x);
           right = Math.max(right, note.x + note.w);
         } else if (inner.kind === 'open' && frames.has(inner)) {
-          left = Math.min(left, frames.get(inner).left);
-          right = Math.max(right, frames.get(inner).right);
+          left = Math.min(left, frames.get(inner).left - 6);
+          right = Math.max(right, frames.get(inner).right + 6);
         }
       }
       // 标题与分支标题写在框内左上角，框宽必须容下最宽的一条。
@@ -430,7 +454,7 @@ function layout(model, { measure, width, lang }) {
       right = Math.max(right, left + 8 + Math.max(0, ...labels.map((label) => measure(label, FONT.label))) + 12);
       frames.set(event, { left, right });
     }
-    let left = xs[0] - headHalf[0], right = xs[count - 1] + headHalf[count - 1];
+    let left = xs[0] - leftExtent[0], right = xs[count - 1] + headHalf[count - 1];
     for (const frame of frames.values()) { left = Math.min(left, frame.left); right = Math.max(right, frame.right); }
     for (const note of notes.values()) { left = Math.min(left, note.x); right = Math.max(right, note.x + note.w); }
     for (const event of events) {
@@ -488,17 +512,17 @@ function layout(model, { measure, width, lang }) {
   const active = new Map(actors.map((actor) => [actor.id, []]));
   const messageY = event => event.y + event.lineOffset;
   const creations = new Map(), destructions = new Map();
+  const start = (id, at) => {
+    const stack = active.get(id);
+    const bar = { id, x: actorAt(id).x - 5 - stack.length * 7, y: at, h: 0 };
+    stack.push(bar);
+    activations.push(bar);
+  };
+  const stop = (id, at, minHeight = 16) => {
+    const bar = active.get(id).pop();
+    if (bar) bar.h = Math.max(minHeight, at - bar.y);
+  };
   for (const event of events) {
-    const start = (id, at) => {
-      const stack = active.get(id);
-      const bar = { id, x: actorAt(id).x - 5 - stack.length * 7, y: at, h: 0 };
-      stack.push(bar);
-      activations.push(bar);
-    };
-    const stop = (id, at) => {
-      const bar = active.get(id).pop();
-      if (bar) bar.h = Math.max(16, at - bar.y);
-    };
     if (event.type === 'activate') start(event.id, event.y + 4);
     if (event.type === 'deactivate') stop(event.id, event.y + 4);
     if (event.kind !== 'message') continue;
@@ -508,20 +532,17 @@ function layout(model, { measure, width, lang }) {
     if (event.activateOn) start(event.activateOn, y + (event.create ? actorAt(event.create).head.h / 2 : 0));
     event.fromBar = active.get(event.from).at(-1);
     event.toBar = active.get(event.to).at(-1);
-    if (event.deactivateOn) stop(event.deactivateOn, y + (event.destroy === event.deactivateOn ? 0 : 8));
-    if (event.destroy) while (active.get(event.destroy).length) stop(event.destroy, y);
+    if (event.deactivateOn && event.destroy !== event.deactivateOn) stop(event.deactivateOn, y + 8);
+    if (event.destroy) while (active.get(event.destroy).length) stop(event.destroy, y, 0);
   }
   // 片段标题与分支标题要让开同一行的激活条：条画在框上，标题压到条上会看不清。
+  const barsByX = [...activations].sort((a, b) => a.x - b.x);
   const labelXOf = (box, y, width) => {
     let x = box.x + 8;
-    for (let pass = 0; pass < 3; pass += 1) {
-      let moved = false;
-      for (const bar of activations) {
-        if (bar.y > y + 18 || bar.y + bar.h < y) continue;
-        const right = bar.x + 10 + 6;
-        if (bar.x < x + width && right > x) { x = right; moved = true; }
-      }
-      if (!moved) break;
+    for (const bar of barsByX) {
+      if (bar.y > y + 18 || bar.y + bar.h < y) continue;
+      const right = bar.x + 16;
+      if (bar.x < x + width && right > x) x = right;
     }
     return x;
   };
@@ -560,7 +581,7 @@ function layout(model, { measure, width, lang }) {
   const canvas = naturalWidth <= width ? Math.floor(width) : naturalWidth;
   if (naturalWidth > width * 2) errors.push(warning('LARGE_DIAGRAM', lang, actors[0].line, '时序图较宽，需要横向滚动', 'Wide sequence diagram requires horizontal scrolling', '可将时序图拆分', 'Consider splitting the diagram'));
   return {
-    type: 'sequence', width: canvas, height: snap(height), actors, events, activations, errors,
+    type: 'sequence', width: canvas, height: snap(height), actors, events, activations, errors, title: model.title,
   };
 }
 function scene(layout, ctx) {
@@ -579,7 +600,9 @@ function scene(layout, ctx) {
     'stick-top': 'M1 1 L8 5', 'stick-bottom': 'M1 9 L8 5',
   };
   const markerId = head => head === 'arrow' ? 'seq-arrow' : `seq-arrow-${head}`;
-  const usedHeads = new Set(layout.events.flatMap(event => event.arrow ? [event.arrow.head, event.arrow.start] : []).filter(head => heads[head]));
+  // auto-start-reverse rotates a marker by 180°, including its vertical half.
+  const startHead = head => head?.replace(/top|bottom/, side => side === 'top' ? 'bottom' : 'top');
+  const usedHeads = new Set(layout.events.flatMap(event => event.arrow ? [event.arrow.head, startHead(event.arrow.start)] : []).filter(head => heads[head]));
   if (usedHeads.size) children.push(ctx.el('defs', {}, [...usedHeads].map(head => ctx.el('marker', {
     id: markerId(head), viewBox: '0 0 10 10', refX: head === 'cross' ? 5 : 8, refY: 5, markerWidth: 10, markerHeight: 10,
     orient: 'auto-start-reverse', markerUnits: 'userSpaceOnUse',
@@ -627,6 +650,7 @@ function scene(layout, ctx) {
   }));
 
   const actorAt = id => layout.actors.find(item => item.id === id);
+  const boxes = layout.events.filter(event => event.kind === 'open' && event.type === 'box').map(event => event.box);
   for (const event of layout.events) {
     if (event.kind === 'section') {
       const { host } = event;
@@ -649,7 +673,7 @@ function scene(layout, ctx) {
     const lineAttrs = {
       stroke: theme.fg3, 'stroke-width': 1.5, 'stroke-linecap': 'butt',
       ...(dashed ? { 'stroke-dasharray': '5 4' } : {}),
-      ...(start ? { 'marker-start': `url(#${markerId(start)})` } : {}),
+      ...(start ? { 'marker-start': `url(#${markerId(startHead(start))})` } : {}),
       ...(head === 'none' ? {} : { 'marker-end': `url(#${markerId(head)})` }),
     };
     const startX = event.centralStart ? from.x : event.fromBar ? event.fromBar.x + (dir > 0 ? 10 : 0) : from.x + dir * (self ? 6 : 8);
@@ -666,11 +690,19 @@ function scene(layout, ctx) {
     if (event.centralStart) dot(startX, startY);
     if (event.centralEnd) dot(endX, endY);
     const x = self ? from.x + 52 : event.create ? (startX + endX) / 2 : (from.x + to.x) / 2;
-    if (event.lines.length) addText(children, {
-      x, y: self ? y - 20 - (event.lines.length - 1) * 8 : y - event.lines.length * 8 - 10,
-      lines: event.lines, anchor: self ? 'start' : 'middle', lineHeight: 16,
-    });
-    if (event.ordinal) addText(children, { x, y: y - (event.lines.length * 16 + (self ? 28 : 18)), lines: [event.ordinal], anchor: self ? 'start' : 'middle', fill: theme.fg3 });
+    const labelY = self ? y - 20 - (event.lines.length - 1) * 8 : y - event.lines.length * 8 - 10;
+    const ordinalY = y - (event.lines.length * 16 + (self ? 28 : 18));
+    // Cross-group labels stay legible when they straddle a dashed box border.
+    const labelLeft = self ? x : x - event.textW / 2;
+    const labelRight = labelLeft + event.textW;
+    const labelTop = (event.ordinal ? ordinalY : labelY - (event.lines.length - 1) * 8) - 7;
+    const labelBottom = (event.lines.length ? labelY + (event.lines.length - 1) * 8 : ordinalY) + 7;
+    if (event.textW && boxes.some(box => box.y < labelBottom && box.y + box.h > labelTop &&
+      [box.x, box.x + box.w].some(edge => labelLeft - 2 < edge && edge < labelRight + 2))) {
+      children.push(ctx.rect(labelLeft - 4, labelTop, event.textW + 8, labelBottom - labelTop, { fill: theme.bg, rx: theme.smallRadius }));
+    }
+    if (event.lines.length) addText(children, { x, y: labelY, lines: event.lines, anchor: self ? 'start' : 'middle', lineHeight: 16 });
+    if (event.ordinal) addText(children, { x, y: ordinalY, lines: [event.ordinal], anchor: self ? 'start' : 'middle', fill: theme.fg3 });
     if (event.destroy && !(head === 'cross' && event.destroy === to.id)) {
       const dx = actorAt(event.destroy).x;
       children.push(ctx.path(`M${dx - 4} ${y - 4} l8 8 m0 -8 l-8 8`, { fill: 'none', stroke: theme.fg3, 'stroke-width': 1.5 }));
@@ -684,7 +716,7 @@ function scene(layout, ctx) {
     addText(group, { x: actor.x, y: part.y + part.h / 2 + (glyph ? 12 : 0), lines: part.lines, font: FONT.title, lineHeight: 18, fill: theme.fg1 });
     children.push({ ...ctx.el('g', {}, group), meta: { kind: 'participant', id: actor.id } });
   }
-  return { width: layout.width, height: layout.height, children };
+  return { width: layout.width, height: layout.height, children, title: layout.title, heading: layout.title };
 }
 
 export { LIMITS };
