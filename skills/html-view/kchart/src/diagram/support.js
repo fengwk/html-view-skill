@@ -54,6 +54,7 @@ KChart.define('diagram/support', ({ 'core/text': text, 'core/theme': { statusMar
   const presets = {
     claude: [10, 6, .10, true], paper: [6, 4, .09, true], obsidian: [8, 6, .11],
     tokyo: [4, 3, .13], kanagawa: [2, 2, .12], terminal: [0, 0, .12],
+    cloudmusic: [12, 8, .08, true],
   };
   function appearance(ctx) {
     const t = ctx.design;

@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { loadChart } from './kchart-fixture.mjs';
+import { themes } from '../node.mjs';
 
 const { api: K } = loadChart(['chart/variants']);
 const plain = value => JSON.parse(JSON.stringify(value));
@@ -288,7 +289,7 @@ test('窄版华夫图完整保留说明且不突破留白', () => {
   assert.ok(note.every(({ text }) => measure(text) <= 268));
 });
 
-// 意图：点与环和列头文字共用同一中轴，宽图框中不贴在列左侧；华夫分块的着色类别名在六主题下达到正文 4.5:1。
+// 意图：点与环和列头文字共用同一中轴，宽图框中不贴在列左侧；华夫分块的着色类别名在各内置主题下达到正文 4.5:1。
 test('heatmap dots align with column headers and waffle field labels stay readable in every theme',()=>{
   const hexIn=value=>String(value).match(/#[0-9a-f]{6}/gi).at(-1);
   const data=[{r:'North',c:'A',v:4},{r:'North',c:'B',v:9},{r:'South',c:'A',v:1},{r:'South',c:'B',v:6}];
@@ -303,7 +304,7 @@ test('heatmap dots align with column headers and waffle field labels stay readab
     }
   }
   const field={chart:'waffle',variant:'field',data:[{c:'Alpha',v:3},{c:'Beta',v:2},{c:'Gamma',v:1}],encode:{category:'c',value:'v'}};
-  for(const theme of ['claude','paper','obsidian','tokyo','kanagawa','terminal']){
+  for(const theme of Object.keys(themes)){
     const bg=K.util.context({theme}).palette.bg;
     const labels=elements(K.layout(field,{width:558,theme}),'text').filter(n=>n.meta?.kind==='category');
     assert.deepEqual(plain([...new Set(labels.map(n=>n.meta.label))]),['Alpha','Beta','Gamma']);

@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { loadChart } from './kchart-fixture.mjs';
-import { createRenderer } from '../node.mjs';
+import { createRenderer, themes } from '../node.mjs';
 import { KCHART_CASES } from './kchart-cases.mjs';
 
 const { api: K } = loadChart(['chart/multivariate']);
@@ -559,9 +559,9 @@ test('shared temporal labels preserve years and 24-column heatmaps expand safely
 });
 
 const hexIn = (value) => String(value).match(/#[0-9a-f]{6}/gi).at(-1);
-const THEMES = ['claude', 'paper', 'obsidian', 'tokyo', 'kanagawa', 'terminal'];
+const THEMES = Object.keys(themes);
 
-// 意图：气泡矩阵读数既可能落在半透明气泡上也可能落在格子底色上，两种底色在六主题下都要达到 4.5:1；
+// 意图：气泡矩阵读数既可能落在半透明气泡上也可能落在格子底色上，两种底色在各内置主题下都要达到 4.5:1；
 // 排名图首尾的系列名是着色正文，对页面底色同样要达到 4.5:1。
 test('bubble-matrix readouts and bump series labels keep body-text contrast in every theme', () => {
   const bubbles = { chart: 'bubble-matrix', encode: { row: 'r', column: 'c', value: 'v' }, data: ['A', 'B'].flatMap((r) => ['x', 'y', 'z'].map((c, j) => ({ r, c, v: j * 4 + (r === 'A' ? 1 : 3) }))) };

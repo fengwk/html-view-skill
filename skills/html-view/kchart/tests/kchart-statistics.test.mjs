@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import { loadChart } from './kchart-fixture.mjs';
+import { themes } from '../node.mjs';
 
 const { api: K, context } = loadChart(['chart/statistics']);
 const { api: KV } = loadChart(['chart/statistics', 'chart/variants']);
@@ -349,7 +350,7 @@ test('waffle includes a matching category legend and measured footnote wrapping'
 });
 
 const hexIn = (value) => String(value).match(/#[0-9a-f]{6}/gi).at(-1);
-const THEMES = ['claude', 'paper', 'obsidian', 'tokyo', 'kanagawa', 'terminal'];
+const THEMES = Object.keys(themes);
 const flattenNodes = (nodes) => nodes.flatMap((node) => [node, ...flattenNodes(node.children || [])]);
 
 // 意图：瀑布阶段名、散点轴题与注释、小多图面板标题换行后保留全部词，布局按实际行数留高。
@@ -376,7 +377,7 @@ test('statistics labels keep every word however many lines they wrap to', () => 
   keeps(multiples, long, 'small-multiples panel title');
 });
 
-// 意图：热力格内数字按所在格子的实际底色取色，六主题、正负值、有无缺格的两条布局路径都不低于 4.5:1。
+// 意图：热力格内数字按所在格子的实际底色取色，各内置主题、正负值、有无缺格的两条布局路径都不低于 4.5:1。
 test('heatmap cell readouts keep body-text contrast against their own cell fill', () => {
   const full = { chart: 'heatmap', encode: { row: 'r', column: 'c', value: 'v' }, data: ['A', 'B'].flatMap((r, i) => [1, 2, 3, 4, 5].map((step) => ({ r, c: `C${step}`, v: (i ? -1 : 1) * step * 20 }))) };
   const sparse = { ...full, data: full.data.slice(1) };
@@ -789,7 +790,7 @@ test('small-multiples keep short first and last categories on one baseline', () 
 test('dumbbell comparison marks and readings remain legible in all themes', () => {
   // 比较线是数据标记而非网格线，端点读数按小字的对比度门槛检查。
   const spec = cases.find(item => item.chart === 'dumbbell' && !item.fields);
-  for (const theme of ['claude', 'paper', 'obsidian', 'tokyo', 'kanagawa', 'terminal']) {
+  for (const theme of THEMES) {
     const { palette } = K.util.context({ theme, spec });
     const nodes = flattenNodes(K.layout(spec, { theme }).children);
     const link = nodes.find(node => node.tag === 'line' && node.attrs.class === 'chart-link');

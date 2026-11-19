@@ -91,5 +91,41 @@ KChart.define('core/color', () => {
     return rgbToHex(matrix.map((row) => fromLin(clamp(row[0] * linear[0] + row[1] * linear[1] + row[2] * linear[2], 0, 1)) * 255));
   }
 
-  return { isHex, mix, luminance, contrast, pushContrast, deltaE2000, simulateCvd };
+  const toOklab = (hex) => {
+    const [r, g, b] = linearRgb(hex);
+    const l = Math.cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b);
+    const m = Math.cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b);
+    const s = Math.cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b);
+    return [0.2104542553 * l + 0.793617785 * m - 0.0040720468 * s, 1.9779984951 * l - 2.428592205 * m + 0.4505937099 * s, 0.0259040371 * l + 0.7827717662 * m - 0.808675766 * s];
+  };
+  const fromOklab = ([L, a, b]) => {
+    const l = (L + 0.3963377774 * a + 0.2158037573 * b) ** 3;
+    const m = (L - 0.1055613458 * a - 0.0638541728 * b) ** 3;
+    const s = (L - 0.0894841775 * a - 1.291485548 * b) ** 3;
+    const linear = [4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s, -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s, -0.0041960863 * l - 0.7034186147 * m + 1.707614701 * s];
+    return rgbToHex(linear.map((v) => fromLin(clamp(v, 0, 1)) * 255));
+  };
+  const oklch = (hex) => { const [L, a, b] = toOklab(hex); return [L, Math.hypot(a, b), Math.atan2(b, a) * 180 / Math.PI]; };
+
+  // 装饰浅底：主题未声明 tint 时与 mix 完全相同。
+  // 声明 { hue, chroma } 时，彩色（OKLCH C ≥ 0.04）在 OKLCH 中插值：明度从纸色走向原色，
+  // 色相从 hue 走向原色，彩度再乘 chroma。暖色变浅时否则会发粉；中性色仍用 mix。
+  function tint(paper, color, ratio, style) {
+    if (!style) return mix(paper, color, ratio);
+    if (!isHex(paper) || !isHex(color)) throw new TypeError('tint 需要 #RRGGBB 颜色');
+    const amount = Number(ratio);
+    if (!Number.isFinite(amount)) throw new TypeError('tint 比例必须是有限数');
+    const t = clamp(amount, 0, 1);
+    if (t === 0) return paper;
+    if (t === 1) return color;
+    const [L2, C2, h2] = oklch(color);
+    if (C2 < 0.04) return mix(paper, color, t);
+    const [L1, C1] = oklch(paper);
+    let turn = h2 - style.hue;
+    if (turn > 180) turn -= 360; else if (turn < -180) turn += 360;
+    const L = L1 + (L2 - L1) * t, C = (C1 + (C2 - C1) * t) * style.chroma, h = (style.hue + turn * t) * Math.PI / 180;
+    return fromOklab([L, C * Math.cos(h), C * Math.sin(h)]);
+  }
+
+  return { isHex, mix, tint, luminance, contrast, pushContrast, deltaE2000, simulateCvd };
 });

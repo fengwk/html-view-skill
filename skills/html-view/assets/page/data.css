@@ -84,6 +84,8 @@ table[data-sortable] th:focus-visible { outline: 2px solid var(--accent); }
   [data-chart-grid] { grid-template-columns: minmax(0, 1fr); }
   [data-kpis] { --kpi-cols: 2 !important; }
   [data-kpis][data-count="1"] { --kpi-cols: 1 !important; }
+  /* 单数个 KPI 时最后一张占满一行，右侧不留空格。 */
+  [data-kpis] > .data-kpi:last-child:nth-child(odd) { grid-column: 1 / -1; }
 }
 @media print {
   /* CSS 版心与浏览器测得的版心一致；纸上已有 @page 页边距。 */

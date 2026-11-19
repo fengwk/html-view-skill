@@ -14,7 +14,7 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, '../../..');
 const ALL_WIDTHS = [1040, 558, 324];
 const ALL_THEMES = listThemes().map(theme => theme.id);
-// 默认只跑默认亮色与暗色主题；六主题验收用 --theme 显式指定。
+// 默认只跑默认亮色与暗色主题；全主题验收用 --theme 显式指定。
 const DEFAULT_THEMES = ['claude', 'obsidian'];
 const ESC = value => String(value).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#39;');
 const safeName = value => String(value).replace(/[^a-zA-Z0-9_-]/g, '-');

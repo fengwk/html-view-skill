@@ -10,7 +10,7 @@
 4. `htmlview data build <dir>/report.json --out <report.html>` 生成离线报表。目标已存在时，仅在确认覆盖目标后加 `--force`。
 5. `htmlview audit <report.html>` 检查生成内容完整性；需要换主题时用 `htmlview style <report.html> --theme <id>`。`style` 在写入前执行相同的数据完整性门禁。
 
-`layout` 只决定 `analysis`、`periodic`、`dashboard` 或 `brief` 的页面组织，不改变数值计算：`analysis`/`brief` 先叙述再 KPI；`periodic`/`dashboard` 先 KPI、图表、表格再叙述；看板图表按两列排布，手机与打印改为单列。页面保留可键盘操作的静态视图标签，导出时展开所有视图；打印时视图名称与紧随其后的内容相连，不强制另起一页。`period.current`、`compare`、`timezone` 和 `complete` 决定本期与比较期语义。`complete:false` 时保留内存中的当期结果但不生成比较；若同时请求比较，`PARTIAL_PERIOD` error 阻止 build，不能把未完整期间交付为完整报告。
+`layout` 只决定 `analysis`、`periodic`、`dashboard` 或 `brief` 的页面组织，不改变数值计算：`analysis`/`brief` 先叙述再 KPI；`periodic`/`dashboard` 先 KPI、图表、表格再叙述；看板图表按两列排布，手机与打印改为单列；看板放哪些数、选什么图、强调什么见[看板设计](../guides/dashboard.md)。页面保留可键盘操作的静态视图标签，导出时展开所有视图；打印时视图名称与紧随其后的内容相连，不强制另起一页。`period.current`、`compare`、`timezone` 和 `complete` 决定本期与比较期语义。`complete:false` 时保留内存中的当期结果但不生成比较；若同时请求比较，`PARTIAL_PERIOD` error 阻止 build，不能把未完整期间交付为完整报告。
 
 ## 内容块
 

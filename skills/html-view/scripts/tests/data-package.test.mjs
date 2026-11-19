@@ -195,6 +195,9 @@ test('period-less summary datasets use every row, skip period comparisons, and t
   assert.match(html,/<h2>Monthly channels \(2026-10\)<\/h2>/,'periodic table states which month its rows belong to, in the inferred report language');
   assert.match(html,/>58,010<\/span>/,'table cells keep exact grouped values instead of compact 万/K forms');
   assert.doesNotMatch(html,/>5\.8万<\/span><\/td>/);
+  // 数字列右对齐才能按位比较；维度列保持左对齐。
+  assert.match(html,/<th scope="col">Category<\/th><th scope="col" class="num">Loans \(count\)<\/th>/,'only measure headers align with their numbers');
+  assert.match(html,/<td>Picture books<\/td><td class="num" data-sort="58010"/,'measure cells are right-aligned numbers; dimension cells are not');
   assert.ok(validateReport({...report,datasets:[{...report.datasets[1],periodField:''}]}).issues.some(i=>i.where==='datasets[0].periodField'),'empty strings are still rejected; only null opts out of the period dimension');
 });
 
@@ -236,11 +239,16 @@ test('report gutters and mobile KPI grid stay inside the viewport at desktop and
   const browser=await launchBrowser();t.after(()=>browser.close());const page=await browser.newPage();t.after(()=>page.close());await page.goto(new URL(`file://${file}`).href);
   for(const width of [1280,390]){
     await page.setViewport({width,height:844});await page.evaluate('new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))');
-    const result=await page.json(`JSON.stringify((()=>{const main=document.querySelector('body > main'),rect=main.getBoundingClientRect(),cards=[...document.querySelectorAll('[data-view-section]:not([hidden]) [data-kpis] > .data-kpi')];return{width:innerWidth,documentWidth:document.documentElement.scrollWidth,left:rect.left,right:rect.right,columns:getComputedStyle(document.querySelector('[data-view-section]:not([hidden]) [data-kpis]')).gridTemplateColumns,cards:cards.map(card=>({overflow:card.scrollWidth>card.clientWidth,font:parseFloat(getComputedStyle(card.querySelector('.data-kpi-value')).fontSize)}))};})())`);
+    const result=await page.json(`JSON.stringify((()=>{const main=document.querySelector('body > main'),rect=main.getBoundingClientRect(),cards=[...document.querySelectorAll('[data-view-section]:not([hidden]) [data-kpis] > .data-kpi')];return{width:innerWidth,documentWidth:document.documentElement.scrollWidth,left:rect.left,right:rect.right,columns:getComputedStyle(document.querySelector('[data-view-section]:not([hidden]) [data-kpis]')).gridTemplateColumns,gridWidth:document.querySelector('[data-view-section]:not([hidden]) [data-kpis]').clientWidth,cards:cards.map(card=>({overflow:card.scrollWidth>card.clientWidth,font:parseFloat(getComputedStyle(card.querySelector('.data-kpi-value')).fontSize),width:card.offsetWidth,top:card.offsetTop}))};})())`);
     assert.ok(result.left>=12&&result.right<=width-12,`${width}px layout retains visible horizontal gutters: ${JSON.stringify(result)}`);
     assert.ok(result.documentWidth<=width,`${width}px report has no document-level horizontal overflow`);
     assert.ok(result.cards.length>0&&result.cards.every(card=>!card.overflow&&card.font>=12),`${width}px KPI cards fit and remain at least 12px: ${JSON.stringify(result.cards)}`);
-    if(width===390)assert.equal(result.columns.split(' ').length,2,'three mobile KPIs use a two-column grid rather than overflowing a desktop row');
+    if(width===390){
+      assert.equal(result.columns.split(' ').length,2,'three mobile KPIs use a two-column grid rather than overflowing a desktop row');
+      // 单数个 KPI 时最后一张占满一行，不在右侧留下空格。
+      const [first,,last]=result.cards;
+      assert.ok(last.top>first.top&&last.width===result.gridWidth,`the odd last KPI spans the row: ${JSON.stringify(result)}`);
+    }
   }
   // 视图名要跟着首个内容块，但剩余版心可容纳两者时不强制另起一页。
   await page.setMedia('print');

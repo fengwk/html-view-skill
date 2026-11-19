@@ -210,6 +210,10 @@ tbody tr:first-child > * { border-top: 0; }
 tbody th { color: var(--fg-1); font-weight: 600; white-space: nowrap; }
 tbody td { color: var(--fg-2); }
 .num { text-align: right !important; font-family: var(--font-num); font-variant-numeric: tabular-nums; white-space: nowrap; }
+/* Markdown 表格的 :---:、---: 对齐；用 class 而不是行内 style，内容区保持可审计。 */
+.align-left { text-align: left; }
+.align-center { text-align: center; }
+.align-right { text-align: right; }
 .nowrap { white-space: nowrap; }
 
 /* 代码 */

@@ -436,8 +436,9 @@ function table(lines, i, ctx) {
     j += 1;
   }
   const cell = (tag, text, idx) => {
-    const style = aligns[idx] ? ` style="text-align: ${aligns[idx]}"` : '';
-    return `<${tag}${style}>${inline(text, ctx)}</${tag}>`;
+    // 对齐写成主题 CSS 里的 class；行内 style 会被内容审计拒绝。
+    const align = aligns[idx] ? ` class="align-${aligns[idx]}"` : '';
+    return `<${tag}${align}>${inline(text, ctx)}</${tag}>`;
   };
   const head = `<thead><tr>${header.map((text, idx) => cell('th', text, idx)).join('')}</tr></thead>`;
   const body = rows.map((row) => `<tr>${header.map((_, idx) => cell('td', row[idx] ?? '', idx)).join('')}</tr>`);

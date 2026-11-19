@@ -291,6 +291,23 @@ test('emphasis selections alter visual treatment while preserving record identit
   assert.ok(dots.every((node) => node.meta.kind === 'record' && node.meta.series && node.meta.label));
 });
 
+// 意图：双系列柱里颜色代表系列（如「实际 / 目标」），被强调的行若改成强调色，就会和图例里同色的另一系列混淆。
+test('row emphasis recolors only single-series bars and keeps series colors otherwise', () => {
+  const rows = [{ c: 'A', actual: 7, target: 6, id: 'a' }, { c: 'B', actual: 5, target: 6.5, id: 'b' }];
+  const fills = (encode) => {
+    const marks = elements(K.layout(table('bar', rows, encode, { emphasis: { rows: ['b'] } }), { width: 600 }), 'path')
+      .concat(elements(K.layout(table('bar', rows, encode, { emphasis: { rows: ['b'] } }), { width: 600 }), 'rect'))
+      .filter((node) => node.meta?.kind === 'record');
+    return marks.map((node) => ({ record: node.meta.record, series: node.meta.series, fill: node.attrs.fill, opacity: node.attrs.opacity ?? node.attrs['fill-opacity'] ?? 1 }));
+  };
+  const single = fills({ category: 'c', value: 'actual', id: 'id' });
+  assert.equal(single.find((mark) => mark.record === 'b').fill, palette.accent, 'one series: the selected bar takes the accent');
+  const paired = fills({ category: 'c', value: ['actual', 'target'], id: 'id' });
+  const selected = paired.filter((mark) => mark.record === 'b');
+  assert.deepEqual(selected.map((mark) => mark.fill), [palette.tone1, palette.tone2], 'two series: the selected row keeps the legend colors');
+  assert.ok(paired.filter((mark) => mark.record === 'a').every((mark) => Number(mark.opacity) < 1), 'the other rows fade');
+});
+
 // 意图：确认占比条只有整体外边缘圆角、长系列名完整换行且留在viewBox内，并避免funnel读数行高被低估。
 test('share seams stay square and funnel readouts reserve all rendered lines', () => {
   const share = K.layout(table('share', [{ x: 'A', amount: 1 }, { x: 'B', amount: 1 }, { x: 'C', amount: 2 }], { category: 'x', value: 'amount' }), { width: 800 });

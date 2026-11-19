@@ -5,7 +5,7 @@
 从技能根目录运行：
 
 ```sh
-node --experimental-vm-modules --test kchart/tests/*.test.mjs scripts/tests/*.test.mjs
+node --test kchart/tests/*.test.mjs scripts/tests/*.test.mjs
 (cd assets/vendor && sha256sum -c prism.js.sha256)
 ```
 

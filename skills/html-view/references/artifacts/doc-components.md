@@ -5,9 +5,28 @@
 ## 基本结构
 
 - 使用语义化标题、段落、有序/无序列表和表格。表格用于字段对照、决策项和少量精确数据，不用空格手工排版。
-- 需要突出结论时，可用文首摘要；只有能帮助读者扫读时才给章节增加一句 `lead`。普通说明文档按读者任务排序，不套用看板式结构。
+- 需要突出结论时用文首摘要；`plan`、`report`、`one-pager` 的骨架已带这一块。只有能帮助读者扫读时，才给章节加一句 `<p class="lead">`。普通说明文档按读者任务排序，不套用看板式结构。
 - 手写 HTML 提示条用 `<div class="note" data-k="warn"><b class="note-k">注意</b><div>写明条件与影响。</div></div>`。`data-k` 按语义取 `accent`、`ok`、`info`、`warn`、`danger`、`new` 或 `neutral`，不用固定颜色。Markdown 提示条写法见[文档流程](doc.md#从-markdown-构建)。
-- 连续步骤用 `<ol class="steps">`；时间线用 `<ol class="timeline">`，日期放在每项的 `.tl-date`；次要材料用 `<details class="fold"><summary>…</summary><div class="fold-body">…</div></details>`。没有分组价值时用普通段落或列表。
+- 次要材料用 `<details class="fold"><summary>…</summary><div class="fold-body">…</div></details>`。没有分组价值时用普通段落或列表。
+
+摘要、指标、步骤和时间线的结构如下；Markdown 源里也可以直接写这些 HTML 块。指标的 `stat-d` 用 `data-k` 表示好坏（`ok`、`warn`、`danger`），不表示涨跌方向，不写时为中性色。时间线的当前项加 `aria-current="step"`。
+
+```html
+<section class="summary" aria-labelledby="summary-title">
+  <h2 class="summary-title" id="summary-title">先看结论</h2>
+  <ul><li>最重要的结论。</li></ul>
+  <div class="decide"><h3 class="summary-title">需要你决定</h3><ol><li>待决事项。</li></ol></div>
+</section>
+<div class="stats">
+  <div class="stat"><div class="stat-v">1,200<small>单</small></div><div class="stat-l">十月订单</div><div class="stat-d" data-k="ok">较上月 +8%</div></div>
+</div>
+<ol class="steps">
+  <li><div class="step-t">备份配置</div><div class="step-d">写明命令、位置和完成标志。</div></li>
+</ol>
+<ol class="timeline">
+  <li data-k="ok"><span class="tl-date">2026-07</span><b class="tl-title">灰度上线</b><span class="tl-desc">一句说明。</span></li>
+</ol>
+```
 
 ## 图形
 

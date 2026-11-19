@@ -30,9 +30,9 @@ node docs/showcase/render-readme-gallery.mjs
 node docs/showcase/sync-readme.mjs <directory printed by the previous command>
 ```
 
-The first command measures SVG text in Chrome and renders the Chinese and English galleries at their final display widths: small charts share 360px columns, and wide charts take a 780px row of their own instead of shrinking their text. The main gallery uses only the Claude theme; the six-theme comparison reuses one two-series dataset. The output directory holds the images in `gallery/<language>/`, the `gallery.<language>.md` and `themes.<language>.md` fragments for each language, and a `manifest.json` that records every sample.
+The first command measures SVG text in Chrome and renders the Chinese and English galleries at their final display widths, one SVG per sample. The README lays them out in a two-column table: a regular chart fills a 360px cell, and a chart that doesn't fit or runs very tall takes a 780px row instead of shrinking its text. Charts of similar height in a group share a row, both cells in a row have the same height so the captions line up, and an odd chart left over at the end of a group is centered across both columns. The main gallery uses only the Claude theme; the theme comparison reuses one two-series dataset for every built-in theme. The output directory holds the images in `gallery/<language>/`, the `gallery.<language>.md` and `themes.<language>.md` fragments for each language, and a `manifest.json` that records every sample.
 
-The second command replaces `gallery/` in this folder with the new images and writes the fragments between the `gallery` and `themes` markers of `README.md` and `README.en.md`. If any marker pair is missing or repeated, it changes nothing. Group headings and image files share one set of language-neutral slugs, such as `trends`, `c4` and `variants-marks`, so both READMEs use the same anchors. Map previews are 2× PNGs; clicking one opens the full SVG.
+The second command replaces `gallery/` in this folder with the new images and writes the fragments between the `gallery` and `themes` markers of `README.md` and `README.en.md`. If any marker pair is missing or repeated, it changes nothing. Group anchors use language-neutral slugs, such as `trends`, `c4` and `variants-marks`, and image files are named after sample IDs, such as `chart-line.svg` and `theme-claude.svg`, so both READMEs share anchors and file names. Map previews are 2× PNGs; clicking one opens the full SVG.
 
 <a id="full-gallery"></a>
 
@@ -44,6 +44,6 @@ node skills/html-view/scripts/lab/showcase/generate.mjs
 node skills/html-view/scripts/lab/showcase/generate.mjs --out ./kchart-showcase
 ```
 
-Open `index.html` in the output directory. It starts in Claude; you can filter by the six themes and by chart type, search, and view each declaration. The full set has 774 offline SVGs covering 45 base charts, 38 controlled variants, 27 Mermaid subset diagrams, 3 native diagrams and 8 mind-map layouts. Charts that are too wide scroll inside their frame, and each one can be opened as a full-size SVG. The generator refuses unknown non-empty directories and symbolic links, and never overwrites the repository previews.
+Open `index.html` in the output directory. It starts in Claude; you can filter by theme and by chart type, search, and view each declaration. The full set has 903 offline SVGs covering 45 base charts, 38 controlled variants, 27 Mermaid subset diagrams, 3 native diagrams and 8 mind-map layouts. Charts that are too wide scroll inside their frame, and each one can be opened as a full-size SVG. The generator refuses unknown non-empty directories and symbolic links, and never overwrites the repository previews.
 
-[Back to the README gallery](../../README.en.md#gallery) · [Six-theme comparison](../../README.en.md#themes)
+[Back to the README gallery](../../README.en.md#gallery) · [Theme comparison](../../README.en.md#themes)

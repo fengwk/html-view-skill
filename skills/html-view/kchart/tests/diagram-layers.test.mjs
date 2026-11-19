@@ -87,3 +87,13 @@ test('layer scenes carry their own resolved theme styling in standalone SVG', ()
   for (const color of [ctx.design.fg1, ctx.design.fg2, support.appearance(ctx).node, ctx.design.new, ctx.design.info, ctx.design.ok,
     ctx.mix(ctx.design.bg, ctx.color('tone1'), .07), ctx.mix(ctx.design.bg, ctx.color('tone1'), .45)]) assert.ok(rendered.includes(color), `missing expected theme color ${color}`);
 });
+
+// 目标：Claude 的分组框与普通能力框按主题 tint 变浅（读作浅橙而非鲑粉），状态色节点仍按原色相变浅。
+test('layer tints follow the theme tint while status colors keep their own hue', () => {
+  const { ctx, geometry } = create('- 触达\n  - 渠道: 小程序\n- 交易\n  - 订单: +下单, 支付', 800, 'zh-CN', 'claude');
+  const rendered = modules['core/svg'].renderScene(implementation.scene(geometry, ctx, { kind: 'layers' }), { theme: ctx.design });
+  const { bg } = ctx.design, tone2 = ctx.color('tone2');
+  assert.notEqual(ctx.tint(bg, tone2, .45), ctx.mix(bg, tone2, .45));
+  for (const color of [ctx.tint(bg, tone2, .07), ctx.tint(bg, tone2, .45), ctx.tint(bg, tone2, .4), ctx.mix(bg, ctx.design.new, .4)]) assert.ok(rendered.includes(color), `missing ${color}`);
+  for (const color of [ctx.mix(bg, tone2, .07), ctx.mix(bg, tone2, .45), ctx.tint(bg, ctx.design.new, .4)]) assert.ok(!rendered.includes(color), `unexpected ${color}`);
+});

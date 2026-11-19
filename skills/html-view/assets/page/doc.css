@@ -9,41 +9,6 @@
   --font-mono: ui-monospace, "JetBrains Mono", "Cascadia Mono", Menlo, Consolas, "Source Code Pro", "Noto Sans Mono CJK SC", "DejaVu Sans Mono", monospace;
 }
 
-/* 主题变量的派生值与默认值；具体主题在 doc-theme 中覆盖 */
-[data-theme] {
-  --soft: 13%;
-  --radius: 6px;
-  --radius-sm: 4px;
-  /* 图卡、指标卡的圆角：随主题圆角放大，直角主题仍保持直角 */
-  --card-radius: calc(var(--radius) * 1.6);
-  --block-bg: var(--surface);
-  --node-bg: var(--surface-2);
-  --code-bg: var(--node-bg);
-  --font-num: var(--font-sans);
-  --num-style: decimal;
-  --num-color: var(--fg-4);
-  --accent-mark: var(--fg-4);
-  --font-display: var(--font-sans);
-  --display-weight: 600;
-  --accent-soft: color-mix(in srgb, var(--accent) var(--soft), transparent);
-  --accent-line: color-mix(in srgb, var(--accent) 45%, transparent);
-  --ok-soft: color-mix(in srgb, var(--ok) var(--soft), transparent);
-  --warn-soft: color-mix(in srgb, var(--warn) var(--soft), transparent);
-  --danger-soft: color-mix(in srgb, var(--danger) var(--soft), transparent);
-  --info-soft: color-mix(in srgb, var(--info) var(--soft), transparent);
-  --new-soft: color-mix(in srgb, var(--new) var(--soft), transparent);
-  /* 图表模块只认 --viz-*；由主题变量映射，深色主题打印时再整体换成 paper 配色。
-     --viz-bg 是图所在卡片的底色：圆点描边、分段间隙与热力格都用它和卡片融为一体。 */
-  --viz-fg: var(--fg-1);
-  --viz-muted: var(--fg-3);
-  --viz-grid: var(--line);
-  --viz-axis: var(--line-2);
-  --viz-target: var(--fg-3);
-  --viz-bg: var(--surface);
-  background: var(--bg);
-  color: var(--fg-2);
-  font-family: var(--font-sans);
-}
 [data-scheme="dark"] { color-scheme: dark; }
 [data-scheme="light"] { color-scheme: light; }
 /* 非中文：西文字体优先、正文行距略收紧、关闭中西文自动间距 */
@@ -201,6 +166,10 @@ tbody tr:first-child > * { border-top: 0; }
 tbody th { color: var(--fg-1); font-weight: 600; white-space: nowrap; }
 tbody td { color: var(--fg-2); }
 .num { text-align: right !important; font-family: var(--font-num); font-variant-numeric: tabular-nums; white-space: nowrap; }
+/* Markdown 表格的 :---:、---: 对齐；用 class 而不是行内 style，内容区保持可审计。 */
+.align-left { text-align: left; }
+.align-center { text-align: center; }
+.align-right { text-align: right; }
 .nowrap { white-space: nowrap; }
 
 /* 代码 */

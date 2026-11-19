@@ -272,8 +272,8 @@ KChart.define('chart/mindmap', ({ 'chart/registry': { register }, 'core/theme': 
       const p = coords.get(n), rootNode = n === root, card = variant === 'cards';
       const framed = hasFrame(variant, n.depth, n.children);
       if (framed) {
-        const fill = rootNode ? ctx.color('accent') : card ? ctx.mix(ctx.palette.bg, ctx.palette.accent, 0.035) : ctx.mix(ctx.palette.bg, ctx.palette.accent, 0.12);
-        svgNodes.push(ctx.rect(p.x, p.y, n.w, n.h, { rx: rootNode ? 10 : 6, fill, stroke: rootNode ? ctx.color('accent') : card ? ctx.color('axis') : ctx.mix(ctx.palette.bg, ctx.palette.accent, 0.28), 'stroke-width': rootNode || card ? 1 : 0.8, meta: { kind: isMindmap ? 'mindmap' : 'tree', node: n.id, related: descendants(n) } }));
+        const fill = rootNode ? ctx.color('accent') : card ? ctx.tint(ctx.palette.bg, ctx.palette.accent, 0.035) : ctx.tint(ctx.palette.bg, ctx.palette.accent, 0.12);
+        svgNodes.push(ctx.rect(p.x, p.y, n.w, n.h, { rx: rootNode ? 10 : 6, fill, stroke: rootNode ? ctx.color('accent') : card ? ctx.color('axis') : ctx.tint(ctx.palette.bg, ctx.palette.accent, 0.28), 'stroke-width': rootNode || card ? 1 : 0.8, meta: { kind: isMindmap ? 'mindmap' : 'tree', node: n.id, related: descendants(n) } }));
       }
       // 无框叶子的文字向连线一侧对齐，长短不一的多行文字也紧靠同一个端口。
       const leftLeaf = mode === 'bilateral' && !framed && p.cx < rootPosition.cx;

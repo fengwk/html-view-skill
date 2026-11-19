@@ -92,7 +92,7 @@ KChart.define('core/context', ({ 'core/scene': scene, 'core/theme': themeApi, 'c
       line: (x1, y1, x2, y2, opts = {}) => scene.primitive('line', { x1, y1, x2, y2, ...opts }, opts.meta),
       circle: (x, y, r, opts = {}) => scene.primitive('circle', { cx: x, cy: y, r, ...opts }, opts.meta),
       path: (d, opts = {}) => scene.primitive('path', { d, ...opts }, opts.meta),
-      color, palette, colors: palette, mix: colorApi.mix, extent: scale.extent, linear: scale.linear, hash: scene.hash,
+      color, palette, colors: palette, mix: colorApi.mix, tint: (paper, value, ratio) => colorApi.tint(paper, value, ratio, resolved.tint), extent: scale.extent, linear: scale.linear, hash: scene.hash,
       columnHeaders: geometry.columnHeaders, labelLanes: geometry.labelLanes, apportion: geometry.apportion, barPath: geometry.barPath,
       wrap, textLines, flow, legend: (items, maxWidth) => legend(items, maxWidth, ctx), scene: (height, children, title) => ({ width, height, children, ...(title ? { title } : {}) }),
       fit: diagnostics.fit,

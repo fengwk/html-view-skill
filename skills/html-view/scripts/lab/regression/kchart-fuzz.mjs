@@ -8,7 +8,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { createRenderer } from '../../../kchart/node.mjs';
+import { createRenderer, themes } from '../../../kchart/node.mjs';
 import { launchBrowser } from '../../src/shared/browser.mjs';
 import { inspectPageExpression } from '../../src/shared/render-audit.mjs';
 import { htmlPage, hydrateMetrics, loadMeasurementPage, pageInspectionExpression } from './kchart-gallery.mjs';
@@ -16,7 +16,7 @@ import { htmlPage, hydrateMetrics, loadMeasurementPage, pageInspectionExpression
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, '../../..');
 const FUZZ_DIR = join(HERE, 'fuzz');
-const THEMES = ['claude', 'paper', 'obsidian', 'tokyo', 'kanagawa', 'terminal'];
+const THEMES = Object.keys(themes);
 // 常见版心与手机宽度占多数，其余在 240–1400 之间均匀抽取。
 const WIDTHS = [240, 268, 300, 324, 360, 390, 430, 502, 558, 640, 768, 900, 1040, 1200, 1400];
 const FRAME_PADDING = 56;

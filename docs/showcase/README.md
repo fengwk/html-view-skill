@@ -30,9 +30,9 @@ node docs/showcase/render-readme-gallery.mjs
 node docs/showcase/sync-readme.mjs <上一条命令打印的目录>
 ```
 
-第一条命令用 Chrome 实测 SVG 字形，按最终显示宽度渲染中英文两套图谱：小图拼成 360px 的窄栏，宽图按 780px 独占一行，不缩小文字。主图谱只用 Claude，六主题对照复用同一份双系列数据。输出目录包含 `gallery/<语言>/` 图片、每种语言的 `gallery.<语言>.md` 和 `themes.<语言>.md` 片段，以及登记每张样例的 `manifest.json`。
+第一条命令用 Chrome 实测 SVG 字形，按最终显示宽度渲染中英文两套图谱，每个样例一张 SVG。README 用两列表格排列：普通图按 360px 占一格，放不下或竖向过高的图按 780px 占满一行，不缩小文字。同组内高度相近的图配成一行，同行两格等高，图注因此对齐；奇数组剩下的一张跨两列居中。主图谱只用 Claude，主题对照对每套内置主题复用同一份双系列数据。输出目录包含 `gallery/<语言>/` 图片、每种语言的 `gallery.<语言>.md` 和 `themes.<语言>.md` 片段，以及登记每张样例的 `manifest.json`。
 
-第二条命令把图片替换到本目录的 `gallery/`，再把片段写进 `README.md` 和 `README.en.md` 中 `gallery`、`themes` 标记之间。任何一对标记缺失或重复时，它不改动任何文件。分组标题和图片文件共用一组与语言无关的 slug，例如 `trends`、`c4`、`variants-marks`，两份 README 的锚点因此一致。地图预览是 2× PNG，点击打开完整 SVG。
+第二条命令把图片替换到本目录的 `gallery/`，再把片段写进 `README.md` 和 `README.en.md` 中 `gallery`、`themes` 标记之间。任何一对标记缺失或重复时，它不改动任何文件。分组锚点使用与语言无关的 slug，例如 `trends`、`c4`、`variants-marks`；图片文件按样例 ID 命名，例如 `chart-line.svg`、`theme-claude.svg`，两份 README 的锚点和文件名因此一致。地图预览是 2× PNG，点击打开完整 SVG。
 
 <a id="full-gallery"></a>
 
@@ -44,6 +44,6 @@ node skills/html-view/scripts/lab/showcase/generate.mjs
 node skills/html-view/scripts/lab/showcase/generate.mjs --out ./kchart-showcase
 ```
 
-打开输出目录中的 `index.html`。默认显示 Claude，可以按六个主题和图型筛选、搜索关键词并查看声明。完整展册共 774 张离线 SVG，含 45 种基础图、38 项受控变体、27 种 Mermaid 子集图型、3 种原生结构图和 8 种脑图布局。图太宽时在图框内滚动，也可以直接打开原尺寸 SVG。生成器拒绝写入未知的非空目录和符号链接，不会覆盖仓库中的预览图。
+打开输出目录中的 `index.html`。默认显示 Claude，可以按主题和图型筛选、搜索关键词并查看声明。完整展册共 903 张离线 SVG，含 45 种基础图、38 项受控变体、27 种 Mermaid 子集图型、3 种原生结构图和 8 种脑图布局。图太宽时在图框内滚动，也可以直接打开原尺寸 SVG。生成器拒绝写入未知的非空目录和符号链接，不会覆盖仓库中的预览图。
 
-[返回 README 图谱](../../README.md#gallery) · [六主题对照](../../README.md#themes)
+[返回 README 图谱](../../README.md#gallery) · [主题对照](../../README.md#themes)

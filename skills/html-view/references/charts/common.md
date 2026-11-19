@@ -6,7 +6,9 @@
 - `title` 写这张图要说明的问题或结论；需要时加 `subtitle`（口径）、`source`（可核对来源）、`note`（限制）。同一图不在声明外重复标题。
 - `unit` 是单一通用单位。多量纲用 `fields.<字段>.unit`，必要时写 `label`、`format`、`decimals`；比例格式 `percent` 用 0–1。多条序列、目标和比较量必须按图族语义映射，不能让单位只出现在文件名。
 - `null` 是未知，不是零。时间序列中的未知档断线；有效的单个观测仍显示。禁止把缺失替成 0 或补造趋势。
-- 只用登记的 `variant`、`layout`、`sort` 与语义提示字段。定位重要值可用适用图型的 `annotations` 或 `emphasis`，按 schema 写锚点；不要提供坐标、颜色、任意样式或第三方选项。默认无交互无动画；仅在需要查读时声明图型支持的 `interaction`。
+- 只用登记的 `variant`、`layout`、`sort` 与下面的强调、注释字段；不要提供坐标、颜色、任意样式或第三方选项。默认无交互无动画；仅在需要查读时声明图型支持的 `interaction`。
+- `emphasis` 让读者该先看的记录或系列保持醒目，其余变淡；颜色不代表系列时（单系列柱、漏斗），选中项还会改用强调色。三种写法任选其一：`{"rows":["记录 id"]}`（须映射 `encode.id`）、`{"fields":["字段"]}`（`encode.value` 为数组时）、`{"series":["系列名"]}`。只有 `line`、`area`、`bar`、`column`、`share`、`funnel` 绘制强调，其中部分变体只支持 `rows`；其他组合 validate 直接报错。
+- `annotations` 用于 `line`、`area`、`bar`、`column`、`combo`、`scatter`、`interval`、`histogram`、`candlestick`：参考线 `{"kind":"rule","field":"数值字段","value":600,"label":"目标"}`，区间 `{"kind":"band","field":"数值字段","from":80,"to":95,"label":"正常范围"}`，点注 `{"kind":"note","record":"记录 id","field":"数值字段","text":"说明"}`（须映射 `encode.id`）。目标和区间要有来源，写进 `subtitle` 或 `note`。
 - 报表中的图由数据包绑定；完整 `data` 用于独立图、文档和界面稿，报表图块只写字段映射。
 
 ```kchart

@@ -71,7 +71,12 @@ const shells = [
   ] },
 ];
 
-for (const shell of shells) {
+// A CI job must exercise its requested shell; missing tools must not look like a green run.
+const requiredShell = process.env.HTMLVIEW_INSTALL_TEST_SHELL;
+const selectedShells = requiredShell ? shells.filter(({ name }) => name === requiredShell) : shells;
+if (requiredShell) assert.ok(selectedShells[0]?.bin && gitAvailable, `Installer tests require ${requiredShell} and Git`);
+
+for (const shell of selectedShells) {
   const needsTools = { skip: !(shell.bin && gitAvailable) };
   test(`${shell.name}: recover from a failed clone, link both clients and reuse the checkout offline`, needsTools, t => {
     const f = fixture(t, shell);

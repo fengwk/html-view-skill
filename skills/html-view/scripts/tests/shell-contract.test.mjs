@@ -10,10 +10,11 @@ import { markdownToContent } from '../src/shared/markdown.mjs';
 import { auditViz, collectViz, vizMarkup } from '../src/shared/viz.mjs';
 import { auditShell, parseShell, renderShell } from '../src/shared/shell.mjs';
 
-test('six themes retain KChart color palette and print transforms dark themes via core/theme', () => {
+test('built-in themes retain KChart color palette and print transforms dark themes via core/theme', () => {
   // Verifies page tokens and chart colors share the runtime source rather than a duplicated palette.
-  assert.deepEqual(listThemes().map(({ id }) => id), ['claude', 'paper', 'obsidian', 'tokyo', 'kanagawa', 'terminal']);
-  for (const id of ['claude', 'paper', 'obsidian', 'tokyo', 'kanagawa', 'terminal']) {
+  const ids = ['claude', 'paper', 'obsidian', 'tokyo', 'kanagawa', 'terminal', 'cloudmusic'];
+  assert.deepEqual(listThemes().map(({ id }) => id), ids);
+  for (const id of ids) {
     const theme = getTheme(id);
     assert.ok(theme.css.includes(`--viz-1:${theme.tones[0]}`));
     assert.ok(theme.css.includes(`--viz-fg:${theme.fg1}`));
@@ -24,7 +25,7 @@ test('six themes retain KChart color palette and print transforms dark themes vi
   const pageCss = readingCss();
   for (const selector of ['.doc-body h2', '.table-wrap', '.stats', '.cm-panel', '.viz-body', '@page { size: A4']) assert.ok(pageCss.includes(selector), `missing migrated reading style: ${selector}`);
   assert.ok(!['@print-palette', '.bars', '.chart-svg', '.svg-1x', '.seq-actors'].some((legacy) => pageCss.includes(legacy)));
-  for (const fileTheme of ['claude', 'paper', 'obsidian', 'tokyo', 'kanagawa', 'terminal']) assert.doesNotMatch(readAsset(`themes/${fileTheme}.css`), /#[0-9a-f]{3,8}/i);
+  for (const fileTheme of ids) assert.doesNotMatch(readAsset(`themes/${fileTheme}.css`), /#[0-9a-f]{3,8}/i);
 });
 
 test('shell escapes root properties and title while round-tripping one exact content region', () => {
@@ -100,6 +101,15 @@ test('legacy Markdown structures, local images, IDs, numeric units, and front ma
   assert.equal((result.content.match(/<h1/g) ?? []).length, 1);
   assert.match(result.content, /data-lang="json"/);
   assert.equal((result.content.match(/data-viz="mermaid"/g) ?? []).length, 1);
+});
+
+// 意图：Markdown 表格的对齐曾生成行内 style，doc build 后 audit 必然报 INLINE_STYLE；对齐必须落到已登记的 class。
+test('markdown table alignment uses registered classes that pass the content audit', () => {
+  const { content } = markdownToContent('| 批次 | 比例 | 状态 |\n| :--- | ---: | :---: |\n| 第一批 | 1% | 完成 |');
+  assert.match(content, /<th class="align-left">批次<\/th><th class="align-right">比例<\/th><th class="align-center">状态<\/th>/);
+  assert.match(content, /<td class="align-left">第一批<\/td><td class="align-right">/);
+  assert.doesNotMatch(content, /style=/);
+  assert.deepEqual(auditContent(content, { kind: 'doc' }).failures, []);
 });
 
 test('shared static audit rejects external resources and dangerous markup but allows explicitly controlled UI script/style', () => {

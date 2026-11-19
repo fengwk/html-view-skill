@@ -490,7 +490,7 @@ export function galleryCases(lang) {
   };
   const words = {
     sections: { chart: L('数据图', 'Data charts'), diagram: L('结构图', 'Diagrams'), variant: L('受控变体', 'Variants') },
-    themes: L('同一张图，六套主题', 'One chart, six themes'),
+    themes: L('同一张图，七套主题', 'One chart, seven themes'),
     scheme: { light: L('亮色', 'light'), dark: L('暗色', 'dark') },
     layout: id => `mindmap / ${id}`,
   };

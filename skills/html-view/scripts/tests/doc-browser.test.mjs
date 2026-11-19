@@ -7,6 +7,7 @@ import test from 'node:test';
 import { findBrowser, launchBrowser } from '../src/shared/browser.mjs';
 import { readAsset } from '../src/shared/assets.mjs';
 import { renderShell } from '../src/shared/shell.mjs';
+import { getTheme } from '../src/shared/themes.mjs';
 
 const chrome = findBrowser();
 const waitFor = (page, expression, label) => page.evaluate(`new Promise((resolve, reject) => {
@@ -119,6 +120,41 @@ test('doc runtime renders a KChart figure and supports numbered xrefs and Review
     assert.equal(await page.evaluate('document.querySelector(".cm-editor").hidden'), true);
   } finally {
     await page?.close();
+    await browser?.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+// 意图：文档样式排在主题之后，不能把主题专属的编号色、编号样式与圆角重设回默认值。
+test('doc pages keep each theme file\'s numbering and radius', { skip: !chrome && '未找到可执行 Chrome；设置 CHROME_PATH 后自动启用此浏览器回归' }, async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'htmlview-doc-theme-'));
+  const expected = {
+    claude: { color: getTheme('claude').accent, style: 'decimal', radius: '10px' },
+    terminal: { color: getTheme('terminal').accent, style: 'decimal-leading-zero', radius: '0px' },
+    cloudmusic: { color: getTheme('cloudmusic').accent, style: 'decimal', radius: '12px' },
+  };
+  let browser;
+  try {
+    browser = await launchBrowser({ chromePath: chrome });
+    const page = await browser.newPage();
+    for (const [theme, want] of Object.entries(expected)) {
+      const file = join(dir, `${theme}.html`);
+      writeFileSync(file, renderShell({
+        kind: 'doc', lang: 'zh-CN', title: '虚构主题样式', theme, attrs: { 'data-layout': 'single' }, meta: { 'doc:type': 'doc', 'doc:id': `theme-${theme}` },
+        content: '\n<div class="doc-body"><section><h2 id="sec-a">章节</h2><p>正文</p></section></div>\n', styles: [readAsset('page/doc.css')],
+      }), 'utf8');
+      await page.goto(pathToFileURL(file).href);
+      const got = await page.json(`JSON.stringify((() => {
+        const root = getComputedStyle(document.documentElement), number = getComputedStyle(document.querySelector('.doc-body h2'), '::before');
+        const swatch = document.body.appendChild(document.createElement('i'));
+        swatch.style.color = ${JSON.stringify(want.color)};
+        return { color: number.color, accent: getComputedStyle(swatch).color, style: root.getPropertyValue('--num-style').trim(), radius: root.getPropertyValue('--radius').trim() };
+      })())`);
+      assert.equal(got.color, got.accent, `${theme} heading numbers use the theme accent`);
+      assert.equal(got.style, want.style, `${theme} numbering style`);
+      assert.equal(got.radius, want.radius, `${theme} radius`);
+    }
+  } finally {
     await browser?.close();
     rmSync(dir, { recursive: true, force: true });
   }

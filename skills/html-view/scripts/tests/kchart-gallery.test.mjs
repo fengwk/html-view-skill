@@ -106,13 +106,13 @@ test('CLI filters select only requested cases, themes, and viewport widths', () 
   assert.throws(() => selectGalleryCases({ widths: [800] }), /width只允许/);
 });
 
-// 意图：六主题验收可以显式选择任一主题，默认仍只生成默认亮暗主题，未知主题早失败。
+// 意图：全主题验收可以显式选择任一主题，默认仍只生成默认亮暗主题，未知主题早失败。
 test('gallery accepts every shipped theme while defaulting to the light and dark defaults', () => {
   const defaults = selectGalleryCases();
   assert.equal(defaults.cases.length, 101);
   assert.deepEqual(defaults.widths, [1040, 558, 324]);
   assert.deepEqual(defaults.themes, ['claude', 'obsidian']);
-  const all = ['claude', 'paper', 'obsidian', 'tokyo', 'kanagawa', 'terminal'];
+  const all = Object.keys(renderer.themes);
   assert.deepEqual(selectGalleryCases({ caseIds: ['chart-line'], themes: all }).themes, all);
   assert.throws(() => selectGalleryCases({ themes: ['solarized'] }), /theme只允许/);
 });

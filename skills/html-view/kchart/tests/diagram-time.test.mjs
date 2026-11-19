@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { loadSlice } from './diagram-slice.mjs';
+import { themes } from '../node.mjs';
 
 const modules = loadSlice({ 'diagram/time': ['diagram/support'] });
 const { implementations } = modules['diagram/time'];
@@ -118,7 +119,7 @@ test('unsupported or invalid syntax returns source-line diagnostics', () => {
 
 // 每个主题使用共享调色板而非固定旧色；长标签以共享 wrap/measure 留在 scene 内。
 test('themes use shared colors and wrapped labels stay in the scene', () => {
-  for (const theme of ['paper', 'obsidian', 'tokyo', 'kanagawa', 'terminal']) {
+  for (const theme of Object.keys(themes)) {
     const name = 'Long Label '.repeat(24);
     const { laid } = render(`kanban\ntodo[${name}]\n  task[${name}]`, 'kanban', { theme });
     assert.ok(laid.scene.width >= 960);

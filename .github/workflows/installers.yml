@@ -1,0 +1,45 @@
+name: Installer tests
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/installers.yml'
+      - 'scripts/install.*'
+      - 'scripts/tests/install.test.mjs'
+      - 'skills/html-view/**'
+  pull_request:
+    paths:
+      - '.github/workflows/installers.yml'
+      - 'scripts/install.*'
+      - 'scripts/tests/install.test.mjs'
+      - 'skills/html-view/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  installers:
+    name: ${{ matrix.shell }} on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            shell: Bash
+          - os: windows-latest
+            shell: PowerShell
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - name: Run installer tests against a local Git fixture
+        run: node --test scripts/tests/install.test.mjs
+        env:
+          HTMLVIEW_INSTALL_TEST_SHELL: ${{ matrix.shell }}

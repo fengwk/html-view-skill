@@ -495,8 +495,8 @@ KChart.define('diagram/sequence', ({ 'diagram/support': u }) => {
       const { x, y, w, h } = event.box;
       const frame = [];
       const boxFrame = event.type === 'box';
-      const fill = event.type === 'rect' ? ctx.mix(theme.bg, theme.accent, theme.soft)
-        : boxFrame ? ctx.mix(theme.bg, theme.tones[1], .08) : ctx.mix(theme.bg, theme.fg4, .07);
+      const fill = event.type === 'rect' ? ctx.tint(theme.bg, theme.accent, theme.soft)
+        : boxFrame ? ctx.tint(theme.bg, theme.tones[1], .08) : ctx.mix(theme.bg, theme.fg4, .07);
       const stroke = event.type === 'rect' ? theme.accent : boxFrame ? theme.tones[1] : theme.line;
       frame.push(ctx.rect(x, y, w, h, {
         fill, stroke, ...(event.type === 'rect' ? { 'stroke-opacity': .45 } : {}), 'stroke-width': 1, rx: theme.smallRadius,
@@ -512,7 +512,7 @@ KChart.define('diagram/sequence', ({ 'diagram/support': u }) => {
     for (const event of layout.events) if (event.kind === 'open') paintFrame(event);
     for (const actor of layout.actors) children.push(line(actor.life.x, actor.life.y1, actor.life.x, actor.life.y2, { stroke: theme.line2, 'stroke-width': 1 }));
     for (const bar of layout.activations) children.push(ctx.rect(bar.x, bar.y, 10, bar.h, {
-      fill: ctx.mix(theme.bg, theme.accent, .28), stroke: theme.accent, 'stroke-opacity': .45, 'stroke-width': 1,
+      fill: ctx.tint(theme.bg, theme.accent, .28), stroke: theme.accent, 'stroke-opacity': .45, 'stroke-width': 1,
     }));
 
     const actorAt = id => layout.actors.find(item => item.id === id);

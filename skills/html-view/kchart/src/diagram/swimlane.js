@@ -719,7 +719,7 @@ KChart.define('diagram/swimlane', ({ 'diagram/support': u, 'diagram/graph-parse'
       const color = palette[index % palette.length];
       const group = ctx.el('g', {}, [
         ctx.rect(lane.x, lane.y, lane.w, lane.h, {
-          fill: ctx.mix(appearance.bg, color, .07), stroke: ctx.mix(appearance.bg, color, .45), 'stroke-width': 1, rx: appearance.radius,
+          fill: ctx.tint(appearance.bg, color, .07), stroke: ctx.tint(appearance.bg, color, .45), 'stroke-width': 1, rx: appearance.radius,
         }),
         ctx.text(layout.direction === 'LR' ? 12 : lane.x + lane.w / 2,
           layout.direction === 'LR' ? lane.y + lane.h / 2 : 18, lane.name, {
@@ -737,7 +737,7 @@ KChart.define('diagram/swimlane', ({ 'diagram/support': u, 'diagram/graph-parse'
     }));
     for (const node of layout.nodes) {
       const color = palette[Math.max(0, layout.lanes.findIndex((lane) => lane.id === node.lane)) % palette.length];
-      const stroke = node.class && appearance[node.class] ? appearance[node.class] : ctx.mix(appearance.bg, color, .4);
+      const stroke = node.class && appearance[node.class] ? appearance[node.class] : ctx.tint(appearance.bg, color, .4);
       const shape = node.shape === 'diamond'
         ? ctx.shape('polygon', { points: `${node.x + node.w / 2},${node.y} ${node.x + node.w},${node.y + node.h / 2} ${node.x + node.w / 2},${node.y + node.h} ${node.x},${node.y + node.h / 2}`, fill: appearance.node, stroke, 'stroke-width': 1 }, { node: node.id, shape: node.shape, ...(node.class ? { status: node.class } : {}) })
         : ctx.rect(node.x, node.y, node.w, node.h, { fill: appearance.node, stroke, 'stroke-width': 1, rx: appearance.smallRadius, meta: { node: node.id, shape: node.shape, ...(node.class ? { status: node.class } : {}) } });

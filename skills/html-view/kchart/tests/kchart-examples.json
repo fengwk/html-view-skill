@@ -150,8 +150,7 @@
       "assert": "所有8个mindmap布局使用同一树；不把两个监控节点合并",
       "spec": {
         "chart": "mindmap", "layout": "bilateral",
-        "data": {"label":"稳定性","children":[{"label":"服务","children":[{"id":"service-monitor","label":"监控"}]},{"label":"存储","children":[{"id":"storage-monitor","label":"监控"}]}]},
-        "emphasis": {"nodes":["service-monitor"]}
+        "data": {"label":"稳定性","children":[{"label":"服务","children":[{"id":"service-monitor","label":"监控"}]},{"label":"存储","children":[{"id":"storage-monitor","label":"监控"}]}]}
       }
     },
     {

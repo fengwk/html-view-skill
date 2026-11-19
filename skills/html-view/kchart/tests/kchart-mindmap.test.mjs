@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { loadChart } from './kchart-fixture.mjs';
+import { themes } from '../node.mjs';
 import { KCHART_CASES } from './kchart-cases.mjs';
 
 const { api: K } = loadChart(['chart/mindmap']);
@@ -425,10 +426,10 @@ test('radial and fishbone layouts keep measured node boxes apart', () => {
   assertDisjoint(plain(fishScene.nodes), 'fishbone');
 });
 
-// 意图：根节点实心强调色、分支淡底和叶子页面底色上的名称与注释，六主题下都达到正文 4.5:1。
+// 意图：根节点实心强调色、分支淡底和叶子页面底色上的名称与注释，各内置主题下都达到正文 4.5:1。
 test('tree and mindmap labels and notes keep body-text contrast on their node fills in every theme', () => {
   const hexIn = value => String(value).match(/#[0-9a-f]{6}/gi).at(-1);
-  for (const theme of ['claude', 'paper', 'obsidian', 'tokyo', 'kanagawa', 'terminal']) for (const chart of ['tree', 'mindmap']) {
+  for (const theme of Object.keys(themes)) for (const chart of ['tree', 'mindmap']) {
     const scene = K.layout({ chart, ...(chart === 'mindmap' ? { layout: 'right' } : {}), data }, { width: 720, theme });
     const bg = K.util.context({ theme }).palette.bg;
     const boxes = scene.children.filter(node => node.tag === 'rect' && node.meta?.node);

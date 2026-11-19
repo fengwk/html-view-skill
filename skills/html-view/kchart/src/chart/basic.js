@@ -43,11 +43,13 @@ KChart.define('chart/basic', ({ 'chart/registry': { register } }) => {
     }
     return { step, shown: new Set(pick(step)) };
   };
-  const emphasisStyle = (ctx, spec, series, field, record, index) => {
+  // 颜色不带图例含义时（单系列柱、漏斗步骤），选中项改用强调色；颜色表示系列或类别时保留原色，
+  // 只把其余变淡，否则被强调的「实际」会和图例里同色的「目标」混淆。
+  const emphasisStyle = (ctx, spec, series, field, record, index, recolor = false) => {
     const emphasis = spec.emphasis || {};
     const selected = (emphasis.series || []).includes(series) || (emphasis.fields || []).includes(field) || (record != null && (emphasis.rows || []).includes(record));
     const active = ['series', 'fields', 'rows'].some((key) => Array.isArray(emphasis[key]) && emphasis[key].length > 0);
-    return { fill: selected ? ctx.color('accent') : tone(ctx, index), opacity: active && !selected ? 0.28 : 1, selected };
+    return { fill: selected && recolor ? ctx.color('accent') : tone(ctx, index), opacity: active && !selected ? 0.28 : 1, selected };
   };
   const isEnglish = (lang) => /^en(?:-|$)/i.test(String(lang || ''));
   const aria = (type, data, lang = 'zh') => {
@@ -411,14 +413,14 @@ KChart.define('chart/basic', ({ 'chart/registry': { register } }) => {
         if (stacked) {
           data.series.forEach((series, si) => {
             const value = series.values[ci] ?? 0, start = stackStart(si, ci), end = stackValue(si, ci);
-            const row = sourceAt(ci, series), record = row?.[spec.encode.id] ?? `${ci}`, style = emphasisStyle(ctx, spec, series.id, series.field || series.id, record, si);
+            const row = sourceAt(ci, series), record = row?.[spec.encode.id] ?? `${ci}`, style = emphasisStyle(ctx, spec, series.id, series.field || series.id, record, si, seriesN === 1);
             if (value !== 0) layout.children.push(rounded(ctx, Math.min(x(start), x(end)), center - 10, Math.abs(x(end) - x(start)), 20, style.fill, { kind: 'record', record, series: series.id, category, value, label: String(category) }, style.opacity));
           });
           const total = spec.stack === 'percent' ? 1 : stackTotal(ci);
           if (total !== 0) layout.children.push(ctx.text(x(total) + (total >= 0 ? 6 : -6), center + 4, spec.stack === 'percent' ? ctx.percent(total) : ctx.format(total, field), { anchor: total >= 0 ? 'start' : 'end', fill: ctx.color('fg'), meta: { kind: 'value', category, value: total } }));
         } else data.series.forEach((series, si) => {
           const value = series.values[ci]; if (value == null) return;
-          const row = sourceAt(ci, series), record = row?.[spec.encode.id] ?? `${ci}`, style = emphasisStyle(ctx, spec, series.id, series.field || series.id, record, si);
+          const row = sourceAt(ci, series), record = row?.[spec.encode.id] ?? `${ci}`, style = emphasisStyle(ctx, spec, series.id, series.field || series.id, record, si, seriesN === 1);
           const cy = center + (si - (seriesN - 1) / 2) * Math.max(12, (groupH - 12) / seriesN);
           const end = x(value);
           if (value !== 0) layout.children.push(rounded(ctx, Math.min(x(0), end), cy - Math.min(9, groupH / seriesN / 2), Math.abs(end - x(0)), Math.min(18, groupH / seriesN - 3), style.fill, { kind: 'record', record, series: series.id, category, value, label: String(category) }, style.opacity));
@@ -492,14 +494,14 @@ KChart.define('chart/basic', ({ 'chart/registry': { register } }) => {
       if (stacked) {
         data.series.forEach((series, si) => {
           const value = series.values[ci] ?? 0, start = stackStart(si, ci), end = stackValue(si, ci);
-          const row = sourceAt(ci, series), record = row?.[spec.encode.id] ?? `${ci}`, style = emphasisStyle(ctx, spec, series.id, series.field || series.id, record, si);
+          const row = sourceAt(ci, series), record = row?.[spec.encode.id] ?? `${ci}`, style = emphasisStyle(ctx, spec, series.id, series.field || series.id, record, si, seriesN === 1);
           if (value !== 0) layout.children.push(rounded(ctx, center - barW / 2, Math.min(y(start), y(end)), barW, Math.abs(y(end) - y(start)), style.fill, { kind: 'record', record, series: series.id, category, value, label: String(category) }, style.opacity));
         });
         const total = spec.stack === 'percent' ? 1 : stackTotal(ci);
         if (total && mode !== 'none') layout.children.push(ctx.text(center, total >= 0 ? y(total) - 8 : y(0) + 16, formatLabel(total), { anchor: 'middle', fill: ctx.color('fg'), meta: { kind: 'value', category, value: total } }));
       } else data.series.forEach((series, si) => {
           const value = series.values[ci]; if (value == null) return;
-          const row = sourceAt(ci, series), record = row?.[spec.encode.id] ?? `${ci}`, style = emphasisStyle(ctx, spec, series.id, series.field || series.id, record, si);
+          const row = sourceAt(ci, series), record = row?.[spec.encode.id] ?? `${ci}`, style = emphasisStyle(ctx, spec, series.id, series.field || series.id, record, si, seriesN === 1);
           const bx = center + (si - (seriesN - 1) / 2) * slot, end = y(value), zero = y(0);
           if (value !== 0) layout.children.push(rounded(ctx, bx - barW / 2, Math.min(zero, end), barW, Math.abs(end - zero), style.fill, { kind: 'record', record, series: series.id, category, value, label: String(category) }, style.opacity));
           if (mode !== 'none' && !(annotationCount && value === 0)) {
@@ -661,7 +663,8 @@ KChart.define('chart/basic', ({ 'chart/registry': { register } }) => {
       children.push(ctx.rect(left, centerY - barH / 2, barW, barH, { rx: barH / 2, fill: ctx.color('grid') }));
       const length = maxValue > 0 ? series.values[i] / maxValue * barW : 0;
       const record = data.rows[i]?.[spec.encode.id] ?? `${i}`;
-      const style = emphasisStyle(ctx, spec, series.id, series.field || series.id, record, i);
+      // 漏斗各步的颜色没有图例含义，选中步骤可以改用强调色。
+      const style = emphasisStyle(ctx, spec, series.id, series.field || series.id, record, i, true);
       if (length > 0) children.push(ctx.rect(left, centerY - barH / 2, length, barH, { rx: barH / 2, fill: style.fill, opacity: style.opacity, meta: { kind: 'record', record, series: series.id, category, value: series.values[i], label: String(category) } }));
       const readoutX = left + barW + 12;
       const meta = { kind: 'value', record, series: series.id, category, value: series.values[i] };

@@ -64,7 +64,7 @@ function compositionRows(h, { min = 1, max = 6, percent = false, id = true, sort
   const data = names.map((category, i) => ({ category, value: values[i] }));
   const encode = { category: 'category', value: 'value' };
   if (id) maybeId(h, encode, data);
-  return { data, encode, extra: { ...texts(h), ...(sort ? maybeSort(h, encode, 'value') : {}), ...maybeEmphasis(h, encode, data) } };
+  return { data, encode, extra: { ...texts(h), ...(sort ? maybeSort(h, encode, 'value') : {}) } };
 }
 
 export const GENERATORS = {
@@ -157,7 +157,6 @@ export const GENERATORS = {
       encode,
       fields: { value: valueField, intensity: intensityField },
       ...maybeSort(h, encode, 'value'),
-      ...maybeEmphasis(h, encode, data),
     };
   },
 
@@ -180,15 +179,16 @@ export const GENERATORS = {
     const data = names.map((category, i) => ({ category, value: values[i] }));
     const encode = { category: 'category', value: 'value' };
     maybeId(h, encode, data);
-    return {
+    const spec = {
       chart: 'funnel',
       ...texts(h),
       unit: h.unit(),
       variant: h.pick(['bars', 'hourglass']),
       data,
       encode,
-      ...maybeEmphasis(h, encode, data),
     };
+    // 只有 bars 绘制强调；hourglass 的强调会被校验拒绝。
+    return { ...spec, ...(spec.variant === 'bars' ? maybeEmphasis(h, encode, data) : {}) };
   },
 
   waffle(h) {
@@ -277,7 +277,6 @@ export const GENERATORS = {
       ...(percent ? { fields: { actual: meta, target: { format: 'percent' } } } : { unit: h.unit() }),
       data,
       encode,
-      ...maybeEmphasis(h, encode, data),
     };
   },
 };

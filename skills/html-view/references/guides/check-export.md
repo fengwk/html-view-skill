@@ -5,9 +5,10 @@
 | 目的 | 命令与结果 |
 |---|---|
 | 检查本地页面 | `htmlview check report.html` 检查桌面、手机、导出和打印；看 `failures` 的位置、细节和修法 |
-| 局部截图 | `htmlview shot report.html --select 'figure' --out shots`；`--section id` 按页面锚点截；`--mode export` 截静态展开状态 |
+| 首屏与局部截图 | `htmlview shot report.html --out shots` 生成桌面和手机首屏及每张图的截图；`--select 'figure'` 只截指定元素，`--section id` 按页面锚点截，`--mode export` 截静态展开状态 |
 | 完整宽图 | `htmlview export report.html --format png --select '.viz-body svg' --out chart.png`；多个命中会生成编号文件。选择 SVG 本身，避免只截滚动容器可见部分 |
-| 打印或整页图 | `htmlview export report.html --format pdf --out report.pdf`；整页 PNG 可用 `--device mobile` |
+| 打印 | `htmlview export report.html --format pdf --out report.pdf` |
+| 整页长图 | `htmlview export report.html --format png --out page.png` 生成从页首到页尾的完整截图；加 `--device mobile` 按手机宽度生成 |
 | 阅读正文 | `htmlview read report.html --outline` 找标题和锚点；`htmlview read report.html --section method --out method.md` 抽取一节；不写 `--out` 时读取 JSON 内容 |
 | 内嵌本地文件 | `htmlview embed doc.html` 以 data URI 内嵌本地图片，读取 `<pre data-src="…">` 的本地代码；会更新目标，查看 `missing` 并补齐 |
 

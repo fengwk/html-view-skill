@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { theme as resolveTheme } from '../node.mjs';
+import { theme as resolveTheme, themes as builtInThemes } from '../node.mjs';
 import vm from 'node:vm';
 
 import { loadChart } from './kchart-fixture.mjs';
@@ -8,6 +8,8 @@ import { loadChart } from './kchart-fixture.mjs';
 const { api: base, context } = loadChart();
 const api = { ...base, validate: undefined, ...base.createRegistry((spec) => api.validate?.(spec)) };
 const plain = (value) => JSON.parse(JSON.stringify(value));
+// 主题类检查遍历登记表，新增主题自动纳入。
+const THEMES = Object.keys(builtInThemes);
 
 // 意图：纯核心不依赖 DOM；注册器未绑定校验器时不能直接跑布局。
 test('core loads without DOM and refuses to lay out without a validator', () => {
@@ -40,12 +42,11 @@ test('dataTable returns labeled, formatted record cells without a DOM', () => {
   assert.equal(api.dataTable({ data: { nodes: [] } }), null);
 });
 
-// 意图：六主题角色直接用对应色值；变更渲染方式不能改变用户看到的颜色。
-test('concrete theme roles preserve existing six theme palettes', () => {
-  const names = ['claude', 'paper', 'obsidian', 'tokyo', 'kanagawa', 'terminal'];
+// 意图：各内置主题角色直接用对应色值；变更渲染方式不能改变用户看到的颜色。
+test('concrete theme roles preserve every built-in theme palette', () => {
   api.validate = (spec) => ({ errors: [], data: spec });
   api.register('palette-test', (spec, ctx) => ({ width: ctx.width, height: 1, children: [], palette: ctx.palette, roles: Object.fromEntries(['ink', 'accent', 'fg', 'muted', 'bg', 'grid', 'axis', 'tone1', 'tone2', 'tone3', 'tone4', 'tone5', 'tone6'].map((role) => [role, ctx.color(role)])) }));
-  for (const theme of names) {
+  for (const theme of THEMES) {
     const colors = resolveTheme(theme);
     const ctx = api.layout({ chart: 'palette-test' }, { theme });
     const expected = { ink: colors.tones[0], accent: colors.tones[1], fg: colors.fg1, muted: colors.fg3, bg: colors.surface, grid: colors.line, axis: colors.line2 };
@@ -64,7 +65,7 @@ test('context scheme follows each theme file and titled() only wraps when a tip 
     const node = ctx.rect(0, 0, 1, 1);
     return { width: 1, height: 1, children: [], scheme: ctx.scheme, bare: ctx.titled(node, ''), tipped: ctx.titled(node, '甲：3 件') };
   });
-  for (const theme of ['claude', 'paper', 'obsidian', 'tokyo', 'kanagawa', 'terminal']) {
+  for (const theme of THEMES) {
     const { scheme } = resolveTheme(theme);
     assert.equal(api.layout({ chart: 'scheme-test' }, { theme }).scheme, scheme, theme);
   }
@@ -245,9 +246,8 @@ test('scene rejects invalid geometry and legend groups carry series identity', (
 
 // 主题角色色以 var(--x,#hex) 输出，测试取其中的实际色值计算对比度。
 const hexIn = (value) => String(value).match(/#[0-9a-f]{6}/gi).at(-1);
-const THEMES = ['claude', 'paper', 'obsidian', 'tokyo', 'kanagawa', 'terminal'];
 
-// 意图：着色文字与填充上的文字在六主题下都达到正文 4.5:1；已达标的角色色原样保留主题变量。
+// 意图：着色文字与填充上的文字在各内置主题下都达到正文 4.5:1；已达标的角色色原样保留主题变量。
 test('textColor and textOn reach body-text contrast on page and filled backgrounds in every theme', () => {
   for (const theme of THEMES) {
     const ctx = api.util.context({ theme });

@@ -202,7 +202,7 @@ KChart.define('diagram/layers', ({ 'diagram/support': u }) => {
       ]);
     };
     for (const group of geometry.groups) {
-      const color = groupColor(group.color), fill = ctx.mix(theme.bg, color, .07), stroke = ctx.mix(theme.bg, color, .45);
+      const color = groupColor(group.color), fill = ctx.tint(theme.bg, color, .07), stroke = ctx.tint(theme.bg, color, .45);
       children.push(ctx.rect(group.x, group.y, group.w, group.h, { rx: theme.radius, fill, stroke, 'stroke-width': 1, 'stroke-dasharray': group.flag === 'ext' ? '5 4' : undefined, meta: { kind: 'layers', group: group.id, role: 'group' } }));
       children.push(text(group.x + group.w / 2, group.y + 20, group.title, FONT.title, theme.fg1));
     }
@@ -213,9 +213,10 @@ KChart.define('diagram/layers', ({ 'diagram/support': u }) => {
       layer.descriptionLines.forEach((line, i) => children.push(text(layer.x + layer.w / 2, top + 20 + 4 + (i + .5) * 16, line, FONT.label, theme.fg2)));
     }
     for (const node of geometry.nodes) {
-      const color = node.tone ? theme[node.tone] : groupColor(node.color);
-      const fill = node.category ? ctx.mix(theme.bg, color, .08) : theme.node;
-      const stroke = ctx.mix(theme.bg, color, .4);
+      // 语义色（新增、风险等）保持原色相，只有主题序列色按主题 tint 变浅。
+      const color = node.tone ? theme[node.tone] : groupColor(node.color), shade = node.tone ? ctx.mix : ctx.tint;
+      const fill = node.category ? shade(theme.bg, color, .08) : theme.node;
+      const stroke = shade(theme.bg, color, .4);
       const common = { fill, stroke, 'stroke-width': 1, 'stroke-dasharray': node.category ? '5 4' : undefined, meta: { kind: 'layers', group: node.group, line: node.line, role: node.category ? 'category' : 'capability' } };
       if (node.shape === 'db') {
         const { x, y, w, h } = node;

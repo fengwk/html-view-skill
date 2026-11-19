@@ -2,6 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { loadChart } from './kchart-fixture.mjs';
+import { themes } from '../node.mjs';
 
 const { api: K } = loadChart(['chart/composition']);
 const plain = (value) => JSON.parse(JSON.stringify(value));
@@ -321,9 +322,9 @@ test('composition chart annotations follow the requested English locale', () => 
 });
 
 const hexIn = (value) => String(value).match(/#[0-9a-f]{6}/gi).at(-1);
-const THEMES = ['claude', 'paper', 'obsidian', 'tokyo', 'kanagawa', 'terminal'];
+const THEMES = Object.keys(themes);
 
-// 意图：矩形树图和旭日图压在序列色上的名称与编号，六主题下对各自填充色都达到 4.5:1。
+// 意图：矩形树图和旭日图压在序列色上的名称与编号，各内置主题下对各自填充色都达到 4.5:1。
 test('treemap and sunburst labels keep body-text contrast on every tile fill', () => {
   const data = { label: 'Root', children: Array.from({ length: 6 }, (_, i) => ({ label: `Leaf${i + 1}`, value: 6 - i })) };
   for (const theme of THEMES) {

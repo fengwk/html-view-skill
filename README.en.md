@@ -6,7 +6,9 @@
 
 Give your agent Markdown, pre-aggregated CSV/JSON or a product flow, and it hands back **one HTML file that works offline**. Charts, themes and interactions are embedded in the file: no server to run, nothing fetched from the network. Before handing it over, the agent opens it in a real browser to check narrow screens and the printed page, and exports PDF or PNG when you need one.
 
-[Quick start](#quick-start) · [What you get](#showcase) · [**45 data charts and 30 diagrams**](#gallery) · [Six themes](#themes) · [Install details](#install) · [Update and uninstall](#update-uninstall)
+The skill covers more than layout. Given loose notes, meeting minutes or JSON, the agent first reorders the content around what the reader has to do. For a dashboard, it settles the one question the screen answers, then saves the accent color for the item that needs attention.
+
+[Quick start](#quick-start) · [What you get](#showcase) · [**45 data charts and 30 diagrams**](#gallery) · [Seven themes](#themes) · [Install details](#install) · [Update and uninstall](#update-uninstall)
 
 <p align="center"><a href="docs/showcase/previews/en/dashboard-hero.png"><picture><source media="(max-width: 600px)" srcset="docs/showcase/previews/en/dashboard-mobile.png"><img src="docs/showcase/previews/en/dashboard-hero.png" width="840" alt="Fictional coffee operations dashboard in the warm Claude theme: four KPI cards, a revenue trend and a channel comparison"></picture></a></p>
 
@@ -73,7 +75,7 @@ One prototype: the overview on desktop, the channel and date filters on a phone.
 
 ## KChart gallery
 
-Charts in HTML View are drawn by its bundled KChart library: **45 data charts, 38 controlled variants, 27 Mermaid subset diagrams, 3 native diagrams and 8 mind-map layouts**. Every one of them appears below as a real render in the Claude palette. Click an image to open the full-size SVG. Wide charts get their own row instead of shrinking their text to fit a grid.
+Charts in HTML View are drawn by its bundled KChart library: **45 data charts, 38 controlled variants, 27 Mermaid subset diagrams, 3 native diagrams and 8 mind-map layouts**. Every one of them appears below as a real render in the Claude palette, one per cell in a two-column grid. Wide charts get a full row instead of shrinking their text to fit. On a phone GitHub scales both columns down to the screen; click an image to open the full-size SVG.
 
 [Build the full, filterable gallery →](docs/showcase/README.en.md#full-gallery)
 
@@ -88,67 +90,166 @@ Charts in HTML View are drawn by its bundled KChart library: **45 data charts, 3
 
 #### Trends over time
 
-<p align="center"><a href="docs/showcase/gallery/en/trends-1.svg"><img src="docs/showcase/gallery/en/trends-1.svg" width="360" align="top" alt="Line, Sparkline, Streamgraph, Mirrored comparison"></a> <a href="docs/showcase/gallery/en/trends-2.svg"><img src="docs/showcase/gallery/en/trends-2.svg" width="360" align="top" alt="Stacked area, Small multiples, Open, close, high, low"></a></p>
-
-<p align="center"><a href="docs/showcase/gallery/en/trends-wide-1.svg"><img src="docs/showcase/gallery/en/trends-wide-1.svg" width="780" align="top" alt="Dual-axis combo, Rank changes"></a></p>
-
-<p align="center"><a href="docs/showcase/gallery/en/trends-wide-2.svg"><img src="docs/showcase/gallery/en/trends-wide-2.svg" width="780" align="top" alt="From launch to now"></a></p>
+<table>
+<tr>
+<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/en/chart-line.svg"><img src="docs/showcase/gallery/en/chart-line.svg" width="360" alt="Line"></a><br><b>Line</b><br><sub><code>line</code></sub></td>
+<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/en/chart-sparkline.svg"><img src="docs/showcase/gallery/en/chart-sparkline.svg" width="360" alt="Sparkline"></a><br><b>Sparkline</b><br><sub><code>sparkline</code></sub></td>
+</tr>
+<tr>
+<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/en/chart-area.svg"><img src="docs/showcase/gallery/en/chart-area.svg" width="360" alt="Stacked area"></a><br><b>Stacked area</b><br><sub><code>area</code></sub></td>
+<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/en/chart-candlestick.svg"><img src="docs/showcase/gallery/en/chart-candlestick.svg" width="360" alt="Open, close, high, low"></a><br><b>Open, close, high, low</b><br><sub><code>candlestick</code></sub></td>
+</tr>
+<tr>
+<td colspan="2" align="center"><a href="docs/showcase/gallery/en/chart-small-multiples.svg"><img src="docs/showcase/gallery/en/chart-small-multiples.svg" width="780" alt="Small multiples"></a><br><b>Small multiples</b><br><sub><code>small-multiples</code></sub></td>
+</tr>
+<tr>
+<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/en/chart-stream.svg"><img src="docs/showcase/gallery/en/chart-stream.svg" width="360" alt="Streamgraph"></a><br><b>Streamgraph</b><br><sub><code>stream</code></sub></td>
+<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/en/chart-split-compare.svg"><img src="docs/showcase/gallery/en/chart-split-compare.svg" width="360" alt="Mirrored comparison"></a><br><b>Mirrored comparison</b><br><sub><code>split-compare</code></sub></td>
+</tr>
+<tr>
+<td colspan="2" align="center"><a href="docs/showcase/gallery/en/chart-combo.svg"><img src="docs/showcase/gallery/en/chart-combo.svg" width="780" alt="Dual-axis combo"></a><br><b>Dual-axis combo</b><br><sub><code>combo</code></sub></td>
+</tr>
+<tr>
+<td colspan="2" align="center"><a href="docs/showcase/gallery/en/chart-bump.svg"><img src="docs/showcase/gallery/en/chart-bump.svg" width="780" alt="Rank changes"></a><br><b>Rank changes</b><br><sub><code>bump</code></sub></td>
+</tr>
+<tr>
+<td colspan="2" align="center"><a href="docs/showcase/gallery/en/chart-launch-fan.svg"><img src="docs/showcase/gallery/en/chart-launch-fan.svg" width="780" alt="From launch to now"></a><br><b>From launch to now</b><br><sub><code>launch-fan</code></sub></td>
+</tr>
+</table>
 
 <a id="comparison"></a>
 
 #### Comparisons, targets and ranges
 
-<p align="center"><a href="docs/showcase/gallery/en/comparison-1.svg"><img src="docs/showcase/gallery/en/comparison-1.svg" width="360" align="top" alt="Bars, Before and after, Actual vs target"></a> <a href="docs/showcase/gallery/en/comparison-2.svg"><img src="docs/showcase/gallery/en/comparison-2.svg" width="360" align="top" alt="Columns, Slope, Progress"></a></p>
-
-<p align="center"><a href="docs/showcase/gallery/en/comparison-wide-1.svg"><img src="docs/showcase/gallery/en/comparison-wide-1.svg" width="780" align="top" alt="Range and median"></a></p>
+<table>
+<tr>
+<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/en/chart-bar.svg"><img src="docs/showcase/gallery/en/chart-bar.svg" width="360" alt="Bars"></a><br><b>Bars</b><br><sub><code>bar</code></sub></td>
+<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/en/chart-gauge.svg"><img src="docs/showcase/gallery/en/chart-gauge.svg" width="360" alt="Progress"></a><br><b>Progress</b><br><sub><code>gauge</code></sub></td>
+</tr>
+<tr>
+<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/en/chart-column.svg"><img src="docs/showcase/gallery/en/chart-column.svg" width="360" alt="Columns"></a><br><b>Columns</b><br><sub><code>column</code></sub></td>
+<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/en/chart-dumbbell.svg"><img src="docs/showcase/gallery/en/chart-dumbbell.svg" width="360" alt="Before and after"></a><br><b>Before and after</b><br><sub><code>dumbbell</code></sub></td>
+</tr>
+<tr>
+<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/en/chart-slope.svg"><img src="docs/showcase/gallery/en/chart-slope.svg" width="360" alt="Slope"></a><br><b>Slope</b><br><sub><code>slope</code></sub></td>
+<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/en/chart-bullet.svg"><img src="docs/showcase/gallery/en/chart-bullet.svg" width="360" alt="Actual vs target"></a><br><b>Actual vs target</b><br><sub><code>bullet</code></sub></td>
+</tr>
+<tr>
+<td colspan="2" align="center"><a href="docs/showcase/gallery/en/chart-interval.svg"><img src="docs/showcase/gallery/en/chart-interval.svg" width="780" alt="Range and median"></a><br><b>Range and median</b><br><sub><code>interval</code></sub></td>
+</tr>
+</table>
 
 <a id="composition"></a>
 
 #### Parts of a whole and change
 
-<p align="center"><a href="docs/showcase/gallery/en/composition-1.svg"><img src="docs/showcase/gallery/en/composition-1.svg" width="360" align="top" alt="Share bar, Donut, Rose, Waffle"></a> <a href="docs/showcase/gallery/en/composition-2.svg"><img src="docs/showcase/gallery/en/composition-2.svg" width="360" align="top" alt="Pie, Share and intensity, Funnel, Multiple-choice shares"></a></p>
-
-<p align="center"><a href="docs/showcase/gallery/en/composition-wide-1.svg"><img src="docs/showcase/gallery/en/composition-wide-1.svg" width="780" align="top" alt="Waterfall"></a></p>
+<table>
+<tr>
+<td colspan="2" align="center"><a href="docs/showcase/gallery/en/chart-share.svg"><img src="docs/showcase/gallery/en/chart-share.svg" width="360" alt="Share bar"></a><br><b>Share bar</b><br><sub><code>share</code></sub></td>
+</tr>
+<tr>
+<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/en/chart-pie.svg"><img src="docs/showcase/gallery/en/chart-pie.svg" width="360" alt="Pie"></a><br><b>Pie</b><br><sub><code>pie</code></sub></td>
+<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/en/chart-funnel.svg"><img src="docs/showcase/gallery/en/chart-funnel.svg" width="360" alt="Funnel"></a><br><b>Funnel</b><br><sub><code>funnel</code></sub></td>
+</tr>
+<tr>
+<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/en/chart-donut.svg"><img src="docs/showcase/gallery/en/chart-donut.svg" width="360" alt="Donut"></a><br><b>Donut</b><br><sub><code>donut</code></sub></td>
+<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/en/chart-waffle.svg"><img src="docs/showcase/gallery/en/chart-waffle.svg" width="360" alt="Waffle"></a><br><b>Waffle</b><br><sub><code>waffle</code></sub></td>
+</tr>
+<tr>
+<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/en/chart-radial-share.svg"><img src="docs/showcase/gallery/en/chart-radial-share.svg" width="360" alt="Share and intensity"></a><br><b>Share and intensity</b><br><sub><code>radial-share</code></sub></td>
+<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/en/chart-rose.svg"><img src="docs/showcase/gallery/en/chart-rose.svg" width="360" alt="Rose"></a><br><b>Rose</b><br><sub><code>rose</code></sub></td>
+</tr>
+<tr>
+<td colspan="2" align="center"><a href="docs/showcase/gallery/en/chart-waterfall.svg"><img src="docs/showcase/gallery/en/chart-waterfall.svg" width="780" alt="Waterfall"></a><br><b>Waterfall</b><br><sub><code>waterfall</code></sub></td>
+</tr>
+<tr>
+<td colspan="2" align="center"><a href="docs/showcase/gallery/en/chart-tally.svg"><img src="docs/showcase/gallery/en/chart-tally.svg" width="780" alt="Multiple-choice shares"></a><br><b>Multiple-choice shares</b><br><sub><code>tally</code></sub></td>
+</tr>
+</table>
 
 <a id="distribution"></a>
 
 #### Distributions and correlation
 
-<p align="center"><a href="docs/showcase/gallery/en/distribution-1.svg"><img src="docs/showcase/gallery/en/distribution-1.svg" width="360" align="top" alt="Histogram, Scatter"></a> <a href="docs/showcase/gallery/en/distribution-2.svg"><img src="docs/showcase/gallery/en/distribution-2.svg" width="360" align="top" alt="Box plot, Violin"></a></p>
-
-<p align="center"><a href="docs/showcase/gallery/en/distribution-wide-1.svg"><img src="docs/showcase/gallery/en/distribution-wide-1.svg" width="780" align="top" alt="Strip plot"></a></p>
+<table>
+<tr>
+<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/en/chart-histogram.svg"><img src="docs/showcase/gallery/en/chart-histogram.svg" width="360" alt="Histogram"></a><br><b>Histogram</b><br><sub><code>histogram</code></sub></td>
+<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/en/chart-boxplot.svg"><img src="docs/showcase/gallery/en/chart-boxplot.svg" width="360" alt="Box plot"></a><br><b>Box plot</b><br><sub><code>boxplot</code></sub></td>
+</tr>
+<tr>
+<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/en/chart-violin.svg"><img src="docs/showcase/gallery/en/chart-violin.svg" width="360" alt="Violin"></a><br><b>Violin</b><br><sub><code>violin</code></sub></td>
+<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/en/chart-scatter.svg"><img src="docs/showcase/gallery/en/chart-scatter.svg" width="360" alt="Scatter"></a><br><b>Scatter</b><br><sub><code>scatter</code></sub></td>
+</tr>
+<tr>
+<td colspan="2" align="center"><a href="docs/showcase/gallery/en/chart-strip.svg"><img src="docs/showcase/gallery/en/chart-strip.svg" width="780" alt="Strip plot"></a><br><b>Strip plot</b><br><sub><code>strip</code></sub></td>
+</tr>
+</table>
 
 <a id="matrix"></a>
 
 #### Matrices and many measures
 
-<p align="center"><a href="docs/showcase/gallery/en/matrix-1.svg"><img src="docs/showcase/gallery/en/matrix-1.svg" width="360" align="top" alt="Heatmap"></a> <a href="docs/showcase/gallery/en/matrix-2.svg"><img src="docs/showcase/gallery/en/matrix-2.svg" width="360" align="top" alt="Bubble matrix"></a></p>
-
-<p align="center"><a href="docs/showcase/gallery/en/matrix-wide-1.svg"><img src="docs/showcase/gallery/en/matrix-wide-1.svg" width="780" align="top" alt="Radar, Parallel coordinates"></a></p>
-
-<p align="center"><a href="docs/showcase/gallery/en/matrix-wide-2.svg"><img src="docs/showcase/gallery/en/matrix-wide-2.svg" width="780" align="top" alt="Calendar"></a></p>
+<table>
+<tr>
+<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/en/chart-heatmap.svg"><img src="docs/showcase/gallery/en/chart-heatmap.svg" width="360" alt="Heatmap"></a><br><b>Heatmap</b><br><sub><code>heatmap</code></sub></td>
+<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/en/chart-bubble-matrix.svg"><img src="docs/showcase/gallery/en/chart-bubble-matrix.svg" width="360" alt="Bubble matrix"></a><br><b>Bubble matrix</b><br><sub><code>bubble-matrix</code></sub></td>
+</tr>
+<tr>
+<td colspan="2" align="center"><a href="docs/showcase/gallery/en/chart-radar.svg"><img src="docs/showcase/gallery/en/chart-radar.svg" width="780" alt="Radar"></a><br><b>Radar</b><br><sub><code>radar</code></sub></td>
+</tr>
+<tr>
+<td colspan="2" align="center"><a href="docs/showcase/gallery/en/chart-parallel.svg"><img src="docs/showcase/gallery/en/chart-parallel.svg" width="780" alt="Parallel coordinates"></a><br><b>Parallel coordinates</b><br><sub><code>parallel</code></sub></td>
+</tr>
+<tr>
+<td colspan="2" align="center"><a href="docs/showcase/gallery/en/chart-calendar.svg"><img src="docs/showcase/gallery/en/chart-calendar.svg" width="780" alt="Calendar"></a><br><b>Calendar</b><br><sub><code>calendar</code></sub></td>
+</tr>
+</table>
 
 <a id="hierarchy"></a>
 
 #### Hierarchies
 
-<p align="center"><a href="docs/showcase/gallery/en/hierarchy-1.svg"><img src="docs/showcase/gallery/en/hierarchy-1.svg" width="360" align="top" alt="Treemap"></a> <a href="docs/showcase/gallery/en/hierarchy-2.svg"><img src="docs/showcase/gallery/en/hierarchy-2.svg" width="360" align="top" alt="Sunburst"></a></p>
-
-<p align="center"><a href="docs/showcase/gallery/en/hierarchy-wide-1.svg"><img src="docs/showcase/gallery/en/hierarchy-wide-1.svg" width="780" align="top" alt="Tree, Mind map"></a></p>
+<table>
+<tr>
+<td colspan="2" align="center"><a href="docs/showcase/gallery/en/chart-tree.svg"><img src="docs/showcase/gallery/en/chart-tree.svg" width="780" alt="Tree"></a><br><b>Tree</b><br><sub><code>tree</code></sub></td>
+</tr>
+<tr>
+<td colspan="2" align="center"><a href="docs/showcase/gallery/en/chart-mindmap.svg"><img src="docs/showcase/gallery/en/chart-mindmap.svg" width="780" alt="Mind map"></a><br><b>Mind map</b><br><sub><code>mindmap</code></sub></td>
+</tr>
+<tr>
+<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/en/chart-treemap.svg"><img src="docs/showcase/gallery/en/chart-treemap.svg" width="360" alt="Treemap"></a><br><b>Treemap</b><br><sub><code>treemap</code></sub></td>
+<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/en/chart-sunburst.svg"><img src="docs/showcase/gallery/en/chart-sunburst.svg" width="360" alt="Sunburst"></a><br><b>Sunburst</b><br><sub><code>sunburst</code></sub></td>
+</tr>
+</table>
 
 <a id="relations"></a>
 
 #### Networks, flows and paths
 
-<p align="center"><a href="docs/showcase/gallery/en/relations-1.svg"><img src="docs/showcase/gallery/en/relations-1.svg" width="360" align="top" alt="Network"></a></p>
-
-<p align="center"><a href="docs/showcase/gallery/en/relations-wide-1.svg"><img src="docs/showcase/gallery/en/relations-wide-1.svg" width="780" align="top" alt="Sankey, Path threads"></a></p>
+<table>
+<tr>
+<td colspan="2" align="center"><a href="docs/showcase/gallery/en/chart-network.svg"><img src="docs/showcase/gallery/en/chart-network.svg" width="360" alt="Network"></a><br><b>Network</b><br><sub><code>network</code></sub></td>
+</tr>
+<tr>
+<td colspan="2" align="center"><a href="docs/showcase/gallery/en/chart-sankey.svg"><img src="docs/showcase/gallery/en/chart-sankey.svg" width="780" alt="Sankey"></a><br><b>Sankey</b><br><sub><code>sankey</code></sub></td>
+</tr>
+<tr>
+<td colspan="2" align="center"><a href="docs/showcase/gallery/en/chart-threads.svg"><img src="docs/showcase/gallery/en/chart-threads.svg" width="780" alt="Path threads"></a><br><b>Path threads</b><br><sub><code>threads</code></sub></td>
+</tr>
+</table>
 
 <a id="geography"></a>
 
 #### Maps
 
-<p align="center"><a href="docs/showcase/gallery/en/geography-wide-1.svg"><img src="docs/showcase/gallery/en/geography-wide-1.png" width="780" align="top" alt="Choropleth, Points on a map"></a></p>
+<table>
+<tr>
+<td colspan="2" align="center"><a href="docs/showcase/gallery/en/chart-choropleth.svg"><img src="docs/showcase/gallery/en/chart-choropleth.png" width="780" alt="Choropleth"></a><br><b>Choropleth</b><br><sub><code>choropleth</code></sub></td>
+</tr>
+<tr>
+<td colspan="2" align="center"><a href="docs/showcase/gallery/en/chart-geo-scatter.svg"><img src="docs/showcase/gallery/en/chart-geo-scatter.png" width="780" alt="Points on a map"></a><br><b>Points on a map</b><br><sub><code>geo-scatter</code></sub></td>
+</tr>
+</table>
 
 <a id="diagrams"></a>
 
@@ -160,65 +261,156 @@ Charts in HTML View are drawn by its bundled KChart library: **45 data charts, 3
 
 #### Flows, states and journeys
 
-<p align="center"><a href="docs/showcase/gallery/en/process-1.svg"><img src="docs/showcase/gallery/en/process-1.svg" width="360" align="top" alt="State diagram"></a></p>
-
-<p align="center"><a href="docs/showcase/gallery/en/process-wide-1.svg"><img src="docs/showcase/gallery/en/process-wide-1.svg" width="780" align="top" alt="Flowchart, Customer journey"></a></p>
-
-<p align="center"><a href="docs/showcase/gallery/en/process-wide-2.svg"><img src="docs/showcase/gallery/en/process-wide-2.svg" width="780" align="top" alt="Swimlanes"></a></p>
+<table>
+<tr>
+<td colspan="2" align="center"><a href="docs/showcase/gallery/en/diagram-flowchart.svg"><img src="docs/showcase/gallery/en/diagram-flowchart.svg" width="780" alt="Flowchart"></a><br><b>Flowchart</b><br><sub><code>flowchart</code></sub></td>
+</tr>
+<tr>
+<td colspan="2" align="center"><a href="docs/showcase/gallery/en/diagram-stateDiagram-v2.svg"><img src="docs/showcase/gallery/en/diagram-stateDiagram-v2.svg" width="360" alt="State diagram"></a><br><b>State diagram</b><br><sub><code>stateDiagram-v2</code></sub></td>
+</tr>
+<tr>
+<td colspan="2" align="center"><a href="docs/showcase/gallery/en/diagram-journey.svg"><img src="docs/showcase/gallery/en/diagram-journey.svg" width="780" alt="Customer journey"></a><br><b>Customer journey</b><br><sub><code>journey</code></sub></td>
+</tr>
+<tr>
+<td colspan="2" align="center"><a href="docs/showcase/gallery/en/diagram-swimlane.svg"><img src="docs/showcase/gallery/en/diagram-swimlane.svg" width="780" alt="Swimlanes"></a><br><b>Swimlanes</b><br><sub><code>swimlane</code></sub></td>
+</tr>
+</table>
 
 <a id="model"></a>
 
 #### Sequences and data models
 
-<p align="center"><a href="docs/showcase/gallery/en/model-1.svg"><img src="docs/showcase/gallery/en/model-1.svg" width="360" align="top" alt="ZenUML, Requirements"></a> <a href="docs/showcase/gallery/en/model-2.svg"><img src="docs/showcase/gallery/en/model-2.svg" width="360" align="top" alt="Class diagram"></a></p>
-
-<p align="center"><a href="docs/showcase/gallery/en/model-wide-1.svg"><img src="docs/showcase/gallery/en/model-wide-1.svg" width="780" align="top" alt="Sequence, ER diagram"></a></p>
+<table>
+<tr>
+<td colspan="2" align="center"><a href="docs/showcase/gallery/en/diagram-sequenceDiagram.svg"><img src="docs/showcase/gallery/en/diagram-sequenceDiagram.svg" width="780" alt="Sequence"></a><br><b>Sequence</b><br><sub><code>sequenceDiagram</code></sub></td>
+</tr>
+<tr>
+<td colspan="2" align="center"><a href="docs/showcase/gallery/en/diagram-zenuml.svg"><img src="docs/showcase/gallery/en/diagram-zenuml.svg" width="360" alt="ZenUML"></a><br><b>ZenUML</b><br><sub><code>zenuml</code></sub></td>
+</tr>
+<tr>
+<td colspan="2" align="center"><a href="docs/showcase/gallery/en/diagram-erDiagram.svg"><img src="docs/showcase/gallery/en/diagram-erDiagram.svg" width="780" alt="ER diagram"></a><br><b>ER diagram</b><br><sub><code>erDiagram</code></sub></td>
+</tr>
+<tr>
+<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/en/diagram-classDiagram.svg"><img src="docs/showcase/gallery/en/diagram-classDiagram.svg" width="360" alt="Class diagram"></a><br><b>Class diagram</b><br><sub><code>classDiagram</code></sub></td>
+<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/en/diagram-requirementDiagram.svg"><img src="docs/showcase/gallery/en/diagram-requirementDiagram.svg" width="360" alt="Requirements"></a><br><b>Requirements</b><br><sub><code>requirementDiagram</code></sub></td>
+</tr>
+</table>
 
 <a id="planning"></a>
 
 #### Plans, boards and protocols
 
-<p align="center"><a href="docs/showcase/gallery/en/planning-wide-1.svg"><img src="docs/showcase/gallery/en/planning-wide-1.svg" width="780" align="top" alt="Gantt, Timeline"></a></p>
-
-<p align="center"><a href="docs/showcase/gallery/en/planning-wide-2.svg"><img src="docs/showcase/gallery/en/planning-wide-2.svg" width="780" align="top" alt="Git graph, Kanban"></a></p>
-
-<p align="center"><a href="docs/showcase/gallery/en/planning-wide-3.svg"><img src="docs/showcase/gallery/en/planning-wide-3.svg" width="780" align="top" alt="Packet layout, Quadrant chart"></a></p>
+<table>
+<tr>
+<td colspan="2" align="center"><a href="docs/showcase/gallery/en/diagram-gantt.svg"><img src="docs/showcase/gallery/en/diagram-gantt.svg" width="780" alt="Gantt"></a><br><b>Gantt</b><br><sub><code>gantt</code></sub></td>
+</tr>
+<tr>
+<td colspan="2" align="center"><a href="docs/showcase/gallery/en/diagram-timeline.svg"><img src="docs/showcase/gallery/en/diagram-timeline.svg" width="780" alt="Timeline"></a><br><b>Timeline</b><br><sub><code>timeline</code></sub></td>
+</tr>
+<tr>
+<td colspan="2" align="center"><a href="docs/showcase/gallery/en/diagram-gitGraph.svg"><img src="docs/showcase/gallery/en/diagram-gitGraph.svg" width="780" alt="Git graph"></a><br><b>Git graph</b><br><sub><code>gitGraph</code></sub></td>
+</tr>
+<tr>
+<td colspan="2" align="center"><a href="docs/showcase/gallery/en/diagram-kanban.svg"><img src="docs/showcase/gallery/en/diagram-kanban.svg" width="780" alt="Kanban"></a><br><b>Kanban</b><br><sub><code>kanban</code></sub></td>
+</tr>
+<tr>
+<td colspan="2" align="center"><a href="docs/showcase/gallery/en/diagram-packet-beta.svg"><img src="docs/showcase/gallery/en/diagram-packet-beta.svg" width="780" alt="Packet layout"></a><br><b>Packet layout</b><br><sub><code>packet-beta</code></sub></td>
+</tr>
+<tr>
+<td colspan="2" align="center"><a href="docs/showcase/gallery/en/diagram-quadrantChart.svg"><img src="docs/showcase/gallery/en/diagram-quadrantChart.svg" width="780" alt="Quadrant chart"></a><br><b>Quadrant chart</b><br><sub><code>quadrantChart</code></sub></td>
+</tr>
+</table>
 
 <a id="architecture"></a>
 
 #### Architecture
 
-<p align="center"><a href="docs/showcase/gallery/en/architecture-wide-1.svg"><img src="docs/showcase/gallery/en/architecture-wide-1.svg" width="780" align="top" alt="Layers, Blocks"></a></p>
-
-<p align="center"><a href="docs/showcase/gallery/en/architecture-wide-2.svg"><img src="docs/showcase/gallery/en/architecture-wide-2.svg" width="780" align="top" alt="Architecture, Block diagram"></a></p>
+<table>
+<tr>
+<td colspan="2" align="center"><a href="docs/showcase/gallery/en/diagram-layers.svg"><img src="docs/showcase/gallery/en/diagram-layers.svg" width="780" alt="Layers"></a><br><b>Layers</b><br><sub><code>layers</code></sub></td>
+</tr>
+<tr>
+<td colspan="2" align="center"><a href="docs/showcase/gallery/en/diagram-blocks.svg"><img src="docs/showcase/gallery/en/diagram-blocks.svg" width="780" alt="Blocks"></a><br><b>Blocks</b><br><sub><code>blocks</code></sub></td>
+</tr>
+<tr>
+<td colspan="2" align="center"><a href="docs/showcase/gallery/en/diagram-architecture-beta.svg"><img src="docs/showcase/gallery/en/diagram-architecture-beta.svg" width="780" alt="Architecture"></a><br><b>Architecture</b><br><sub><code>architecture-beta</code></sub></td>
+</tr>
+<tr>
+<td colspan="2" align="center"><a href="docs/showcase/gallery/en/diagram-block-beta.svg"><img src="docs/showcase/gallery/en/diagram-block-beta.svg" width="780" alt="Block diagram"></a><br><b>Block diagram</b><br><sub><code>block-beta</code></sub></td>
+</tr>
+</table>
 
 <a id="c4"></a>
 
 #### Five C4 views
 
-<p align="center"><a href="docs/showcase/gallery/en/c4-1.svg"><img src="docs/showcase/gallery/en/c4-1.svg" width="360" align="top" alt="Context, Dynamic"></a> <a href="docs/showcase/gallery/en/c4-2.svg"><img src="docs/showcase/gallery/en/c4-2.svg" width="360" align="top" alt="Containers"></a></p>
-
-<p align="center"><a href="docs/showcase/gallery/en/c4-wide-1.svg"><img src="docs/showcase/gallery/en/c4-wide-1.svg" width="780" align="top" alt="Components, Deployment"></a></p>
+<table>
+<tr>
+<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/en/diagram-C4Context.svg"><img src="docs/showcase/gallery/en/diagram-C4Context.svg" width="360" alt="Context"></a><br><b>Context</b><br><sub><code>C4Context</code></sub></td>
+<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/en/diagram-C4Dynamic.svg"><img src="docs/showcase/gallery/en/diagram-C4Dynamic.svg" width="360" alt="Dynamic"></a><br><b>Dynamic</b><br><sub><code>C4Dynamic</code></sub></td>
+</tr>
+<tr>
+<td colspan="2" align="center"><a href="docs/showcase/gallery/en/diagram-C4Container.svg"><img src="docs/showcase/gallery/en/diagram-C4Container.svg" width="360" alt="Containers"></a><br><b>Containers</b><br><sub><code>C4Container</code></sub></td>
+</tr>
+<tr>
+<td colspan="2" align="center"><a href="docs/showcase/gallery/en/diagram-C4Component.svg"><img src="docs/showcase/gallery/en/diagram-C4Component.svg" width="780" alt="Components"></a><br><b>Components</b><br><sub><code>C4Component</code></sub></td>
+</tr>
+<tr>
+<td colspan="2" align="center"><a href="docs/showcase/gallery/en/diagram-C4Deployment.svg"><img src="docs/showcase/gallery/en/diagram-C4Deployment.svg" width="780" alt="Deployment"></a><br><b>Deployment</b><br><sub><code>C4Deployment</code></sub></td>
+</tr>
+</table>
 
 <a id="mermaid-data"></a>
 
 #### Mermaid charts
 
-<p align="center"><a href="docs/showcase/gallery/en/mermaid-data-1.svg"><img src="docs/showcase/gallery/en/mermaid-data-1.svg" width="360" align="top" alt="Pie, Radar"></a> <a href="docs/showcase/gallery/en/mermaid-data-2.svg"><img src="docs/showcase/gallery/en/mermaid-data-2.svg" width="360" align="top" alt="XY chart, Sankey, Treemap"></a></p>
+<table>
+<tr>
+<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/en/diagram-pie.svg"><img src="docs/showcase/gallery/en/diagram-pie.svg" width="360" alt="Pie"></a><br><b>Pie</b><br><sub><code>pie</code></sub></td>
+<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/en/diagram-xychart-beta.svg"><img src="docs/showcase/gallery/en/diagram-xychart-beta.svg" width="360" alt="XY chart"></a><br><b>XY chart</b><br><sub><code>xychart-beta</code></sub></td>
+</tr>
+<tr>
+<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/en/diagram-sankey-beta.svg"><img src="docs/showcase/gallery/en/diagram-sankey-beta.svg" width="360" alt="Sankey"></a><br><b>Sankey</b><br><sub><code>sankey-beta</code></sub></td>
+<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/en/diagram-radar-beta.svg"><img src="docs/showcase/gallery/en/diagram-radar-beta.svg" width="360" alt="Radar"></a><br><b>Radar</b><br><sub><code>radar-beta</code></sub></td>
+</tr>
+<tr>
+<td colspan="2" align="center"><a href="docs/showcase/gallery/en/diagram-treemap-beta.svg"><img src="docs/showcase/gallery/en/diagram-treemap-beta.svg" width="360" alt="Treemap"></a><br><b>Treemap</b><br><sub><code>treemap-beta</code></sub></td>
+</tr>
+</table>
 
 <a id="mindmaps"></a>
 
 #### One tree, eight mind-map layouts
 
-<p align="center"><a href="docs/showcase/gallery/en/mindmaps-wide-1.svg"><img src="docs/showcase/gallery/en/mindmaps-wide-1.svg" width="780" align="top" alt="Mermaid mind map, Bilateral"></a></p>
-
-<p align="center"><a href="docs/showcase/gallery/en/mindmaps-wide-2.svg"><img src="docs/showcase/gallery/en/mindmaps-wide-2.svg" width="780" align="top" alt="Right, Left"></a></p>
-
-<p align="center"><a href="docs/showcase/gallery/en/mindmaps-wide-3.svg"><img src="docs/showcase/gallery/en/mindmaps-wide-3.svg" width="780" align="top" alt="Radial, Org chart"></a></p>
-
-<p align="center"><a href="docs/showcase/gallery/en/mindmaps-wide-4.svg"><img src="docs/showcase/gallery/en/mindmaps-wide-4.svg" width="780" align="top" alt="Brace, Fishbone"></a></p>
-
-<p align="center"><a href="docs/showcase/gallery/en/mindmaps-wide-5.svg"><img src="docs/showcase/gallery/en/mindmaps-wide-5.svg" width="780" align="top" alt="Timeline"></a></p>
+<table>
+<tr>
+<td colspan="2" align="center"><a href="docs/showcase/gallery/en/diagram-mindmap.svg"><img src="docs/showcase/gallery/en/diagram-mindmap.svg" width="780" alt="Mermaid mind map"></a><br><b>Mermaid mind map</b><br><sub><code>mindmap</code></sub></td>
+</tr>
+<tr>
+<td colspan="2" align="center"><a href="docs/showcase/gallery/en/mindmap-bilateral.svg"><img src="docs/showcase/gallery/en/mindmap-bilateral.svg" width="780" alt="Bilateral"></a><br><b>Bilateral</b><br><sub><code>mindmap / bilateral</code></sub></td>
+</tr>
+<tr>
+<td colspan="2" align="center"><a href="docs/showcase/gallery/en/mindmap-right.svg"><img src="docs/showcase/gallery/en/mindmap-right.svg" width="780" alt="Right"></a><br><b>Right</b><br><sub><code>mindmap / right</code></sub></td>
+</tr>
+<tr>
+<td colspan="2" align="center"><a href="docs/showcase/gallery/en/mindmap-left.svg"><img src="docs/showcase/gallery/en/mindmap-left.svg" width="780" alt="Left"></a><br><b>Left</b><br><sub><code>mindmap / left</code></sub></td>
+</tr>
+<tr>
+<td colspan="2" align="center"><a href="docs/showcase/gallery/en/mindmap-radial.svg"><img src="docs/showcase/gallery/en/mindmap-radial.svg" width="780" alt="Radial"></a><br><b>Radial</b><br><sub><code>mindmap / radial</code></sub></td>
+</tr>
+<tr>
+<td colspan="2" align="center"><a href="docs/showcase/gallery/en/mindmap-org.svg"><img src="docs/showcase/gallery/en/mindmap-org.svg" width="780" alt="Org chart"></a><br><b>Org chart</b><br><sub><code>mindmap / org</code></sub></td>
+</tr>
+<tr>
+<td colspan="2" align="center"><a href="docs/showcase/gallery/en/mindmap-brace.svg"><img src="docs/showcase/gallery/en/mindmap-brace.svg" width="780" alt="Brace"></a><br><b>Brace</b><br><sub><code>mindmap / brace</code></sub></td>
+</tr>
+<tr>
+<td colspan="2" align="center"><a href="docs/showcase/gallery/en/mindmap-fishbone.svg"><img src="docs/showcase/gallery/en/mindmap-fishbone.svg" width="780" alt="Fishbone"></a><br><b>Fishbone</b><br><sub><code>mindmap / fishbone</code></sub></td>
+</tr>
+<tr>
+<td colspan="2" align="center"><a href="docs/showcase/gallery/en/mindmap-timeline.svg"><img src="docs/showcase/gallery/en/mindmap-timeline.svg" width="780" alt="Timeline"></a><br><b>Timeline</b><br><sub><code>mindmap / timeline</code></sub></td>
+</tr>
+</table>
 
 <a id="variants"></a>
 
@@ -230,43 +422,141 @@ Charts in HTML View are drawn by its bundled KChart library: **45 data charts, 3
 
 #### Bars, lines and marks
 
-<p align="center"><a href="docs/showcase/gallery/en/variants-marks-1.svg"><img src="docs/showcase/gallery/en/variants-marks-1.svg" width="360" align="top" alt="Bars · Solid, Bars · Lollipop, Columns · Unit rungs, Columns · Lollipop, Line · Barcode"></a> <a href="docs/showcase/gallery/en/variants-marks-2.svg"><img src="docs/showcase/gallery/en/variants-marks-2.svg" width="360" align="top" alt="Bars · Unit rungs, Columns · Solid, Columns · Pictogram, Line · Latest value"></a></p>
-
-<p align="center"><a href="docs/showcase/gallery/en/variants-marks-wide-1.svg"><img src="docs/showcase/gallery/en/variants-marks-wide-1.svg" width="780" align="top" alt="Bars · Pictogram"></a></p>
+<table>
+<tr>
+<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/en/variant-bar-solid.svg"><img src="docs/showcase/gallery/en/variant-bar-solid.svg" width="360" alt="Bars · Solid"></a><br><b>Bars · Solid</b><br><sub><code>bar / solid</code></sub></td>
+<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/en/variant-bar-lollipop.svg"><img src="docs/showcase/gallery/en/variant-bar-lollipop.svg" width="360" alt="Bars · Lollipop"></a><br><b>Bars · Lollipop</b><br><sub><code>bar / lollipop</code></sub></td>
+</tr>
+<tr>
+<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/en/variant-bar-rungs.svg"><img src="docs/showcase/gallery/en/variant-bar-rungs.svg" width="360" alt="Bars · Unit rungs"></a><br><b>Bars · Unit rungs</b><br><sub><code>bar / rungs</code></sub></td>
+<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/en/variant-column-rungs.svg"><img src="docs/showcase/gallery/en/variant-column-rungs.svg" width="360" alt="Columns · Unit rungs"></a><br><b>Columns · Unit rungs</b><br><sub><code>column / rungs</code></sub></td>
+</tr>
+<tr>
+<td colspan="2" align="center"><a href="docs/showcase/gallery/en/variant-bar-pictorial.svg"><img src="docs/showcase/gallery/en/variant-bar-pictorial.svg" width="780" alt="Bars · Pictogram"></a><br><b>Bars · Pictogram</b><br><sub><code>bar / pictorial</code></sub></td>
+</tr>
+<tr>
+<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/en/variant-column-solid.svg"><img src="docs/showcase/gallery/en/variant-column-solid.svg" width="360" alt="Columns · Solid"></a><br><b>Columns · Solid</b><br><sub><code>column / solid</code></sub></td>
+<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/en/variant-column-lollipop.svg"><img src="docs/showcase/gallery/en/variant-column-lollipop.svg" width="360" alt="Columns · Lollipop"></a><br><b>Columns · Lollipop</b><br><sub><code>column / lollipop</code></sub></td>
+</tr>
+<tr>
+<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/en/variant-column-pictorial.svg"><img src="docs/showcase/gallery/en/variant-column-pictorial.svg" width="360" alt="Columns · Pictogram"></a><br><b>Columns · Pictogram</b><br><sub><code>column / pictorial</code></sub></td>
+<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/en/variant-line-counter.svg"><img src="docs/showcase/gallery/en/variant-line-counter.svg" width="360" alt="Line · Latest value"></a><br><b>Line · Latest value</b><br><sub><code>line / counter</code></sub></td>
+</tr>
+<tr>
+<td colspan="2" align="center"><a href="docs/showcase/gallery/en/variant-line-barcode.svg"><img src="docs/showcase/gallery/en/variant-line-barcode.svg" width="360" alt="Line · Barcode"></a><br><b>Line · Barcode</b><br><sub><code>line / barcode</code></sub></td>
+</tr>
+</table>
 
 <a id="variants-part"></a>
 
 #### Shares and stages
 
-<p align="center"><a href="docs/showcase/gallery/en/variants-part-1.svg"><img src="docs/showcase/gallery/en/variants-part-1.svg" width="360" align="top" alt="Share bar · Solid, Donut · Solid, Funnel · Bars, Waffle · Open field"></a> <a href="docs/showcase/gallery/en/variants-part-2.svg"><img src="docs/showcase/gallery/en/variants-part-2.svg" width="360" align="top" alt="Share bar · Ticks, Donut · Ticks, Waffle · Dots"></a></p>
-
-<p align="center"><a href="docs/showcase/gallery/en/variants-part-wide-1.svg"><img src="docs/showcase/gallery/en/variants-part-wide-1.svg" width="780" align="top" alt="Funnel · Hourglass"></a></p>
+<table>
+<tr>
+<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/en/variant-share-solid.svg"><img src="docs/showcase/gallery/en/variant-share-solid.svg" width="360" alt="Share bar · Solid"></a><br><b>Share bar · Solid</b><br><sub><code>share / solid</code></sub></td>
+<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/en/variant-share-ticks.svg"><img src="docs/showcase/gallery/en/variant-share-ticks.svg" width="360" alt="Share bar · Ticks"></a><br><b>Share bar · Ticks</b><br><sub><code>share / ticks</code></sub></td>
+</tr>
+<tr>
+<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/en/variant-donut-solid.svg"><img src="docs/showcase/gallery/en/variant-donut-solid.svg" width="360" alt="Donut · Solid"></a><br><b>Donut · Solid</b><br><sub><code>donut / solid</code></sub></td>
+<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/en/variant-funnel-bars.svg"><img src="docs/showcase/gallery/en/variant-funnel-bars.svg" width="360" alt="Funnel · Bars"></a><br><b>Funnel · Bars</b><br><sub><code>funnel / bars</code></sub></td>
+</tr>
+<tr>
+<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/en/variant-donut-ticks.svg"><img src="docs/showcase/gallery/en/variant-donut-ticks.svg" width="360" alt="Donut · Ticks"></a><br><b>Donut · Ticks</b><br><sub><code>donut / ticks</code></sub></td>
+<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/en/variant-waffle-dots.svg"><img src="docs/showcase/gallery/en/variant-waffle-dots.svg" width="360" alt="Waffle · Dots"></a><br><b>Waffle · Dots</b><br><sub><code>waffle / dots</code></sub></td>
+</tr>
+<tr>
+<td colspan="2" align="center"><a href="docs/showcase/gallery/en/variant-funnel-hourglass.svg"><img src="docs/showcase/gallery/en/variant-funnel-hourglass.svg" width="780" alt="Funnel · Hourglass"></a><br><b>Funnel · Hourglass</b><br><sub><code>funnel / hourglass</code></sub></td>
+</tr>
+<tr>
+<td colspan="2" align="center"><a href="docs/showcase/gallery/en/variant-waffle-field.svg"><img src="docs/showcase/gallery/en/variant-waffle-field.svg" width="360" alt="Waffle · Open field"></a><br><b>Waffle · Open field</b><br><sub><code>waffle / field</code></sub></td>
+</tr>
+</table>
 
 <a id="variants-value"></a>
 
 #### Targets, gaps and distributions
 
-<p align="center"><a href="docs/showcase/gallery/en/variants-value-1.svg"><img src="docs/showcase/gallery/en/variants-value-1.svg" width="360" align="top" alt="Progress · Bar, Progress · Ticks, Before and after · Unit rungs, Histogram · Unit rungs, Scatter · Drop lines"></a> <a href="docs/showcase/gallery/en/variants-value-2.svg"><img src="docs/showcase/gallery/en/variants-value-2.svg" width="360" align="top" alt="Progress · Arc, Before and after · Solid, Histogram · Solid, Scatter · Dots"></a></p>
-
-<p align="center"><a href="docs/showcase/gallery/en/variants-value-wide-1.svg"><img src="docs/showcase/gallery/en/variants-value-wide-1.svg" width="780" align="top" alt="Waterfall · Solid, Waterfall · Unit rungs"></a></p>
+<table>
+<tr>
+<td colspan="2" align="center"><a href="docs/showcase/gallery/en/variant-gauge-bar.svg"><img src="docs/showcase/gallery/en/variant-gauge-bar.svg" width="360" alt="Progress · Bar"></a><br><b>Progress · Bar</b><br><sub><code>gauge / bar</code></sub></td>
+</tr>
+<tr>
+<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/en/variant-gauge-arc.svg"><img src="docs/showcase/gallery/en/variant-gauge-arc.svg" width="360" alt="Progress · Arc"></a><br><b>Progress · Arc</b><br><sub><code>gauge / arc</code></sub></td>
+<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/en/variant-gauge-ticks.svg"><img src="docs/showcase/gallery/en/variant-gauge-ticks.svg" width="360" alt="Progress · Ticks"></a><br><b>Progress · Ticks</b><br><sub><code>gauge / ticks</code></sub></td>
+</tr>
+<tr>
+<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/en/variant-dumbbell-solid.svg"><img src="docs/showcase/gallery/en/variant-dumbbell-solid.svg" width="360" alt="Before and after · Solid"></a><br><b>Before and after · Solid</b><br><sub><code>dumbbell / solid</code></sub></td>
+<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/en/variant-histogram-solid.svg"><img src="docs/showcase/gallery/en/variant-histogram-solid.svg" width="360" alt="Histogram · Solid"></a><br><b>Histogram · Solid</b><br><sub><code>histogram / solid</code></sub></td>
+</tr>
+<tr>
+<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/en/variant-dumbbell-rungs.svg"><img src="docs/showcase/gallery/en/variant-dumbbell-rungs.svg" width="360" alt="Before and after · Unit rungs"></a><br><b>Before and after · Unit rungs</b><br><sub><code>dumbbell / rungs</code></sub></td>
+<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/en/variant-scatter-plumb.svg"><img src="docs/showcase/gallery/en/variant-scatter-plumb.svg" width="360" alt="Scatter · Drop lines"></a><br><b>Scatter · Drop lines</b><br><sub><code>scatter / plumb</code></sub></td>
+</tr>
+<tr>
+<td colspan="2" align="center"><a href="docs/showcase/gallery/en/variant-waterfall-solid.svg"><img src="docs/showcase/gallery/en/variant-waterfall-solid.svg" width="780" alt="Waterfall · Solid"></a><br><b>Waterfall · Solid</b><br><sub><code>waterfall / solid</code></sub></td>
+</tr>
+<tr>
+<td colspan="2" align="center"><a href="docs/showcase/gallery/en/variant-waterfall-rungs.svg"><img src="docs/showcase/gallery/en/variant-waterfall-rungs.svg" width="780" alt="Waterfall · Unit rungs"></a><br><b>Waterfall · Unit rungs</b><br><sub><code>waterfall / rungs</code></sub></td>
+</tr>
+<tr>
+<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/en/variant-histogram-rungs.svg"><img src="docs/showcase/gallery/en/variant-histogram-rungs.svg" width="360" alt="Histogram · Unit rungs"></a><br><b>Histogram · Unit rungs</b><br><sub><code>histogram / rungs</code></sub></td>
+<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/en/variant-scatter-dots.svg"><img src="docs/showcase/gallery/en/variant-scatter-dots.svg" width="360" alt="Scatter · Dots"></a><br><b>Scatter · Dots</b><br><sub><code>scatter / dots</code></sub></td>
+</tr>
+</table>
 
 <a id="variants-pattern"></a>
 
 #### Matrices, calendars and networks
 
-<p align="center"><a href="docs/showcase/gallery/en/variants-pattern-1.svg"><img src="docs/showcase/gallery/en/variants-pattern-1.svg" width="360" align="top" alt="Heatmap · Cells, Heatmap · Arc"></a> <a href="docs/showcase/gallery/en/variants-pattern-2.svg"><img src="docs/showcase/gallery/en/variants-pattern-2.svg" width="360" align="top" alt="Heatmap · Dots, Network · Lines, Network · Membrane"></a></p>
-
-<p align="center"><a href="docs/showcase/gallery/en/variants-pattern-wide-1.svg"><img src="docs/showcase/gallery/en/variants-pattern-wide-1.svg" width="780" align="top" alt="Calendar · Cells, Calendar · Dots"></a></p>
-
-<p align="center"><a href="docs/showcase/gallery/en/variants-pattern-wide-2.svg"><img src="docs/showcase/gallery/en/variants-pattern-wide-2.svg" width="780" align="top" alt="Mind map · Editorial, Mind map · Cards"></a></p>
+<table>
+<tr>
+<td colspan="2" align="center"><a href="docs/showcase/gallery/en/variant-heatmap-cells.svg"><img src="docs/showcase/gallery/en/variant-heatmap-cells.svg" width="360" alt="Heatmap · Cells"></a><br><b>Heatmap · Cells</b><br><sub><code>heatmap / cells</code></sub></td>
+</tr>
+<tr>
+<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/en/variant-heatmap-dots.svg"><img src="docs/showcase/gallery/en/variant-heatmap-dots.svg" width="360" alt="Heatmap · Dots"></a><br><b>Heatmap · Dots</b><br><sub><code>heatmap / dots</code></sub></td>
+<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/en/variant-heatmap-arc.svg"><img src="docs/showcase/gallery/en/variant-heatmap-arc.svg" width="360" alt="Heatmap · Arc"></a><br><b>Heatmap · Arc</b><br><sub><code>heatmap / arc</code></sub></td>
+</tr>
+<tr>
+<td colspan="2" align="center"><a href="docs/showcase/gallery/en/variant-calendar-cells.svg"><img src="docs/showcase/gallery/en/variant-calendar-cells.svg" width="780" alt="Calendar · Cells"></a><br><b>Calendar · Cells</b><br><sub><code>calendar / cells</code></sub></td>
+</tr>
+<tr>
+<td colspan="2" align="center"><a href="docs/showcase/gallery/en/variant-calendar-dots.svg"><img src="docs/showcase/gallery/en/variant-calendar-dots.svg" width="780" alt="Calendar · Dots"></a><br><b>Calendar · Dots</b><br><sub><code>calendar / dots</code></sub></td>
+</tr>
+<tr>
+<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/en/variant-network-lines.svg"><img src="docs/showcase/gallery/en/variant-network-lines.svg" width="360" alt="Network · Lines"></a><br><b>Network · Lines</b><br><sub><code>network / lines</code></sub></td>
+<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/en/variant-network-membrane.svg"><img src="docs/showcase/gallery/en/variant-network-membrane.svg" width="360" alt="Network · Membrane"></a><br><b>Network · Membrane</b><br><sub><code>network / membrane</code></sub></td>
+</tr>
+<tr>
+<td colspan="2" align="center"><a href="docs/showcase/gallery/en/variant-mindmap-editorial.svg"><img src="docs/showcase/gallery/en/variant-mindmap-editorial.svg" width="780" alt="Mind map · Editorial"></a><br><b>Mind map · Editorial</b><br><sub><code>mindmap / editorial</code></sub></td>
+</tr>
+<tr>
+<td colspan="2" align="center"><a href="docs/showcase/gallery/en/variant-mindmap-cards.svg"><img src="docs/showcase/gallery/en/variant-mindmap-cards.svg" width="780" alt="Mind map · Cards"></a><br><b>Mind map · Cards</b><br><sub><code>mindmap / cards</code></sub></td>
+</tr>
+</table>
 <!-- gallery:end -->
 
 <a id="themes"></a>
 
-## One chart, six themes
+## One chart, seven themes
 
 <!-- themes:begin -->
-<p align="center"><a href="docs/showcase/gallery/en/themes-1.svg"><img src="docs/showcase/gallery/en/themes-1.svg" width="360" align="top" alt="Claude, Obsidian, Kanagawa"></a> <a href="docs/showcase/gallery/en/themes-2.svg"><img src="docs/showcase/gallery/en/themes-2.svg" width="360" align="top" alt="Paper, Tokyo Night, Terminal"></a></p>
+<table>
+<tr>
+<td colspan="2" align="center"><a href="docs/showcase/gallery/en/theme-claude.svg"><img src="docs/showcase/gallery/en/theme-claude.svg" width="360" alt="Claude"></a><br><b>Claude</b><br><sub><code>light theme</code></sub></td>
+</tr>
+<tr>
+<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/en/theme-paper.svg"><img src="docs/showcase/gallery/en/theme-paper.svg" width="360" alt="Paper"></a><br><b>Paper</b><br><sub><code>light theme</code></sub></td>
+<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/en/theme-obsidian.svg"><img src="docs/showcase/gallery/en/theme-obsidian.svg" width="360" alt="Obsidian"></a><br><b>Obsidian</b><br><sub><code>dark theme</code></sub></td>
+</tr>
+<tr>
+<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/en/theme-tokyo.svg"><img src="docs/showcase/gallery/en/theme-tokyo.svg" width="360" alt="Tokyo Night"></a><br><b>Tokyo Night</b><br><sub><code>dark theme</code></sub></td>
+<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/en/theme-kanagawa.svg"><img src="docs/showcase/gallery/en/theme-kanagawa.svg" width="360" alt="Kanagawa"></a><br><b>Kanagawa</b><br><sub><code>dark theme</code></sub></td>
+</tr>
+<tr>
+<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/en/theme-terminal.svg"><img src="docs/showcase/gallery/en/theme-terminal.svg" width="360" alt="Terminal"></a><br><b>Terminal</b><br><sub><code>dark theme</code></sub></td>
+<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/en/theme-cloudmusic.svg"><img src="docs/showcase/gallery/en/theme-cloudmusic.svg" width="360" alt="Cloud Music"></a><br><b>Cloud Music</b><br><sub><code>light theme</code></sub></td>
+</tr>
+</table>
 <!-- themes:end -->
 
 Switching the theme of a document or report leaves its content alone: `htmlview style report.html --theme obsidian`. The KChart API also accepts a custom theme object directly. To give the CLI a new theme name, register a palette and add a small theme CSS file; no chart code changes. [How themes work →](docs/architecture.en.md#themes)
@@ -329,4 +619,4 @@ Further reading, in Chinese: [skill entry](skills/html-view/SKILL.md) · [CLI an
 
 ## License
 
-Original code and documentation are under the [MIT License](LICENSE). Prism keeps its [upstream MIT license](skills/html-view/assets/vendor/prism.js). Terms for icons, brand marks and Natural Earth map data are in the [third-party notice](skills/html-view/kchart/NOTICE.md).
+Original code and documentation are under the [MIT License](LICENSE). Prism keeps its [upstream MIT license](skills/html-view/assets/vendor/prism.js). Terms for icons, brand marks and Natural Earth map data are in the [third-party notice](skills/html-view/kchart/NOTICE.md). See the [acknowledgments](NOTICE.md) for the source of the dashboard design guidance.

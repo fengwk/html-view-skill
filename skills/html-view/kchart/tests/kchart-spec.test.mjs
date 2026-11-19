@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { loadModules } from '../modules.mjs';
+import { createRenderer } from '../node.mjs';
 
 const modules = loadModules(['chart/spec']);
 const K = { ...modules['chart/spec'], ...modules['chart/catalog'] };
@@ -105,6 +106,36 @@ test('身份注释/强调/排序、单位和字段数组限制真实校验', () 
   assert.ok(K.validate({chart:'bar',data:[{c:'A',v:1},{c:'B',v:2}],encode:{category:'c',value:['v','v2']},sort:{field:'v',direction:'desc'}}).errors.length);
   assert.ok(K.validate({chart:'line',unit:'元',data:[{c:'A',a:1,b:2}],encode:{category:'c',value:['a','b']},fields:{a:{unit:'元'},b:{unit:'美元'}}}).errors.length);
   assert.ok(K.validate({chart:'pie',data:[{c:'A',v:1}],encode:{category:'c',value:'v'},fields:{v:{scale:'log'}}}).errors.length);
+});
+
+// 意图：emphasis 通过校验就必须改变绘制。曾经饼图、bullet、脑图等接受 emphasis 却画出完全相同的图，读者看不到重点。
+test('emphasis passes validation only where it changes the drawing', () => {
+  const R = createRenderer();
+  const wide = [{c:'A',v:5,w:2,id:'a'},{c:'B',v:3,w:4,id:'b'},{c:'C',v:2,w:1,id:'c'}];
+  const long = [{c:'A',s:'x',v:5},{c:'A',s:'y',v:2},{c:'B',s:'x',v:3},{c:'B',s:'y',v:4}];
+  const kinds = [
+    [wide, {category:'c',value:'v',id:'id'}, {rows:['b']}],
+    [wide, {category:'c',value:['v','w']}, {fields:['w']}],
+    [long, {category:'c',value:'v',series:'s'}, {series:['y']}],
+  ];
+  let drawn = 0;
+  for (const chart of Object.keys(R.catalog)) for (const variant of [undefined, ...(R.catalog[chart].special?.variant || [])]) {
+    const unitMark = ['rungs','pictorial'].includes(variant) ? {unitMark:{value:1,label:'1 个',...(variant === 'pictorial' ? {icon:'user'} : {})}} : {};
+    for (const [data, encode, emphasis] of kinds) {
+      const base = {chart, unit:'个', data, encode, ...(variant ? {variant} : {}), ...unitMark};
+      if (R.validate(base).errors.length) continue;
+      const valid = R.validate({...base, emphasis}).errors.length === 0;
+      const changed = valid && R.render(base, {width:600}).svg !== R.render({...base, emphasis}, {width:600}).svg;
+      assert.equal(valid, changed, `${chart} ${variant ?? 'default'} ${Object.keys(emphasis)[0]}`);
+      if (valid) drawn += 1;
+    }
+  }
+  assert.equal(drawn, 34, 'line, area, bar, column, share and funnel keep their drawn emphasis');
+  const refused = [
+    {chart:'bullet',data:[{c:'A',a:3,t:4,id:'a'}],encode:{category:'c',actual:'a',target:'t',id:'id'},emphasis:{rows:['a']}},
+    {chart:'mindmap',data:{label:'root',children:[{id:'n',label:'node'}]},emphasis:{nodes:['n']}},
+  ];
+  for (const spec of refused) assert.ok(R.validate(spec).errors.some(error => error.path === '/emphasis'), spec.chart);
 });
 
 test('数量边界和schema按catalog严格分支', () => {

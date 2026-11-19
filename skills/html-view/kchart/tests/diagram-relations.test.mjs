@@ -223,3 +223,24 @@ test('relation groups reserve room so an edge label never straddles a boundary',
     assert.ok(b.y - (a.y + a.height) >= 24, `${width}: boundaries keep a gap for the edge (${b.y - (a.y + a.height)})`);
   }
 });
+
+// 意图：连线纵向进入窄分组时会穿过左对齐的分组标题；标题所在矩形必须从连线的裁剪区里挖掉，线不压字。
+test('edges are cut where they cross a group title', () => {
+  const source = 'C4Deployment\n  Deployment_Node(cloud, "Cloud region", "Kubernetes") {\n    Container(api, "Order API", "Node.js")\n  }\n  Deployment_Node(shop, "Store", "Tablet") {\n    Container(bar, "Bar screen", "Web")\n  }\n  Rel(api, bar, "WebSocket")';
+  const scene = plain(diagram(source, { width: 760, frame: false, lang: 'en' }).scene);
+  const all = elements(scene);
+  const clip = all.find(item => item.tag === 'clipPath');
+  const [outer, ...holes] = clip.children[0].attrs.d.split('M').filter(Boolean).map(part => part.match(/-?[\d.]+/g).map(Number));
+  assert.equal(clip.children[0].attrs['clip-rule'], 'evenodd');
+  assert.ok(outer.length && holes.length === 2);
+  const edge = all.find(item => item.meta?.kind === 'edge');
+  assert.equal(edge.attrs['clip-path'], `url(#${clip.attrs.id})`);
+  const title = all.find(item => item.meta?.kind === 'group-label' && item.meta.group === 'shop');
+  const width = context.measure(title.text, 12, 600);
+  // 每个孔是 M x y H x1 V y1 H x Z；标题字形（基线上 10px、下 3px）必须落在某个孔内。
+  const covered = holes.some(([x, y, x1, y1]) => x <= title.attrs.x && x1 >= title.attrs.x + width && y <= title.attrs.y - 10 && y1 >= title.attrs.y + 3);
+  assert.ok(covered, 'the Store [Tablet] title sits inside a clip hole');
+  const vertical = edge.attrs.d.match(/-?[\d.]+/g).map(Number);
+  const xs = vertical.filter((_, i) => i % 2 === 0);
+  assert.ok(xs.some(x => x > title.attrs.x && x < title.attrs.x + width), 'the sample edge does cross the title column, so the clip is exercised');
+});

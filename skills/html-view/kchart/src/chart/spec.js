@@ -3,6 +3,16 @@ KChart.define('chart/spec', ({ 'chart/catalog': { catalog } }) => {
   const TOP = new Set(['chart','title','subtitle','source','note','data','encode','fields','unit','variant','layout','sort','emphasis','annotations','interaction','stack','unitMark','range','start','layers','period','directed']);
   const ENCODE = new Set(['category','value','series','id','lower','upper','intensity','panel','actual','target','before','after','open','close','low','high','delta','count','q1','median','q3','outliers','density','x','y','size','label','row','column','date','rank','dimensions','start','region','longitude','latitude']);
   const FIELD_KEYS = new Set(['label','type','unit','format','decimals','domain','scale']);
+  // 只登记绘制时真正改变的图型、变体和身份类型；其余组合若被接受，读者会看到一张没有任何强调的图。空键是默认变体。
+  const ALL_EMPHASIS = ['rows', 'fields', 'series'], ROW_EMPHASIS = ['rows'], SERIES_EMPHASIS = ['fields', 'series'];
+  const EMPHASIS = {
+    line: { '': ALL_EMPHASIS, counter: ALL_EMPHASIS, barcode: ROW_EMPHASIS },
+    area: { '': ALL_EMPHASIS },
+    bar: { '': ALL_EMPHASIS, solid: ALL_EMPHASIS, lollipop: ROW_EMPHASIS, rungs: ROW_EMPHASIS, pictorial: ROW_EMPHASIS },
+    column: { '': ALL_EMPHASIS, solid: ALL_EMPHASIS, lollipop: ROW_EMPHASIS, rungs: ROW_EMPHASIS, pictorial: ROW_EMPHASIS },
+    share: { '': SERIES_EMPHASIS, solid: SERIES_EMPHASIS },
+    funnel: { '': ROW_EMPHASIS, bars: ROW_EMPHASIS },
+  };
   const err = (errors, path, message, fix = '请按图型契约修正字段或数据。', code = 'BAD_KCHART', loc) => errors.push({code,path,message,fix,...(loc ? {location:loc} : {})});
   const obj = v => v !== null && typeof v === 'object' && !Array.isArray(v);
   const finite = v => typeof v === 'number' && Number.isFinite(v);
@@ -224,8 +234,13 @@ KChart.define('chart/spec', ({ 'chart/catalog': { catalog } }) => {
     if (spec.emphasis !== undefined) {
       const kind = Object.keys(obj(spec.emphasis) ? spec.emphasis : {});
       const values = kind.length === 1 ? spec.emphasis[kind[0]] : null;
-      if (kind.length !== 1 || !['rows', 'fields', 'series', 'nodes', 'edges', 'paths'].includes(kind[0]) || !Array.isArray(values)) {
-        err(errors, '/emphasis', '强调须选择一种身份数组');
+      const supported = EMPHASIS[spec.chart]?.[spec.variant ?? ''] || [];
+      const target = `${spec.chart}${spec.variant ? ` 的 ${spec.variant} 变体` : ''}`;
+      if (kind.length !== 1 || !ALL_EMPHASIS.includes(kind[0]) || !Array.isArray(values)) {
+        err(errors, '/emphasis', '强调须在 rows、fields、series 中选一种身份数组');
+      } else if (!supported.includes(kind[0])) {
+        err(errors, '/emphasis', supported.length ? `${target}只绘制 ${supported.join('、')} 强调` : `${target}不绘制强调`,
+          supported.length ? `改用 ${supported.join(' 或 ')}` : '删去 emphasis；改用 line、area、bar、column、share 或 funnel，或用标题、注释指出重点');
       } else {
         const enc = spec.encode || {};
         let actual = [];
@@ -233,18 +248,10 @@ KChart.define('chart/spec', ({ 'chart/catalog': { catalog } }) => {
         if (kind[0] === 'fields' && Array.isArray(enc.value)) actual = enc.value;
         if (kind[0] === 'series' && Array.isArray(spec.data) && enc.series) actual = spec.data.map(row => row?.[enc.series]);
         if (kind[0] === 'series' && Array.isArray(enc.value)) actual = enc.value;
-        if (kind[0] === 'nodes' && obj(spec.data) && Array.isArray(spec.data.nodes)) actual = spec.data.nodes.map(node => node?.id);
-        if (kind[0] === 'nodes' && ['tree', 'mindmap'].includes(spec.chart)) actual = collectTreeIds(spec.data);
-        if (kind[0] === 'edges' && obj(spec.data) && Array.isArray(spec.data.edges)) actual = spec.data.edges.map(edge => edge?.id);
-        if (kind[0] === 'paths' && obj(spec.data) && Array.isArray(spec.data.paths)) actual = spec.data.paths.map(path => path?.id);
         if (!actual.length || values.some(value => !actual.includes(value)) || new Set(values).size !== values.length) {
           err(errors, '/emphasis', `强调引用不存在或重复的${kind[0]}`);
         }
-        if (kind[0] === 'rows' && !enc.id
-          || kind[0] === 'fields' && !Array.isArray(enc.value)
-          || kind[0] === 'nodes' && !['network', 'sankey', 'threads', 'tree', 'mindmap'].includes(spec.chart)
-          || kind[0] === 'edges' && spec.chart !== 'network' && spec.chart !== 'sankey'
-          || kind[0] === 'paths' && spec.chart !== 'threads') {
+        if (kind[0] === 'rows' && !enc.id || kind[0] === 'fields' && !Array.isArray(enc.value)) {
           err(errors, '/emphasis', `该图型不支持${kind[0]}强调`);
         }
       }
@@ -534,17 +541,6 @@ KChart.define('chart/spec', ({ 'chart/catalog': { catalog } }) => {
         if (!(integral > 0)) err(e, `/data/${i}/${en.density}`, 'violin密度积分必须大于0');
       }
     }
-  }
-  function collectTreeIds(rootNode) {
-    const ids = [], seen = new Set();
-    const walk = (node) => {
-      if (!obj(node) || seen.has(node)) return;
-      seen.add(node);
-      if (typeof node.id === 'string') ids.push(node.id);
-      if (Array.isArray(node.children)) node.children.forEach(walk);
-    };
-    walk(rootNode);
-    return ids;
   }
   function checkTree(rootNode, chart, e) {
     const ids = new Set(), seen = new Set();

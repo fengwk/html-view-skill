@@ -23,7 +23,7 @@ console.log(svg);
 
 - `parse(text)` 校验 JSON 文本，保留重复键的位置；`validate(spec)` 校验对象，不做布局。`schema(chart?)` 查看全部或单个图型的字段；`catalog` 列出图型。
 - `render()` 返回 `{ svg, scene, diagnostics }`。声明不合规，或数据无法用所选图型清楚呈现时，只返回诊断。内部异常原样抛出。
-- `theme(idOrObject, { media })` 返回主题快照。`render()` 接受 `width`、`lang`、`theme`、`media`、`frame`、`prefix`，以及 `measure(text, size, weight, fontFamily)`。内嵌 `<figure>` 已有标题、来源时，用 `frame: false` 避免重复。单页放多张图时，为每张图传入不同的 `prefix`。
+- `theme(idOrObject, { media })` 返回主题快照。自定义主题可加可选的 `tint: { hue, chroma }`，让结构图分组、泳道和脑图分支的浅底在 OKLCH 中从 `hue` 过渡到原色，彩度乘以 `chroma`（1–2），避免暖色变浅后发粉。`render()` 接受 `width`、`lang`、`theme`、`media`、`frame`、`prefix`，以及 `measure(text, size, weight, fontFamily)`。内嵌 `<figure>` 已有标题、来源时，用 `frame: false` 避免重复。单页放多张图时，为每张图传入不同的 `prefix`。
 - `browserSource(specs)` 按声明选择模块，返回可以嵌入 HTML 的脚本文本，暴露 `globalThis.KChart`。图形渲染不访问 DOM。声明了交互时，脚本才包括 `attach(svgElement, spec)`；宿主自行插入 SVG 和绑定交互。内置地图在 Node 中从本地资产读取；浏览器端由宿主提供 `options.assets`，不发网络请求。
 
 ## 结构图

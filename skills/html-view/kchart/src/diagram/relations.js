@@ -239,6 +239,16 @@ KChart.define('diagram/relations', ({
         size: 12, weight: 600, fill: ctx.color('muted'), meta: { kind: 'group-label', group: group.id },
       }));
     }
+    // 连线穿过分组标题时在标题处断开。分组底色半透明，实色底板会露出色块，所以用带孔的裁剪区把标题挖空。
+    const titleHoles = groupBounds.map(({ group, left, top }) => ({ x: left + 8, y: top + 3, w: ctx.measure(group.label, 12, 600) + 8, h: 18 }));
+    let edgeClip = null;
+    if (titleHoles.length) {
+      const x0 = Math.min(0, ...groupBounds.map(g => g.left)) - 24, y0 = Math.min(0, ...groupBounds.map(g => g.top)) - 24;
+      const x1 = Math.max(graph.width, ...groupBounds.map(g => g.right)) + 24, y1 = Math.max(graph.height, ...groupBounds.map(g => g.bottom)) + 24;
+      const d = [`M${x0} ${y0}H${x1}V${y1}H${x0}Z`, ...titleHoles.map(h => `M${h.x} ${h.y}H${h.x + h.w}V${h.y + h.h}H${h.x}Z`)].join('');
+      children.push(ctx.el('clipPath', { id: 'group-titles' }, [ctx.path(d, { 'clip-rule': 'evenodd', meta: { kind: 'group-title-holes' } })]));
+      edgeClip = 'url(#group-titles)';
+    }
     for (const route of graph.edges) {
       if (route.id >= model.edges.length) continue;
       const edge = model.edges[route.id], a = placements.get(edge?.from), b = placements.get(edge?.to); if (!edge || !a || !b) continue;
@@ -262,7 +272,7 @@ KChart.define('diagram/relations', ({
         path = points.map((point, index) => `${index ? 'L' : 'M'}${point.x} ${point.y}`).join(' ');
       } else path = cubicPath(route.segments);
       const dashed = ['..|>', '<|..', '..>', '..'].includes(edge.type);
-      children.push(ctx.path(path, { fill: 'none', stroke: ctx.design.fg4, 'stroke-width': 1.25, 'stroke-dasharray': dashed ? '4 3' : null, meta: { kind: 'edge', edge: String(route.id), source: edge.from, target: edge.to, type: edge.type, startPort: edge.startPort || undefined, endPort: edge.endPort || undefined, direction: edge.direction } }));
+      children.push(ctx.path(path, { fill: 'none', stroke: ctx.design.fg4, 'stroke-width': 1.25, 'stroke-dasharray': dashed ? '4 3' : null, 'clip-path': edgeClip, meta: { kind: 'edge', edge: String(route.id), source: edge.from, target: edge.to, type: edge.type, startPort: edge.startPort || undefined, endPort: edge.endPort || undefined, direction: edge.direction } }));
       const vectorAt = atStart => {
         const port = atStart ? edge.startPort : edge.endPort;
         if (edge.type === 'architecture' && port) return port === 'L' ? { x: 1, y: 0 } : port === 'R' ? { x: -1, y: 0 } : port === 'T' ? { x: 0, y: 1 } : { x: 0, y: -1 };

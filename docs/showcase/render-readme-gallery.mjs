@@ -1,5 +1,5 @@
 // Render the README gallery in Chinese and English into a new temporary directory:
-// SVG plates, embeddable Markdown fragments and a coverage manifest. Publish the result with sync-readme.mjs.
+// one SVG tile per sample, embeddable Markdown tables and a coverage manifest. Publish the result with sync-readme.mjs.
 import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -10,8 +10,9 @@ import { launchBrowser } from '../../skills/html-view/scripts/src/shared/browser
 import { galleryCases } from './gallery-cases.mjs';
 
 const LANGS = ['zh-CN', 'en'];
-// Two independent strips wrap to one column on phones. Render at their real pixel widths; never scale an SVG.
-const STRIP = 360, WIDE = 780, PAD = 9, TOP = 57, GAP = 10;
+// Two 360px cells share a table row; a sample that needs more room takes a full 780px row.
+// Tiles are drawn at their real pixel widths; never scale an SVG to make it fit.
+const CELL = 360, WIDE = 780, PAD = 9, PAD_Y = 16, SWATCH_ROW = 26, RADIUS = 12, TALL = 520;
 const esc = value => String(value).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;');
 const safeScript = value => value.replace(/<\/script/gi, '<\\/script');
 
@@ -87,25 +88,49 @@ window.draw = ({spec, source, syntax}, width, theme, prefix, lang) => {
   return {svg:result.svg, width:element.width.baseVal.value, height:element.height.baseVal.value, overflow};
 };</script></body></html>`);
 
-function card(item, render, theme, width, y) {
-  const height = Math.ceil(render.height) + TOP + 11;
-  const x = (width - render.width) / 2;
-  const swatches = item.swatches ? theme.tones.map((color, i) => `<circle cx="${width - 17 - (5 - i) * 14}" cy="28" r="4" fill="${color}"/>`).join('') : '';
-  return { height, markup: `<g transform="translate(0 ${y})" data-sample="${esc(item.id)}"><rect x="0.5" y="0.5" width="${width - 1}" height="${height - 1}" rx="13" fill="${theme.surface}" stroke="${theme.line2}"/><path d="M16 17v22" stroke="${theme.accent}" stroke-width="3" stroke-linecap="round"/><text x="29" y="27" font-size="16" font-weight="650" fill="${theme.fg1}">${esc(item.title)}</text><text x="29" y="45" font-size="12" fill="${theme.fg3}">${esc(item.key)}</text>${swatches}<g transform="translate(${x} ${TOP})">${render.svg}</g></g>` };
+// Two cells in a row share one height, so pair compact samples of similar height: after sorting by height, neighbours
+// make the pairs with the least empty card space. With an odd count, the sample whose removal wastes least stays alone
+// and spans the row. Rows then follow gallery order by their earliest sample; wide samples keep their own rows.
+function rowsOf(entries) {
+  const indexed = entries.map((entry, index) => ({ entry, index }));
+  const compact = indexed.filter(({ entry }) => entry.width !== WIDE).sort((a, b) => a.entry.render.height - b.entry.render.height);
+  const waste = list => list.reduce((sum, item, i) => (i % 2 ? sum + item.entry.render.height - list[i - 1].entry.render.height : sum), 0);
+  let single = null;
+  if (compact.length % 2) {
+    let best = Infinity;
+    for (let i = 0; i < compact.length; i += 2) {
+      const cost = waste(compact.filter((_, j) => j !== i));
+      if (cost < best) { best = cost; single = i; }
+    }
+  }
+  const rows = indexed.filter(({ entry }) => entry.width === WIDE).map(item => [item]);
+  if (single !== null) rows.push(compact.splice(single, 1));
+  for (let i = 0; i < compact.length; i += 2) rows.push([compact[i], compact[i + 1]].sort((a, b) => a.index - b.index));
+  return rows.sort((a, b) => a[0].index - b[0].index).map(row => row.map(({ entry }) => entry));
 }
 
-async function writeStrip(dir, filename, title, entries, width, lang) {
-  let y = 0;
-  const markup = entries.map(({ item, render, theme }) => {
-    const panel = card(item, render, theme, width, y);
-    y += panel.height + GAP;
-    return panel.markup;
-  });
-  const height = y - GAP;
-  const alt = entries.map(({ item }) => item.title).join(lang === 'en' ? ', ' : '、');
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" font-family="${esc(FONT)}" role="img" lang="${lang}"><title>${esc(title)}</title><desc>${esc(alt)}</desc>${markup.join('\n')}</svg>\n`;
+// One tile per sample: the sample's own theme card, centered at its natural size. Cells in one row share a height,
+// so the captions under them line up.
+async function writeTile(dir, entry, height, lang) {
+  const { item, render, theme, width } = entry;
+  const top = item.swatches ? SWATCH_ROW : 0;
+  const x = (width - render.width) / 2, y = top + (height - top - render.height) / 2;
+  const swatches = item.swatches ? theme.tones.map((color, i) => `<circle cx="${20 + i * 14}" cy="${PAD_Y + 4}" r="4" fill="${color}"/>`).join('') : '';
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" font-family="${esc(FONT)}" role="img" lang="${lang}"><title>${esc(item.title)}</title><rect x="0.5" y="0.5" width="${width - 1}" height="${height - 1}" rx="${RADIUS}" fill="${theme.surface}" stroke="${theme.line2}"/>${swatches}<g transform="translate(${x} ${y})">${render.svg}</g></svg>\n`;
+  const filename = `${item.id}.svg`;
   await writeFile(join(dir, filename), svg);
-  return { filename, width, height, alt, samples: entries.map(({ item }) => item.id) };
+  return { id: item.id, filename, width, height, title: item.title, key: item.key };
+}
+
+async function writeRows(dir, entries, lang) {
+  const rows = [];
+  for (const row of rowsOf(entries)) {
+    const height = Math.ceil(Math.max(...row.map(({ item, render }) => render.height + (item.swatches ? SWATCH_ROW : 0)))) + PAD_Y * 2;
+    const tiles = [];
+    for (const entry of row) tiles.push(await writeTile(dir, entry, height, lang));
+    rows.push(tiles);
+  }
+  return rows;
 }
 
 const report = { counts, languages: {} };
@@ -121,70 +146,66 @@ try {
     const dir = join(out, 'gallery', lang);
     await mkdir(dir, { recursive: true });
     const record = { groups: [] };
+    const theme = renderer.themes.claude;
     for (const group of groups) {
-      const compact = [], wide = [], theme = renderer.themes.claude;
-      const files = [];
+      const entries = [];
       for (const item of group.items) {
         const sample = samples.get(item.id);
-        const entry = { ...item, key: sample.key };
         const input = sample.spec ? { spec: sample.spec } : { syntax: sample.syntax, source: sample.source };
-        let width = item.wide ? WIDE : STRIP;
-        let rendered = await draw(input, width, theme.id, `g-${group.id}-${item.id}`, lang);
-        if (width === STRIP && (rendered.width > STRIP - PAD * 2 || rendered.overflow.length)) {
+        let width = item.wide ? WIDE : CELL;
+        let rendered = await draw(input, width, theme.id, `g-${item.id}`, lang);
+        if (width === CELL && (rendered.width > CELL - PAD * 2 || rendered.overflow.length)) {
           width = WIDE;
-          rendered = await draw(input, width, theme.id, `g-${group.id}-${item.id}`, lang);
+          rendered = await draw(input, width, theme.id, `g-${item.id}`, lang);
+        } else if (width === CELL && rendered.height > TALL) {
+          // A very tall narrow tile (stacked panels) reads better across a full row when that layout is shorter.
+          const wide = await draw(input, WIDE, theme.id, `g-${item.id}`, lang);
+          if (wide.height < rendered.height && !wide.overflow.length) { width = WIDE; rendered = wide; }
         }
         assert.ok(Number.isFinite(rendered.height) && rendered.height > 0 && rendered.width <= width - PAD * 2,
-          `${lang} ${item.id}: canvas ${rendered.width}×${rendered.height} does not fit the plate`);
+          `${lang} ${item.id}: canvas ${rendered.width}×${rendered.height} does not fit the tile`);
         assert.deepEqual(rendered.overflow, [], `${lang} ${item.id}: glyphs fall outside the canvas`);
-        (width === STRIP ? compact : wide).push({ item: entry, render: rendered, theme });
+        entries.push({ item: { ...item, key: sample.key }, render: rendered, theme, width });
       }
-      // Balance the two columns without shrinking labels or leaving empty tiles.
-      const columns = [[], []], heights = [0, 0];
-      for (const entry of compact) {
-        const i = heights[0] <= heights[1] ? 0 : 1;
-        columns[i].push(entry);
-        heights[i] += entry.render.height + TOP + GAP;
-      }
-      for (const [i, entries] of columns.entries()) if (entries.length) files.push(await writeStrip(dir, `${group.id}-${i + 1}.svg`, group.title, entries, STRIP, lang));
-      for (let i = 0; i < wide.length; i += 2) files.push(await writeStrip(dir, `${group.id}-wide-${i / 2 + 1}.svg`, group.title, wide.slice(i, i + 2), WIDE, lang));
-      record.groups.push({ id: group.id, title: group.title, kind: group.kind, count: group.items.length, files });
+      record.groups.push({ id: group.id, title: group.title, kind: group.kind, count: group.items.length, rows: await writeRows(dir, entries, lang) });
     }
     const plates = [];
-    for (const theme of themes) {
-      const id = `theme-${theme.id}`;
-      const render = await draw({ spec: cases.themeSpec }, STRIP, theme.id, id, lang);
-      assert.ok(render.width <= STRIP - PAD * 2 && render.overflow.length === 0, `${lang} ${id} does not fit`);
-      const key = lang === 'en' ? `${cases.words.scheme[theme.scheme]} theme` : `${theme.name} · ${cases.words.scheme[theme.scheme]}`;
-      plates.push({ item: { id, title: theme.en, key, swatches: true }, theme, render });
+    for (const themeItem of themes) {
+      const id = `theme-${themeItem.id}`;
+      const render = await draw({ spec: cases.themeSpec }, CELL, themeItem.id, id, lang);
+      assert.ok(render.width <= CELL - PAD * 2 && render.overflow.length === 0, `${lang} ${id} does not fit`);
+      const key = lang === 'en' ? `${cases.words.scheme[themeItem.scheme]} theme` : `${themeItem.name} · ${cases.words.scheme[themeItem.scheme]}`;
+      plates.push({ item: { id, title: themeItem.en, key, swatches: true }, theme: themeItem, render, width: CELL });
     }
-    const themeFiles = [];
-    for (const [i, indices] of [[0, 2, 4], [1, 3, 5]].entries()) themeFiles.push(await writeStrip(dir, `themes-${i + 1}.svg`, cases.words.themes, indices.map(j => plates[j]), STRIP, lang));
-    record.groups.push({ id: 'themes', title: cases.words.themes, count: themes.length, files: themeFiles });
+    record.groups.push({ id: 'themes', title: cases.words.themes, count: themes.length, rows: await writeRows(dir, plates, lang) });
 
-    // Map geometry is heavy. The README loads a 2× PNG that links to the unscaled vector plate.
-    for (const file of record.groups.find(group => group.id === 'geography').files) {
-      file.preview = file.filename.replace(/\.svg$/, '.png');
-      await page.setViewport({ width: file.width, height: file.height, deviceScaleFactor: 2 });
-      await page.goto(pathToFileURL(join(dir, file.filename)).href);
-      await writeFile(join(dir, file.preview), await page.screenshot({ x: 0, y: 0, width: file.width, height: file.height }));
+    // Map geometry is heavy. The README loads a 2× PNG that links to the unscaled vector tile.
+    for (const tile of record.groups.find(group => group.id === 'geography').rows.flat()) {
+      tile.preview = tile.filename.replace(/\.svg$/, '.png');
+      await page.setViewport({ width: tile.width, height: tile.height, deviceScaleFactor: 2 });
+      await page.goto(pathToFileURL(join(dir, tile.filename)).href);
+      await writeFile(join(dir, tile.preview), await page.screenshot({ x: 0, y: 0, width: tile.width, height: tile.height }));
     }
     await page.setViewport({ width: 900, height: 1000, deviceScaleFactor: 1 });
     await page.goto(pathToFileURL(artwork).href);
 
     const prefix = `docs/showcase/gallery/${lang}`;
-    const thumb = file => `<a href="${prefix}/${file.filename}"><img src="${prefix}/${file.preview ?? file.filename}" width="${file.width}" align="top" alt="${esc(file.alt)}"></a>`;
-    const line = files => `<p align="center">${files.map(thumb).join(' ')}</p>`;
-    // Anchors use the language-neutral group ids that also name the image files, so both READMEs share one set of slugs.
-    const groupMarkdown = (group, heading = true) => {
-      const compact = group.files.filter(file => file.width === STRIP), wide = group.files.filter(file => file.width === WIDE);
-      return [heading ? `<a id="${group.id}"></a>\n\n#### ${group.title}` : '', compact.length ? line(compact) : '', ...wide.map(file => line([file]))].filter(Boolean).join('\n\n');
-    };
+    // GitHub keeps align, valign, width and colspan on table cells; captions stay real text for search, translation and dark mode.
+    const cell = tile => `<a href="${prefix}/${tile.filename}"><img src="${prefix}/${tile.preview ?? tile.filename}" width="${tile.width}" alt="${esc(tile.title)}"></a><br><b>${esc(tile.title)}</b><br><sub><code>${esc(tile.key)}</code></sub>`;
+    // A wide sample, or the odd compact sample that closes a group, spans both columns instead of leaving an empty cell.
+    // On a phone GitHub shrinks both columns to the screen: its CSS gives images max-width:100%, a cell's width
+    // attribute is not a minimum, and style attributes are stripped. Every tile therefore links to its full-size SVG.
+    const row = tiles => tiles.length === 1
+      ? `<tr>\n<td colspan="2" align="center">${cell(tiles[0])}</td>\n</tr>`
+      : `<tr>\n${tiles.map(tile => `<td align="center" valign="top" width="50%">${cell(tile)}</td>`).join('\n')}\n</tr>`;
+    const table = group => `<table>\n${group.rows.map(row).join('\n')}\n</table>`;
+    // Anchors use the language-neutral group ids, so both READMEs share one set of slugs.
+    const groupMarkdown = (group, heading = true) => [heading ? `<a id="${group.id}"></a>\n\n#### ${group.title}` : '', table(group)].filter(Boolean).join('\n\n');
     const sectionIds = { chart: 'charts', diagram: 'diagrams', variant: 'variants' };
     const fragment = ['chart', 'diagram', 'variant'].map(kind => {
-      const groups = record.groups.filter(group => group.kind === kind);
-      return [`<a id="${sectionIds[kind]}"></a>\n\n### ${cases.words.sections[kind]}`, groups.map(group => `[${group.title}](#${group.id})`).join(' · '),
-        ...groups.map(group => groupMarkdown(group))].join('\n\n');
+      const kindGroups = record.groups.filter(group => group.kind === kind);
+      return [`<a id="${sectionIds[kind]}"></a>\n\n### ${cases.words.sections[kind]}`, kindGroups.map(group => `[${group.title}](#${group.id})`).join(' · '),
+        ...kindGroups.map(group => groupMarkdown(group))].join('\n\n');
     }).join('\n\n');
     await writeFile(join(out, `gallery.${lang}.md`), fragment + '\n');
     await writeFile(join(out, `themes.${lang}.md`), groupMarkdown(record.groups.find(group => group.id === 'themes'), false) + '\n');
