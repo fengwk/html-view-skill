@@ -1,5 +1,5 @@
 // Node 与 HTML 共用同一次模块组装；库只从自己的目录加载源码和数据。
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { runInNewContext } from 'node:vm';
 
 const root = new URL('./', import.meta.url);
@@ -20,7 +20,8 @@ const diagramModules = new Map();
 const diagramMetadata = [];
 for (const [name, entry] of entries) {
   const allowed = permissions[layerOf(name)];
-  if (!allowed || !/^(?:src|assets)\/(?:[\w-]+\/)*[\w-]+\.(?:js|json)$/.test(entry.file)) {
+  if (!allowed || !/^(?:src|assets)\/(?:[\w-]+\/)*[\w-]+\.(?:js|json)$/.test(entry.file)
+    || (entry.data !== undefined && (!/^assets\/(?:[\w-]+\/)*[\w-]+$/.test(entry.data) || !entry.file.endsWith('.js')))) {
     throw new Error(`可视化模块登记有误：${name}`);
   }
   for (const dep of entry.deps) {
@@ -147,16 +148,31 @@ function execute(install) {
   return Object.freeze(Object.fromEntries(exportsByName));
 }
 
+// A directory of data assets is assembled into its owner module. It does not add a new module ID to older HTML shells.
+function directoryData(path) {
+  const dir = new URL(`${path}/`, root);
+  const files = readdirSync(dir, { withFileTypes: true }).filter(({ name }) => name.endsWith('.json'));
+  return Object.fromEntries(files.sort((a, b) => (a.name < b.name ? -1 : 1)).map((file) => {
+    if (!file.isFile() || !/^[a-z][a-z0-9-]*\.json$/.test(file.name)) throw new Error(`可视化数据文件无效：${path}/${file.name}`);
+    try {
+      return [file.name.slice(0, -5), JSON.parse(readFileSync(new URL(file.name, dir), 'utf8').replace(/^\uFEFF/, ''))];
+    } catch (cause) {
+      throw new Error(`无法读取可视化数据文件：${path}/${file.name}。${cause.message}`, { cause });
+    }
+  }));
+}
+
 const sources = new Map();
 function sourceOf(name) {
   if (sources.has(name)) return sources.get(name);
-  const { file, deps } = manifest[name];
+  const { file, deps, data } = manifest[name];
   const text = readFileSync(new URL(file, root), 'utf8');
+  const localData = data === undefined ? '' : `const moduleData = JSON.parse(${JSON.stringify(JSON.stringify(directoryData(data))).replaceAll('<', '\\u003c')});\n`;
   const code = file.endsWith('.json')
     ? `KChart.define(${JSON.stringify(name)}, () => (${JSON.stringify(JSON.parse(text)).replaceAll('<', '\\u003c')}));`
     : text;
   if (/<\/script(?:[\s/>]|$)/i.test(code)) throw new Error(`模块源码不能直接内嵌在 HTML 中：${name}`);
-  const source = `register(${JSON.stringify(name)}, ${JSON.stringify(deps)}, (KChart) => {\n${code}\n});`;
+  const source = `register(${JSON.stringify(name)}, ${JSON.stringify(deps)}, (KChart) => {\n${localData}${code}\n});`;
   sources.set(name, source);
   return source;
 }

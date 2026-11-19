@@ -8,22 +8,10 @@
   --font-mono: ui-monospace, "JetBrains Mono", "Cascadia Mono", Menlo, Consolas, "Source Code Pro", "Noto Sans Mono CJK SC", "DejaVu Sans Mono", monospace;
 }
 
-/* 主题变量的派生值与默认值；具体主题在 doc-theme 中覆盖 */
+/* 主题色和样式变量由主题配置生成；这里只定义依赖它们的派生值。 */
 [data-theme] {
-  --soft: 13%;
-  --radius: 6px;
-  --radius-sm: 4px;
   /* 图卡、指标卡的圆角：随主题圆角放大，直角主题仍保持直角 */
   --card-radius: calc(var(--radius) * 1.6);
-  --block-bg: var(--surface);
-  --node-bg: var(--surface-2);
-  --code-bg: var(--node-bg);
-  --font-num: var(--font-sans);
-  --num-style: decimal;
-  --num-color: var(--fg-4);
-  --accent-mark: var(--fg-4);
-  --font-display: var(--font-sans);
-  --display-weight: 600;
   --accent-soft: color-mix(in srgb, var(--accent) var(--soft), transparent);
   --accent-line: color-mix(in srgb, var(--accent) 45%, transparent);
   --ok-soft: color-mix(in srgb, var(--ok) var(--soft), transparent);

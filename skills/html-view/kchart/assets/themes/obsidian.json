@@ -1,0 +1,30 @@
+{
+  "id": "obsidian",
+  "extends": "paper",
+  "name": "黑曜",
+  "en": "Obsidian",
+  "desc": "近黑紫调底色与长春花紫强调的暗色主题。",
+  "order": 30,
+  "scheme": "dark",
+  "bg": "#0b0b0e",
+  "surface": "#111114",
+  "surface2": "#19181b",
+  "line": "#202023",
+  "line2": "#303033",
+  "fg1": "#e8e7ec",
+  "fg2": "#cdcdd1",
+  "fg3": "#a6a5aa",
+  "fg4": "#8d8d91",
+  "accent": "#b2b1ff",
+  "new": "#c8aadb",
+  "info": "#8fbde5",
+  "ok": "#89c7ab",
+  "warn": "#d2b281",
+  "danger": "#e29c9b",
+  "ext": "#a6a5aa",
+  "tones": ["#e1e0e8", "#afaff6", "#98979e", "#8080b5", "#636269", "#5d58a6"],
+  "style": {
+    "numberFont": "mono", "numberStyle": "decimal-leading-zero", "blockBackground": "transparent",
+    "nodeBackground": "surface2", "codeBackground": "node", "radius": 8, "smallRadius": 6, "soft": 0.11
+  }
+}

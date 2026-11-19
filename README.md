@@ -8,7 +8,7 @@
 
 技能不只管排版。拿到零散笔记、会议记录或 JSON 时，Agent 先按读者要做的事重排内容；做 Dashboard 时，先定这一屏回答什么问题，再把强调色只留给需要处理的那一项。
 
-[快速开始](#quick-start) · [交付样张](#showcase) · [**45 种数据图与 30 种结构图**](#gallery) · [七套主题](#themes) · [安装说明](#install) · [更新与卸载](#update-uninstall)
+[快速开始](#quick-start) · [交付样张](#showcase) · [**45 种数据图与 30 种结构图**](#gallery) · [内置主题](#themes) · [安装说明](#install) · [更新与卸载](#update-uninstall)
 
 <p align="center"><a href="docs/showcase/previews/zh-CN/dashboard-hero.png"><picture><source media="(max-width: 600px)" srcset="docs/showcase/previews/zh-CN/dashboard-mobile.png"><img src="docs/showcase/previews/zh-CN/dashboard-hero.png" width="840" alt="Claude 暖白主题的虚构咖啡经营看板：四张指标卡、收入走势和渠道对比"></picture></a></p>
 
@@ -525,7 +525,7 @@ HTML View 的图表由自带的 KChart 库绘制：**45 种数据图、38 项受
 
 <a id="themes"></a>
 
-## 同一张图，七套主题
+## 同一张图，不同主题
 
 <!-- themes:begin -->
 <table>
@@ -547,7 +547,7 @@ HTML View 的图表由自带的 KChart 库绘制：**45 种数据图、38 项受
 </table>
 <!-- themes:end -->
 
-文档和报表换主题不用改内容：`htmlview style report.html --theme obsidian`。KChart 的程序接口可以直接传入一套自定义主题对象。要让 CLI 认出一个新的主题名，需要登记一份调色盘、加一个小型主题 CSS，不用改各图型的绘制逻辑。[主题扩展说明 →](docs/architecture.md#themes)
+用 `htmlview style report.html --theme obsidian` 换成内置主题，或用 `htmlview style report.html --theme-file harbor.json` 应用自己的配色。HTML 会内嵌主题，分享时不用附上 JSON。新增内置主题只需在主题目录加一份 JSON，再检查实际样张。[主题格式与维护 →](docs/architecture.md#themes)
 
 <a id="install"></a>
 

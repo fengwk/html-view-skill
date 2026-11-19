@@ -93,7 +93,7 @@ export function createRenderer({ specs, readMap = readMapFile } = {}) {
 
 const metadata = loadModules(['chart/catalog', 'core/theme']);
 export const { catalog } = metadata['chart/catalog'];
-export const { theme, themes } = metadata['core/theme'];
+export const { theme, themes, resolveThemeConfig, validateThemeSnapshot, DEFAULT_THEME, FONT_FAMILY, defaultStyle } = metadata['core/theme'];
 export { modulesFor };
 
 let renderer;

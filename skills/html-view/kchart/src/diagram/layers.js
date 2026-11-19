@@ -189,7 +189,7 @@ KChart.define('diagram/layers', ({ 'diagram/support': u }) => {
 
   function scene(geometry, ctx) {
     const children = [], theme = u.appearance(ctx);
-    const groupColor = (index) => ctx.color(`tone${index}`);
+    const groupColor = (index) => ctx.frameTone(ctx.color(`tone${index}`));
     const text = (x, y, value, font, fill) => ctx.text(x, y, value, { size: font.size, weight: font.weight, fill, anchor: 'middle', 'dominant-baseline': 'central' });
     const capabilityText = (node, y) => {
       const mark = node.tone && node.label.match(/^([+~=])\s/);

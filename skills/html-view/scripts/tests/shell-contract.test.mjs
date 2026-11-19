@@ -4,7 +4,6 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { getTheme, listThemes, themesCss, readingCss } from '../src/shared/themes.mjs';
-import { readAsset } from '../src/shared/assets.mjs';
 import { auditContent } from '../src/shared/static-audit.mjs';
 import { markdownToContent } from '../src/shared/markdown.mjs';
 import { auditViz, collectViz, vizMarkup } from '../src/shared/viz.mjs';
@@ -12,9 +11,7 @@ import { auditShell, parseShell, renderShell } from '../src/shared/shell.mjs';
 
 test('built-in themes retain KChart color palette and print transforms dark themes via core/theme', () => {
   // Verifies page tokens and chart colors share the runtime source rather than a duplicated palette.
-  const ids = ['claude', 'paper', 'obsidian', 'tokyo', 'kanagawa', 'terminal', 'cloudmusic'];
-  assert.deepEqual(listThemes().map(({ id }) => id), ids);
-  for (const id of ids) {
+  for (const { id } of listThemes()) {
     const theme = getTheme(id);
     assert.ok(theme.css.includes(`--viz-1:${theme.tones[0]}`));
     assert.ok(theme.css.includes(`--viz-fg:${theme.fg1}`));
@@ -25,7 +22,6 @@ test('built-in themes retain KChart color palette and print transforms dark them
   const pageCss = readingCss();
   for (const selector of ['.doc-body h2', '.table-wrap', '.stats', '.cm-panel', '.viz-body', '@page { size: A4']) assert.ok(pageCss.includes(selector), `missing migrated reading style: ${selector}`);
   assert.ok(!['@print-palette', '.bars', '.chart-svg', '.svg-1x', '.seq-actors'].some((legacy) => pageCss.includes(legacy)));
-  for (const fileTheme of ids) assert.doesNotMatch(readAsset(`themes/${fileTheme}.css`), /#[0-9a-f]{3,8}/i);
 });
 
 test('shell escapes root properties and title while round-tripping one exact content region', () => {

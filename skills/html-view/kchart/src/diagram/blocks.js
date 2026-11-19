@@ -233,10 +233,10 @@ KChart.define('diagram/blocks', ({ 'diagram/support': u, 'core/icons': icons }) 
   }
 
   function scene(g, ctx) {
-    const d = ctx.design, appearance = u.appearance(ctx), color = (line) => `tone${(line % 6) + 1}`;
+    const d = ctx.design, appearance = u.appearance(ctx), frameColor = (line) => ctx.frameTone(ctx.color(`tone${(line % 6) + 1}`));
     const children = [ctx.el('defs', {}, [marker('blocks-arrow', ctx, false), marker('blocks-arrow-async', ctx, true)])];
     for (const frame of g.frames) {
-      const tone = color(frame.line), fill = ctx.tint(d.bg, ctx.color(tone), .07), stroke = ctx.tint(d.bg, ctx.color(tone), .45);
+      const tone = frameColor(frame.line), fill = ctx.tint(d.bg, tone, .07), stroke = ctx.tint(d.bg, tone, .45);
       const shape = frame.flag === 'db' ? cylinder(frame, ctx, fill, stroke) : ctx.rect(frame.x, frame.y, frame.w, frame.h, { rx: appearance.radius, fill, stroke, 'stroke-width': 1, ...(frame.flag === 'ext' ? { 'stroke-dasharray': '5 4' } : {}) });
       const titleLines = wrapText(frame.title, Math.max(48, frame.w - 24), FONT.title, (v, f) => ctx.measure(v, f.size, f.weight)).slice(0, LIMITS.titleLines);
       const titleY = frame.itemNodes?.length || frame.children?.length ? frame.y + 20 : frame.y + frame.h / 2;
@@ -244,7 +244,7 @@ KChart.define('diagram/blocks', ({ 'diagram/support': u, 'core/icons': icons }) 
       children.push({ ...ctx.el('g', {}, frameChildren), meta: { kind: 'container', name: frame.title, ...(frame.flag ? { flag: frame.flag } : {}) } });
     }
     for (const node of g.nodes) {
-      const tone = node.tone ? d[node.tone] : ctx.color(`tone${((node.parent?.line || 1) % 6) + 1}`);
+      const tone = node.tone ? d[node.tone] : frameColor(node.parent?.line || 1);
       const parts = [ctx.rect(node.x, node.y, node.w, node.h, { rx: appearance.smallRadius, fill: appearance.node, stroke: (node.tone ? ctx.mix : ctx.tint)(d.bg, tone, .40), 'stroke-width': 1 })];
       if (node.icon) { const geo = icons.geometry(node.icon); for (const item of geo?.elements || []) parts.push(ctx.shape(item.tag, { ...item.attrs, transform: `translate(${node.x + 8} ${node.y + 8}) scale(.8)`, fill: 'none', stroke: ctx.color('muted'), 'stroke-width': 1.5 })); }
       const textX = node.x + node.w / 2 + (node.icon ? 12 : 0), textY = node.y + node.h / 2;

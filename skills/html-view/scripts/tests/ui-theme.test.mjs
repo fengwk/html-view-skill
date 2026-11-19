@@ -36,9 +36,24 @@ test('invalid device, language, and design values use the shared BAD_VALUE contr
   }
 });
 
-test('wireframe maintains a neutral component accent and both KChart themes validate', () => {
-  const { themes, css } = generateTokens({ fidelity: 'wireframe' });
-  assert.match(css, /--shadow-1:/);
-  assert.equal(themes.light.scheme, 'light');
-  assert.equal(themes.dark.scheme, 'dark');
+// 线框不借用品牌红或风险红；CSS 与传给 KChart 的配色都执行同一条规则。
+test('wireframe omits red in status and chart colors in both schemes', () => {
+  const { themes, css } = generateTokens({ fidelity: 'wireframe', brand: '#d82420' });
+  const notRed = (hex) => {
+    const [r, g, b] = [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16));
+    return r <= Math.max(g, b);
+  };
+  for (const theme of [themes.light, themes.dark]) {
+    assert.equal(theme.tones.length, 6);
+    for (const value of [theme.accent, theme.danger, ...theme.tones]) assert.ok(notRed(value), value);
+    assert.match(css, new RegExp(`--danger: ${theme.danger};`));
+  }
+  for (const [, hex] of css.matchAll(/--(?:danger-soft|viz-\d): (#[\da-f]{6});/g)) assert.ok(notRed(hex), hex);
+});
+
+// 具名主题可以独立改色；高保真 UI 的默认六序列仍是已发布的取色结果和顺序。
+test('mockup series keep the published UI palette independent of document themes', () => {
+  const { themes } = generateTokens({ fidelity: 'mockup' });
+  assert.deepEqual([...themes.light.tones], ['#2f6fed', '#866700', '#261e1e', '#cc3a2b', '#439b5b', '#948b8a']);
+  assert.deepEqual([...themes.dark.tones], ['#2f6fed', '#6de18b', '#bb5a35', '#d9e1f6', '#007232', '#d4b771']);
 });

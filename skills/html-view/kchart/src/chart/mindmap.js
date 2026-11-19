@@ -267,13 +267,14 @@ KChart.define('chart/mindmap', ({ 'chart/registry': { register }, 'core/theme': 
       }
       edgeList.push({ from: n.parent.id, to: n.id, d, kind: mode, parent: n.parent, child: n });
     }
-    const svgNodes = [], rootText = ctx.textOn('accent');
+    const rootTone = ctx.frameTone(ctx.color('accent'), true), branchTone = ctx.frameTone(ctx.palette.accent);
+    const svgNodes = [], rootText = ctx.textOn(rootTone);
     for (const n of nodes) {
       const p = coords.get(n), rootNode = n === root, card = variant === 'cards';
       const framed = hasFrame(variant, n.depth, n.children);
       if (framed) {
-        const fill = rootNode ? ctx.color('accent') : card ? ctx.tint(ctx.palette.bg, ctx.palette.accent, 0.035) : ctx.tint(ctx.palette.bg, ctx.palette.accent, 0.12);
-        svgNodes.push(ctx.rect(p.x, p.y, n.w, n.h, { rx: rootNode ? 10 : 6, fill, stroke: rootNode ? ctx.color('accent') : card ? ctx.color('axis') : ctx.tint(ctx.palette.bg, ctx.palette.accent, 0.28), 'stroke-width': rootNode || card ? 1 : 0.8, meta: { kind: isMindmap ? 'mindmap' : 'tree', node: n.id, related: descendants(n) } }));
+        const fill = rootNode ? rootTone : ctx.tint(ctx.palette.bg, branchTone, card ? 0.035 : 0.12);
+        svgNodes.push(ctx.rect(p.x, p.y, n.w, n.h, { rx: rootNode ? 10 : 6, fill, stroke: rootNode ? rootTone : card ? ctx.color('axis') : ctx.tint(ctx.palette.bg, branchTone, 0.28), 'stroke-width': rootNode || card ? 1 : 0.8, meta: { kind: isMindmap ? 'mindmap' : 'tree', node: n.id, related: descendants(n) } }));
       }
       // 无框叶子的文字向连线一侧对齐，长短不一的多行文字也紧靠同一个端口。
       const leftLeaf = mode === 'bilateral' && !framed && p.cx < rootPosition.cx;
@@ -291,11 +292,12 @@ KChart.define('chart/mindmap', ({ 'chart/registry': { register }, 'core/theme': 
       for (const line of n.noteLines) { svgNodes.push(ctx.text(tx, y, line, { anchor, size: 12, fill: rootNode ? rootText : ctx.color('muted'), meta: { kind: isMindmap ? 'mindmap' : 'tree', node: n.id, related: descendants(n), role: 'note' } })); y += 15; }
     }
     function descendants(n) { return [n.id, ...n.children.flatMap(descendants)]; }
-    const paths = edgeList.map(e => ctx.path(e.d, { fill: 'none', stroke: ctx.color('tone5'), 'stroke-width': 1.4, 'stroke-linecap': 'round', 'stroke-linejoin': 'round', meta: { kind: isMindmap ? 'mindmap' : 'tree', node: e.child.id, related: descendants(e.child), from: e.from, to: e.to } }));
+    const edgeTone = ctx.frameTone(ctx.color('tone5'));
+    const paths = edgeList.map(e => ctx.path(e.d, { fill: 'none', stroke: edgeTone, 'stroke-width': 1.4, 'stroke-linecap': 'round', 'stroke-linejoin': 'round', meta: { kind: isMindmap ? 'mindmap' : 'tree', node: e.child.id, related: descendants(e.child), from: e.from, to: e.to } }));
     if (mode === 'fishbone' && root.children.length) {
       const r = coords.get(root);
       const spine = `M${r.x + r.w} ${r.cy} L${Math.max(r.x + r.w, fishboneSpineEnd)} ${r.cy}`;
-      paths.push(ctx.path(spine, { fill: 'none', stroke: ctx.color('tone5'), 'stroke-width': 2, meta: { kind: isMindmap ? 'mindmap' : 'tree', node: root.id, related: descendants(root), role: 'spine' } }));
+      paths.push(ctx.path(spine, { fill: 'none', stroke: edgeTone, 'stroke-width': 2, meta: { kind: isMindmap ? 'mindmap' : 'tree', node: root.id, related: descendants(root), role: 'spine' } }));
     }
     const sceneNodes = nodes.map(n => { const p = coords.get(n); return { id:n.id,x:p.x,y:p.y,w:n.w,h:n.h,parent:n.parent?.id||null,depth:n.depth,label:n.label,note:n.note,...(n.status?{status:n.status}:{}) }; });
     // 双侧曲线的控制点都在节点给出的边界内，不需要从 SVG 字符串读回坐标。

@@ -1,16 +1,17 @@
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
-import { browserSource, createRenderer } from '../../../kchart/node.mjs';
+import { browserSource, createRenderer, theme as resolveTheme, DEFAULT_THEME } from '../../../kchart/node.mjs';
 import { ToolError } from './output.mjs';
 import { decodeEntities, lineAt, scanElements } from './html-util.mjs';
 import { contentMarkerRegions, contentMarkers, START, END } from './content-regions.mjs';
 import { readAsset } from './assets.mjs';
-import { getTheme, readingCss } from './themes.mjs';
+import { readingCss } from './themes.mjs';
+import { restoreTheme, THEME_META } from './theme-file.mjs';
 import { auditContent, auditOuterResources } from './static-audit.mjs';
 import { auditViz, collectViz, modulesForContent } from './viz.mjs';
 
 export { START, END } from './content-regions.mjs';
-const kinds = new Set(['doc', 'data', 'ui']);
+const kinds = new Set(['doc', 'data', 'ui', 'viz']);
 const hash = (value) => createHash('sha256').update(JSON.stringify(value)).digest('hex');
 const escape = (value) => String(value).replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]);
 const asText = (value) => String(value ?? '');
@@ -18,7 +19,10 @@ const validAttr = (name) => /^[a-zA-Z_:][\w:.-]*$/.test(name) && !/^on/i.test(na
 const decodedAttrs = (node) => Object.fromEntries(Object.entries(node.attrs).map(([key, value]) => [key, decodeEntities(value)]));
 const metaNodes = (elements, head) => elements.filter((node) => node.name === 'meta' && node.start > head.start && node.start < head.closeStart);
 const normalizedAttrs = (attrs) => Object.fromEntries(Object.entries(attrs).filter(([name]) => !['lang', 'data-theme', 'data-scheme'].includes(name.toLowerCase())).map(([name, value]) => [name, value === true ? '' : asText(value)]));
-const fingerprintInput = ({ kind, lang, theme, attrs, scheme, modules, styles, scripts }) => ({ kind, lang, theme, attrs, scheme, modules, styles, scripts });
+const fingerprintInput = ({ kind, lang, theme, themeSnapshot, attrs, scheme, modules, styles, scripts }) => ({
+  kind, lang, theme, ...(themeSnapshot ? { themeSnapshot } : {}), attrs, scheme, modules, styles, scripts,
+});
+const themeMetaMarkup = (snapshot) => `<meta name="htmlview:${THEME_META}" content="${escape(JSON.stringify(snapshot))}">`;
 
 function metaMarkup(source) {
   const elements = scanElements(source);
@@ -70,9 +74,11 @@ export function renderShell({
   if (!attrs || typeof attrs !== 'object' || Array.isArray(attrs) || !meta || typeof meta !== 'object' || Array.isArray(meta)) throw new TypeError('attrs/meta 必须是对象');
   if (!/^[a-z]{2,8}(?:-[a-z0-9]{1,8})*$/i.test(lang)) throw new TypeError('lang 必须为 BCP 47 标签');
   if (!Array.isArray(styles) || !Array.isArray(scripts)) throw new TypeError('styles/scripts 必须是数组');
-  const selectedTheme = theme ?? (kind === 'ui' ? null : 'claude');
-  const themeInfo = selectedTheme == null ? null : getTheme(selectedTheme);
-  if (selectedTheme != null && !themeInfo) throw new TypeError(`未知主题：${selectedTheme}`);
+  const selected = theme ?? (kind === 'ui' ? null : DEFAULT_THEME);
+  const themeSnapshot = selected && typeof selected === 'object' ? restoreTheme(selected.id, JSON.stringify(selected)) : null;
+  if (kind === 'ui' && themeSnapshot) throw new TypeError('界面稿使用独立配色，不接受自定义主题');
+  const themeInfo = selected === null ? null : (themeSnapshot ?? resolveTheme(selected));
+  const selectedTheme = themeInfo?.id ?? null;
   const suppliedAttrs = {};
   for (const [rawName, value] of Object.entries(attrs)) {
     const name = rawName.toLowerCase();
@@ -85,35 +91,40 @@ export function renderShell({
   if (themeInfo && suppliedAttrs['data-scheme'] && suppliedAttrs['data-scheme'] !== themeInfo.scheme) throw new TypeError('固定 theme 与 attrs.data-scheme 冲突');
   if ([before, content, after].some(fragment => !contentMarkers(fragment).next().done)) throw new TypeError('内容不能包含外壳内容标记');
   const externalMeta = metaMarkup(asText(extraHead));
-  const vizCheck = auditViz(content, { lang, theme: selectedTheme ?? 'claude', contentLine: 1 });
-  throwVizFailures(vizCheck);
-  const declarations = sourceDeclarations(content);
-  const modules = modulesForContent(content);
+  const staticViz = kind === 'viz';
+  if (!staticViz) throwVizFailures(auditViz(content, { lang, theme: themeSnapshot ?? selectedTheme ?? DEFAULT_THEME, contentLine: 1 }));
+  const declarations = staticViz ? [] : sourceDeclarations(content);
+  const modules = staticViz ? [] : modulesForContent(content);
   const scheme = themeInfo?.scheme ?? suppliedAttrs['data-scheme'] ?? null;
   const htmlAttrs = { lang, ...(selectedTheme ? { 'data-theme': selectedTheme } : {}), ...(scheme ? { 'data-scheme': scheme } : {}), ...suppliedAttrs };
   const attrsText = Object.entries(htmlAttrs).filter(([, value]) => value != null && value !== false).map(([name, value]) => ` ${name}="${escape(value === true ? '' : value)}"`).join('');
-  const baseStyles = [readingCss(), readAsset('page/viz.css'), ...styles.map(asText)];
+  const baseStyles = [readingCss(themeSnapshot), readAsset('page/viz.css'), ...styles.map(asText)];
   const mapAssets = {};
   const renderer = declarations.length ? createRenderer({ specs: declarations }) : null;
   for (const declaration of declarations) if (declaration?.chart && renderer) Object.assign(mapAssets, renderer.assets(declaration) ?? {});
+  const options = JSON.stringify({ ...vizOptions, lang, ...(Object.keys(mapAssets).length ? { assets: mapAssets } : {}) }).replaceAll('<', '\\u003c');
+  // The inert metadata is the single custom snapshot; browser and CLI read the same data.
+  const mountOptions = themeSnapshot
+    ? `{...${options},theme:JSON.parse(document.head.querySelector('meta[name="htmlview:${THEME_META}"]').content)}` : options;
   const generatedScripts = declarations.length ? [
     browserSource(declarations), currentRuntime(),
-    `if(globalThis.KChart&&globalThis.KChart.mount)globalThis.KChart.mount(document,${JSON.stringify({ ...vizOptions, lang, ...(Object.keys(mapAssets).length ? { assets: mapAssets } : {}) }).replaceAll('<', '\\u003c')});`,
+    `if(globalThis.KChart&&globalThis.KChart.mount)globalThis.KChart.mount(document,${mountOptions});`,
   ] : [];
   const allScripts = [...generatedScripts, ...scripts.map(asText)];
   for (const css of baseStyles) if (/<\/style/i.test(css)) throw new TypeError('CSS 文本不能关闭 style 元素');
   for (const js of allScripts) if (/<\/script/i.test(js)) throw new TypeError('脚本文本不能关闭 script 元素');
   const fingerprint = hash(fingerprintInput({
-    kind, lang, theme: selectedTheme, attrs: normalizedAttrs(suppliedAttrs), scheme, modules,
+    kind, lang, theme: selectedTheme, themeSnapshot, attrs: normalizedAttrs(suppliedAttrs), scheme, modules,
     styles: baseStyles, scripts: allScripts,
   }));
-  const reserved = new Set(['kind', 'shell', 'modules']);
+  const reserved = new Set(['kind', 'shell', 'modules', THEME_META]);
   const generatedMeta = [
     '<meta name="generator" content="htmlview">',
     '<meta name="viewport" content="width=device-width, initial-scale=1">',
     `<meta name="htmlview:kind" content="${kind}">`,
     `<meta name="htmlview:shell" content="${fingerprint}">`,
     `<meta name="htmlview:modules" content="${escape(JSON.stringify(modules))}">`,
+    ...(themeSnapshot ? [themeMetaMarkup(themeSnapshot)] : []),
     ...Object.entries(meta).filter(([name]) => !reserved.has(String(name).toLowerCase())).map(([name, value]) => `<meta name="${escape(`htmlview:${name}`)}" content="${escape(value)}">`),
   ];
   const html = [
@@ -169,15 +180,18 @@ export function parseShell(html, file = '文件') {
   if (!/^[a-z]{2,8}(?:-[a-z0-9]{1,8})*$/i.test(htmlAttrs.lang ?? '')) throw new TypeError(`${file}：lang 必须为 BCP 47 标签`);
   for (const name of Object.keys(htmlAttrs)) if (!validAttr(name) || name.toLowerCase() === 'style') throw new TypeError(`${file}：html 根属性无效：${name}`);
   const theme = htmlAttrs['data-theme'] ?? null;
-  const themeInfo = theme == null ? null : getTheme(theme);
-  if (theme != null && !themeInfo) throw new TypeError(`${file}：data-theme 未知`);
+  const embedded = named(THEME_META);
+  if (embedded.length > 1 || (kind === 'ui' && embedded.length)) throw new TypeError(`${file}：htmlview:${THEME_META} 重复或不适用于该产物`);
+  const resolved = restoreTheme(theme, embedded.length ? decodeEntities(embedded[0].attrs.content ?? '') : undefined);
+  const themeSnapshot = typeof resolved === 'object' ? resolved : null;
+  const themeInfo = resolved === null ? null : resolveTheme(resolved);
   const scheme = htmlAttrs['data-scheme'] ?? null;
   if (scheme != null && !['light', 'dark'].includes(scheme)) throw new TypeError(`${file}：data-scheme 无效`);
   if (themeInfo && scheme !== themeInfo.scheme) throw new TypeError(`${file}：data-theme 与 data-scheme 冲突`);
   const meta = {};
   for (const values of metas) {
     const name = values.name?.toLowerCase() ?? '';
-    if (!name.startsWith('htmlview:') || ['htmlview:kind', 'htmlview:shell', 'htmlview:modules'].includes(name)) continue;
+    if (!name.startsWith('htmlview:') || ['htmlview:kind', 'htmlview:shell', 'htmlview:modules', `htmlview:${THEME_META}`].includes(name)) continue;
     const key = values.name.slice('htmlview:'.length);
     if (Object.hasOwn(meta, key)) throw new TypeError(`${file}：htmlview:${key} 重复`);
     meta[key] = values.content ?? '';
@@ -194,7 +208,7 @@ export function parseShell(html, file = '文件') {
   const scripts = elements.filter((element) => element.name === 'script' && element.parent === body && (element.start < region.openStart || element.start >= region.closeEnd)).map((element) => source.slice(element.openEnd, element.closeStart));
   return {
     kind, lang: htmlAttrs.lang, title: decodeEntities(source.slice(titleNodes[0].openEnd, titleNodes[0].closeStart)),
-    theme, attrs: Object.fromEntries(Object.entries(htmlAttrs).filter(([key]) => !['lang', 'data-theme', 'data-scheme'].includes(key))),
+    theme, themeSnapshot, attrs: Object.fromEntries(Object.entries(htmlAttrs).filter(([key]) => !['lang', 'data-theme', 'data-scheme'].includes(key))),
     scheme, meta, extraHead: safeExternalMeta, content, contentStart, contentEnd,
     contentLine: lineAt(source, contentStart), shell: fingerprint, modules, styles, scripts,
   };
@@ -206,24 +220,26 @@ export async function auditShell(html, { expected, lang, theme, requireTitle = f
   let shell;
   try { shell = parseShell(html); }
   catch (error) { return { failures: [{ code: 'BAD_SHELL', line: 1, detail: error.message, fix: '恢复 htmlview 统一外壳及唯一内容标记。' }], notes }; }
-  failures.push(...auditOuterResources(html, shell.contentStart, shell.contentEnd));
+  const staticViz = shell.kind === 'viz';
+  // Static figures are generated SVG (with literal paints). Audit all their resources, not document authoring rules.
+  failures.push(...auditOuterResources(html, staticViz ? 0 : shell.contentStart, staticViz ? 0 : shell.contentEnd));
   if (lang && shell.lang !== lang) failures.push({ code: 'LANG_MISMATCH', line: 1, detail: `语言应为 ${lang}` });
   if (theme && shell.theme !== theme) failures.push({ code: 'THEME_MISMATCH', line: 1, detail: `主题应为 ${theme}` });
   if (requireTitle && !shell.title.trim()) failures.push({ code: 'MISSING_TITLE', line: 1, detail: '页面缺少标题' });
-  const required = modulesForContent(shell.content);
+  const required = staticViz ? [] : modulesForContent(shell.content);
   const missing = required.filter((name) => !shell.modules.includes(name));
   if (missing.length) failures.push({ code: 'VIZ_MODULES', line: shell.contentLine, detail: `外壳缺少图形模块：${missing.join(', ')}`, fix: '运行 htmlview style 重新组装外壳。' });
-  const vizResult = auditViz(shell.content, { lang: lang ?? shell.lang, theme: theme ?? shell.theme ?? 'claude', requireTitle: requireTitle && shell.kind === 'doc', contentLine: shell.contentLine });
+  const vizResult = staticViz ? { failures: [], notes: [] } : auditViz(shell.content, { lang: lang ?? shell.lang, theme: shell.themeSnapshot ?? shell.theme ?? DEFAULT_THEME, requireTitle: requireTitle && shell.kind === 'doc', contentLine: shell.contentLine });
   if (!vizResult.failures.length) {
-    const declarations = sourceDeclarations(shell.content);
-    const currentStyles = [readingCss(), readAsset('page/viz.css'), ...shell.styles.slice(2)];
+    const declarations = staticViz ? [] : sourceDeclarations(shell.content);
+    const currentStyles = [readingCss(shell.themeSnapshot), readAsset('page/viz.css'), ...shell.styles.slice(2)];
     const currentScripts = declarations.length ? [browserSource(declarations), currentRuntime(), ...shell.scripts.slice(2)] : shell.scripts;
     const actualCurrent = hash(fingerprintInput({
-      kind: shell.kind, lang: shell.lang, theme: shell.theme, attrs: normalizedAttrs(shell.attrs), scheme: shell.scheme,
+      kind: shell.kind, lang: shell.lang, theme: shell.theme, themeSnapshot: shell.themeSnapshot, attrs: normalizedAttrs(shell.attrs), scheme: shell.scheme,
       modules: required, styles: currentStyles, scripts: currentScripts,
     }));
     const storedMarkup = hash(fingerprintInput({
-      kind: shell.kind, lang: shell.lang, theme: shell.theme, attrs: normalizedAttrs(shell.attrs), scheme: shell.scheme,
+      kind: shell.kind, lang: shell.lang, theme: shell.theme, themeSnapshot: shell.themeSnapshot, attrs: normalizedAttrs(shell.attrs), scheme: shell.scheme,
       modules: shell.modules, styles: shell.styles, scripts: shell.scripts,
     }));
     if (shell.shell !== actualCurrent || shell.shell !== storedMarkup) notes.push({ code: 'SHELL_OUTDATED', line: 1, detail: '外壳资源指纹与当前页面、图形模块或运行时不一致。' });
@@ -233,6 +249,7 @@ export async function auditShell(html, { expected, lang, theme, requireTitle = f
     if (!/^[a-f0-9]{64}$/i.test(String(expectedHash ?? ''))) failures.push({ code: 'BAD_EXPECTED', line: 1, detail: 'expected 必须是 SHA-256 指纹或包含 shell/fingerprint 的对象。' });
     else if (shell.shell !== expectedHash) notes.push({ code: 'SHELL_OUTDATED', line: 1, detail: '外壳指纹与 expected 指纹不一致。' });
   }
+  if (staticViz) return { failures, notes };
   const css = shell.styles.join('\n');
   const staticResult = auditContent(shell.content, { kind: shell.kind, css, lang: shell.lang, contentLine: shell.contentLine, title: shell.title, allowStyle: shell.kind === 'ui', allowScript: shell.kind === 'ui' });
   return { failures: [...failures, ...staticResult.failures, ...vizResult.failures], notes: [...notes, ...staticResult.notes, ...vizResult.notes] };

@@ -57,6 +57,31 @@ test('混合浏览器入口可同时渲染数据图和结构图；只组装数�
   assert.ok(!chart.modulesFor([spec]).some(id => id.startsWith('diagram/')));
 });
 
+// 普通结构框不能跟随图表红；在真实 SVG 上同时检查结构图和有明确图例的数据图。
+test('Cloud Music separates ordinary diagram frame colors from the red chart series', () => {
+  const theme = 'cloudmusic';
+  const cases = [
+    ['layers', 'layers\n- 接入层\n  - 门户: Web, API\n- 服务层\n  - 订单: 下单'],
+    ['blocks', 'blocks\nrow\n  box 门户: 网关\n  box 服务: API\n门户 -> 服务: 请求'],
+    ['swimlane', 'swimlane LR\nlane 接入\n  A[接入]\nlane 服务\n  B[服务]\nA --> B'],
+    ['mermaid', 'sequenceDiagram\n  box 入口\n  participant A\n  end\n  rect 请求阶段\n  A->>+B: 请求\n  B-->>-A: 返回\n  end'],
+    ['mermaid', 'mindmap\n  根\n    分支\n      叶子'],
+  ];
+  for (const [syntax, source] of cases) {
+    const { svg, diagnostics } = diagram(source, { syntax, theme });
+    assert.deepEqual(diagnostics, [], source);
+    const colors = [...svg.matchAll(/(?:fill|stroke)="#([\da-f]{6})"/gi)];
+    assert.ok(colors.length > 0, source);
+    for (const [, hex] of colors) {
+      const [r, g, b] = [0, 2, 4].map(i => parseInt(hex.slice(i, i + 2), 16));
+      assert.ok(Math.max(r, g, b) - Math.min(r, g, b) <= 12, `${source}: unexpected saturated paint #${hex}`);
+    }
+  }
+  const { svg, diagnostics } = chart.render({ chart: 'bar', data: [{ name: '本期', a: 4, b: 7 }], encode: { category: 'name', value: ['a', 'b'] } }, { theme });
+  assert.deepEqual(diagnostics, []);
+  assert.match(svg, /fill="#d82420"/, 'the red data series is unchanged');
+});
+
 // 真入口覆盖跨行标签、行号、别名、拦截规则及窄闭包的诊断边界。
 test('共用入口保留 Markdown 换行并定位未支持的写法', () => {
   const script = '---\ntitle: 方案\nconfig:\n  layout: right\n---\nmindmap\n  root["`**第一行**\n第二行`"]\n    api_v2_auth\n    :::ok';

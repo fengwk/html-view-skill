@@ -4,6 +4,7 @@ import { parseArgs } from '../shared/args.mjs';
 import { emit, fail } from '../shared/output.mjs';
 import { parseShell } from '../shared/shell.mjs';
 import { listThemes } from '../shared/themes.mjs';
+import { themeOptions, THEME_USAGE } from '../shared/theme-file.mjs';
 
 async function read(filename) {
   const file = resolve(filename);
@@ -43,12 +44,12 @@ export async function audit(argv) {
   emit({ file: input.file, kind, pass, failures: failures.map(formatIssue), notes: notes.map(formatIssue) }, pass ? 0 : 1);
 }
 
-const partKinds = Object.freeze({ doc: 'section', data: 'view', ui: 'screen' });
+const partKinds = Object.freeze({ doc: 'section', data: 'view', ui: 'screen', viz: 'figure' });
 export async function diff(argv) {
   const { positionals } = parseArgs(argv, {}, { positionals: [2, 2], usage: 'htmlview diff <old> <new>' });
   const [before, after] = await Promise.all(positionals.map(read));
   const { kind } = parse(after);
-  if (parse(before).kind !== kind) fail('KIND_MISMATCH', '只能比较同类产物。', { next: '选择两个同为 doc、data 或 ui 的产物文件。' });
+  if (parse(before).kind !== kind) fail('KIND_MISMATCH', '只能比较同类产物。', { next: '选择两个同为 doc、data、ui 或 viz 的产物文件。' });
   const { parts } = await import(`../artifacts/${kind}/index.mjs`);
   const toEntries = ({ html, file }) => new Map(parts(html, { file }).map(({ part, content }) => [part, content]));
   const a = toEntries(before), b = toEntries(after);
@@ -62,9 +63,9 @@ export async function diff(argv) {
 
 const designOptions = ['device', 'fidelity', 'brand', 'scheme', 'radius', 'density'];
 export async function style(argv) {
-  const textOptions = Object.fromEntries(['theme', 'lang', ...designOptions].map(key => [key, { type: 'string' }]));
-  const usage = 'htmlview style <file> [--theme <id>] [--lang <lang>] [界面稿设计参数]，或 htmlview style --list';
-  const { values, positionals } = parseArgs(argv, { ...textOptions, list: { type: 'boolean' } }, { positionals: [0, 1], usage });
+  const textOptions = Object.fromEntries(['lang', ...designOptions].map(key => [key, { type: 'string' }]));
+  const usage = `htmlview style <file> ${THEME_USAGE} [--lang <lang>] [界面稿设计参数]，或 htmlview style --list`;
+  const { values, positionals } = parseArgs(argv, { ...textOptions, ...themeOptions, list: { type: 'boolean' } }, { positionals: [0, 1], usage });
   const [file] = positionals;
   if (values.list) {
     if (file || Object.keys(values).length > 1) fail('USAGE', '--list 不接受其他参数。', { next: usage });
@@ -74,7 +75,7 @@ export async function style(argv) {
   if (!file) fail('USAGE', '缺少 HTML 文件路径。', { next: usage });
   const { kind } = parse(await read(file));
   if (kind !== 'ui' && designOptions.some(key => values[key] !== undefined)) fail('USAGE', '设计参数仅适用于界面稿。', { next: usage });
-  if (kind === 'ui' && values.theme !== undefined) fail('USAGE', '界面稿使用 --brand 和 --scheme 控制颜色。', { next: usage });
+  if (kind === 'ui' && Object.keys(themeOptions).some((key) => values[key] !== undefined)) fail('USAGE', '界面稿使用 --brand 和 --scheme 控制颜色。', { next: usage });
   if (kind === 'data' && values.lang !== undefined) fail('USAGE', '报表语言由数据包构建参数决定。', { next: '运行 htmlview data build <report.json> --out <file> --lang <lang>。' });
   const artifact = await import(`../artifacts/${kind}/index.mjs`);
   return artifact.style(argv);

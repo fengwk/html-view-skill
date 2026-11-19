@@ -128,3 +128,33 @@ test('UI shell preserves select/date required-value-change behavior, navigation,
   })()`);
   assert.deepEqual(restored, { shots: 0, screen: false, svg: true });
 });
+
+// 深色线框稿打印时也应保留风险标记，而不是从默认打印色板取回红色。
+test('dark UI wireframes print a neutral chart status mark', async (t) => {
+  const dir = mkdtempSync(join(tmpdir(), 'htmlview-ui-wireframe-'));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const file = join(dir, 'wireframe.html');
+  const spec = { chart: 'mindmap', layout: 'right', data: { label: '交付', children: [{ label: '待处理风险', status: 'danger' }] } };
+  const rendered = renderUi({
+    title: '进度线框稿', device: 'mobile', design: { fidelity: 'wireframe', scheme: 'dark', brand: '#d82420' },
+    content: `<section class="screen" id="scr-status" data-title="进度"><div class="app"><header class="app-bar"><h1>进度</h1></header><div class="app-body stack"><pre data-viz="kchart">${JSON.stringify(spec)}</pre></div></div></section>`,
+  }, renderShell);
+  writeFileSync(file, rendered.html);
+  const browser = await launchBrowser();
+  t.after(() => browser.close());
+  const page = await browser.newPage();
+  t.after(() => page.close());
+  await page.setViewport({ width: 390, height: 844 });
+  await page.goto(pathToFileURL(file).href);
+  const markColor = `selector => [...document.querySelectorAll(selector)].find(node => node.textContent === '×')?.getAttribute('fill')`;
+  await page.evaluate('KChart.ready()');
+  assert.equal(await page.evaluate(`(${markColor})('.viz-body svg text')`), rendered.themes.dark.danger);
+  await page.setMedia('print');
+  const printed = await page.evaluate(`(async () => {
+    document.documentElement.dataset.mode = 'export';
+    await new Promise(requestAnimationFrame);
+    await KChart.relayout({ media: 'print' });
+    return (${markColor})('.ui-shot .viz-body svg text');
+  })()`);
+  assert.equal(printed, rendered.themes.light.danger);
+});

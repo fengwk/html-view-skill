@@ -7,7 +7,7 @@ import { readAsset } from '../../shared/assets.mjs';
 import { markdownToContent } from '../../shared/markdown.mjs';
 import { inferLang } from '../../shared/locale.mjs';
 import { auditShell, parseShell, renderShell } from '../../shared/shell.mjs';
-import { getTheme, listThemes } from '../../shared/themes.mjs';
+import { selectTheme, themeId, themeOptions, THEME_USAGE } from '../../shared/theme-file.mjs';
 
 export const TYPES = Object.freeze({
   'tech-spec': { layout: 'article', markdownOnly: true },
@@ -18,16 +18,11 @@ export const TYPES = Object.freeze({
   explainer: { layout: 'single' },
 });
 const TYPE_NAMES = Object.keys(TYPES).join('、');
-const usage = 'htmlview doc new <file> --type <type> --title <标题> [--theme <id>] [--lang <tag>] [--force]';
-const buildUsage = 'htmlview doc build <source.md> --out <file> [--type <type>] [--theme <id>] [--lang <tag>] [--force]';
+const usage = `htmlview doc new <file> --type <type> --title <标题> ${THEME_USAGE} [--lang <tag>] [--force]`;
+const buildUsage = `htmlview doc build <source.md> --out <file> [--type <type>] ${THEME_USAGE} [--lang <tag>] [--force]`;
 const esc = (value) => String(value).replaceAll('&', '&amp;').replaceAll('"', '&quot;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
 const langIsZh = (lang) => /^zh(?:-|$)/i.test(lang);
 const normalizeAssetPath = (path) => path.split(sep).join('/');
-
-function validateTheme(theme) {
-  if (!getTheme(theme)) fail('UNKNOWN_THEME', `没有主题：${theme}`, { next: `可用主题：${listThemes().map(({ id }) => id).join('、')}` });
-  return theme;
-}
 
 function validateType(type) {
   if (!Object.hasOwn(TYPES, type)) {
@@ -77,9 +72,8 @@ function docFrame(layout, lang) {
   return { before, after: '</main>\n</div>' };
 }
 
-function renderDoc({ type, title, content, theme = 'claude', lang = 'zh-CN', source = null, id = randomUUID(), extraHead = '' }) {
+function renderDoc({ type, title, content, theme, lang = 'zh-CN', source = null, id = randomUUID(), extraHead = '' }) {
   validateType(type);
-  validateTheme(theme);
   const layout = TYPES[type].layout;
   const frame = docFrame(layout, lang);
   return renderShell({
@@ -94,7 +88,7 @@ function renderDoc({ type, title, content, theme = 'claude', lang = 'zh-CN', sou
 
 export async function newDoc(argv) {
   const { values, positionals } = parseArgs(argv, {
-    type: { type: 'string' }, title: { type: 'string' }, theme: { type: 'string' },
+    type: { type: 'string' }, title: { type: 'string' }, ...themeOptions,
     lang: { type: 'string' }, force: { type: 'boolean' },
   }, { positionals: [1, 1], usage });
   const file = resolve(positionals[0]);
@@ -106,7 +100,7 @@ export async function newDoc(argv) {
     fail('FILE_EXISTS', `${file} 已存在`, { next: '换一个路径；确实要重建时才加 --force', state: 'unchanged' });
   }
   const lang = values.lang ?? inferLang(values.title);
-  const theme = validateTheme(values.theme ?? 'claude');
+  const theme = selectTheme(values, undefined, file);
   const skeleton = `${langIsZh(lang) ? '' : 'en/'}${type}.html`;
   const content = `\n${readAsset(`skeletons/${skeleton}`).replaceAll('{{title}}', esc(values.title)).replace(/\n+$/, '')}\n`;
   const html = renderDoc({ type, title: values.title, content, theme, lang });
@@ -114,12 +108,12 @@ export async function newDoc(argv) {
   if (documentModel.meta['doc:type'] !== type) fail('BAD_SHELL', '新文档类型元数据与所选类型不一致。', { next: '重试；不要手工改写 shell 元数据。' });
   mkdirSync(dirname(file), { recursive: true });
   writeFileSync(file, html);
-  emit({ file, kind: 'doc', type, theme: values.theme ?? 'claude', layout: TYPES[type].layout, next: `htmlview audit ${file}` });
+  emit({ file, kind: 'doc', type, theme: themeId(theme), layout: TYPES[type].layout, next: `htmlview audit ${file}` });
 }
 
 export async function buildDoc(argv) {
   const { values, positionals } = parseArgs(argv, {
-    out: { type: 'string' }, type: { type: 'string' }, theme: { type: 'string' },
+    out: { type: 'string' }, type: { type: 'string' }, ...themeOptions,
     lang: { type: 'string' }, force: { type: 'boolean' },
   }, { positionals: [1, 1], usage: buildUsage });
   if (!values.out) fail('USAGE', '缺少 --out', { next: buildUsage });
@@ -130,7 +124,6 @@ export async function buildDoc(argv) {
 
   let previous = null;
   let type = values.type ?? 'doc';
-  let theme = values.theme ?? 'claude';
   const markdown = readFileSync(source, 'utf8');
   let lang = values.lang ?? inferLang(markdown);
   if (existsSync(file) && !values.force) {
@@ -141,11 +134,10 @@ export async function buildDoc(argv) {
       });
     }
     type = values.type ?? previous.meta['doc:type'];
-    theme = values.theme ?? previous.theme;
     lang = values.lang ?? previous.lang;
   }
   validateType(type);
-  validateTheme(theme);
+  const theme = selectTheme(values, previous?.themeSnapshot ?? previous?.theme ?? undefined, file);
   const imported = markdownToContent(markdown, {
     lang, baseDir: dirname(source), renderViz: undefined,
   });
@@ -161,7 +153,7 @@ export async function buildDoc(argv) {
     mkdirSync(dirname(file), { recursive: true });
     writeFileSync(file, html);
   }
-  emit({ file, kind: 'doc', type, theme, changed, source: sourceMetadata(source, file), changedParts, next: `htmlview audit ${file}` });
+  emit({ file, kind: 'doc', type, theme: themeId(theme), changed, source: sourceMetadata(source, file), changedParts, next: `htmlview audit ${file}` });
 }
 
 function headingParts(content) {
@@ -237,15 +229,15 @@ export function parts(html, { file = '文件' } = {}) {
 
 export async function style(argv) {
   const { values, positionals } = parseArgs(argv, {
-    theme: { type: 'string' }, lang: { type: 'string' },
-  }, { positionals: [1, 1], usage: 'htmlview style <file> [--theme <theme>] [--lang <lang>]' });
+    ...themeOptions, lang: { type: 'string' },
+  }, { positionals: [1, 1], usage: `htmlview style <file> ${THEME_USAGE} [--lang <lang>]` });
   const file = resolve(positionals[0]);
   if (!existsSync(file)) fail('FILE_NOT_FOUND', `文件不存在：${file}`, { next: '检查文件路径后重试' });
   const html = readFileSync(file, 'utf8');
   const doc = parseDocShell(html, file);
   if (values.lang && !/^[A-Za-z]{2,8}(?:-[A-Za-z0-9]{1,8})*$/.test(values.lang)) fail('USAGE', `语言标签不合法：${values.lang}`, { next: '使用 BCP 47 标签，例如 zh-CN、en、ja、pt-BR' });
   const type = validateType(doc.meta['doc:type']);
-  const theme = validateTheme(values.theme ?? doc.theme ?? 'claude');
+  const theme = selectTheme(values, doc.themeSnapshot ?? doc.theme ?? undefined, file);
   const lang = values.lang ?? doc.lang;
   const frame = docFrame(TYPES[type].layout, lang);
   const updated = renderShell({
@@ -256,7 +248,7 @@ export async function style(argv) {
   });
   parseDocShell(updated, file);
   writeFileSync(file, updated);
-  emit({ file, kind: 'doc', type, changed: updated !== html, next: `htmlview audit ${file}` });
+  emit({ file, kind: 'doc', type, theme: themeId(theme), changed: updated !== html, next: `htmlview audit ${file}` });
 }
 
 export const commands = Object.freeze({ new: newDoc, build: buildDoc });

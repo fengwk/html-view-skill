@@ -1,6 +1,6 @@
 import { loadModules } from '../../../../kchart/modules.mjs';
 import { readAsset } from '../../shared/assets.mjs';
-import { generateTokens, normalizeDesign, normalizeDevice, normalizeLang } from './theme.mjs';
+import { darkMockupPrint, generateTokens, normalizeDesign, normalizeDevice, normalizeLang } from './theme.mjs';
 
 const iconModule = loadModules(['core/icons'])['core/icons'];
 const escapeHtml = (value) => String(value).replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
@@ -65,7 +65,9 @@ export function renderUi({ title = '', lang = 'zh-CN', device = 'mobile', design
     styles: [readAsset('page/ui.css'), css],
     ...frame,
     scripts: [config],
-    vizOptions: { themes, dataTable: false },
+    // 线框稿打印沿用浅色线框配色，不让暗色打印的默认 Paper 色板带回红色。
+    vizOptions: { themes, dataTable: false, ...(normalizedDesign.fidelity === 'wireframe'
+      ? { printScheme: 'light' } : { printThemes: { dark: darkMockupPrint } }) },
   });
   return { html, design: normalizedDesign, device: normalizedDevice, lang: normalizedLang, themes, adjusted };
 }

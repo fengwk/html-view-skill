@@ -55,10 +55,12 @@ Markdown 用 `kchart`、`mermaid`、`layers`、`blocks`、`swimlane` 围栏；�
 | 界面稿骨架 | `htmlview ui new prototype.html --title '申请处理' --device mobile --screens '列表,详情'` |
 | 静审、比较内容 | `htmlview audit file.html`；`htmlview diff old.html new.html` |
 | 为文档或界面稿重新装入图模块 | `htmlview style file.html`（保留现有主题与内容） |
-| 换主题或界面配色 | 文档／报表：`htmlview style file.html --theme paper`（`htmlview style --list` 列出主题）；界面稿：`htmlview style file.html --scheme dark` |
+| 换主题或界面配色 | 文档／报表／单图 HTML：`htmlview style file.html --theme paper`（`htmlview style --list` 列出主题）；界面稿：`htmlview style file.html --scheme dark` |
 | 显示检查、截图、导出 | `htmlview check file.html`；`htmlview shot file.html --select 'figure'`；`htmlview export file.html --format pdf`；整页长图 `htmlview export file.html --format png` |
 | 读取正文、内嵌本地资源 | `htmlview read file.html [--outline 或 --section id]`；`htmlview embed file.html` |
 | 独立图、字段约束、主题色 | `htmlview viz render spec.json --out chart.svg`；`htmlview viz schema bar`；`htmlview viz palette --theme paper` |
+
+用户自带配色时用 `--theme-file <JSON>`，字段和示例见[主题文件](references/guides/themes.md)。主题随 HTML 内嵌；界面稿使用独立品牌配色。
 
 `htmlview <子命令> --help` 给出精确参数。检查类命令的 `pass:false` 是已完成检查但发现问题；按 `failures[].fix` 修。`ok:false` 是命令没能完成，按 `error.next` 处理。
 

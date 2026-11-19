@@ -17,6 +17,9 @@ KChart.define('core/context', ({ 'core/scene': scene, 'core/theme': themeApi, 'c
       if (typeof value !== 'string') throw new TypeError(`Unknown color role: ${role}`);
       return value;
     };
+    // 普通框可单独取色；未登记结构框色的主题保留原样，根节点必要时用墨色建立层次。
+    const frameTone = (value, prominent = false) => resolved.frameInk
+      ? (prominent ? resolved.fg1 : resolved.frameInk) : value;
     const wrap = (value, maxWidth, size = 12, weight = 400, options) => textApi.wrapText(
       String(value ?? ''), maxWidth, { size, weight }, (text, font) => measure(text, font.size, font.weight, fontFamily), options,
     );
@@ -92,7 +95,7 @@ KChart.define('core/context', ({ 'core/scene': scene, 'core/theme': themeApi, 'c
       line: (x1, y1, x2, y2, opts = {}) => scene.primitive('line', { x1, y1, x2, y2, ...opts }, opts.meta),
       circle: (x, y, r, opts = {}) => scene.primitive('circle', { cx: x, cy: y, r, ...opts }, opts.meta),
       path: (d, opts = {}) => scene.primitive('path', { d, ...opts }, opts.meta),
-      color, palette, colors: palette, mix: colorApi.mix, tint: (paper, value, ratio) => colorApi.tint(paper, value, ratio, resolved.tint), extent: scale.extent, linear: scale.linear, hash: scene.hash,
+      color, palette, colors: palette, frameTone, mix: colorApi.mix, tint: (paper, value, ratio) => colorApi.tint(paper, value, ratio, resolved.tint), extent: scale.extent, linear: scale.linear, hash: scene.hash,
       columnHeaders: geometry.columnHeaders, labelLanes: geometry.labelLanes, apportion: geometry.apportion, barPath: geometry.barPath,
       wrap, textLines, flow, legend: (items, maxWidth) => legend(items, maxWidth, ctx), scene: (height, children, title) => ({ width, height, children, ...(title ? { title } : {}) }),
       fit: diagnostics.fit,

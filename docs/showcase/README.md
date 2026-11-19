@@ -44,6 +44,6 @@ node skills/html-view/scripts/lab/showcase/generate.mjs
 node skills/html-view/scripts/lab/showcase/generate.mjs --out ./kchart-showcase
 ```
 
-打开输出目录中的 `index.html`。默认显示 Claude，可以按主题和图型筛选、搜索关键词并查看声明。完整展册共 903 张离线 SVG，含 45 种基础图、38 项受控变体、27 种 Mermaid 子集图型、3 种原生结构图和 8 种脑图布局。图太宽时在图框内滚动，也可以直接打开原尺寸 SVG。生成器拒绝写入未知的非空目录和符号链接，不会覆盖仓库中的预览图。
+打开输出目录中的 `index.html`。默认显示 Claude，可以按主题和图型筛选、搜索关键词并查看声明。每套内置主题均可预览，展册含 45 种基础图、38 项受控变体、27 种 Mermaid 子集图型、3 种原生结构图和 8 种脑图布局。图太宽时在图框内滚动，也可以直接打开原尺寸 SVG。生成器拒绝写入未知的非空目录和符号链接，不会覆盖仓库中的预览图。
 
 [返回 README 图谱](../../README.md#gallery) · [主题对照](../../README.md#themes)

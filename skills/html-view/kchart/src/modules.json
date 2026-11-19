@@ -4,7 +4,7 @@
   "core/text": { "file": "src/core/text.js", "deps": [] },
   "core/geometry": { "file": "src/core/geometry.js", "deps": [] },
   "core/color": { "file": "src/core/color.js", "deps": [] },
-  "core/theme": { "file": "src/core/theme.js", "deps": ["core/color"] },
+  "core/theme": { "file": "src/core/theme.js", "data": "assets/themes", "deps": ["core/color"] },
   "core/icon-data": { "file": "assets/icons.json", "deps": [] },
   "core/icons": { "file": "src/core/icons.js", "deps": ["core/icon-data"] },
   "core/scene": { "file": "src/core/scene.js", "deps": [] },

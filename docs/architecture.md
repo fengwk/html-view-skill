@@ -7,15 +7,15 @@
 | 边界 | 实现 |
 |---|---|
 | 命令与输出 | `scripts/htmlview` 按 `doc`、`data`、`ui`、`viz` 及通用命令分发；结构化失败携带下一步建议 |
-| 产物 | `scripts/src/artifacts/{doc,data,ui}` 各负责自己的骨架、特有审计和 diff 单元；不互相引用 |
+| 产物 | `scripts/src/artifacts/{doc,data,ui,viz}` 各负责自己的骨架、特有审计和 diff 单元；不互相引用 |
 | 共享外壳 | `scripts/src/shared/` 统一 HTML 内容标记、主题变量、图形校验及模块选择；`scripts/src/tools/` 依赖共用浏览器、文档解析和打印参数 |
 | 渲染内核 | `kchart/src/core` 管主题、测字、几何、场景和 SVG；`chart` 与 `diagram` 分别管理数据图和结构图 |
 
 ## 内容和外壳
 
-`htmlview:kind` 标记产物，`htmlview:shell` 记录资源指纹。唯一内容区是 `<!-- htmlview:content -->` 和 `<!-- /htmlview:content -->` 之间的 HTML。`style` 只重组外壳，Markdown 构建绑定源路径，数据报表绑定内容区哈希和随页证据。哈希用于发现改动，不是数字签名。报表只消费上游已经汇总的 CSV/JSON；比较遵循报告期间，未知不当作零，不访问数据库。
+`htmlview:kind` 标记产物，`htmlview:shell` 记录资源指纹。唯一内容区是 `<!-- htmlview:content -->` 和 `<!-- /htmlview:content -->` 之间的 HTML。文档和报表的 `style` 只重组外壳。Markdown 构建绑定源路径，数据报表绑定内容区哈希和随页证据。哈希用于发现改动，不是数字签名。报表只消费上游已经汇总的 CSV/JSON；比较遵循报告期间，未知不当作零，不访问数据库。
 
-图形内容保存为 `pre[data-viz]`，类型为 `kchart`、`mermaid`、`layers`、`blocks` 或 `swimlane`。保存的是转义后的声明，不是静态 SVG。没有图时不嵌入图形代码；有图时地图随文档内联，模块按照声明计算依赖闭包。`viz render` 则输出独立 SVG 或带源码说明的静态浏览页，不是外壳产物。
+图形内容保存为 `pre[data-viz]`，类型为 `kchart`、`mermaid`、`layers`、`blocks` 或 `swimlane`。保存的是转义后的声明，不是静态 SVG。没有图时不嵌入图形代码；有图时地图随文档内联，模块按照声明计算依赖闭包。`viz render` 则输出独立 SVG，或带内嵌声明的静态图页。图页打开时不运行脚本；`style` 用声明重新渲染。
 
 ## 布局与检查
 
@@ -32,11 +32,14 @@
 | 改一份文档或报表的显示主题 | `htmlview style report.html --theme obsidian`。用 `htmlview style --list` 查看内置主题。原数据和内容不变。 |
 | 调整界面稿的品牌色或明暗 | `htmlview style prototype.html --brand '#a84624' --scheme light`。界面稿从品牌色派生主题，不用 `--theme`。 |
 | 在 KChart 程序接口中用自己的配色 | 传 `theme` 对象给 `render()` 或 `diagram()`。可展开一套内置主题，再覆盖必要的字段；不必改库源码或注册 CLI 主题。 |
-| 给 `htmlview` 添加一个新的具名主题 | 在 [KChart 的主题表](../skills/html-view/kchart/src/core/theme.js) 登记完整调色盘，再在 [`assets/themes/`](../skills/html-view/assets/themes/) 放同名 CSS，定义圆角、编号、标题字形等非颜色变量；结构图的圆角与淡底在 [`diagram/support.js`](../skills/html-view/kchart/src/diagram/support.js) 的 `presets` 登记，不登记则用默认值。在 [`theme.test.mjs`](../skills/html-view/kchart/tests/theme.test.mjs) 登记六个序列色。对比度测试、图库与 README 主题对照都从主题表读取，自动包含新主题。不需要改各图型的布局代码。 |
+| 应用自定义主题 | `htmlview style report.html --theme-file harbor.json`。可继承内置主题，只写要改的角色。HTML 保存解析后的主题，分享时不需要原 JSON。见[完整字段和示例](../skills/html-view/references/guides/themes.md)。 |
+| 添加内置主题 | 把审核通过的 `<id>.json` 放入 [`kchart/assets/themes/`](../skills/html-view/kchart/assets/themes/)。CLI、KChart、通用测试和图库生成器自动发现，不需要再登记 CSS 或图型。发布时用生成器刷新 README 对照图。 |
 
-颜色以 KChart 主题表为准，HTML 外壳的颜色变量从这里生成。已有主题只换颜色时，不需要改 CSS 文件或图型；改第 2 条数据序列用 `tones[1]`，改外壳强调色用 `accent`，两者是不同角色。不要只给一组任意 HEX：调色盘要覆盖背景、文字、描边、状态和六个序列色，并通过对比度与色觉区分校验。新增主题后需验证窄屏、真实图表和打印；深色主题打印仍采用 Paper 色板。
+主题 JSON 是配色和样式的唯一配置来源；HTML 外壳从它生成 CSS 变量，KChart 直接使用解析出的角色。已有主题只换颜色时，不需要改 CSS 文件或图型；改第 2 条数据序列用 `tones[1]`，改外壳强调色用 `accent`，两者是不同角色。不要只给一组任意 HEX：调色盘要覆盖背景、文字、描边、状态和六个序列色，并通过对比度与色觉区分校验。新增主题后需验证窄屏、真实图表和打印；深色主题打印仍采用 Paper 色板。
 
-结构图分组、泳道和脑图分支的浅底由序列色变浅而来。橙、陶土一类暖色直接变浅会发粉：可在主题里加可选的 `tint: { hue, chroma }`，让浅底在 OKLCH 中从 `hue` 过渡到原色，并把彩度乘以 `chroma`（1–2）。Claude 用 `{ hue: 95, chroma: 1.4 }`，95° 是它的象牙纸色相。中性色和新增、风险等状态色不受影响；未声明的主题照旧按 sRGB 混色。
+普通结构框可以独立取色。主题有可选的 `frameInk` 时，由它派生分层框、泳道、时序分组和脑图分支的淡底、描边；脑图的根节点改用正文墨色。云音的 `frameInk` 是中性灰，避免把普通框误读成风险；数据序列、编号、链接和显式状态色不变。未设置时仍使用原有配色。橙、陶土变浅时容易发粉，主题可用 `tint: { hue, chroma }` 调整装饰色的 OKLCH 混色；Claude 用 `{ hue: 95, chroma: 1.4 }`，95° 是它的象牙纸色相。
+
+界面稿的明暗底色和自动系列色来自 [UI 自己的配色](../skills/html-view/scripts/src/artifacts/ui/theme.mjs)，不读取内置主题的系列候选。
 
 ## 使用与维护入口
 

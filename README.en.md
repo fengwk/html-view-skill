@@ -8,7 +8,7 @@ Give your agent Markdown, pre-aggregated CSV/JSON or a product flow, and it hand
 
 The skill covers more than layout. Given loose notes, meeting minutes or JSON, the agent first reorders the content around what the reader has to do. For a dashboard, it settles the one question the screen answers, then saves the accent color for the item that needs attention.
 
-[Quick start](#quick-start) · [What you get](#showcase) · [**45 data charts and 30 diagrams**](#gallery) · [Seven themes](#themes) · [Install details](#install) · [Update and uninstall](#update-uninstall)
+[Quick start](#quick-start) · [What you get](#showcase) · [**45 data charts and 30 diagrams**](#gallery) · [Built-in themes](#themes) · [Install details](#install) · [Update and uninstall](#update-uninstall)
 
 <p align="center"><a href="docs/showcase/previews/en/dashboard-hero.png"><picture><source media="(max-width: 600px)" srcset="docs/showcase/previews/en/dashboard-mobile.png"><img src="docs/showcase/previews/en/dashboard-hero.png" width="840" alt="Fictional coffee operations dashboard in the warm Claude theme: four KPI cards, a revenue trend and a channel comparison"></picture></a></p>
 
@@ -537,7 +537,7 @@ Charts in HTML View are drawn by its bundled KChart library: **45 data charts, 3
 
 <a id="themes"></a>
 
-## One chart, seven themes
+## One chart, different themes
 
 <!-- themes:begin -->
 <table>
@@ -559,7 +559,7 @@ Charts in HTML View are drawn by its bundled KChart library: **45 data charts, 3
 </table>
 <!-- themes:end -->
 
-Switching the theme of a document or report leaves its content alone: `htmlview style report.html --theme obsidian`. The KChart API also accepts a custom theme object directly. To give the CLI a new theme name, register a palette and add a small theme CSS file; no chart code changes. [How themes work →](docs/architecture.en.md#themes)
+Use `htmlview style report.html --theme obsidian` to switch to a built-in theme, or `htmlview style report.html --theme-file harbor.json` to apply your own. The theme is embedded in the HTML, so there is no JSON file to share alongside it. To add a built-in theme, drop one JSON file into the theme directory and review the rendered samples. [Theme format and maintenance →](docs/architecture.en.md#themes)
 
 <a id="install"></a>
 

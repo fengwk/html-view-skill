@@ -1,0 +1,31 @@
+{
+  "id": "kanagawa",
+  "extends": "claude",
+  "name": "神奈川",
+  "en": "Kanagawa",
+  "desc": "复古暖调与米白文字的暗色主题。",
+  "order": 50,
+  "scheme": "dark",
+  "bg": "#1b1816",
+  "surface": "#221f1d",
+  "surface2": "#2b2825",
+  "line": "#312e2b",
+  "line2": "#46423f",
+  "fg1": "#f0e5cf",
+  "fg2": "#d9ceb8",
+  "fg3": "#b4aa94",
+  "fg4": "#9c937e",
+  "accent": "#8ba9be",
+  "new": "#cb9fc6",
+  "info": "#74bfba",
+  "ok": "#a9b781",
+  "warn": "#e1a583",
+  "danger": "#d5878a",
+  "ext": "#b4aa94",
+  "tones": ["#e8e1d1", "#d4b771", "#9e9889", "#99844f", "#716b5e", "#866700"],
+  "tint": null,
+  "style": {
+    "numberColor": "tone2", "listMarker": "fg4", "nodeBackground": "surface2", "codeBackground": "node",
+    "radius": 2, "smallRadius": 2, "soft": 0.12
+  }
+}

@@ -6,7 +6,7 @@
 
 `ui new` 支持 `--device mobile|desktop|responsive`、`--fidelity wireframe|mockup`、`--brand #hex`、`--scheme light|dark`、`--radius 0–16`、`--density compact|regular` 和 `--lang`。屏幕切换、状态切换、设备宽度、明暗和标注均由工具栏控制；responsive 预览可切换手机、平板与桌面宽度。用户内容里的屏幕、状态、交互和表单不因工具栏操作而改写。
 
-界面主题从设计参数生成。浅色与深色主题对象分别经 KChart `core/color` 与 `core/theme` 校验，工具栏切换时图表使用对应主题重新布局；因对比度校验而调整的颜色记录在命令输出 `tokens.adjusted`。线框稿组件使用灰阶样式。界面稿的图默认不附带可读数据表。
+界面主题从设计参数生成。浅色与深色主题对象分别经 KChart `core/color` 与 `core/theme` 校验，工具栏切换时图表使用对应主题重新布局；因对比度校验而调整的颜色记录在命令输出 `tokens.adjusted`。线框稿不使用红色。错误和风险用文字或图标说明，多系列图表用低彩度冷色区分。界面稿的图默认不附带可读数据表。
 
 ## 屏幕与状态
 

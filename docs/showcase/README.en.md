@@ -44,6 +44,6 @@ node skills/html-view/scripts/lab/showcase/generate.mjs
 node skills/html-view/scripts/lab/showcase/generate.mjs --out ./kchart-showcase
 ```
 
-Open `index.html` in the output directory. It starts in Claude; you can filter by theme and by chart type, search, and view each declaration. The full set has 903 offline SVGs covering 45 base charts, 38 controlled variants, 27 Mermaid subset diagrams, 3 native diagrams and 8 mind-map layouts. Charts that are too wide scroll inside their frame, and each one can be opened as a full-size SVG. The generator refuses unknown non-empty directories and symbolic links, and never overwrites the repository previews.
+Open `index.html` in the output directory. It starts in Claude; you can filter by theme and by chart type, search, and view each declaration. Each built-in theme is available for preview. The gallery covers 45 base charts, 38 controlled variants, 27 Mermaid subset diagrams, 3 native diagrams and 8 mind-map layouts. Charts that are too wide scroll inside their frame, and each one can be opened as a full-size SVG. The generator refuses unknown non-empty directories and symbolic links, and never overwrites the repository previews.
 
 [Back to the README gallery](../../README.en.md#gallery) · [Theme comparison](../../README.en.md#themes)

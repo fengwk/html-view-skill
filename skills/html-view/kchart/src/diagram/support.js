@@ -1,4 +1,4 @@
-KChart.define('diagram/support', ({ 'core/text': text, 'core/theme': { statusMarks } }) => {
+KChart.define('diagram/support', ({ 'core/text': text, 'core/theme': { defaultStyle, statusMarks } }) => {
   const FONT = Object.freeze({ title: { size: 14, weight: 600 }, body: { size: 13, weight: 400 }, label: { size: 12, weight: 400 } });
   const DIRECTIONS = ['TB', 'BT', 'LR', 'RL'];
   const isEn = lang => /^en\b/i.test(lang || '');
@@ -50,16 +50,10 @@ KChart.define('diagram/support', ({ 'core/text': text, 'core/theme': { statusMar
     return { items, errors };
   }
 
-  // 保留旧结构图各主题的圆角与轻表面，不再从宿主样式表取色。
-  const presets = {
-    claude: [10, 6, .10, true], paper: [6, 4, .09, true], obsidian: [8, 6, .11],
-    tokyo: [4, 3, .13], kanagawa: [2, 2, .12], terminal: [0, 0, .12],
-    cloudmusic: [12, 8, .08, true],
-  };
   function appearance(ctx) {
     const t = ctx.design;
-    const [radius, smallRadius, soft, pageNodes] = presets[t.id] || [6, 4, .13];
-    return { ...t, radius, smallRadius, soft, node: pageNodes ? t.bg : t.surface2 };
+    const { radius, smallRadius, soft, nodeBackground } = { ...defaultStyle, ...t.style, ...t.diagram };
+    return { ...t, radius, smallRadius, soft, node: t[nodeBackground] };
   }
 
   // 每行是独立的可测量文字图元；坐标 y 表示整块的垂直中心。

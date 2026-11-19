@@ -3,7 +3,36 @@ import { fail } from '../../shared/output.mjs';
 
 const modules = loadModules(['core/color', 'core/theme']);
 const color = modules['core/color'];
-const { theme: validateTheme, themes: builtins } = modules['core/theme'];
+const { theme: validateTheme, FONT_FAMILY } = modules['core/theme'];
+
+// UI has its own surfaces and text roles: a built-in reading theme can be edited without changing a prototype.
+const UI_BASE = {
+  light: {
+    bg: '#ffffff', surface: '#f9fafc', surface2: '#f3f4f6', line: '#e5e6e8', line2: '#d2d3d5',
+    fg1: '#18191d', fg2: '#35373b', fg3: '#54575b', fg4: '#686a6f',
+    new: '#72579d', info: '#00738e', ok: '#307944', warn: '#905908', danger: '#a83634', ext: '#54575b',
+  },
+  dark: {
+    bg: '#111114', surface: '#111114', surface2: '#19181b', line: '#202023', line2: '#303033',
+    fg1: '#e8e7ec', fg2: '#cdcdd1', fg3: '#a6a5aa', fg4: '#8d8d91',
+    new: '#c8aadb', info: '#8fbde5', ok: '#89c7ab', warn: '#d2b281', danger: '#e29c9b', ext: '#a6a5aa',
+  },
+};
+
+const UI_SERIES_FALLBACKS = {
+  light: ['#23272c', '#2769c6', '#575b62', '#0e3163', '#7c8088', '#6e92c6'],
+  dark: ['#e1e0e8', '#afaff6', '#98979e', '#8080b5', '#636269', '#5d58a6'],
+};
+// 固定已发布的 UI 自动配色及同分时的候选顺序。具名文档主题的色值改动不会影响这里。
+const UI_SERIES_CANDIDATES = [
+  '#2a2621', '#bb5a35', '#5f5a55', '#54220e', '#847f7a', '#b67f6b',
+  ...UI_SERIES_FALLBACKS.light,
+  ...UI_SERIES_FALLBACKS.dark,
+  '#d9e1f6', '#81aaf7', '#9198ab', '#6686c0', '#61687a', '#3966bc',
+  '#e8e1d1', '#d4b771', '#9e9889', '#99844f', '#716b5e', '#866700',
+  '#d8e5da', '#6de18b', '#909c92', '#439b5b', '#5c675d', '#007232',
+  '#261e1e', '#cc3a2b', '#6a6160', '#6d2325', '#948b8a', '#b37a6c',
+];
 
 export const DEFAULTS = Object.freeze({
   fidelity: 'mockup', brand: '#2f6fed', scheme: 'light', radius: 8, density: 'regular',
@@ -52,10 +81,13 @@ export function normalizeDesign(input = {}) {
 }
 
 function toneCandidates(scheme, fidelity) {
-  const source = Object.values(builtins).flatMap((entry) => entry.tones);
-  if (fidelity !== 'wireframe') return source;
+  if (fidelity !== 'wireframe') return UI_SERIES_CANDIDATES;
   const neutral = scheme === 'light' ? '#666666' : '#aaaaaa';
-  return source.map((hex) => color.mix(hex, neutral, 0.7));
+  // 线框稿保留多系列区分，但不让自动配色挑到容易被误读成告警的红棕色。
+  return UI_SERIES_CANDIDATES.filter((hex) => {
+    const [r, g, b] = [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16));
+    return r <= Math.max(g, b);
+  }).map((hex) => color.mix(hex, neutral, 0.55));
 }
 function candidateScore(candidate, selected) {
   return Math.min(...selected.map((chosen) => color.deltaE2000(candidate, chosen)));
@@ -82,20 +114,19 @@ function seriesFor(accent, surface, scheme, fidelity) {
 }
 
 function makeTheme(scheme, design, adjusted) {
-  const base = builtins[scheme === 'light' ? 'paper' : 'obsidian'];
-  const background = scheme === 'light' ? '#ffffff' : base.surface;
-  const surface = base.surface;
+  const base = UI_BASE[scheme];
+  const { surface } = base;
   const rawBrand = design.fidelity === 'wireframe' ? '#4b5563' : design.brand;
   const accent = color.pushContrast(rawBrand, scheme === 'light' ? '#111111' : '#ffffff', surface, 3);
   if (accent !== rawBrand) adjusted.push({ token: 'accent', scheme, from: rawBrand, to: accent, reason: '主色对 surface 的非文字对比度低于 3:1，按 core/color 调整' });
-  let tones = seriesFor(accent, surface, scheme, design.fidelity);
-  if (!tones) tones = [...base.tones];
+  const tones = seriesFor(accent, surface, scheme, design.fidelity) ?? UI_SERIES_FALLBACKS[scheme];
   const item = {
     ...base,
     id: `ui-${scheme}`,
     scheme,
-    bg: background,
+    fontFamily: FONT_FAMILY,
     accent,
+    danger: design.fidelity === 'wireframe' ? base.fg2 : base.danger,
     tones,
   };
   // core/theme performs the authoritative contrast, ΔE2000 and color-vision checks.
@@ -107,6 +138,10 @@ const CSS_ROLES = Object.freeze({
   'fg-1': 'fg1', 'fg-2': 'fg2', 'fg-3': 'fg3', 'fg-4': 'fg4', accent: 'accent',
   ok: 'ok', warn: 'warn', danger: 'danger', info: 'info',
 });
+// Keep the published dark-mockup print colors even if the named Paper theme is edited.
+export const darkMockupPrint = validateTheme({ ...UI_BASE.light, id: 'ui-dark', scheme: 'light', fontFamily: FONT_FAMILY,
+  accent: '#245fd4', tones: UI_SERIES_FALLBACKS.light });
+
 function cssFor(theme, design, scheme, adjusted) {
   const accentSoft = color.mix(theme.surface, theme.accent, scheme === 'light' ? 0.12 : 0.2);
   const accentForeground = color.contrast('#ffffff', accentSoft) > color.contrast('#111111', accentSoft) ? '#ffffff' : '#111111';

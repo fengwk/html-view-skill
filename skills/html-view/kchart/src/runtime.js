@@ -129,8 +129,11 @@
       const rect = body.getBoundingClientRect();
       if (!rect.width || !body.clientWidth) return;
       const width = innerWidth(body);
-      const themeId = options.theme ?? (options.themes ? (doc.documentElement.dataset.scheme === 'dark' ? options.themes.dark : options.themes.light) : doc.documentElement.dataset.theme);
       const media = options.media || mediaOf(doc);
+      const screenScheme = doc.documentElement.dataset.scheme === 'dark' ? 'dark' : 'light';
+      const scheme = media === 'print' ? (options.printScheme ?? screenScheme) : screenScheme;
+      const printTheme = media === 'print' ? options.printThemes?.[screenScheme] : undefined;
+      const themeId = options.theme ?? printTheme ?? options.themes?.[scheme] ?? doc.documentElement.dataset.theme;
       if (!force && width === state.width && themeId === state.theme && media === state.media && body.querySelector('svg')) return;
       state.done = Promise.resolve().then(() => {
         const parsed = readSpec(pre, syntax);

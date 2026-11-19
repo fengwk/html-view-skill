@@ -709,7 +709,7 @@ KChart.define('diagram/swimlane', ({ 'diagram/support': u, 'diagram/graph-parse'
 
   function scene(layout, ctx) {
     const appearance = u.appearance(ctx);
-    const palette = Array.from({ length: 6 }, (_, index) => ctx.color(`tone${index + 1}`));
+    const palette = Array.from({ length: 6 }, (_, index) => ctx.frameTone(ctx.color(`tone${index + 1}`)));
     const marker = 'swimlane-arrow';
     const children = [ctx.el('defs', {}, [ctx.el('marker', {
       id: marker, viewBox: '0 0 8 8', refX: 7, refY: 4, markerWidth: 8, markerHeight: 8,

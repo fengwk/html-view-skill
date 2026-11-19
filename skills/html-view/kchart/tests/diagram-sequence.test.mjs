@@ -11,6 +11,7 @@ const ctx = {
   design: { id:'paper', bg:'#fff', surface:'#f5f5f5', fg1:'#111', fg2:'#333', fg3:'#444', fg4:'#666', accent:'#a46', tones:['#111','#468','#789','#abc','#def','#fed'], line:'#ddd', line2:'#aaa' },
   mix: (_a,_b) => '#ececec',
   tint: (_a,_b) => '#ececec',
+  frameTone: value => value,
   el: (tag,attrs={},children=[]) => ({ tag, attrs, ...(children.length ? { children } : {}) }),
   text: (x,y,value,opts={}) => ({ tag:'text', attrs:{ x,y,...opts }, text:String(value) }),
   line: (x1,y1,x2,y2,attrs={}) => ({ tag:'line', attrs:{ x1,y1,x2,y2,...attrs } }),

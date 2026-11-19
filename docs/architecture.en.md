@@ -7,15 +7,15 @@
 | Boundary | Implementation |
 |---|---|
 | Commands and output | `scripts/htmlview` dispatches `doc`, `data`, `ui`, `viz` and the shared commands; structured failures carry a suggested next step |
-| Outputs | `scripts/src/artifacts/{doc,data,ui}` each own their skeleton, their specific audits and their diff units, and never import each other |
+| Outputs | `scripts/src/artifacts/{doc,data,ui,viz}` each own their skeleton, their specific audits and their diff units, and never import each other |
 | Shared shell | `scripts/src/shared/` handles the HTML content markers, theme variables, chart validation and module selection; `scripts/src/tools/` relies on the shared browser, document parsing and print settings |
 | Rendering core | `kchart/src/core` owns themes, text measurement, geometry, scenes and SVG; `chart` and `diagram` hold the data charts and the diagrams |
 
 ## Content and shell
 
-`htmlview:kind` marks the output type and `htmlview:shell` records resource fingerprints. The only content area is the HTML between `<!-- htmlview:content -->` and `<!-- /htmlview:content -->`. `style` only rebuilds the shell. A Markdown build is tied to its source path, and a data report to the hash of its content area and the evidence it carries. The hashes detect changes; they are not signatures. Reports only consume CSV/JSON that was aggregated upstream. Comparisons follow the reporting period, unknown values are never treated as zero, and no database is accessed.
+`htmlview:kind` marks the output type and `htmlview:shell` records resource fingerprints. The only content area is the HTML between `<!-- htmlview:content -->` and `<!-- /htmlview:content -->`. For documents and reports, `style` only rebuilds the shell. A Markdown build is tied to its source path, and a data report to the hash of its content area and the evidence it carries. The hashes detect changes; they are not signatures. Reports only consume CSV/JSON that was aggregated upstream. Comparisons follow the reporting period, unknown values are never treated as zero, and no database is accessed.
 
-Charts are stored as `pre[data-viz]` with the type `kchart`, `mermaid`, `layers`, `blocks` or `swimlane`. What is stored is the escaped declaration, not static SVG. A page without charts embeds no chart code. When charts are present, maps are inlined with the document and modules are chosen from the dependency closure of the declarations. `viz render` instead writes a standalone SVG or a static viewer page with the source; that output is not a shell.
+Charts are stored as `pre[data-viz]` with the type `kchart`, `mermaid`, `layers`, `blocks` or `swimlane`. What is stored is the escaped declaration, not static SVG. A page without charts embeds no chart code. When charts are present, maps are inlined with the document and modules are chosen from the dependency closure of the declarations. `viz render` instead writes a standalone SVG or a static figure page with its source embedded. The page runs no script when opened; `style` re-renders it from the embedded source.
 
 ## Layout and checks
 
@@ -32,11 +32,27 @@ Charts are stored as `pre[data-viz]` with the type `kchart`, `mermaid`, `layers`
 | The theme of one document or report | `htmlview style report.html --theme obsidian`. `htmlview style --list` shows the built-in themes. Data and content stay the same. |
 | The brand color or light/dark scheme of a UI mockup | `htmlview style prototype.html --brand '#a84624' --scheme light`. Mockups derive their theme from the brand color and don't take `--theme`. |
 | Your own colors through the KChart API | Pass a `theme` object to `render()` or `diagram()`. You can spread a built-in theme and override the fields you need; no library change or CLI registration is required. |
-| A new named theme for `htmlview` | Register a complete palette in the [KChart theme table](../skills/html-view/kchart/src/core/theme.js), then add a CSS file with the same name in [`assets/themes/`](../skills/html-view/assets/themes/) for non-color variables such as corner radius, heading numbers and heading typeface. Diagram corner radius and tint go in `presets` in [`diagram/support.js`](../skills/html-view/kchart/src/diagram/support.js); without an entry the defaults apply. Record the six series colors in [`theme.test.mjs`](../skills/html-view/kchart/tests/theme.test.mjs). The contrast tests, the gallery and the README theme comparison read the theme table, so they pick up the new theme on their own. Chart layout code stays unchanged. |
+| Apply your own theme | `htmlview style report.html --theme-file harbor.json`. Inherit a built-in theme and set only the roles you want to change. The resolved theme travels inside the HTML, with no JSON file to share. |
+| Add a built-in theme | Put the reviewed `<id>.json` in [`kchart/assets/themes/`](../skills/html-view/kchart/assets/themes/). The CLI, KChart, shared tests and gallery generator find it automatically. No CSS or chart registration is needed. Regenerate the README comparison when publishing. |
 
-The KChart theme table is the source of truth for colors, and the HTML shell's color variables are generated from it. Recoloring an existing theme needs no CSS or chart changes. `tones[1]` is the second data series and `accent` is the shell's highlight color; they are different roles. A handful of arbitrary hex values is not enough: a palette covers background, text, strokes, states and six series colors, and must pass the contrast and color-vision checks. After adding a theme, check narrow screens, real charts and printing; dark themes still print with the Paper palette.
+Each theme has a single JSON file for colors and styling. The HTML shell generates its CSS variables from it, and KChart uses the resolved roles directly. Recoloring an existing theme needs no CSS or chart changes. `tones[1]` is the second data series and `accent` is the shell's highlight color; they are different roles. A handful of arbitrary hex values is not enough: a palette covers background, text, strokes, states and six series colors, and must pass the contrast and color-vision checks. After adding a theme, check narrow screens, real charts and printing; dark themes still print with the Paper palette.
 
-The pale fills of diagram groups, swimlanes and mind-map branches are lightened series colors. Warm hues such as orange or terracotta turn pink when lightened directly. A theme can add an optional `tint: { hue, chroma }`: pale fills then move in OKLCH from `hue` toward the original color, with chroma multiplied by `chroma` (1–2). Claude uses `{ hue: 95, chroma: 1.4 }`, where 95° is the hue of its ivory paper. Neutral colors and status colors such as added or risk are unaffected; themes without `tint` keep the plain sRGB mix.
+A theme can set `frameInk` to give ordinary diagram frames their own color. Layers, swimlanes, sequence groups and mind-map branches derive pale fills and strokes from it, and the mind-map root uses the primary text color as ink. Cloud Music uses neutral gray so a group is not mistaken for a warning; this does not change data series, numbering, links or explicit status colors. Themes without `frameInk` keep their previous colors. The optional `tint: { hue, chroma }` controls OKLCH mixing for decorative tints. Claude uses `{ hue: 95, chroma: 1.4 }` to lighten terracotta toward its 95° ivory paper rather than pink.
+
+UI mockups have [their own light and dark palettes and series candidates](../skills/html-view/scripts/src/artifacts/ui/theme.mjs), separate from the built-in reading themes.
+
+A minimal `harbor.json` for `--theme-file`:
+
+```json
+{
+  "extends": "paper",
+  "accent": "#12635e",
+  "frameInk": "#677471",
+  "style": { "radius": 12, "numberColor": "accent" }
+}
+```
+
+To ship it as a built-in theme, name it `harbor.json` and also set `id`, `name`, `en` and `desc`. See the [full field reference (Chinese)](../skills/html-view/references/guides/themes.md).
 
 ## Where to go next
 

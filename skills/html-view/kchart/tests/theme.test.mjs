@@ -4,6 +4,7 @@ import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { loadModules } from '../modules.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 async function loadModule(file, dependencies = {}) {
@@ -12,11 +13,9 @@ async function loadModule(file, dependencies = {}) {
   vm.runInNewContext(await readFile(path.join(root, 'src/core', file), 'utf8'), sandbox, { filename: file });
   return result;
 }
-const color = await loadModule('color.js');
-const themeApi = await loadModule('theme.js', { 'core/color': color });
+const { 'core/color': color, 'core/theme': themeApi } = loadModules(['core/theme']);
 
-// 精确比较每套内置主题的登记图表色（前六套即旧 CSS 色值），防止核心改动造成可见的系列颜色变化；
-// 新增主题必须在此登记色值。
+// 固定已发布主题的序列色以捕获迁移漂移；新主题自动执行下方通用校验，无须加入此历史基线。
 test('内置主题的图表色与登记值一致，调色板映射 surface 与首个 tone', () => {
   const expected = {
     claude: ['#2a2621', '#bb5a35', '#5f5a55', '#54220e', '#847f7a', '#b67f6b'],
@@ -25,12 +24,11 @@ test('内置主题的图表色与登记值一致，调色板映射 surface 与�
     tokyo: ['#d9e1f6', '#81aaf7', '#9198ab', '#6686c0', '#61687a', '#3966bc'],
     kanagawa: ['#e8e1d1', '#d4b771', '#9e9889', '#99844f', '#716b5e', '#866700'],
     terminal: ['#d8e5da', '#6de18b', '#909c92', '#439b5b', '#5c675d', '#007232'],
-    cloudmusic: ['#261e1e', '#cc3a2b', '#6a6160', '#6d2325', '#948b8a', '#b37a6c'],
+    cloudmusic: ['#261e1e', '#d82420', '#6a6160', '#6d2325', '#948b8a', '#b37a6c'],
   };
-  assert.deepEqual(Object.keys(themeApi.themes), Object.keys(expected), '每套内置主题都要登记图表色');
-  for (const [id, tones] of Object.entries(expected)) {
-    const resolved = themeApi.theme(id);
-    assert.deepEqual(Array.from(resolved.tones), tones);
+  for (const [id, tones] of Object.entries(expected)) assert.deepEqual(Array.from(themeApi.theme(id).tones), tones);
+  for (const [id, resolved] of Object.entries(themeApi.themes)) {
+    const tones = resolved.tones;
     const palette = themeApi.paletteOf(resolved);
     assert.equal(palette.bg, resolved.surface);
     assert.equal(palette.accent, tones[1]);
@@ -49,6 +47,29 @@ test('内置主题的图表色与登记值一致，调色板映射 surface 与�
   assert.ok(Object.isFrozen(themeApi.themes) && Object.isFrozen(themeApi.themes.claude));
 });
 
+// 未给出的字段继承，独立覆盖结构框的圆角，null 清除可选角色。
+test('theme config resolves partial overrides without mutating its base', () => {
+  const base = themeApi.themes.claude;
+  const custom = themeApi.resolveThemeConfig({ id: 'sample', style: { radius: 4 }, diagram: { radius: 2 }, tint: null });
+  assert.equal(custom.bg, base.bg);
+  assert.deepEqual(custom.tones, base.tones);
+  assert.equal(custom.style.displayFont, base.style.displayFont);
+  assert.equal(custom.style.radius, 4);
+  assert.equal(custom.diagram.radius, 2);
+  assert.equal(custom.tint, undefined);
+  assert.equal(base.style.radius, 10);
+});
+
+// 云音用纯白页面与无色偏的卡片；链接、编号等小字用的强调红在页面和卡片上都要可读。
+test('Cloud Music uses a white page, neutral cards, and readable red text', () => {
+  const theme = themeApi.theme('cloudmusic');
+  assert.equal(theme.bg, '#ffffff');
+  for (const background of [theme.bg, theme.surface, theme.surface2]) {
+    assert.match(background, /^#([0-9a-f]{2})\1\1$/);
+    assert.ok(color.contrast(theme.accent, background) >= 4.5, `accent against ${background}`);
+  }
+});
+
 // 暗色打印采用整套 paper 色值；亮色打印只覆盖页面底色，其他字段逐项保持不变。
 test('打印主题策略采用 paper 配色且保留亮色主题其余字段', () => {
   const originalDark = themeApi.theme('obsidian');
@@ -59,8 +80,10 @@ test('打印主题策略采用 paper 配色且保留亮色主题其余字段', (
   assert.equal(dark.scheme, 'light');
   assert.deepEqual(Array.from(dark.tones), Array.from(paper.tones));
   // 自定义暗色主题打印时，浅色框也随 Paper 配色，不能沿用屏幕上的装饰色相。
-  const customDark = { ...originalDark, tint: { hue: 260, chroma: 1.2 } };
-  assert.deepEqual(themeApi.theme(customDark, { media: 'print' }).tint, paper.tint);
+  const customDark = { ...originalDark, tint: { hue: 260, chroma: 1.2 }, frameInk: '#aaaaaa' };
+  const customPrint = themeApi.theme(customDark, { media: 'print' });
+  assert.deepEqual(customPrint.tint, paper.tint);
+  assert.equal(customPrint.frameInk, paper.frameInk);
   for (const key of ['bg', 'surface', 'surface2', 'line', 'line2', 'fg1', 'fg2', 'fg3', 'fg4', 'accent', 'new', 'info', 'ok', 'warn', 'danger', 'ext']) assert.equal(dark[key], paper[key], `dark print ${key} must use paper`);
 
   const originalLight = themeApi.theme('claude');
@@ -83,6 +106,7 @@ test('主题拒绝非法配色并快照有限字段', () => {
   assert.throws(() => themeApi.theme('missing'), (error) => error.name === 'TypeError' && /未知主题/.test(error.message));
   assert.throws(() => themeApi.theme('constructor'), (error) => error.name === 'TypeError' && /未知主题/.test(error.message));
   assert.throws(() => themeApi.theme({ ...caller, bg: 'red' }), (error) => error.name === 'TypeError' && /bg/.test(error.message));
+  assert.throws(() => themeApi.theme({ ...caller, frameInk: caller.surface }), (error) => error.name === 'TypeError' && /frameInk/.test(error.message));
   assert.throws(() => themeApi.theme({ ...caller, tones: [caller.tones[0], caller.tones[0], ...caller.tones.slice(2)] }), (error) => error.name === 'TypeError' && /区分度/.test(error.message));
   assert.throws(() => themeApi.theme({ ...caller, accent: caller.surface }), (error) => error.name === 'TypeError' && /accent.*surface/.test(error.message));
 });

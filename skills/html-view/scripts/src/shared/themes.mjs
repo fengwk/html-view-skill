@@ -1,54 +1,65 @@
-import { themes as KTHEMES, theme as resolveTheme } from '../../../kchart/node.mjs';
+import { themes as KTHEMES, theme as resolveTheme, DEFAULT_THEME, defaultStyle } from '../../../kchart/node.mjs';
 import { readAsset } from './assets.mjs';
 
-const ids = Object.freeze(Object.keys(KTHEMES));
-const palette = (theme) => ({
-  '--bg': theme.bg, '--surface': theme.surface, '--surface-2': theme.surface2,
-  '--line': theme.line, '--line-2': theme.line2,
-  '--fg-1': theme.fg1, '--fg-2': theme.fg2, '--fg-3': theme.fg3, '--fg-4': theme.fg4,
-  '--accent': theme.accent, '--new': theme.new, '--info': theme.info, '--ok': theme.ok,
-  '--warn': theme.warn, '--danger': theme.danger, '--ext': theme.ext,
-  '--viz-fg': theme.fg1, '--viz-muted': theme.fg3, '--viz-grid': theme.grid ?? theme.line,
-  '--viz-axis': theme.axis ?? theme.line2, '--viz-target': theme.fg3, '--viz-bg': theme.surface,
-  ...Object.fromEntries(theme.tones.map((color, index) => [`--viz-${index + 1}`, color])),
-});
-const declaration = (theme) => Object.entries(palette(theme)).map(([key, value]) => `${key}:${value}`).join(';');
-const themeCSS = (id, media = 'screen') => {
-  const resolved = resolveTheme(id, { media });
-  const attrs = [`color-scheme:${resolved.scheme}`, `--font-sans:${resolved.fontFamily}`];
-  // Print tokens must beat the selected theme's later screen-only CSS declaration.
-  const selector = media === 'print' ? `[data-theme="${id}"][data-theme]` : `[data-theme="${id}"]`;
-  return `${selector}{${attrs.join(';')};${declaration(resolved)}}`;
+const builtins = Object.values(KTHEMES);
+const tokens = {
+  bg: 'bg', surface: 'surface', surface2: 'surface-2', line: 'line', line2: 'line-2',
+  fg1: 'fg-1', fg2: 'fg-2', fg3: 'fg-3', fg4: 'fg-4', accent: 'accent', new: 'new', info: 'info',
+  ok: 'ok', warn: 'warn', danger: 'danger', ext: 'ext',
 };
+const variable = (role) => `var(--${tokens[role] ?? `viz-${role.at(-1)}`})`;
+const declarations = (properties) => Object.entries(properties).map(([key, value]) => `${key}:${value}`).join(';');
+const styleTokens = {
+  radius: ['radius', (value) => `${value}px`], smallRadius: ['radius-sm', (value) => `${value}px`],
+  soft: ['soft', (value) => `${Number((100 * value).toFixed(4))}%`],
+  blockBackground: ['block-bg', (value) => value === 'transparent' ? value : variable(value)],
+  nodeBackground: ['node-bg', variable], codeBackground: ['code-bg', (value) => value === 'node' ? 'var(--node-bg)' : variable(value)],
+  displayFont: ['font-display', (value) => value === 'sans' ? 'var(--font-sans)' : value], displayWeight: ['display-weight', String],
+  numberFont: ['font-num', (value) => `var(--font-${value})`], numberStyle: ['num-style', String],
+  numberColor: ['num-color', variable], listMarker: ['accent-mark', variable],
+};
+const styleProperties = (style, base = {}) => Object.fromEntries(Object.entries(styleTokens)
+  .filter(([key]) => style[key] !== undefined && style[key] !== base[key])
+  .map(([key, [token, format]]) => [`--${token}`, format(style[key])]));
+
+function palette(theme) {
+  return {
+    ...Object.fromEntries(Object.entries(tokens).map(([role, token]) => [`--${token}`, theme[role]])),
+    '--viz-fg': theme.fg1, '--viz-muted': theme.fg3, '--viz-grid': theme.line,
+    '--viz-axis': theme.line2, '--viz-target': theme.fg3, '--viz-bg': theme.surface,
+    ...Object.fromEntries(theme.tones.map((color, index) => [`--viz-${index + 1}`, color])),
+  };
+}
+export function themeCss(theme, media = 'screen') {
+  const value = resolveTheme(theme, { media });
+  const selector = `[data-theme="${value.id}"]`;
+  const colors = declarations({ 'color-scheme': value.scheme, '--font-sans': value.fontFamily, ...palette(value) });
+  // Print colors must override even a later screen rule with the same theme id.
+  if (media === 'print') return `${selector}[data-theme]{${colors}}`;
+  const style = declarations(styleProperties(value.style, defaultStyle));
+  return `${selector}{${colors}${style ? `;${style}` : ''}}`;
+}
 
 export function getTheme(id) {
   if (!Object.hasOwn(KTHEMES, id)) return null;
-  const value = resolveTheme(id);
-  return Object.freeze({ ...value, css: `${themeCSS(id)}${readAsset(`themes/${id}.css`)}`, default: id === 'claude' });
+  const value = KTHEMES[id];
+  return Object.freeze({ ...value, css: themeCss(value), default: id === DEFAULT_THEME });
 }
-
 export function listThemes() {
-  return ids.map((id) => {
-    const { id: _id, scheme, name, en, desc } = KTHEMES[id];
-    return { id, scheme, name, en, desc, default: id === 'claude' };
-  });
+  return builtins.map(({ id, scheme, name, en, desc }) => ({ id, scheme, name, en, desc, default: id === DEFAULT_THEME }));
 }
-
-/** 主题颜色和图表变量都来自 KChart core/theme；打印重新按其正式规则解析。 */
-export function themesCss() {
-  const screen = ids.map((id) => `${themeCSS(id)}${readAsset(`themes/${id}.css`)}`).join('\n');
-  const print = ids.map((id) => themeCSS(id, 'print')).join('\n');
-  return `${screen}\n@media print{${print}[data-theme]{color-scheme:light}}`;
+const printExtras = (theme) => {
+  const value = resolveTheme(theme, { media: 'print' });
+  return `[data-theme="${value.id}"]{--num-color:${value.fg4};--block-bg:${value.surface};--node-bg:${value.bg};--code-bg:${value.surface2}}`;
+};
+export function themesCss(custom) {
+  const themes = custom ? [...builtins, custom] : builtins;
+  const screen = themes.map((theme) => themeCss(theme)).join('\n');
+  const print = themes.map((theme) => themeCss(theme, 'print')).join('\n');
+  return `[data-theme]{${declarations(styleProperties(defaultStyle))}}\n${screen}\n@media print{${print}[data-theme]{color-scheme:light}}`;
 }
-
-function printExtras() {
-  return ids.map((id) => {
-    const value = resolveTheme(id, { media: 'print' });
-    return `[data-theme="${id}"]{--num-color:${value.fg4};--block-bg:${value.surface};--node-bg:${value.bg};--code-bg:${value.surface2}}`;
-  }).join('\n');
-}
-
-export function readingCss() {
+export function readingCss(custom) {
   const base = readAsset('page/reading.css').replace('/* @print-palette */', '');
-  return `${base}\n${themesCss()}\n@media print{${printExtras()}}`;
+  const themes = custom ? [...builtins, custom] : builtins;
+  return `${base}\n${themesCss(custom)}\n@media print{${themes.map(printExtras).join('\n')}}`;
 }
