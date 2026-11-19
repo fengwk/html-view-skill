@@ -1,15 +1,15 @@
 import assert from 'node:assert/strict';
-import { test } from 'node:test';
 import { runInNewContext } from 'node:vm';
-import { browserSource, check, createRenderer, diagram, diagramTypes, modulesFor } from '../diagram.mjs';
-import { loadModules } from '../modules.mjs';
-import * as chart from '../node.mjs';
+import { test } from 'vitest';
+import * as chart from '../dist/esm/node.js';
+
+const { check, createRenderer, diagram, diagramTypes, modulesFor } = chart;
 
 // 清单上的每个规范图型必须有实际实现；任何额外实现都要通过同一处登记。
 test('结构图目录与实际模块覆盖 27 个 Mermaid 类型和 3 个原生类型', () => {
   assert.equal(diagramTypes.filter(({ syntax }) => syntax === 'mermaid').length, 27);
   assert.deepEqual(diagramTypes.filter(({ syntax }) => syntax !== 'mermaid').map(({ kind }) => kind), ['layers', 'blocks', 'swimlane']);
-  const modules = loadModules(modulesFor());
+  const modules = import.meta.glob('../src/diagram/*.js', { eager: true });
   const implemented = Object.values(modules).flatMap(unit => Object.keys(unit.implementations || {}));
   assert.deepEqual([...new Set(implemented)].sort(), diagramTypes.map(({ kind }) => kind).sort());
   assert.equal(implemented.length, diagramTypes.length);
@@ -30,20 +30,27 @@ test('按声明组装只载入图型所需的依赖，浏览器与 Node 输出�
     { source: 'treemap-beta\nRoot\n  A: 2\n  B: 3', chartFamily: 'chart/composition' },
     { source: 'mindmap\n  根\n    叶子', chartFamily: 'chart/mindmap' },
   ];
+  // The shared browser page API always needs these chart infrastructure units, not chart families.
+  const pageChartModules = new Set(['chart/catalog', 'chart/spec', 'chart/fields', 'chart/context', 'chart/registry']);
   for (const item of cases) {
     const { syntax, source, chartFamily } = item;
     const roots = modulesFor([item]);
+    assert.ok(roots.includes('diagram/registry'), source);
     if (chartFamily) assert.ok(roots.includes(chartFamily), source);
-    else assert.ok(!roots.some(id => id.startsWith('chart/')), source);
+    else assert.ok(!roots.some(id => id.startsWith('chart/') && !pageChartModules.has(id)), source);
     assert.ok(!roots.includes('interaction') && !roots.includes('chart/maps'), source);
+    const selected = createRenderer({ sources: [item] });
     const env = {};
-    runInNewContext(browserSource([item]), env);
+    runInNewContext(selected.bundleSource(), env);
     assert.equal(env.KChart.render, undefined);
     const options = { syntax, width: 360, frame: false, prefix: 'same' };
     const expected = diagram(source, options);
     assert.ok(expected.svg, JSON.stringify(expected.diagnostics));
     assert.equal(env.KChart.diagram(source, options).svg, expected.svg, source);
-    assert.equal(createRenderer({ sources: [item] }).diagram(source, options).svg, expected.svg, source);
+    assert.equal(selected.diagram(source, options).svg, expected.svg, source);
+    const page = {};
+    runInNewContext(chart.browserSource([item]), page);
+    assert.equal(page.KChart.diagram(source, options).svg, expected.svg, source);
   }
 });
 

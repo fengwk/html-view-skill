@@ -1,14 +1,11 @@
 import assert from 'node:assert/strict';
-import { test } from 'node:test';
-import { loadSlice } from './diagram-slice.mjs';
+import { test } from 'vitest';
+import { implementations } from '../src/diagram/mindmap.js';
+import { validate, schema } from '../src/chart/spec.js';
+import { render } from '../src/chart/registry.js';
 
-const parserModules = loadSlice({
-  'chart/mindmap': ['chart/registry', 'core/theme'],
-  'diagram/mindmap': ['diagram/support', 'chart/spec', 'chart/registry', 'chart/mindmap'],
-}, ['diagram/support', 'chart/spec', 'chart/registry', 'core/theme']);
-const implementation = parserModules['diagram/mindmap'].implementations.mindmap;
+const implementation = implementations.mindmap;
 const { parse } = implementation;
-const { validate, schema } = parserModules['chart/spec'];
 
 // The six statuses belong to both hierarchical chart types, but not unrelated node contracts.
 test('mindmap and tree statuses are accepted, constrained, and represented in their schemas', () => {
@@ -74,8 +71,6 @@ test('mindmap rejects invalid decorations and declarations without dropping sour
   assert.equal(deep.model.data.children[0].children[0].children[0].children[0].children[0].label, 'f');
   assert.ok(parse('one\ntwo').errors.some(e => /根节点/.test(e.message)));
 });
-
-const { render } = parserModules['chart/registry'];
 
 test('all eight shared layouts render narrow, state-marked diagrams while state-free nodes remain unchanged', () => {
   const layouts = ['bilateral', 'right', 'left', 'radial', 'org', 'brace', 'fishbone', 'timeline'];

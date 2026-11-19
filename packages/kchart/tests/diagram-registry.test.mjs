@@ -1,46 +1,7 @@
-import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-import { runInNewContext } from 'node:vm';
-import { loadModules } from '../modules.mjs';
-
-const core = loadModules(['core/context', 'core/scene', 'core/svg', 'core/diagnostics']);
-let optionCalls = [];
-const fixtureSource = {
-  parseOptions(params, { line = 1 } = {}) {
-    optionCalls.push({ params: [...(params || [])], line });
-    const options = Object.create(null), errors = [];
-    for (const token of params || []) {
-      const match = /^([\w-]+)(?:=(.*))?$/.exec(token);
-      if (!match) errors.push({ line, column: 1, message: `bad option ${token}`, fix: 'use key=value' });
-      else options[match[1]] = match[2] ?? true;
-    }
-    return { options, errors };
-  },
-  prepareSource(input, { syntax = 'mermaid' } = {}) {
-    const lines = String(input).split('\n');
-    let start = 0, title;
-    if (lines[0]?.startsWith('title: ')) { title = lines[0].slice(7); start++; }
-    const header = lines[start] || '', match = /^([\w-]+)(?:\s+(.*))?$/.exec(header);
-    const params = match?.[2]?.split(/\s+/).filter(Boolean) || [];
-    return { kind: match?.[1] || '', header, headerLine: start + 1, firstLine: start + 2, body: lines.slice(start + 1).join('\n'), ...(title ? { title } : {}), params, errors: [], syntax };
-  },
-};
-const support = { measureOf: ctx => (text, font) => ctx.measure(text, font.size, font.weight) };
-const deps = Object.freeze({
-  'diagram/source': fixtureSource,
-  'diagram/support': support,
-  'core/context': core['core/context'],
-  'core/scene': core['core/scene'],
-  'core/svg': core['core/svg'],
-  'core/diagnostics': core['core/diagnostics'],
-});
-const file = new URL('../src/diagram/registry.js', import.meta.url);
-let apiFactory;
-runInNewContext(readFileSync(file, 'utf8'), {
-  KChart: { define(name, factory) { assert.equal(name, 'diagram/registry'); apiFactory = factory(deps); } },
-}, { filename: file.pathname });
-const createDiagramApi = apiFactory.createDiagramApi;
+import { test } from 'vitest';
+import { ExpectedDiagnostic } from '../src/core/diagnostics.js';
+import { createDiagramApi } from '../src/diagram/registry.js';
 
 function implementation(overrides = {}) {
   return {
@@ -75,7 +36,7 @@ test('diagram renders one shared SVG with framed title and centered wide scene',
   let calls = 0, frame;
   const impl = implementation({ layout(model, args, info) { calls++; frame = args.renderOptions.frame; return implementation().layout(model, args, info); } });
   const api = createDiagramApi({ flowchart: impl }, types);
-  const result = api.diagram('title: Overview\ngraph\nHello', { width: 300 });
+  const result = api.diagram('---\ntitle: Overview\n---\ngraph\nHello', { width: 300 });
   assert.equal(calls, 1);
   assert.equal(frame, true);
   assert.equal(result.diagnostics.length, 0);
@@ -85,22 +46,24 @@ test('diagram renders one shared SVG with framed title and centered wide scene',
   assert.match(result.svg, /translate\(110 0\)/);
   const wide = api.diagram('graph\nHello', { width: 50, frame: false });
   assert.equal(wide.scene.width, 120);
-  assert.doesNotMatch(api.diagram('title: Overview\ngraph\nHello', { width: 300, frame: false }).svg, /<text x="16"/);
+  assert.doesNotMatch(api.diagram('---\ntitle: Overview\n---\ngraph\nHello', { width: 300, frame: false }).svg, /<text x="16"/);
 });
 
 // 意图：parseOptions 应写入 info.options 并使用 header 行号；raw 模式跳过通用选项解析。
 test('parse options feed info at header line and raw implementations bypass them', () => {
-  optionCalls = [];
   let observed;
   const regular = implementation({ parse(body, info) { observed = info; return { model: {}, errors: [] }; } });
   const raw = implementation({ optionMode: 'raw', parse(body, info) { observed = info; return { model: {}, errors: [] }; } });
   const api = createDiagramApi({ flowchart: regular, rawmap: raw }, types);
-  assert.equal(api.check('title: T\ngraph mode=wide\nbody').length, 0);
+  assert.equal(api.check('\ngraph mode=wide\nbody').length, 0);
   assert.equal(observed.options.mode, 'wide');
-  assert.deepEqual(optionCalls.at(-1), { params: ['mode=wide'], line: 2 });
-  const before = optionCalls.length;
-  api.check('rawmap ???\nbody');
-  assert.equal(optionCalls.length, before);
+  assert.deepEqual({ params: observed.params, line: observed.headerLine }, { params: 'mode=wide', line: 2 });
+  const [invalid] = api.check('\ngraph ???\nbody');
+  assert.equal(invalid.line, 2);
+  assert.match(invalid.message, /无效的图选项「\?\?\?」/);
+  assert.deepEqual(api.check('rawmap ???\nbody'), []);
+  assert.equal(observed.params, '???');
+  assert.deepEqual(Object.keys(observed.options), []);
 });
 
 // 意图：语义校验纳入 check；诊断位置保真；预期 geometry 错误应早于 scene 创建返回。
@@ -128,9 +91,9 @@ test('semantic validation and geometry errors avoid invalid scene creation', () 
 // 意图：未知、错用语法、未装入的类型报告真实首行；准备层未知 topic 才补类型 topic。
 test('registry diagnostics have header lines and retain declared diagnostic topics', () => {
   const api = createDiagramApi({}, types);
-  const unknown = api.check('title: T\nnonsense\nbody')[0];
-  const wrongSyntax = api.check('title: T\nmindmap\nbody')[0];
-  const missing = api.check('title: T\ngraph\nbody')[0];
+  const unknown = api.check('\nnonsense\nbody')[0];
+  const wrongSyntax = api.check('\nmindmap\nbody')[0];
+  const missing = api.check('\ngraph\nbody')[0];
   assert.equal(unknown.line, 2);
   assert.equal(wrongSyntax.line, 2);
   assert.equal(missing.line, 2);
@@ -163,12 +126,12 @@ test('diagram distinguishes unknown type, syntax misuse, and unloaded implementa
   assert.equal(missing.diagnostics[0].topic, 'flow');
   assert.match(api.check('mindmap\nbody')[0].message, /不支持语法/);
   assert.match(api.check('nonsense\nbody')[0].message, /未知结构图类型/);
-  assert.match(api.check('flowchart ???')[0].message, /option/);
+  assert.match(api.check('flowchart ???')[0].message, /无效的图选项「\?\?\?」/);
 });
 
 // 意图：只将 ExpectedDiagnostic 归一；内部错误应原样上抛。
 test('diagram catches only expected diagnostics', () => {
-  const expected = createDiagramApi({ flowchart: implementation({ layout() { throw new core['core/diagnostics'].ExpectedDiagnostic('expected', [{ code: 'LAYOUT', line: 3, message: 'no fit', fix: 'simplify' }]); } }) }, types);
+  const expected = createDiagramApi({ flowchart: implementation({ layout() { throw new ExpectedDiagnostic('expected', [{ code: 'LAYOUT', line: 3, message: 'no fit', fix: 'simplify' }]); } }) }, types);
   assert.deepEqual(JSON.parse(JSON.stringify(expected.diagram('flowchart\nbody').diagnostics)), [{ code: 'LAYOUT', line: 3, column: 1, message: 'no fit', fix: 'simplify', topic: 'flow' }]);
   const unexpected = createDiagramApi({ flowchart: implementation({ layout() { throw new TypeError('bug'); } }) }, types);
   assert.throws(() => unexpected.diagram('flowchart\nbody'), /bug/);

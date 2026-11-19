@@ -1,9 +1,7 @@
 import assert from 'node:assert/strict';
-import { test } from 'node:test';
-import { loadSlice } from './diagram-slice.mjs';
-
-const modules = loadSlice({ 'diagram/source': ['diagram/support'] });
-const Source = modules['diagram/source'];
+import { test } from 'vitest';
+import * as Source from '../src/diagram/source.js';
+import { labelText } from '../src/diagram/support.js';
 
 // Front matter delimiters and nested documented settings must retain original physical lines.
 test('prepareSource handles leading blanks, legacy closing delimiter and nested mindmap config', () => {
@@ -66,7 +64,7 @@ test('prepareSource normalizes multiline explicit Markdown but preserves other q
   assert.equal(result.errors.length, 0);
   assert.equal(result.firstLine, 2);
   assert.equal(result.body.split('\n').length, 4);
-  assert.equal(modules['diagram/support'].labelText('A<br/>B'), 'A\nB');
+  assert.equal(labelText('A<br/>B'), 'A\nB');
 
   const ordinary = Source.prepareSource('flowchart TB\n  A["click *literal* **text**"] --> B');
   assert.equal(ordinary.body, '  A["click *literal* **text**"] --> B');

@@ -1,10 +1,9 @@
-import { test } from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
-import { loadSlice } from './diagram-slice.mjs';
-
-const modules = loadSlice({ 'diagram/sequence': ['diagram/support'] });
-const sequenceModule = modules['diagram/sequence'];
-const sequence = sequenceModule.implementations;
+import { implementations as sequence } from '../src/diagram/sequence.js';
+import { createContext } from '../src/core/context.js';
+import { renderScene } from '../src/core/svg.js';
+import { measureOf } from '../src/diagram/support.js';
 const plain = value => JSON.parse(JSON.stringify(value));
 const measure = value => [...String(value)].length * 7;
 const ctx = {
@@ -125,10 +124,10 @@ end`;
 // 意图：以正式 Context/SVG 序列化器检查 marker 引用重写和合法图元结构，而非仅检查测试替身对象。
 test('sequence scene serializes marker refs and expected SVG primitives', () => {
   const parsed=sequence.sequenceDiagram.parse('participant A\nparticipant B\nA->>B: sync\nB-->>A: return\nA-)B: async\nA->>A: self',{lang:'en',firstLine:2,options:{}});
-  const context=modules['core/context'].createContext({width:640,theme:'paper',lang:'en'});
-  const geometry=sequence.sequenceDiagram.layout(parsed.model,{width:640,lang:'en',measure:modules['diagram/support'].measureOf(context)});
+  const context=createContext({width:640,theme:'paper',lang:'en'});
+  const geometry=sequence.sequenceDiagram.layout(parsed.model,{width:640,lang:'en',measure:measureOf(context)});
   const scene=sequence.sequenceDiagram.scene(geometry,context);
-  const svg=modules['core/svg'].renderScene(scene,{prefix:'sequence-test',theme:'paper'});
+  const svg=renderScene(scene,{prefix:'sequence-test',theme:'paper'});
   assert.match(svg,/<marker id="sequence-test-seq-arrow"/);
   assert.match(svg,/marker-end="url\(#sequence-test-seq-arrow\)"/);
   assert.match(svg,/marker-end="url\(#sequence-test-seq-arrow-open\)"/);

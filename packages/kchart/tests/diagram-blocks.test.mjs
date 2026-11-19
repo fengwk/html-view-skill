@@ -1,11 +1,11 @@
-import { test } from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
-import { loadModules } from '../modules.mjs';
+import { implementations } from '../src/diagram/blocks.js';
+import { createContext } from '../src/core/context.js';
+import { renderScene } from '../src/core/svg.js';
+import { fallbackMeasure } from '../src/diagram/support.js';
 
-const modules = loadModules(['diagram/blocks', 'core/context', 'core/svg']);
-const implementation = modules['diagram/blocks'].implementations.blocks;
-const contextApi = modules['core/context'];
-const svg = modules['core/svg'];
+const implementation = implementations.blocks;
 const info = { kind: 'blocks', syntax: 'blocks', header: 'blocks', headerLine: 1, firstLine: 2, options: {}, lang: 'zh' };
 const complexSource = 'col\n  row\n    box Side\n    box Knowledge\n      col\n        box Content\n          short, popular\n        box Index\n          trend, official\n    box Operations\n  row\n    box Store {db}: [icon:database] records\n    box Vector: [icon:vector-triangle] embedding\n    box Config {db}: settings\nStore -> Vector: encode\nVector -> Config: persist';
 const legacyFixtures = [
@@ -18,13 +18,13 @@ const legacyFixtures = [
 function layoutOf(source, width = 1040) {
   const parsed = implementation.parse(source, info);
   assert.equal(parsed.errors.length, 0, JSON.stringify(parsed.errors));
-  const geometry = implementation.layout(parsed.model, { width, lang: info.lang, measure: modules['diagram/support'].fallbackMeasure }, info);
+  const geometry = implementation.layout(parsed.model, { width, lang: info.lang, measure: fallbackMeasure }, info);
   assert.equal(geometry.errors.length, 0, JSON.stringify(geometry.errors));
   return geometry;
 }
 
 function draw(source, width = 480) {
-  const ctx = contextApi.createContext({ width, theme: 'paper' });
+  const ctx = createContext({ width, theme: 'paper' });
   const parsed = implementation.parse(source, info);
   if (parsed.errors.length) return { ...parsed, ctx };
   const geometry = implementation.layout(parsed.model, {
@@ -42,7 +42,7 @@ test('blocks 保留容器与能力标记，并将异步关系输出为正交纯 
   assert.deepEqual(Array.from(result.geometry.nodes, (node) => node.tone), ['new', 'ok', 'info']);
   assert.equal(result.geometry.edges[0].async, true);
   assert.match(result.geometry.edges[0].path, /[HV]\d/);
-  const rendered = svg.renderScene(result.scene, { theme: 'paper', frame: false });
+  const rendered = renderScene(result.scene, { theme: 'paper', frame: false });
   assert.match(rendered, /<marker id="kc-[^"]+-blocks-arrow-async"/);
   assert.match(rendered, /stroke-dasharray="5 4"/);
   assert.match(rendered, /data-kc-kind="container"/);
@@ -184,7 +184,7 @@ test('blocks 保留旧箭头通道和竖向标签布局断言', () => {
 
 // 保留旧权重断言：无权重的等项兄弟最小宽度一致，显式 1:3 按剩余空间分配。
 test('blocks 按旧行列权重规则分配可用宽度', () => {
-  const ctx = contextApi.createContext({ width: 1040, theme: 'paper' });
+  const ctx = createContext({ width: 1040, theme: 'paper' });
   const layoutOf = (source) => {
     const parsed = implementation.parse(source, info);
     assert.equal(parsed.errors.length, 0);
