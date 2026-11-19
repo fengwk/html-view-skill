@@ -1,9 +1,7 @@
 import assert from 'node:assert/strict';
-import test from 'node:test';
-import { diagram, structureRoles, themes } from '../node.mjs';
-import { loadModules } from '../modules.mjs';
-
-const { createContext } = loadModules(['core/context'])['core/context'];
+import { test } from 'vitest';
+import { diagram, structureRoles, themes } from '../dist/esm/node.js';
+import { createContext } from '../src/core/context.js';
 const frameRoles = Array.from({ length: 6 }, (_, i) => `frame-${i + 1}`);
 
 // 所有媒体都产生 CSS 可用的颜色；灰色 RGB 三通道相等意味着 OKLCH 色度近零。

@@ -1,8 +1,9 @@
-import { test } from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
+import { install } from '../src/chart/distribution.js';
 import { loadChart } from './kchart-fixture.mjs';
 
-const { api: K } = loadChart(['chart/distribution']);
+const { api: K } = loadChart([install]);
 const plain = (value) => JSON.parse(JSON.stringify(value));
 const specs = {
   interval: {

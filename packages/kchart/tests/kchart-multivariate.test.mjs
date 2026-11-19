@@ -1,11 +1,12 @@
 // 多维图型的真实几何与专属语义：阻止注册名存在但回退成通用柱图。
-import { test } from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
+import { install } from '../src/chart/multivariate.js';
 import { loadChart } from './kchart-fixture.mjs';
-import { createRenderer, themes } from '../node.mjs';
+import { createRenderer, themes } from '../dist/esm/node.js';
 import { KCHART_CASES } from './kchart-cases.mjs';
 
-const { api: K } = loadChart(['chart/multivariate']);
+const { api: K } = loadChart([install]);
 const renderer = createRenderer();
 const cases = [
   { chart: 'stream', data: [{t:'Jan',a:2,b:3},{t:'Feb',a:4,b:1}], encode:{category:'t',value:['a','b']} },

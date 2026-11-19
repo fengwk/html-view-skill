@@ -1,10 +1,11 @@
 // 构成图族面向真实声明生成场景，并锁定易被误读/隐藏的数据语义。
-import { test } from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
+import { install } from '../src/chart/composition.js';
 import { loadChart } from './kchart-fixture.mjs';
-import { themes } from '../node.mjs';
+import { themes } from '../src/core/theme.js';
 
-const { api: K } = loadChart(['chart/composition']);
+const { api: K } = loadChart([install]);
 const plain = (value) => JSON.parse(JSON.stringify(value));
 const walk = (nodes, predicate, out = []) => { for (const node of nodes || []) { if (predicate(node)) out.push(node); walk(node.children, predicate, out); } return out; };
 

@@ -1,11 +1,9 @@
-import { test } from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
-import { theme as resolveTheme, themes as builtInThemes } from '../node.mjs';
-import vm from 'node:vm';
-
+import { theme as resolveTheme, themes as builtInThemes } from '../src/core/theme.js';
 import { loadChart } from './kchart-fixture.mjs';
 
-const { api: base, context } = loadChart();
+const { api: base } = loadChart();
 const api = { ...base, validate: undefined, ...base.createRegistry((spec) => api.validate?.(spec)) };
 const plain = (value) => JSON.parse(JSON.stringify(value));
 // 主题类检查遍历登记表，新增主题自动纳入。
@@ -13,7 +11,7 @@ const THEMES = Object.keys(builtInThemes);
 
 // 意图：纯核心不依赖 DOM；注册器未绑定校验器时不能直接跑布局。
 test('core loads without DOM and refuses to lay out without a validator', () => {
-  assert.equal(vm.runInContext('typeof document', context), 'undefined');
+  assert.equal(typeof globalThis.document, 'undefined');
   assert.equal(typeof api.validate, 'undefined');
   assert.throws(() => base.createRegistry().layout({ chart: 'unvalidated' }), /未绑定声明校验器/);
   assert.deepEqual(plain(api.util.extent([3, -2, null, NaN])), [-2, 3]);

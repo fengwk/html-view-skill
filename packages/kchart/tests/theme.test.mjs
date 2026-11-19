@@ -1,19 +1,8 @@
-import { test } from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
-import vm from 'node:vm';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { loadModules } from '../modules.mjs';
-
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-async function loadModule(file, dependencies = {}) {
-  let result;
-  const sandbox = { KChart: { define(id, factory) { result = factory(dependencies); } } };
-  vm.runInNewContext(await readFile(path.join(root, 'src/core', file), 'utf8'), sandbox, { filename: file });
-  return result;
-}
-const { 'core/color': color, 'core/theme': themeApi } = loadModules(['core/theme']);
+import * as color from '../src/core/color.js';
+import * as themeApi from '../src/core/theme.js';
+import * as icons from '../src/core/icons.js';
 
 // 固定已发布主题的序列色以捕获迁移漂移；新主题自动执行下方通用校验，无须加入此历史基线。
 test('内置主题的图表色与登记值一致，调色板映射 surface 与首个 tone', () => {
@@ -154,9 +143,7 @@ test('主题 tint 只改变声明它的主题，使 Claude 浅橙不发粉', () 
 });
 
 // 受控图标几何在纯模块中解析，无 DOM 依赖，且拒绝任意 SVG 节点。
-test('图标几何从组装器数据解析为受控元素且不访问 DOM', async () => {
-  const data = JSON.parse(await readFile(path.join(root, 'assets/icons.json'), 'utf8'));
-  const icons = await loadModule('icons.js', { 'core/icon-data': data });
+test('图标几何从 ESM 导入的数据解析为受控元素且不访问 DOM', () => {
   const geometry = icons.geometry('adjustments');
   assert.equal(geometry.set, 'tabler');
   assert.equal(geometry.viewBox, '0 0 24 24');
