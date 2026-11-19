@@ -161,7 +161,7 @@ function scene(geometry, ctx, info = {}) {
   return { width: geometry.width, height: geometry.height, children, ...(info.title ? { title: info.title } : {}) };
 }
 
-const implementations = Object.fromEntries(['flowchart', 'stateDiagram-v2', 'erDiagram'].map(kind => [kind, {
+const implementations = Object.fromEntries(['flowchart', 'stateDiagram-v2'].map(kind => [kind, {
   optionMode: 'raw',
   parse: (body, info) => parseGraph(body, info),
   layout: (model, options, info) => layoutGraph(model, options, info),
