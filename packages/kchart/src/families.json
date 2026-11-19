@@ -158,6 +158,11 @@
       }
     }
   },
+  "diagram/swimlane-mermaid": {
+    "diagrams": {
+      "swimlane-beta": { "syntax": "mermaid", "topic": "flow" }
+    }
+  },
   "diagram/swimlane": {
     "diagrams": {
       "swimlane": {
