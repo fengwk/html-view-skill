@@ -733,7 +733,8 @@ KChart.define('chart/relations', ({ 'chart/registry': { register } }) => {
       children.push(ctx.text(vertical ? 18 : axis, vertical ? axis - 18 : stageLabelY, s.label, { anchor: vertical ? 'start' : 'middle', size: 12, fill: ctx.color('muted') }));
     });
     const placed = [...positions.values()];
-    const contentBottom = Math.max(H, vertical ? 0 : stageLabelY + 16, labelBottom, ...placed.map((place) => (vertical ? place.axis : place.cross) + 24));
+    // 横向布局的 H 只是流线粗细的预算；位置定下后，场景在阶段名下方结束，不留整块空白。
+    const contentBottom = Math.max(vertical ? H : 0, vertical ? 0 : stageLabelY + 16, labelBottom, ...placed.map((place) => (vertical ? place.axis : place.cross) + 24));
     return withDescription(ctx, contentBottom, children, spec, W);
   }
   register('network', network);

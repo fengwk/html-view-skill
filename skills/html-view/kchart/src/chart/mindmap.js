@@ -28,7 +28,7 @@ KChart.define('chart/mindmap', ({ 'chart/registry': { register }, 'core/theme': 
       const measuredWidth = Math.max(...widths) + PAD_X * 2 + markerWidth;
       const n = {
         id: source.id || `n${nodes.length}`, label: source.label, note: source.note || '', status: source.status || '', marker, markerWidth, parent, depth, children: [], lines, noteLines,
-        w: Math.max(70, textOnly ? measuredWidth : Math.min(cap, measuredWidth)),
+        w: Math.max(70, textOnly ? measuredWidth : Math.min(cap, measuredWidth)), contentW: measuredWidth - PAD_X * 2,
         h: Math.max(34, lines.length * 17 + noteLines.length * 15 + PAD_Y * 2),
       };
       nodes.push(n);
@@ -258,8 +258,11 @@ KChart.define('chart/mindmap', ({ 'chart/registry': { register }, 'core/theme': 
         const dx = b.cx - a.cx, dy = b.cy - a.cy;
         const from = boundary(a, dx, dy), to = boundary(b, -dx, -dy);
         if (mode === 'brace') {
+          // A bracket leaves the parent's right edge at mid-height and enters each child at mid-height,
+          // so no arm runs along a box border.
           const trunk = Math.min(...n.parent.children.map(child => coords.get(child).x)) - plan.gap / 2;
-          d = `M${from.x} ${from.y} L${trunk} ${from.y} L${trunk} ${to.y} L${to.x} ${to.y}`;
+          const out = { x: a.x + a.w, y: a.cy }, into = { x: b.x, y: b.cy };
+          d = `M${out.x} ${out.y} L${trunk} ${out.y} L${trunk} ${into.y} L${into.x} ${into.y}`;
         } else d = `M${from.x} ${from.y} L${to.x} ${to.y}`;
       }
       edgeList.push({ from: n.parent.id, to: n.id, d, kind: mode, parent: n.parent, child: n });
@@ -275,7 +278,8 @@ KChart.define('chart/mindmap', ({ 'chart/registry': { register }, 'core/theme': 
       // 无框叶子的文字向连线一侧对齐，长短不一的多行文字也紧靠同一个端口。
       const leftLeaf = mode === 'bilateral' && !framed && p.cx < rootPosition.cx;
       const anchor = rootNode ? 'middle' : leftLeaf ? 'end' : 'start';
-      const tx = rootNode ? p.cx : nodeTextX(p, leftLeaf);
+      // 框被 70px 最小宽撑开时，文字块在框内居中；多行仍共用同一起点。
+      const tx = rootNode ? p.cx : framed ? p.x + Math.max(PAD_X, (n.w - n.contentW) / 2) : nodeTextX(p, leftLeaf);
       const labelX = rootNode ? tx + n.markerWidth / 2 : tx + (leftLeaf ? -n.markerWidth : n.markerWidth);
       const markerX = rootNode ? tx : tx + (leftLeaf ? -n.markerWidth / 2 : n.markerWidth / 2);
       const weight = rootNode ? 650 : 500;

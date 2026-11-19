@@ -30,6 +30,9 @@ KChart.define('chart/distribution', ({ 'chart/registry': { register } }) => {
     }
     children.push(ctx.line(plot.x, plot.y, plot.x, plot.y + plot.h, { stroke: ctx.color('axis'), 'stroke-width': 0.8 }));
     children.push(ctx.line(plot.x, plot.y + plot.h, plot.x + plot.w, plot.y + plot.h, { stroke: ctx.color('axis'), 'stroke-width': 0.8 }));
+    // 与柱状图一致，数值轴单位写在轴顶左侧；百分比刻度已带 %，不再重复。
+    const meta = ctx.field(valueField), unit = meta.format === 'percent' ? '' : String(meta.unit || '').trim();
+    if (unit) children.push(ctx.text(8, PLOT_TOP - 30, unit, { anchor: 'start', size: 12, fill: ctx.color('muted'), meta: { kind: 'axis-unit', label: unit } }));
     return { plot, scale, y, children, width };
   }
 
@@ -165,21 +168,19 @@ KChart.define('chart/distribution', ({ 'chart/registry': { register } }) => {
     const directions = new Set(spec.data.map((row) => row[close] > row[open] ? 'up' : row[close] < row[open] ? 'down' : 'flat'));
     const english = /^en(?:-|$)/i.test(ctx.lang);
     const legendItems = [
-      ...(directions.has('up') ? [{ label: english ? 'Rising · hollow' : '上涨 · 空心', color: ctx.color('ink') }] : []),
-      ...(directions.has('down') ? [{ label: english ? 'Falling · filled' : '下跌 · 实心', color: ctx.color('ink') }] : []),
-      ...(directions.has('flat') ? [{ label: english ? 'Unchanged · line' : '持平 · 横线', color: ctx.color('ink') }] : []),
+      ...(directions.has('up') ? [{ label: english ? 'Rising · hollow' : '上涨 · 空心', color: ctx.color('ink'), mark: 'hollow' }] : []),
+      ...(directions.has('down') ? [{ label: english ? 'Falling · filled' : '下跌 · 实心', color: ctx.color('ink'), mark: 'filled' }] : []),
+      ...(directions.has('flat') ? [{ label: english ? 'Unchanged · line' : '持平 · 横线', color: ctx.color('ink'), mark: 'line' }] : []),
     ];
     const legend = ctx.legend(legendItems, f.plot.w);
-    const swatches = legend.children.filter((child) => child.tag === 'rect');
-    for (let i = 0; i < legendItems.length; i += 1) {
-      const item = legendItems[i], swatch = swatches[i];
-      if (!swatch) continue;
-      if (item.label.includes(english ? 'hollow' : '空心')) { swatch.attrs.fill = ctx.color('bg'); swatch.attrs.stroke = ctx.color('ink'); }
-      else if (item.label.includes(english ? 'unchanged' : '持平')) {
-        const group = legend.children[i], mark = ctx.line(swatch.attrs.x, swatch.attrs.y + 5, swatch.attrs.x + 10, swatch.attrs.y + 5, { stroke: ctx.color('ink'), 'stroke-width': 1.5 });
-        group.children[group.children.indexOf(swatch)] = mark;
-      } else swatch.attrs.fill = ctx.color('ink');
-    }
+    // Each legend entry is a group holding its swatch; restyle that swatch to match the candle it stands for.
+    legend.children.forEach((group, i) => {
+      const swatch = group.children.find((child) => child.tag === 'rect');
+      const { mark } = legendItems[i];
+      if (!swatch || mark === 'filled') return;
+      if (mark === 'hollow') Object.assign(swatch.attrs, { fill: ctx.color('bg'), stroke: ctx.color('ink'), 'stroke-width': 1.1 });
+      else group.children[group.children.indexOf(swatch)] = ctx.line(swatch.attrs.x, swatch.attrs.y + 5, swatch.attrs.x + 10, swatch.attrs.y + 5, { stroke: ctx.color('ink'), 'stroke-width': 1.5 });
+    });
     f.children.push(ctx.el('g', { transform: `translate(${f.plot.x},${f.plot.y - 20})` }, legend.children));
     return finish(ctx, f.children, f.plot, cat, f.width);
   }

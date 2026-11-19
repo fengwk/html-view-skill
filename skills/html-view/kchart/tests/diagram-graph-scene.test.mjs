@@ -73,8 +73,12 @@ test('ER scene emits attribute rows, relation markers, and local marker referenc
     assert.match(svg, new RegExp(`<marker id="slice-graph-card-${marker}"`));
   }
   assert.match(svg, /marker-end="url\(#slice-graph-card-zero-one\)"/);
-  // 可选关系的空心圆必须有半径；卡片内文字在已计算的槽位垂直居中。
-  assert.match(svg, /<circle cx="10\.5" cy="8" r="5"/);
+  // 可选圆圈在外侧，鸦爪朝向实体；两者计入描边也不能相交。
+  const optionalMany = /<marker id="slice-graph-card-zero-many"[^>]*>(.*?)<\/marker>/.exec(svg)[1];
+  const [, center, radius] = /<circle cx="(\d+)" cy="8" r="(\d+)"/.exec(optionalMany);
+  const [, tip, apex] = /<path d="M(\d+) 2 L(\d+) 8/.exec(optionalMany);
+  assert.ok(Number(center) + Number(radius) + 1.4 < Number(apex));
+  assert.ok(Number(apex) < Number(tip) && Number(tip) < 16);
   assert.match(svg, /<text[^>]*dominant-baseline="central"[^>]*>User<\/text>/);
   assert.doesNotMatch(svg, /class="g-|document|style=/);
 });

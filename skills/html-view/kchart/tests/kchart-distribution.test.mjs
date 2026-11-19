@@ -71,6 +71,16 @@ test('distribution charts validate and produce semantic pure scenes', () => {
   const upOnly = { ...specs.candlestick, data: specs.candlestick.data.slice(0, 1) };
   const upLegendText = texts(K.layout(upOnly, { lang: 'en' }).children);
   assert.ok(upLegendText.some((value) => value.includes('Rising')) && !upLegendText.some((value) => value.includes('Falling')), 'legend does not advertise a falling style absent from the chart');
+  // 图例标记与蜡烛本身一致：上涨空心、下跌实心、持平一条横线，中英文都一样。
+  const nodes = (list) => list.flatMap((node) => [node, ...nodes(node.children || [])]);
+  for (const lang of ['en', 'zh-CN']) {
+    const legend = nodes(K.layout(specs.candlestick, { lang }).children).filter((node) => node.meta?.kind === 'legend');
+    const marks = legend.map((group) => group.children.find((child) => child.tag === 'rect' || child.tag === 'line'));
+    assert.deepEqual(plain(marks.map((mark) => mark.tag)), ['rect', 'rect', 'line'], lang);
+    assert.equal(marks[0].attrs.fill, candles[0].attrs.fill, `${lang}: rising swatch is hollow like the rising candle`);
+    assert.ok(marks[0].attrs.stroke, `${lang}: hollow swatch keeps an outline`);
+    assert.equal(marks[1].attrs.fill, candles[1].attrs.fill, `${lang}: falling swatch is filled like the falling candle`);
+  }
 });
 
 // 意图：公共violin密度尺度、主题对比底色、确定性strip抖动及类别cell边界须由实际几何保证。
@@ -196,4 +206,26 @@ test('invalid interval and candlestick ranges stay validation errors', () => {
   const badCandle = { ...specs.candlestick, data: [{ day: 'Mon', open: 9, close: 4, low: 5, high: 8, id: 'x' }] };
   for (const spec of [badInterval, badCandle]) assert.ok(K.validate(spec).errors.length > 0);
   assert.throws(() => K.layout(badInterval), (error) => error.code === 'BAD_KCHART');
+});
+
+// 意图：区间、K 线、散点条带和小提琴图都在数值轴顶写出单位，读者不必猜刻度量的是什么；单位不压到 K 线图例。
+test('distribution charts name the unit of their value axis', () => {
+  const all = (list) => list.flatMap((node) => [node, ...all(node.children || [])]);
+  const withUnit = {
+    interval: { ...specs.interval, annotations: [] },
+    candlestick: { ...specs.candlestick, unit: 'CNY/kg' },
+    strip: { ...specs.strip, unit: 'cups' },
+    violin: specs.violin,
+  };
+  for (const [chart, spec] of Object.entries(withUnit)) {
+    const scene = K.layout(spec, { width: 360, lang: 'en' });
+    const units = all(scene.children).filter((node) => node.meta?.kind === 'axis-unit');
+    assert.deepEqual(plain(units.map((node) => node.text)), [spec.unit], chart);
+    const top = Math.min(...all(scene.children).filter((node) => node.tag === 'line' && node.attrs.x1 === node.attrs.x2).map((node) => Math.min(node.attrs.y1, node.attrs.y2)));
+    assert.ok(units[0].attrs.y + 4 <= top - 12, `${chart}: unit sits above the plot`);
+    const legend = all(scene.children).filter((node) => node.meta?.kind === 'legend');
+    if (chart === 'candlestick') assert.ok(legend.length && units[0].attrs.y < top - 20 - 3, 'unit stays above the candle legend row');
+  }
+  const percent = K.layout({ ...specs.strip, fields: { score: { format: 'percent' } }, data: specs.strip.data.map((row) => ({ ...row, score: row.score / 10 })) });
+  assert.equal(all(percent.children).filter((node) => node.meta?.kind === 'axis-unit').length, 0, 'percent ticks already carry %');
 });

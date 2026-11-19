@@ -7,7 +7,8 @@ const escapeHtml = (value) => String(value).replace(/[&<>"']/g, (char) => ({ '&'
 const jsonForScript = (value) => JSON.stringify(value).replace(/<\/script/gi, '<\\/script');
 
 function iconMarkup(content) {
-  const names = new Set(['calendar']);
+  // The page chrome draws these itself: the date field button and the date picker's month arrows.
+  const names = new Set(['calendar', 'chevron-left', 'chevron-right']);
   for (const match of String(content).matchAll(/\bdata-icon\s*=\s*(["'])([^"']+)\1/gi)) names.add(match[2]);
   const result = {};
   for (const name of names) {

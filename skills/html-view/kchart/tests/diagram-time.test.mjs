@@ -71,7 +71,7 @@ test('kanban, timeline and packet size their own label space', () => {
 
 // 同一日期只能出现一次轴刻度；日期跨度、状态 flags 和 after 推导须保持原语义。
 test('gantt retains civil dates and states without duplicate month labels', () => {
-  const { parsed, laid } = render('gantt\nsection Work\nLong : done, task-a, 2024-01-01, 2024-03-31\nShort : active, after task-a, 2d', 'gantt');
+  const { parsed, laid } = render('gantt\ntitle Sample schedule\nsection Work\nLong : done, task-a, 2024-01-01, 2024-03-31\nShort : active, after task-a, 2d', 'gantt');
   assert.equal(parsed.model.items[0].start, '2024-01-01');
   assert.equal(parsed.model.items[0].end, '2024-03-31');
   assert.deepEqual([...parsed.model.items[0].flags], ['done']);
@@ -80,6 +80,10 @@ test('gantt retains civil dates and states without duplicate month labels', () =
   const ticks = [...laid.scene.children.filter(node => node.tag === 'text' && /^2024-\d\d$/.test(node.text || '')).map(node => node.text)];
   assert.deepEqual(ticks, ['2024-01', '2024-02', '2024-03', '2024-04']);
   assert.equal(new Set(ticks).size, ticks.length);
+  // 在无外框的 SVG 中，日期的上沿应和标题的下沿留出间隔，即使两者横向重叠。
+  const attrs = value => laid.scene.children.find(node => node.tag === 'text' && node.text === value).attrs;
+  const title = attrs('Sample schedule'), month = attrs(ticks[0]);
+  assert.ok(month.y - month['font-size'] / 2 - (title.y + title['font-size'] / 2) >= 8);
 });
 
 // 分组名单独成行，不在每个任务前重复；任务名与条形同一中线；月份刻度不画进左侧标签栏；状态词按语言写出。
@@ -118,6 +122,30 @@ test('themes use shared colors and wrapped labels stay in the scene', () => {
     const name = 'Long Label '.repeat(24);
     const { laid } = render(`kanban\ntodo[${name}]\n  task[${name}]`, 'kanban', { theme });
     assert.ok(laid.scene.width >= 960);
-    assert.ok(laid.scene.children.some(node => node.tag === 'text' && node.text === 'task'));
+    // 卡片只显示文字，不显示 Mermaid 引用 ID；换行后的每行都留在卡片内。
+    const texts = laid.scene.children.filter(node => node.tag === 'text');
+    assert.ok(!texts.some(node => node.text === 'task' || node.text === 'kanban'));
+    const card = laid.scene.children.filter(node => node.tag === 'rect' && node.attrs.fill !== 'transparent').at(-1).attrs;
+    const lines = texts.filter(node => node.attrs.y > card.y && node.attrs['font-weight'] === 400);
+    assert.ok(lines.length >= 1);
+    for (const line of lines) assert.ok(line.attrs.y - 7 >= card.y && line.attrs.y + 7 <= card.y + card.height);
   }
+});
+
+// 旅程图的分组名只写一次，评分刻度只在顶部编号；未写标题时不把关键字当标题。
+test('journey states each section once and untitled diagrams draw no keyword heading', () => {
+  const { laid } = render('journey\nsection Visit\nOrder: 4: Guest\nPay: 3: Guest\nsection Return\nRejoin: 5: Guest', 'journey');
+  const texts = [...laid.scene.children.filter(node => node.tag === 'text').map(node => node.text)];
+  assert.deepEqual(texts.filter(text => ['Visit', 'Return'].includes(text)), ['Visit', 'Return']);
+  assert.deepEqual(texts.filter(text => /^[1-5]$/.test(text)), ['1', '2', '3', '4', '5']);
+  assert.ok(!texts.includes('journey'));
+  for (const [source, kind] of [['gitGraph\ncommit id: "a"', 'gitGraph'], ['kanban\ntodo[To do]\n  t[Task]', 'kanban']]) {
+    assert.ok(!render(source, kind).laid.scene.children.some(node => node.tag === 'text' && node.text === kind), kind);
+  }
+  const timeline = [...render('timeline\nsection Early\n2019 : A\n2021 : B\nsection Later\n2026 : C', 'timeline').laid.scene.children.filter(node => node.tag === 'text').map(node => node.text)];
+  assert.deepEqual(timeline.filter(text => ['Early', 'Later'].includes(text)), ['Early', 'Later']);
+  // 提交标签下方只留短边距，不留整段空白。
+  const git = render('gitGraph\ncommit id: "a"\nbranch b\ncheckout b\ncommit id: "c"', 'gitGraph').laid.scene;
+  const lowest = Math.max(...git.children.filter(node => node.tag === 'text').map(node => node.attrs.y));
+  assert.ok(git.height - lowest <= 24, `gitGraph leaves ${git.height - lowest}px under its last label`);
 });

@@ -242,13 +242,21 @@ KChart.define('chart/statistics', ({
       const xTicks = ticks(xmin, xmax, fx, xScale, right - left, true);
       const xLabels = xTicks.values.map((t, i) => xTicks.labels?.[i] ?? ctx.format(t, e.x));
       yTicks.values.forEach((t, i) => { children.push(ctx.line(left, y(t), right, y(t), { stroke: ctx.palette.grid, 'stroke-width': 1 })); addText(left - 8, y(t) + 4, yTicks.labels?.[i] ?? ctx.format(t, e.y), 'end'); });
-      xTicks.values.forEach((t, i) => {
+      // Edge labels are pulled inside the canvas; thin after that shift so a moved label never touches its
+      // neighbour. The first and last labels stay, and only the final gap may end up shorter.
+      const placedX = xTicks.values.map((t, i) => {
         children.push(ctx.line(x(t), top, x(t), bottom, { stroke: ctx.palette.grid, 'stroke-width': 1 }));
-        const label = xLabels[i];
-        const half = ctx.measure(label, 12, 400) / 2;
-        const px = Math.max(half + 8, Math.min(ctx.width - half - 8, x(t)));
-        addText(px, bottom + 18, label);
+        const half = ctx.measure(xLabels[i], 12, 400) / 2;
+        return { label: xLabels[i], half, px: Math.max(half + 8, Math.min(ctx.width - half - 8, x(t))) };
       });
+      const keptX = [];
+      const clashes = (prior, item) => prior.px + prior.half + 8 > item.px - item.half;
+      placedX.forEach((item, i) => {
+        if (i < placedX.length - 1) { if (!keptX.length || !clashes(keptX.at(-1), item)) keptX.push(item); return; }
+        while (keptX.length > 1 && clashes(keptX.at(-1), item)) keptX.pop();
+        if (!keptX.length || !clashes(keptX.at(-1), item)) keptX.push(item);
+      });
+      keptX.forEach(({ label, px }) => addText(px, bottom + 18, label));
       const colors = series.map((_, i) => ctx.palette[`tone${i % 6 + 1}`]);
       children.push(...legend.children.map((node) => ({ ...node, attrs: { ...node.attrs, transform: `translate(${left} ${legendY - 20})` } })));
       spec.data.forEach((row, i) => {

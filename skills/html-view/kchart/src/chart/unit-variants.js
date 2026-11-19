@@ -28,12 +28,15 @@ KChart.define('chart/unit-variants', ({ 'chart/registry': { decorate: registerDe
     }
   }
   function unitDescription(spec, ctx, field) {
-    const label = spec.unitMark.label;
-    const amount = ctx.format(spec.unitMark.value, field, true);
+    // The amount carries the field's unit; the mark label stands in only when the field has none,
+    // so the sentence never names the unit twice (“Each ‘members’ mark represents 200 members”).
+    const label = spec.unitMark.label, english = isEnglish(ctx.lang);
+    const withUnit = ctx.format(spec.unitMark.value, field, true), bare = ctx.format(spec.unitMark.value, field, false);
+    const amount = withUnit !== bare ? withUnit : `${bare}${english || !/^[\u3400-\u9fff]/u.test(label) ? ' ' : ''}${label}`;
     if (spec.chart === 'histogram' && spec.variant === 'rungs') {
-      return isEnglish(ctx.lang) ? `Each cell represents ${amount}` : `每格表示 ${amount}`;
+      return english ? `Each cell represents ${amount}` : `每格表示 ${amount}`;
     }
-    return isEnglish(ctx.lang) ? `Each “${label}” mark represents ${amount}` : `每个“${label}”符号表示 ${amount}`;
+    return english ? `Each mark represents ${amount}` : `每个符号表示 ${amount}`;
   }
   function headerLayout(ctx, text, width) {
     const lines = ctx.wrap(text, Math.max(24, width - 16), 12, 400);
@@ -340,13 +343,15 @@ KChart.define('chart/unit-variants', ({ 'chart/registry': { decorate: registerDe
       return Math.max(left + width / 2, Math.min(right - width / 2, boundaryX[index])) - width / 2;
     };
     const boundaryRight = (index) => boundaryLeft(index) + boundaryWidth[index];
-    const visible = [0];
-    for (let index = 1; index < lastBoundary; index += 1) {
-      const clear = visible.every((prior) => boundaryLeft(index) >= boundaryRight(prior) + 8)
-        && boundaryLeft(lastBoundary) >= boundaryRight(index) + 8;
-      if (clear) visible.push(index);
+    // Thin by one uniform step that keeps both ends; only the final gap may be shorter.
+    let visible = lastBoundary > 0 ? [0, lastBoundary] : [0];
+    for (let step = 1; step < lastBoundary; step += 1) {
+      const pick = [];
+      for (let index = 0; index < lastBoundary; index += step) pick.push(index);
+      pick.push(lastBoundary);
+      while (pick.length > 2 && boundaryLeft(lastBoundary) < boundaryRight(pick.at(-2)) + 8) pick.splice(-2, 1);
+      if (pick.every((index, k) => !k || boundaryLeft(index) >= boundaryRight(pick[k - 1]) + 8)) { visible = pick; break; }
     }
-    if (boundaryLabels.length > 1) visible.push(boundaryLabels.length - 1);
     boundaryLabels.forEach((tick, index) => {
       if (!visible.includes(index)) return;
       const anchor = index === 0 ? 'start' : index === boundaryLabels.length - 1 ? 'end' : 'middle';

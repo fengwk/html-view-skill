@@ -19,11 +19,13 @@ KChart.define('diagram/graph', ({
         markerWidth: 8, markerHeight: 8, markerUnits: 'userSpaceOnUse', orient: 'auto-start-reverse',
       }, children: [ctx.path('M0 0 L8 4 L0 8 Z', { fill: color })],
     });
+    // From the relationship line toward the entity: minimum first, then maximum.
+    // The outer circle/bar and the inner crow’s foot must occupy separate parts of the 16px stub.
+    const zero = ['circle', 4, 8, 3], minOne = ['line', 'M4 2 V14'];
+    const maxOne = ['line', 'M12 2 V14'], many = ['line', 'M15 2 L9 8 L15 14 M9 8 H15'];
     const cardSpecs = {
-      'zero-one': [['circle', 10.5, 8, 5], ['line', 'M5 2 V14']],
-      'exactly-one': [['line', 'M5 2 V14'], ['line', 'M11 2 V14']],
-      'zero-many': [['circle', 10.5, 8, 5], ['line', 'M16 8 L3 2 M16 8 L3 8 M16 8 L3 14']],
-      'one-many': [['line', 'M5 2 V14'], ['line', 'M16 8 L3 2 M16 8 L3 8 M16 8 L3 14']],
+      'zero-one': [zero, maxOne], 'exactly-one': [minOne, maxOne],
+      'zero-many': [zero, many], 'one-many': [minOne, many],
     };
     const cards = Object.entries(cardSpecs).map(([name, shapes]) => ({
       tag: 'marker', attrs: {

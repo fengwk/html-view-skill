@@ -1,0 +1,76 @@
+{
+  "title": "Shiguang Coffee | Monthly operations report, October 2026",
+  "layout": "periodic",
+  "period": {
+    "current": "2026-10",
+    "compare": ["mom", "yoy"],
+    "timezone": "Asia/Shanghai",
+    "complete": true
+  },
+  "sources": [
+    {
+      "id": "fictional-ops",
+      "name": "Fictional monthly totals (sample)",
+      "query": "Three monthly summary CSV files in data/; every figure is fictional",
+      "pulledAt": "2026-11-16T09:00:00+08:00"
+    }
+  ],
+  "datasets": [
+    {
+      "id": "monthly",
+      "label": "Monthly operations",
+      "file": "data/monthly.csv",
+      "source": "fictional-ops",
+      "periodField": "month",
+      "dimensions": { "month": { "type": "month", "label": "Month" } },
+      "measures": {
+        "revenue": { "label": "Revenue", "unit": "CNY", "kind": "sum", "definition": "Fictional revenue summed by month; reconciles with revenue by channel and by region" },
+        "orders": { "label": "Orders", "unit": "orders", "kind": "sum", "definition": "Fictional paid orders, counted by payment month" },
+        "visitors": { "label": "Visits", "unit": "visits", "kind": "sum", "definition": "Fictional store and app visits summed by month; the denominator of order conversion" },
+        "conversion": { "label": "Order conversion", "unit": "%", "kind": "ratio", "format": "percent", "numerator": "orders", "denominator": "visitors", "definition": "Orders ÷ visits, recomputed from the summed numerator and denominator" },
+        "average_order_value": { "label": "Average order value", "unit": "CNY/order", "kind": "mean", "numerator": "revenue", "denominator": "orders", "definition": "Revenue ÷ orders, recomputed from the summed numerator and denominator" },
+        "active_members": { "label": "Monthly active members", "unit": "members", "kind": "snapshot", "definition": "Distinct members active during each month; a monthly snapshot that is never summed across months" }
+      }
+    },
+    {
+      "id": "channels",
+      "label": "Revenue by channel",
+      "file": "data/channels.csv",
+      "source": "fictional-ops",
+      "periodField": "month",
+      "dimensions": { "month": { "type": "month", "label": "Month" }, "channel": { "type": "category", "label": "Channel" } },
+      "measures": {
+        "revenue": { "label": "This month", "unit": "CNY", "kind": "sum", "definition": "Fictional revenue attributed to each channel; channels do not overlap and add up to the monthly total" },
+        "previous_revenue": { "label": "Last month", "unit": "CNY", "kind": "sum", "definition": "Fictional revenue of the same channel in the previous calendar month, for the month-over-month comparison" }
+      }
+    },
+    {
+      "id": "regions",
+      "label": "Revenue by region",
+      "file": "data/regions.csv",
+      "source": "fictional-ops",
+      "periodField": "month",
+      "dimensions": { "month": { "type": "month", "label": "Month" }, "region": { "type": "category", "label": "Region" } },
+      "measures": {
+        "revenue": { "label": "Revenue", "unit": "CNY", "kind": "sum", "definition": "Fictional revenue assigned to each region; regions do not overlap and add up to the monthly total" }
+      }
+    }
+  ],
+  "blocks": [
+    { "type": "kpi", "dataset": "monthly", "measures": ["revenue", "orders", "visitors", "conversion", "average_order_value", "active_members"] },
+    { "type": "chart", "chart": "line", "dataset": "monthly", "encode": { "category": "month", "value": "revenue" }, "title": "Revenue trended up and hit its high for the period this month" },
+    { "type": "chart", "chart": "bar", "dataset": "channels", "encode": { "category": "channel", "value": ["previous_revenue", "revenue"] }, "title": "App growth more than offset the in-store dip" },
+    { "type": "chart", "chart": "bar", "dataset": "regions", "encode": { "category": "region", "value": "revenue" }, "title": "East leads, and the four regions step down by size" },
+    { "type": "table", "dataset": "channels", "columns": ["channel", "previous_revenue", "revenue"] },
+    { "type": "text", "file": "narrative.md", "dataset": "monthly" }
+  ],
+  "views": [
+    { "id": "store", "label": "In-store", "filters": { "channels": { "channel": "In-store" } } },
+    { "id": "delivery", "label": "Delivery", "filters": { "channels": { "channel": "Delivery" } } },
+    { "id": "app", "label": "App", "filters": { "channels": { "channel": "App" } } },
+    { "id": "east", "label": "East", "filters": { "regions": { "region": "East" } } },
+    { "id": "south", "label": "South", "filters": { "regions": { "region": "South" } } },
+    { "id": "north", "label": "North", "filters": { "regions": { "region": "North" } } },
+    { "id": "west", "label": "West", "filters": { "regions": { "region": "West" } } }
+  ]
+}

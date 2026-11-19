@@ -179,6 +179,17 @@ test('treemap fallback legend contains only compact tiles and matches their in-t
   assert.ok(names.every((node, index) => node.meta.index === index + 1));
   const baselines = names.map((node) => Number(node.attrs.y));
   assert.ok(baselines.every((y, index) => index === 0 || y - baselines[index - 1] >= 16), 'treemap fallback entries stay in one column without collisions');
+  // 分组标题放不进窄列时，它的叶子在图例里写出「分组 / 名称」；放得下标题的分组保持原样。
+  const regions = { label: 'All', children: [
+    { label: 'East', children: [{ label: 'Shanghai', value: 46 }, { label: 'Hangzhou', value: 28 }] },
+    { label: 'Southwest', children: [{ label: 'Chengdu', value: 12 }, { label: 'Chongqing', value: 8 }] },
+  ] };
+  const grouped = K.layout({ chart: 'treemap', unit: 'CNY', data: regions }, { width: 338, lang: 'en' });
+  const headers = walk(grouped.children, (node) => node.meta?.kind === 'treemap-group-label').map((node) => node.text);
+  assert.deepEqual(plain(headers), ['East'], 'only the header that fits is drawn');
+  const listed = walk(grouped.children, (node) => node.meta?.kind === 'treemap-name').map((node) => node.text);
+  for (const city of ['Chengdu', 'Chongqing']) assert.ok(listed.some((text) => text.includes(`Southwest / ${city}`)), `${city} keeps its region: ${listed}`);
+  assert.ok(listed.every((text) => !text.includes('East /')), 'leaves under a visible header are not prefixed');
 });
 
 test('narrow sunburst labels fall back to numbered single-column entries rather than collide with the root', () => {
@@ -292,11 +303,21 @@ test('radial-share maps nonzero intensities from a zero baseline', () => {
 test('composition chart annotations follow the requested English locale', () => {
   const cases = [
     [{ chart: 'donut', data: [{ c: 'A', v: 1 }], encode: { category: 'c', value: 'v' } }, /Total/],
-    [{ chart: 'radial-share', data: [{ c: 'A', v: 1, i: 2 }], encode: { category: 'c', value: 'v', intensity: 'i' }, fields: { v: { unit: '件' }, i: { unit: '指数' } } }, /Angle = share.*Radius = intensity/s],
+    [{ chart: 'radial-share', data: [{ c: 'A', v: 1, i: 2 }], encode: { category: 'c', value: 'v', intensity: 'i' }, fields: { v: { unit: '件' }, i: { unit: '指数' } } }, /Angle shows share; radius shows intensity\./],
     [{ chart: 'rose', data: [{ c: 'A', v: 1 }], encode: { category: 'c', value: 'v' } }, /Total/],
     [{ chart: 'gauge', range: [0, 10], data: [{ v: 5, t: 7 }], encode: { value: 'v', target: 't' } }, /Target/],
   ];
   for (const [spec, expected] of cases) assert.match(K.render(spec, { lang: 'en' }).svg, expected);
+  // 读法说明能整行放进 44px 圆孔时留在中心（中文），放不下时移到图例下方（英文），且在场景高度之内。
+  const radial = { chart: 'radial-share', data: [{ c: 'A', v: 2, i: 2 }, { c: 'B', v: 1, i: 4 }], encode: { category: 'c', value: 'v', intensity: 'i' }, fields: { v: { unit: '件' }, i: { unit: '指数' } } };
+  for (const width of [338, 640]) {
+    const zh = K.layout(radial, { width, lang: 'zh-CN' });
+    assert.equal(walk(zh.children, (node) => node.text === '角度＝份额').length, 1, `${width}: Chinese key fits the hole`);
+    const en = K.layout(radial, { width, lang: 'en' });
+    assert.equal(walk(en.children, (node) => node.text === 'Radius = intensity').length, 0, `${width}: English key is not squeezed into the hole`);
+    const note = walk(en.children, (node) => node.tag === 'text' && node.meta?.kind === 'radial-share-key');
+    assert.ok(note.length >= 1 && note.every((line) => line.attrs.y <= en.height - 4), `${width}: note stays inside the scene`);
+  }
 });
 
 const hexIn = (value) => String(value).match(/#[0-9a-f]{6}/gi).at(-1);
@@ -359,6 +380,22 @@ test('donut centers lead with the total and gauge endpoints use tick formatting'
   assert.ok(total.attrs['font-size'] > caption.attrs['font-size'], 'total is the larger reading');
   assert.ok(total.attrs.y > caption.attrs.y, 'caption sits above the total');
   assert.equal(caption.attrs.x, total.attrs.x);
+  // 窄图里「数值 + 英文单位」比圆孔宽时，单位另起一行；每行都留在圆孔内，不压到环上。
+  const wide = { chart: 'donut', unit: 'orders', data: [{ c: 'A', v: 58000 }, { c: 'B', v: 42000 }], encode: { category: 'c', value: 'v' } };
+  const ctx = K.util.context({ spec: wide, lang: 'en' });
+  for (const variant of [undefined, 'ticks']) {
+    const scene = K.layout({ ...wide, variant }, { width: 338, lang: 'en' });
+    const ring = walk(scene.children, (node) => node.meta?.kind === 'donut' || node.meta?.kind === 'donut-tick');
+    const center = walk(scene.children, (node) => node.tag === 'text' && ['Total', '100.0K', 'orders'].includes(node.text));
+    assert.deepEqual(plain(center.map((node) => node.text)), ['Total', '100.0K', 'orders'], `${variant}: number and unit split`);
+    const cx = center[0].attrs.x, cy = (center[0].attrs.y + center[2].attrs.y) / 2 + 2;
+    const hole = variant === 'ticks' ? Math.min(...ring.map((tick) => Math.hypot(tick.attrs.x1 - cx, tick.attrs.y1 - cy))) : Number(/A([\d.]+)/.exec(ring.find((node) => node.tag === 'path').attrs.d.split('L')[1])?.[1]);
+    for (const line of center) {
+      const half = ctx.measure(line.text, line.attrs['font-size'], line.attrs['font-weight'] || 400) / 2;
+      const far = Math.max(Math.abs(line.attrs.y - cy), Math.abs(line.attrs.y - line.attrs['font-size'] - cy));
+      assert.ok(Math.hypot(half, far) <= hole, `${variant}: "${line.text}" stays inside the hole (${Math.hypot(half, far).toFixed(1)} > ${hole})`);
+    }
+  }
   for (const variant of ['bar', 'arc', 'ticks']) {
     const { svg } = K.render({ chart: 'gauge', variant, range: [0, 1], fields: { s: { format: 'percent' } }, data: [{ s: 0.68 }], encode: { value: 's' } }, { width: 558 });
     assert.match(svg, />0%</, `${variant}: min endpoint`);

@@ -423,6 +423,8 @@ test('threads allocate five route widths by value and keep node labels outside t
   assert.deepEqual(plain(paths.map((path) => path.meta.path)), ['p1', 'p2', 'p3', 'p4', 'p5']);
   assert.ok(Math.abs(paths[0].attrs['stroke-width'] / paths[4].attrs['stroke-width'] - 3) < 1e-9);
   assert.ok(scene.height < 380, 'default layout does not preserve a large empty band');
+  const lowest = Math.max(...scene.children.filter((child) => child.tag === 'text').map((child) => child.attrs.y));
+  assert.ok(scene.height - lowest <= 20, `the scene ends just below the stage names (${scene.height} vs ${lowest})`);
   assert.ok(labels.every((label) => label.attrs.y + 4 < nodes.get(label.meta.node).attrs.cy - 3.5), 'labels have a dedicated lane above the paths');
   const maxPathWidth = 296 * .05;
   assert.ok(paths.every((path) => path.attrs['stroke-width'] <= maxPathWidth), 'route width is capped by adjacent-stage spacing');

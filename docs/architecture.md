@@ -1,5 +1,7 @@
 # html-view 与 KChart：实现约定
 
+简体中文 · [English](architecture.en.md)
+
 `htmlview` 生成离线单文件 HTML，维护阅读文档、数据报表和界面稿，也负责本地 HTML 的阅读、检查与导出。数据图和结构图由独立的 KChart 库输出。不安装第三方渲染运行时，不在仓库维护生成的浏览器包。
 
 | 边界 | 实现 |
@@ -21,9 +23,22 @@
 
 `audit` 检查输入及产物完整性，`check` 检查实际设备宽度、打印版心与浏览器错误。`shot` 和 `export` 等待当前媒体布局。打印时检查与导出共用版心测量；发现横向裁切或图高超过单页时拒绝写 PDF。宽图可用 `--paper a4-landscape`，高图可用 `--paper a3-portrait`；仍放不下时交付完整 SVG 或由作者重排。自动测试不替代样张目检。
 
+<a id="themes"></a>
+
+## 主题与换色
+
+| 要改什么 | 做法 |
+|---|---|
+| 改一份文档或报表的显示主题 | `htmlview style report.html --theme obsidian`。用 `htmlview style --list` 查看内置主题。原数据和内容不变。 |
+| 调整界面稿的品牌色或明暗 | `htmlview style prototype.html --brand '#a84624' --scheme light`。界面稿从品牌色派生主题，不用 `--theme`。 |
+| 在 KChart 程序接口中用自己的配色 | 传 `theme` 对象给 `render()` 或 `diagram()`。可展开一套内置主题，再覆盖必要的字段；不必改库源码或注册 CLI 主题。 |
+| 给 `htmlview` 添加一个新的具名主题 | 在 [KChart 的主题表](../skills/html-view/kchart/src/core/theme.js) 登记完整调色盘，再在 [`assets/themes/`](../skills/html-view/assets/themes/) 放同名 CSS，定义圆角、标题字形等非颜色变量。不需要改各图型的布局代码。 |
+
+颜色以 KChart 主题表为准，HTML 外壳的颜色变量从这里生成。已有主题只换颜色时，不需要改 CSS 文件或图型；改第 2 条数据序列用 `tones[1]`，改外壳强调色用 `accent`，两者是不同角色。不要只给一组任意 HEX：调色盘要覆盖背景、文字、描边、状态和六个序列色，并通过对比度与色觉区分校验。新增主题后需验证窄屏、真实图表和打印；深色主题打印仍采用 Paper 色板。
+
 ## 使用与维护入口
 
 - [技能入口与图型索引](../skills/html-view/SKILL.md)
 - [CLI、自动测试与图库维护](../skills/html-view/scripts/README.md)
 - [KChart API、程序包与许可](../skills/html-view/kchart/README.md)
-- [图谱与示例](showcase/README.md) · [图型覆盖和反例](chart-coverage.md)
+- [图谱与样例](showcase/README.md) · [图型覆盖和反例](chart-coverage.md)

@@ -561,7 +561,9 @@ KChart.define('chart/multivariate', ({ 'chart/registry': { register }, 'core/geo
       const LINE = 16;
       const capOf = (label) => {
         const full = ctx.measure(String(label), 12);
-        let cap = Math.min(160, Math.max(48, Math.ceil(full / 2)));
+        // Halving the width may cut a Latin word in two; the cap is never narrower than the widest word.
+        const word = Math.max(0, ...(String(label).match(/[A-Za-z0-9’'.-]+/g) || []).map(part => ctx.measure(part, 12)));
+        let cap = Math.min(160, Math.max(48, Math.ceil(full / 2), Math.ceil(word)));
         let lines = ctx.wrap(String(label), cap, 12);
         while (lines.length > 2) {
           cap += 12;
@@ -786,13 +788,16 @@ KChart.define('chart/multivariate', ({ 'chart/registry': { register }, 'core/geo
       // 时间轴止于末端圆列之前，最晚起点的弧线也有可见长度。
       const timeEnd = endX - maxRadius - 16;
       const x = ctx.linear(lo, hi || lo + 1, p.x + 10, timeEnd);
-      const rowGap = Math.max(36, ...labelLines.map(lines => lines.length * 16 + 8));
+      const sorted = data.map((row, i) => ({ row, i, start: nums[i] })).sort((a, b) => a.start - b.start || a.i - b.i);
+      // 相邻两行的末端圆不能相交：行距至少容下上下两个圆的半径之和。
+      const radiusOf = i => Math.sqrt(values[i] / max) * maxRadius;
+      const circleGap = Math.max(0, ...sorted.slice(1).map((item, k) => radiusOf(sorted[k].i) + radiusOf(item.i) + 6));
+      const rowGap = Math.max(36, circleGap, ...labelLines.map(lines => lines.length * 16 + 8));
       const fanHeight = Math.max(p.h, maxRadius * 2 + 6 + Math.max(0, data.length - 1) * rowGap);
       const baseline = p.y + fanHeight;
       // 末端圆整体位于基线上方，不压到基线和日期刻度。
       const bubbleTop = p.y + maxRadius, bubbleBottom = baseline - maxRadius - 6;
       children.push(ctx.line(p.x, baseline, timeEnd + 10, baseline, { stroke: ctx.color('axis') }));
-      const sorted = data.map((row, i) => ({ row, i, start: nums[i] })).sort((a, b) => a.start - b.start || a.i - b.i);
       const startClusters = [];
       sorted.forEach(item => {
         const sx = x(item.start), cluster = startClusters.at(-1);

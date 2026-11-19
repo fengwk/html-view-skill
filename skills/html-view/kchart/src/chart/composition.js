@@ -104,7 +104,19 @@ KChart.define('chart/composition', ({ 'chart/registry': { register } }) => {
     if (isDonut) {
       const caption = spec.fields?.[field]?.label || words(ctx, '合计', 'Total');
       // 合计数值是中心的读数主体，说明文字退为小号次要信息；两行文字框之间留出间隙。
-      children.push(ctx.text(cx, cy - 12, caption, { anchor: 'middle', size: 12, fill: ctx.color('muted') }), ctx.text(cx, cy + 14, ctx.format(total, field), { anchor: 'middle', size: 20, weight: 650, fill: ctx.color('fg') }));
+      // 每行都要落在中心圆孔该高度的弦长内（两侧各留 8px）；数值连单位放不下时，单位另起一行小字。
+      const hole = ticksVariant ? r - 17 : inner;
+      const room = (dy) => 2 * Math.sqrt(Math.max(0, hole * hole - dy * dy)) - 16;
+      const whole = ctx.format(total, field), unit = String(ctx.field(field).unit || '').trim();
+      if (ctx.measure(whole, 20, 650) <= room(20) || !unit) {
+        children.push(ctx.text(cx, cy - 12, caption, { anchor: 'middle', size: 12, fill: ctx.color('muted') }), ctx.text(cx, cy + 14, whole, { anchor: 'middle', size: 20, weight: 650, fill: ctx.color('fg') }));
+      } else {
+        children.push(
+          ctx.text(cx, cy - 20, caption, { anchor: 'middle', size: 12, fill: ctx.color('muted') }),
+          ctx.text(cx, cy + 6, ctx.format(total, field, false), { anchor: 'middle', size: 20, weight: 650, fill: ctx.color('fg') }),
+          ctx.text(cx, cy + 24, unit, { anchor: 'middle', size: 12, fill: ctx.color('muted') }),
+        );
+      }
     }
     const narrow = width <= 360, actualLegendWidth = sideLegend || !narrow ? legendWidth : stackedLegendWidth(ctx, items, legendWidth);
     const legend = ctx.legend(items, actualLegendWidth);
@@ -137,7 +149,17 @@ KChart.define('chart/composition', ({ 'chart/registry': { register } }) => {
       children.push(ctx.path(arcPath(cx, cy, maxR + 6, maxR + 9, a, next), { fill: ctx.color(`tone${i % 6 + 1}`), meta: { kind: 'share-label-ring', label: String(row[t.categoryField]), value: row[valueField] } }));
       a = next;
     });
-    children.push(ctx.text(cx, cy - 4, words(ctx, '角度＝份额', 'Angle = share'), { anchor: 'middle', size: 12, fill: ctx.color('fg') }), ctx.text(cx, cy + 14, words(ctx, '半径＝强度', 'Radius = intensity'), { anchor: 'middle', size: 12, fill: ctx.color('muted') }));
+    // 读法说明放进中心圆孔时，每行要落在该高度的弦长内（两侧各留 6px）；放不下就移到图例下方，不压到扇区上。
+    const key = [words(ctx, '角度＝份额', 'Angle = share'), words(ctx, '半径＝强度', 'Radius = intensity')];
+    const room = (dy) => 2 * Math.sqrt(Math.max(0, minR * minR - dy * dy)) - 12;
+    const inside = ctx.measure(key[0], 12) <= room(16) && ctx.measure(key[1], 12) <= room(17);
+    if (inside) children.push(ctx.text(cx, cy - 4, key[0], { anchor: 'middle', size: 12, fill: ctx.color('fg') }), ctx.text(cx, cy + 14, key[1], { anchor: 'middle', size: 12, fill: ctx.color('muted') }));
+    const note = (x, top, w) => {
+      if (inside) return 0;
+      const lines = ctx.wrap(words(ctx, '角度表示份额，半径表示强度。', 'Angle shows share; radius shows intensity.'), w, 12);
+      children.push(ctx.textLines(x, top + 12, lines, { fill: ctx.color('muted'), meta: { kind: 'radial-share-key' } }));
+      return lines.length * 16 + 8;
+    };
     const items = rows.map((row, i) => ({ label: `${row[t.categoryField]} · ${ctx.format(row[valueField], valueField)} (${ctx.percent(row[valueField] / sum)}) · ${words(ctx, '强度', 'intensity')} ${ctx.format(row[intensityField], intensityField)}`, color: ctx.color(`tone${i % 6 + 1}`), meta: { kind: 'share-label', label: String(row[t.categoryField]), value: row[valueField], intensity: row[intensityField] } }));
     const actualLegendWidth = sideLegend || ctx.width > 360 ? legendWidth : stackedLegendWidth(ctx, items, legendWidth);
     const legend = ctx.legend(items, actualLegendWidth);
@@ -145,11 +167,13 @@ KChart.define('chart/composition', ({ 'chart/registry': { register } }) => {
       const legendX = groupX + chartSpan + 28;
       const legendY = Math.max(16, cy - legend.height / 2);
       children.push(ctx.el('g', { transform: `translate(${legendX}, ${legendY})` }, legend.children));
-      return ctx.scene(Math.max(cy + maxR + 24, legendY + legend.height + 8), children, spec.title);
+      const noted = note(legendX, legendY + legend.height + 10, legendWidth);
+      return ctx.scene(Math.max(cy + maxR + 24, legendY + legend.height + 8 + noted), children, spec.title);
     }
-    const legendY = cy + maxR + 22;
-    children.push(ctx.el('g', { transform: `translate(${(ctx.width - actualLegendWidth) / 2}, ${legendY})` }, legend.children));
-    return ctx.scene(legendY + legend.height + 8, children, spec.title);
+    const legendY = cy + maxR + 22, legendX = (ctx.width - actualLegendWidth) / 2;
+    children.push(ctx.el('g', { transform: `translate(${legendX}, ${legendY})` }, legend.children));
+    const noted = note(legendX, legendY + legend.height + 10, actualLegendWidth);
+    return ctx.scene(legendY + legend.height + 8 + noted, children, spec.title);
   }
   function rose(spec, ctx) {
     const { table, field, rows, values, total } = pieSlices(spec, ctx);
@@ -309,7 +333,8 @@ KChart.define('chart/composition', ({ 'chart/registry': { register } }) => {
     const root = spec.data, width = Math.min(ctx.width - 48, 752), top = 44, tree = treeNodes(root), leaves = tree.filter((x) => !x.children.length), total = tree[0].value;
     const tones = new Map(leaves.map((leaf, i) => [leaf, `tone${i % 6 + 1}`])), children = [], fallback = [];
     const colorOf = (leaf) => ctx.color(tones.get(leaf));
-    const place = (entry, x, y, w, h, depth) => {
+    // hidden 是标题放不进自己区块的祖先分组名。它们的叶子改用编号，并在图例里写出「分组 / 名称」，读者仍能看出归属。
+    const place = (entry, x, y, w, h, depth, hidden = []) => {
       if (depth > 0 && w > 0 && h > 0) {
         children.push(ctx.rect(x, y, w, h, {
           fill: depth === 1 ? ctx.color('bg') : 'none',
@@ -321,6 +346,7 @@ KChart.define('chart/composition', ({ 'chart/registry': { register } }) => {
       if (!entry.children.length) {
         if (entry.value > 0 && w > 0 && h > 0) {
           const i = leaves.indexOf(entry), inset = 2, label = String(entry.node.label), value = ctx.format(entry.value, 'value');
+          const listed = [...hidden, label].join(' / ');
           const tileW = Math.max(0, w - inset * 2), tileH = Math.max(0, h - inset * 2);
           const labelColor = ctx.textOn(tones.get(entry));
           children.push(ctx.rect(x + inset, y + inset, tileW, tileH, {
@@ -330,7 +356,7 @@ KChart.define('chart/composition', ({ 'chart/registry': { register } }) => {
           const fullLabel = `${label} · ${value}`;
           const fullWidth = ctx.measure(fullLabel, 12, 600);
           const index = i + 1;
-          if (tileW >= fullWidth + 12 && tileH >= 34) {
+          if (!hidden.length && tileW >= fullWidth + 12 && tileH >= 34) {
             children.push(ctx.text(x + 7, y + 18, fullLabel, {
               size: 12,
               weight: 600,
@@ -338,7 +364,7 @@ KChart.define('chart/composition', ({ 'chart/registry': { register } }) => {
               meta: { kind: 'treemap-tile-label', label, value: entry.value, path: entry.path, mode: 'name-value' },
             }));
           } else {
-            fallback.push({ index, label, value: entry.value, path: entry.path, color: colorOf(entry) });
+            fallback.push({ index, label: listed, value: entry.value, path: entry.path, color: colorOf(entry) });
             const indexWidth = ctx.measure(String(index), 12, 600);
             if (tileW >= indexWidth + 12 && tileH >= 22) {
               children.push(ctx.text(x + 7, y + 16, String(index), {
@@ -351,7 +377,7 @@ KChart.define('chart/composition', ({ 'chart/registry': { register } }) => {
           }
         } else if (!entry.children.length) {
           const i = leaves.indexOf(entry);
-          fallback.push({ index: i + 1, label: String(entry.node.label), value: entry.value, path: entry.path, color: colorOf(entry) });
+          fallback.push({ index: i + 1, label: [...hidden, String(entry.node.label)].join(' / '), value: entry.value, path: entry.path, color: colorOf(entry) });
         }
         return;
       }
@@ -364,6 +390,7 @@ KChart.define('chart/composition', ({ 'chart/registry': { register } }) => {
           meta: { kind: 'treemap-group-label', label: String(entry.node.label), path: entry.path },
         }));
       }
+      const below = depth > 0 && !header ? [...hidden, String(entry.node.label)] : hidden;
       const contentY = y + header, contentH = Math.max(0, h - header);
       const vertical = depth % 2 === 0;
       const span = vertical ? w : contentH;
@@ -371,9 +398,9 @@ KChart.define('chart/composition', ({ 'chart/registry': { register } }) => {
       entry.children.forEach((child) => {
         const part = entry.value > 0 && child.value > 0 ? span * child.value / entry.value : 0;
         if (vertical) {
-          place(child, x + offset, contentY, part, contentH, depth + 1);
+          place(child, x + offset, contentY, part, contentH, depth + 1, below);
         } else {
-          place(child, x, contentY + offset, w, part, depth + 1);
+          place(child, x, contentY + offset, w, part, depth + 1, below);
         }
         offset += part;
       });

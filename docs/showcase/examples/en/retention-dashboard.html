@@ -1,0 +1,91 @@
+<style>
+.x-hero { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 16px; padding: 20px; border-radius: 16px; background: var(--accent); color: var(--on-accent); }
+.x-hero h2 { color: inherit; font-size: 20px; }
+.x-hero p { max-width: 34em; opacity: .86; }
+.x-hero-stat { display: grid; justify-items: end; gap: 2px; font-variant-numeric: tabular-nums; }
+.x-hero-stat strong { font-size: 30px; line-height: 1.1; }
+.x-trend { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.x-filter-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+@container (max-width: 479px) { .x-hero { grid-template-columns: 1fr; } .x-hero-stat { justify-items: start; } .x-filter-grid { grid-template-columns: 1fr; gap: 12px; } }
+</style>
+<section class="screen" id="scr-overview" data-title="Overview" data-states="Default,Alerts read">
+  <div class="app">
+    <header class="app-bar">
+      <i class="icon" data-icon="dashboard"></i>
+      <h1>Overview</h1>
+      <button class="icon-btn" type="button" aria-label="Mark alerts as read" data-state-to="Alerts read">
+        <i class="icon" data-icon="bell"></i>
+      </button>
+    </header>
+    <div class="app-body stack">
+      <header class="page-head">
+        <div><h2>Weekly retention</h2><p>As of November 19, 2026 · Sample data</p></div>
+        <span class="badge" data-k="ok">Stable</span>
+      </header>
+      <section class="x-hero" data-note="Retention figures are fictional; production metrics come from the product analytics source.">
+        <div class="stack">
+          <p>7-day average retention</p>
+          <h2>Product health keeps improving</h2>
+          <p>Returning users grew steadily this week. Keep an eye on the first-week experience of new users.</p>
+        </div>
+        <div class="x-hero-stat"><strong>68.4%</strong><span>+3.2% vs last week</span></div>
+      </section>
+      <div class="grid">
+        <section class="card stack"><p class="field-help">Weekly active users</p><div class="stat"><span class="stat-v">12,480</span><span class="stat-l">+8.6% vs last week</span></div></section>
+        <section class="card stack"><p class="field-help">New-user day-1 retention</p><div class="stat"><span class="stat-v">42.7%</span><span class="stat-l">Target 40%</span></div></section>
+      </div>
+      <section class="card stack">
+        <h3 class="section-title">Retention trend <span class="badge" data-k="info">Last 7 days</span></h3>
+        <div class="x-trend"><span>Daily average retention</span><strong>68.4%</strong><span class="badge" data-k="ok">+3.2%</span></div>
+        <pre data-viz="kchart" id="weekly-retention">{"chart":"line","title":"User retention over the last seven days","subtitle":"Fictional sample · percent","data":[{"day":"Mon","retention":0.62},{"day":"Tue","retention":0.65},{"day":"Wed","retention":0.64},{"day":"Thu","retention":0.69},{"day":"Fri","retention":0.68},{"day":"Sat","retention":0.72},{"day":"Sun","retention":0.75}],"encode":{"category":"day","value":"retention"},"fields":{"retention":{"format":"percent"}},"source":"Fictional product analytics sample"}</pre>
+      </section>
+      <p class="alert" data-k="info" role="status" data-when="Default">2 new alerts. Tap the bell to mark them as read.</p>
+      <p class="alert" data-k="ok" role="status" data-when="Alerts read">Alerts marked as read. The overview data is unchanged.</p>
+      <a class="btn" href="#scr-insights" data-go="scr-insights">View filters and retention details</a>
+    </div>
+    <nav class="tab-bar" aria-label="Main navigation">
+      <a class="tab-bar-item" href="#scr-overview" data-go="scr-overview" aria-current="page"><i class="icon" data-icon="dashboard"></i><span>Overview</span></a>
+      <a class="tab-bar-item" href="#scr-insights" data-go="scr-insights"><i class="icon" data-icon="chart-line"></i><span>Details</span></a>
+    </nav>
+  </div>
+</section>
+<section class="screen" id="scr-insights" data-title="Retention details" data-states="Default,Filtered">
+  <div class="app">
+    <header class="app-bar">
+      <a class="icon-btn" href="#scr-overview" data-go="scr-overview" aria-label="Back to overview"><i class="icon" data-icon="arrow-narrow-left"></i></a>
+      <h1>Retention details</h1>
+      <span class="badge" data-k="info">Analysis</span>
+    </header>
+    <div class="app-body stack">
+      <header class="page-head"><div><h2>Choose what to analyze</h2><p>Pick a channel and a date, then apply the filters.</p></div></header>
+      <form class="card stack" id="retention-filters" data-state-to="Filtered" data-toast="Filters applied">
+        <div class="x-filter-grid">
+          <div class="field"><label for="retention-channel">Acquisition channel</label>
+            <select id="retention-channel" name="channel" required>
+              <option value="">Choose a channel</option>
+              <option value="organic">Organic</option>
+              <option value="campaign">Content campaign</option>
+              <option value="referral">Referral</option>
+            </select>
+            <p class="field-help">Required. Compares new-user retention by source.</p>
+          </div>
+          <div class="field"><label for="retention-date">Analysis date</label>
+            <input id="retention-date" name="date" type="date" min="2026-11-01" max="2026-12-31" required>
+            <p class="field-help">Between November 1 and December 31, 2026.</p>
+          </div>
+        </div>
+        <div class="row"><button class="btn" type="submit" data-variant="primary">Apply filters</button><button class="btn" type="reset">Reset</button></div>
+        <p class="alert" data-k="ok" role="status" data-when="Filtered">Filters applied. The chart still shows the same fictional retention data.</p>
+      </form>
+      <section class="card stack" data-note="Chart values are synthetic samples, not real business data.">
+        <h3 class="section-title">Retention by channel</h3>
+        <pre data-viz="kchart" id="channel-retention">{"chart":"bar","title":"Day-1 retention by channel","data":[{"channel":"Organic","rate":0.43},{"channel":"Content campaign","rate":0.39},{"channel":"Referral","rate":0.51}],"encode":{"category":"channel","value":"rate"},"fields":{"rate":{"format":"percent"}},"source":"Fictional product analytics sample"}</pre>
+      </section>
+      <a class="btn" href="#scr-overview" data-go="scr-overview">Back to overview</a>
+    </div>
+    <nav class="tab-bar" aria-label="Main navigation">
+      <a class="tab-bar-item" href="#scr-overview" data-go="scr-overview"><i class="icon" data-icon="dashboard"></i><span>Overview</span></a>
+      <a class="tab-bar-item" href="#scr-insights" data-go="scr-insights" aria-current="page"><i class="icon" data-icon="chart-line"></i><span>Details</span></a>
+    </nav>
+  </div>
+</section>

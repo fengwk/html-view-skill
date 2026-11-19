@@ -59,7 +59,8 @@ test('UI shell preserves select/date required-value-change behavior, navigation,
   assert.match(selected.text, /自然流量/);
   assert.equal(selected.changes, 1, 'custom select dispatches one native change event');
 
-  const chosenDate = await page.json(`JSON.stringify((()=>{const input=document.querySelector('#retention-date');const button=input.parentElement.querySelector('.ui-date');button.focus();button.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowDown',bubbles:true,cancelable:true}));const active=document.getElementById(button.getAttribute('aria-activedescendant')).dataset.date;button.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true}));return {value:input.value,active,required:input.required,min:input.min,max:input.max,changes:window.__uiChanges.date}})())`);
+  const chosenDate = await page.json(`JSON.stringify((()=>{const input=document.querySelector('#retention-date');const button=input.parentElement.querySelector('.ui-date');button.focus();button.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowDown',bubbles:true,cancelable:true}));const active=document.getElementById(button.getAttribute('aria-activedescendant')).dataset.date;const navIcons=[...document.querySelectorAll('.ui-date-nav')].map(nav=>nav.querySelectorAll('svg path').length);button.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true}));return {value:input.value,active,navIcons,required:input.required,min:input.min,max:input.max,changes:window.__uiChanges.date}})())`);
+  assert.deepEqual(chosenDate.navIcons, [1, 1], 'previous and next month buttons each draw a chevron');
   assert.equal(chosenDate.value, chosenDate.active, 'keyboard selection writes the active date into the native input');
   assert.equal(chosenDate.required, true);
   assert.equal(chosenDate.changes, 1, 'custom calendar dispatches one native change event');

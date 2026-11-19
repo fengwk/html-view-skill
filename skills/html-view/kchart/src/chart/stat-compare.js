@@ -109,7 +109,8 @@ KChart.define('chart/stat-compare', ({ 'core/geometry': { barPath }, 'core/forma
     const colon = en ? ': ' : '：';
     const values = rows.flat().concat(fields.flatMap((field) => ctx.field(field).domain || []));
     const outliers = e.outliers ? spec.data.map((row) => row[e.outliers] || []) : [];
-    const left = Math.max(56, Math.min(ctx.width * 0.34, Math.ceil(Math.max(72, ...names.map((name) => ctx.measure(name) + 16)))));
+    // The column reserves exactly the wrap width plus its 18px margin, so a name that was given room never wraps.
+    const left = Math.max(56, Math.min(ctx.width * 0.34, Math.ceil(Math.max(72, ...names.map((name) => ctx.measure(name) + 18)))));
     const namesLines = names.map((name) => sideLabels(ctx, name, left - 18));
     const readoutMax = Math.max(96, ctx.width * 0.42);
     const right = bullet ? Math.max(72, Math.min(readoutMax, 18 + Math.max(...readouts.flatMap(([actual, goal]) => (
@@ -189,17 +190,24 @@ KChart.define('chart/stat-compare', ({ 'core/geometry': { barPath }, 'core/forma
     });
     const legend = [];
     if (dumbbell) {
-      const center = width / 2;
+      // Declared field labels name the two ends (as in the rungs variant); otherwise Before / After.
+      const named = (field, fallback) => { const label = ctx.field(field).label; return label && label !== field ? label : fallback; };
+      const items = [
+        ['before', named(e.before, en ? 'Before' : '之前'), ctx.palette.bg, ctx.palette.tone3],
+        ['after', named(e.after, en ? 'After' : '之后'), ctx.palette.tone1, ctx.palette.bg],
+      ].map(([role, text, fill, stroke]) => ({ role, text, fill, stroke, w: 14 + ctx.measure(text, 12, 400) }));
       const y = height + 18;
-      for (const [role, text, dx, fill, stroke] of [
-        ['before', en ? 'Before' : '之前', -54, ctx.palette.bg, ctx.palette.tone3],
-        ['after', en ? 'After' : '之后', 10, ctx.palette.tone1, ctx.palette.bg],
-      ]) {
-        legend.push(ctx.circle(center + dx, y - 4, 4, { fill, stroke, 'stroke-width': 2, meta: { kind: 'endpoint-legend', role } }));
-        legend.push(ctx.text(center + dx + 10, y, text));
+      let x = width / 2 - (items[0].w + items[1].w + 18) / 2;
+      for (const { role, text, fill, stroke, w } of items) {
+        legend.push(ctx.circle(x + 4, y - 4, 4, { fill, stroke, 'stroke-width': 2, meta: { kind: 'endpoint-legend', role } }));
+        legend.push(ctx.text(x + 14, y, text));
+        x += w + 18;
       }
     }
-    return { width, height: height + (dumbbell ? 32 : 0), children: [...children, ...labels, ...legend, ...extras] };
+    // 箱线图没有逐行读数，数值轴单位写在刻度下方右端；子弹图和哑铃图的读数已带单位。
+    const meta = ctx.field(fields[0]), unit = bullet || dumbbell || meta.format === 'percent' ? '' : String(meta.unit || '').trim();
+    if (unit) labels.push(ctx.text(left + plotW, height + 10, unit, { anchor: 'end', fill: ctx.palette.muted, meta: { kind: 'axis-unit', label: unit } }));
+    return { width, height: height + (dumbbell ? 32 : 0) + (unit ? 18 : 0), children: [...children, ...labels, ...legend, ...extras] };
   }
 
   return { compare };

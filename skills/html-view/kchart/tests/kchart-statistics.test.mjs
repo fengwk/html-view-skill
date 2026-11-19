@@ -122,6 +122,23 @@ test('statistical plots explain dumbbell endpoints and use formatted nice ticks 
   assert.equal(endpointLegend[0].attrs.fill, K.util.context({ spec: cases.find((spec) => spec.chart === 'dumbbell' && !spec.fields) }).palette.bg, 'before is hollow as in the plot marks');
   assert.equal(endpointLegend[1].attrs.fill, K.util.context({ spec: cases.find((spec) => spec.chart === 'dumbbell' && !spec.fields) }).palette.tone1, 'after is filled as in the plot marks');
   assert.ok(dumbbellNodes.some((node) => node.tag === 'text' && node.text === '之前') && dumbbellNodes.some((node) => node.tag === 'text' && node.text === '之后'));
+  // 声明了字段名时图例用字段名，且两项按实测宽度排开、不重叠。
+  const plainDumbbell = cases.find((spec) => spec.chart === 'dumbbell' && !spec.fields);
+  const namedSpec = { ...plainDumbbell, fields: { [plainDumbbell.encode.before]: { label: '换屏之前的等待' }, [plainDumbbell.encode.after]: { label: '换屏之后的等待' } } };
+  const named = flatten(K.layout(namedSpec).children).filter((node) => node.tag === 'text' && /换屏/.test(node.text));
+  assert.deepEqual(plain(named.map((node) => node.text)), ['换屏之前的等待', '换屏之后的等待']);
+  const measureNamed = K.util.context({ spec: namedSpec }).measure;
+  assert.ok(named[0].attrs.x + measureNamed(named[0].text, 12) + 8 <= named[1].attrs.x - 8, 'legend entries do not overlap');
+  // 分配了宽度的类别名不再折行：宽度介于保留宽与折行宽之间的名字曾被拆成两行。
+  for (const chart of ['bullet', 'dumbbell']) {
+    const spec = chart === 'bullet'
+      ? { chart, data: [{ c: 'Hangzhou', a: 3, t: 4 }, { c: 'Shanghai', a: 5, t: 4 }], encode: { category: 'c', actual: 'a', target: 't' } }
+      : { chart, data: [{ c: 'Hangzhou', a: 3, t: 4 }, { c: 'Shanghai', a: 5, t: 4 }], encode: { category: 'c', before: 'a', after: 't' } };
+    for (const width of [300, 340, 380]) {
+      const texts = flatten(K.layout(spec, { width, lang: 'en' }).children).filter((node) => node.tag === 'text').map((node) => node.text);
+      assert.ok(texts.includes('Hangzhou') && texts.includes('Shanghai'), `${chart} at ${width}: ${texts}`);
+    }
+  }
   const dumbbellReads = dumbbellNodes.filter((node) => node.meta?.kind === 'endpoint-readout');
   assert.deepEqual(plain(dumbbellReads.map((node) => node.text)), ['2', '5']);
   assert.notEqual(dumbbellReads[0].attrs.y, dumbbellReads[1].attrs.y, 'the two endpoint readouts use distinct lines rather than overlapping');
@@ -577,6 +594,17 @@ test('scatter axis title, ticks and reference labels occupy separate bands', () 
   assert.ok(texts.filter((node) => /^\d/.test(node.text)).every((node) => Number(xTitle.attrs.y) >= Number(node.attrs.y) + 16 || Number(node.attrs.y) < Number(xTitle.attrs.y) - 16), 'x-axis title does not sit on a tick');
   assert.ok(texts.some((node) => node.text.startsWith('Revenue')) && texts.filter((node) => /Revenue|growing|quarter/.test(node.text)).every((node) => node.text.length > 1), 'long reference labels wrap by word');
   assert.ok(texts.every((node) => Number(node.attrs.x) >= 0 && Number(node.attrs.x) <= scene.width), 'wrapped notes stay inside the scene');
+  // 末个刻度被拉回画布内后，不能压到前一个刻度标签；首尾刻度仍保留。
+  const crowded = { chart: 'scatter', encode: { x: 'x', y: 'y', size: 'size' }, data: [[1600, 260, 4], [2400, 480, 6], [3200, 640, 8], [4100, 820, 9]].map(([x, y, size]) => ({ x, y, size })) };
+  const context = K.util.context({ spec: crowded, width: 360 });
+  const crowdedScene = K.layout(crowded, { width: 360 });
+  const bottomTicks = flattenNodes(crowdedScene.children).filter((node) => node.tag === 'text' && /^\d,\d{3}$/.test(node.text));
+  const xRow = bottomTicks.filter((node) => node.attrs.y === Math.max(...bottomTicks.map((tick) => tick.attrs.y))).sort((a, b) => a.attrs.x - b.attrs.x);
+  assert.ok(xRow.length >= 3);
+  for (let i = 1; i < xRow.length; i++) {
+    const gap = (xRow[i].attrs.x - context.measure(xRow[i].text, 12) / 2) - (xRow[i - 1].attrs.x + context.measure(xRow[i - 1].text, 12) / 2);
+    assert.ok(gap >= 8, `x tick labels ${xRow[i - 1].text} and ${xRow[i].text} keep a gap (${gap})`);
+  }
 });
 
 // 意图：末点读数按测得宽度留在标记右侧，面板标题最多换两行且不截成单行。
@@ -854,4 +882,17 @@ test('statistics uses only declared modules and rejects an absent layout', () =>
   assert.equal(svg, null);
   assert.equal(diagnostics[0].code, 'BAD_KCHART');
   assert.match(diagnostics[0].message, /sparkline/);
+});
+
+// 意图：箱线图没有逐行读数，数值轴单位写在刻度下方右端，并计入场景高度。
+test('boxplot names the unit of its value axis below the ticks', () => {
+  const flat = (list) => list.flatMap((node) => [node, ...flat(node.children || [])]);
+  const spec = { chart: 'boxplot', unit: 'min', data: [{ c: 'A', lo: 1, q1: 2, m: 3, q3: 4, hi: 5 }, { c: 'B', lo: 2, q1: 3, m: 4, q3: 6, hi: 8 }], encode: { category: 'c', low: 'lo', q1: 'q1', median: 'm', q3: 'q3', high: 'hi' } };
+  const scene = K.layout(spec, { width: 360 });
+  const unit = flat(scene.children).filter((node) => node.meta?.kind === 'axis-unit');
+  assert.deepEqual(plain(unit.map((node) => node.text)), ['min']);
+  const ticks = flat(scene.children).filter((node) => node.tag === 'text' && /^\d+$/.test(node.text));
+  assert.ok(unit[0].attrs.y >= Math.max(...ticks.map((node) => node.attrs.y)) + 14 && unit[0].attrs.y <= scene.height - 4, 'unit row sits below the ticks inside the scene');
+  const bare = K.layout({ ...spec, unit: undefined }, { width: 360 });
+  assert.equal(flat(bare.children).filter((node) => node.meta?.kind === 'axis-unit').length, 0, 'no unit, no caption');
 });

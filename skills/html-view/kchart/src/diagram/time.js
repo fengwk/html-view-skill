@@ -151,7 +151,11 @@ KChart.define('diagram/time', ({ 'diagram/support': u }) => {
   const text = (ctx, value, x, y, size = 13, fill = ctx.color('ink'), anchor = 'start', weight = 400) => ctx.text(x, y, value, { size, fill, anchor, weight, 'dominant-baseline': 'middle' });
   const wrap = (ctx, value, width, size) => ctx.wrap(String(value), Math.max(size, width), size, 400);
   function layout(model, { measure, width, ctx, renderOptions }) {
-    const right = 24, top = 54, rowH = 54;
+    // Without a frame the title is drawn in the scene; an untitled diagram starts near the top instead of
+    // printing its Mermaid keyword. Gantt month ticks and the journey score scale need a row above the body.
+    const inSceneTitle = !renderOptions?.frame && Boolean(model.title);
+    const headRow = ['gantt', 'journey'].includes(model.type) ? 14 : 0;
+    const right = 24, top = renderOptions?.frame ? 54 : (inSceneTitle ? 54 : 24) + headRow, rowH = 54;
     // 甘特图状态词按图的语言写出，不显示 Mermaid 关键字。
     const FLAG = /^en\b/i.test(ctx.lang || 'zh')
       ? { done: 'done', active: 'in progress', crit: 'critical', milestone: 'milestone' }
@@ -172,8 +176,8 @@ KChart.define('diagram/time', ({ 'diagram/support': u }) => {
     const el = ctx.el, label = (v, x, y, size = 13, fill = colors.ink, anchor = 'start', weight = 400) => scene.children.push(text(ctx, v, x, y, size, fill, anchor, weight));
     const rect = (x, y, w, h, fill = colors.bg, stroke = colors.grid, rx = 4) => scene.children.push(el('rect', { x, y, width: w, height: h, fill, stroke, rx }));
     const line = (x1, y1, x2, y2, stroke = colors.grid, sw = 1) => scene.children.push(el('line', { x1, y1, x2, y2, stroke, 'stroke-width': sw }));
-    if (!renderOptions?.frame) label(model.title || model.type, 22, 24, 17, colors.ink, 'start', 650);
-    else scene.heading = model.title || undefined;
+    if (inSceneTitle) label(model.title, 22, 24, 17, colors.ink, 'start', 650);
+    else if (renderOptions?.frame) scene.heading = model.title || undefined;
     if (model.type === 'gantt') {
       // 分组名单独占一行，任务名不再重复前缀；任务名与条形同一中线。
       const headerH = 30, rows = [];
@@ -209,29 +213,40 @@ KChart.define('diagram/time', ({ 'diagram/support': u }) => {
       scene.width = Math.max(scene.width, left + n * columnW + right); scene.height = top + contentH + 45;
       line(left, axisY, left + n * columnW, axisY, colors.grid, 2);
       model.items.forEach((item, i) => { const x = left + (i + .5) * columnW, y = axisY + 18, lines = wrapped[i]; scene.children.push(el('circle', { cx: x, cy: axisY, r: 5, fill: colors.accent }));
-        if (item.section) label(item.section, x, y, 12, colors.muted, 'middle'); lines.title.forEach((str, j) => label(str, x, y + 20 + j * 16, 13, colors.ink, 'middle', 600)); lines.events.forEach((str, j) => label(str, x, y + 24 + lines.title.length * 16 + j * 16, 12, colors.muted, 'middle')); });
+        // A section is named above its first period only, as in gantt and journey.
+        if (item.section && item.section !== model.items[i - 1]?.section) label(item.section, x, y, 12, colors.muted, 'middle'); lines.title.forEach((str, j) => label(str, x, y + 20 + j * 16, 13, colors.ink, 'middle', 600)); lines.events.forEach((str, j) => label(str, x, y + 24 + lines.title.length * 16 + j * 16, 12, colors.muted, 'middle')); });
     } else if (model.type === 'journey') {
-      scene.height = top + Math.max(1, model.items.length) * 70 + 24;
+      // Like gantt, a section name gets its own row instead of repeating above every task.
+      const headerH = 30, taskH = 62, rows = [];
+      let section;
+      for (const item of model.items) { if (item.section && item.section !== section) rows.push({ header: item.section, h: headerH }); section = item.section; rows.push({ item, h: taskH }); }
+      scene.height = top + rows.reduce((sum, row) => sum + row.h, 0) + 12;
       const actorW = Math.max(0, ...model.items.map(x => measure(x.actors.join(', '), { size: 12, weight: 400 }))) + 20;
-      const chartW = Math.max(usable, actorW);
+      const chartW = Math.max(usable, actorW), x0 = left, dx = chartW / 4;
       scene.width = Math.max(scene.width, left + chartW + right);
-      model.items.forEach((item, i) => {
-        const y = top + i * 70, x0 = left, dx = chartW / 4;
-        label(item.section, 12, y + 10, 12, colors.muted);
-        label(item.name, 12, y + 29, 13);
-        line(x0, y + 28, x0 + chartW, y + 28, colors.grid);
-        for (let score = 1; score <= 5; score++) scene.children.push(el('circle', { cx: x0 + (score - 1) * dx, cy: y + 28, r: 3 + (score === item.score ? 3 : 0), fill: score <= item.score ? colors.accent : colors.bg, stroke: colors.accent }));
-        if (item.actors.length) label(item.actors.join(', '), x0, y + 51, 12, colors.muted); });
+      // The 1–5 scale is fixed by the syntax, so number it once above the rows.
+      for (let score = 1; score <= 5; score++) label(String(score), x0 + (score - 1) * dx, top - 10, 12, colors.muted, 'middle');
+      let y = top;
+      for (const row of rows) {
+        if (row.header) { label(row.header, 12, y + 15, 13, colors.muted, 'start', 600); y += row.h; continue; }
+        const { item } = row;
+        label(item.name, 12, y + 16, 13);
+        line(x0, y + 16, x0 + chartW, y + 16, colors.grid);
+        for (let score = 1; score <= 5; score++) scene.children.push(el('circle', { cx: x0 + (score - 1) * dx, cy: y + 16, r: 3 + (score === item.score ? 3 : 0), fill: score <= item.score ? colors.accent : colors.bg, stroke: colors.accent }));
+        if (item.actors.length) label(item.actors.join(', '), x0, y + 39, 12, colors.muted);
+        y += row.h;
+      }
     } else if (model.type === 'kanban') {
       const columns = model.sections;
       const headerW = Math.max(0, ...columns.map(x => measure(x.name, { size: 14, weight: 650 }) + 30));
       const columnGap = 10;
       const colW = Math.max(160, (usable + columnGap) / columns.length, headerW);
       scene.width = Math.max(scene.width, left + colW * columns.length - columnGap + right);
-      const cardLines = new Map(model.items.map(card => [card.id, wrap(ctx, card.name, colW - 30, 12)])), rowH = Math.max(68, ...[...cardLines.values()].map(lines => lines.length * 14 + 42)), maxRows = Math.max(1, ...columns.map(c => model.items.filter(x => x.section === c.id).length));
+      // A card shows its text only; the Mermaid card ID is a reference, as in the column header.
+      const cardLines = new Map(model.items.map(card => [card.id, wrap(ctx, card.name, colW - 44, 13)])), rowH = Math.max(52, ...[...cardLines.values()].map(lines => lines.length * 17 + 30)), maxRows = Math.max(1, ...columns.map(c => model.items.filter(x => x.section === c.id).length));
       scene.height = top + 50 + maxRows * rowH;
       columns.forEach((col, i) => { const x = left + i * colW; rect(x, top, colW - 10, scene.height - top - 20, 'transparent', colors.grid, 6); label(col.name, x + 10, top + 18, 14, colors.ink, 'start', 650);
-        model.items.filter(item => item.section === col.id).forEach((card, row) => { const y = top + 38 + row * rowH, lines = cardLines.get(card.id); rect(x + 6, y, colW - 22, rowH - 10); label(card.id, x + 14, y + 13, 12, colors.accent, 'start', 650); lines.forEach((str, j) => label(str, x + 14, y + 31 + j * 14, 12)); }); });
+        model.items.filter(item => item.section === col.id).forEach((card, row) => { const y = top + 38 + row * rowH, lines = cardLines.get(card.id); rect(x + 6, y, colW - 22, rowH - 10); const first = y + (rowH - 10) / 2 - (lines.length - 1) * 8.5; lines.forEach((str, j) => label(str, x + 16, first + j * 17, 13)); }); });
     } else if (model.type === 'packet-beta') {
       const rows = Math.max(1, ...model.fields.map(f => Math.floor(f.end / 32) + 1));
       const rowsOfFields = Array.from({ length: rows }, (_item, r) => model.fields
@@ -295,8 +310,9 @@ KChart.define('diagram/time', ({ 'diagram/support': u }) => {
       });
     } else if (model.type === 'gitGraph') {
       const commits = model.commits, branches = model.branches, lane = new Map([['main', 0]]); branches.forEach(b => { if (!lane.has(b.name)) lane.set(b.name, lane.size); });
-      const commitStep = Math.max(90, ...commits.map(c => measure(c.tag || c.id, { size: 12, weight: 400 }) + 24)), maxLane = Math.max(0, lane.size - 1), yFor = branch => top + 44 + (lane.get(branch) || 0) * 58, xFor = id => left + 70 + commits.findIndex(c => c.id === id) * commitStep;
-      scene.height = top + 90 + (maxLane + 1) * 58; scene.width = Math.max(scene.width, left + 110 + commits.length * commitStep);
+      const commitStep = Math.max(90, ...commits.map(c => measure(c.tag || c.id, { size: 12, weight: 400 }) + 24)), maxLane = Math.max(0, lane.size - 1), yFor = branch => top + 22 + (lane.get(branch) || 0) * 58, xFor = id => left + 70 + commits.findIndex(c => c.id === id) * commitStep;
+      // The last lane's commit labels sit 20px below it; keep a short margin under them instead of an empty band.
+      scene.height = top + 22 + maxLane * 58 + 40; scene.width = Math.max(scene.width, left + 110 + commits.length * commitStep);
       branches.forEach(b => { const y = yFor(b.name); label(b.name, 12, y, 12, colors.muted); line(left, y, left + Math.max(usable, commits.length * commitStep), y, colors.grid); });
       commits.forEach(c => c.parents.forEach(parent => { const p = commits.find(x => x.id === parent); if (p) line(xFor(parent), yFor(p.branch), xFor(c.id), yFor(c.branch), colors.accent, 2); }));
       commits.forEach(c => { const x = xFor(c.id), y = yFor(c.branch); scene.children.push(el('circle', { cx: x, cy: y, r: 8, fill: c.commitType === 'HIGHLIGHT' ? colors.accent : colors.bg, stroke: colors.accent, 'stroke-width': 2 })); label(c.tag || c.id, x, y + 20, 12, colors.ink, 'middle'); });

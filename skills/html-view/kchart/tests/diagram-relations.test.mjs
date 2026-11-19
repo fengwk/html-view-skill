@@ -60,6 +60,14 @@ test('ten relation and architecture parsers preserve model identity and report u
   assert.equal(architecture.edges[0].endPort, 'L');
   const sequence = parse('zenuml', samples.zenuml.slice(samples.zenuml.indexOf('\n') + 1)).model;
   assert.deepEqual(sequence.sequence.map(event => event.kind), ['message', 'call']);
+  // A deployment node or container boundary may enclose elements, one level deep, as documented.
+  const deployed = parse('C4Deployment', 'Deployment_Node(cloud, "Cloud", "Kubernetes") {\nContainer(api, "API", "Node")\n}\nPerson(user, "User")\nRel(user, api, "uses")');
+  assert.equal(deployed.errors.length, 0, JSON.stringify(deployed.errors));
+  assert.deepEqual(deployed.model.groups.map(group => group.label), ['Cloud [Kubernetes]']);
+  assert.equal(deployed.model.nodes.find(node => node.id === 'api').parent, 'cloud');
+  assert.equal(parse('C4Component', 'Container_Boundary(api, "API") {\nComponent(a, "A")\n}').model.nodes[0].parent, 'api');
+  assert.ok(parse('C4Deployment', 'Deployment_Node(a, "A") {\nDeployment_Node(b, "B") {\n}\n}').errors.length, 'nested deployment nodes stay unsupported');
+  assert.ok(parse('C4Container', 'System_Boundary(s, "S", "extra") {\n}').errors.length, 'only deployment nodes take a technology argument');
 });
 
 // Intent: architecture edge operators and endpoint ports are a closed supported subset; count checks detect silently omitted relations.
@@ -95,7 +103,18 @@ test('relation layouts render semantically identified markers, groups, architect
   const card = classScene.children.find(item => item.meta?.kind === 'cardinality' && item.meta.endpoint === 'start');
   assert.ok(card.attrs.y - card.attrs['font-size'] / 2 > owner.attrs.y + owner.attrs.height, 'start cardinality of the downward edge must stay outside the source card');
   const edgeLabel = classScene.children.find(item => item.meta?.kind === 'edge-label' && item.meta.edge === card.meta.edge);
-  assert.ok(card.attrs.x < edgeLabel.attrs.x - context.measure(edgeLabel.text, 12, 400) / 2, 'cardinality also leaves room for the edge caption');
+  // 基数与边标签底板在两轴上都不重叠；端点标记（菱形、三角）也不被底板盖住。
+  const plateOf = (label) => { const w = context.measure(label.text, 12, 400) + 14; return { x0: label.attrs.x - w / 2, x1: label.attrs.x + w / 2, y0: label.attrs.y - 15, y1: label.attrs.y + 5 }; };
+  const apart = (a, b) => a.x1 <= b.x0 || b.x1 <= a.x0 || a.y1 <= b.y0 || b.y1 <= a.y0;
+  const cardW = context.measure(card.text, 12, 400), cardX = card.attrs['text-anchor'] === 'end' ? card.attrs.x - cardW : card.attrs.x;
+  assert.ok(apart({ x0: cardX, x1: cardX + cardW, y0: card.attrs.y - 7, y1: card.attrs.y + 7 }, plateOf(edgeLabel)), 'cardinality also leaves room for the edge caption');
+  for (const mark of classScene.children.filter(item => item.meta?.kind === 'relation-marker')) {
+    const label = classScene.children.find(item => item.meta?.kind === 'edge-label' && item.meta.edge === mark.meta.edge);
+    if (!label) continue;
+    const pts = mark.attrs.points.split(' ').map(pair => pair.split(',').map(Number));
+    const box = { x0: Math.min(...pts.map(p => p[0])), x1: Math.max(...pts.map(p => p[0])), y0: Math.min(...pts.map(p => p[1])), y1: Math.max(...pts.map(p => p[1])) };
+    assert.ok(apart(box, plateOf(label)), `edge ${mark.meta.edge}: the ${mark.meta.marker} marker is not covered by its label plate`);
+  }
   assert.ok(classScene.children.some(item => item.meta?.kind === 'edge-label' && item.meta.edge === '1'));
   const allRelations = parse('classDiagram', 'A <|-- B\nA ..|> C\nA <|.. D\nA *-- E\nA o-- F\nA --* G\nA --o H\nA ..> I\nA --> J\nA -- K\nA .. L').model;
   const allRelationScene = plain(implementations.classDiagram.layout(allRelations, { width: 800, measure: (s, f) => context.measure(s, f.size, f.weight), ctx: context }).scene);
@@ -108,7 +127,14 @@ test('relation layouts render semantically identified markers, groups, architect
   const c4WithTech = parse('C4Context', 'Person(user, "Customer", "Uses app")\nSystem(app, "Shop")\nRel(user, app, "browses", "HTTPS")').model;
   const c4Layout = plain(implementations.C4Context.layout(c4WithTech, { width: 800, measure: (s, f) => context.measure(s, f.size, f.weight), ctx: context }).scene);
   assert.ok(c4Layout.children.some(item => item.meta?.kind === 'edge-description' && item.text === 'HTTPS'), 'C4 relationship technology is visibly retained');
-  assert.ok(c4Layout.children.some(item => item.meta?.kind === 'node-detail' && item.text === 'Person'), 'C4 element type remains visible');
+  assert.ok(c4Layout.children.some(item => item.meta?.kind === 'node-detail' && item.text === '人员'), 'C4 element type remains visible');
+  // 卡片写读者读得懂的类型名，不写声明它的宏名（System_Ext、ContainerDb……）。
+  const external = parse('C4Context', 'Person(user, "Customer")\nSystem_Ext(pay, "Payments")\nRel(user, pay, "pays")').model;
+  for (const [lang, words] of [['en', ['Person', 'External system']], ['zh', ['人员', '外部系统']]]) {
+    const scene = plain(implementations.C4Context.layout(external, { width: 800, lang, measure: (s, f) => context.measure(s, f.size, f.weight), ctx: context }).scene);
+    const details = scene.children.filter(item => item.meta?.kind === 'node-detail').map(item => item.text);
+    assert.deepEqual(details.sort(), words.slice().sort(), `${lang}: ${details}`);
+  }
 
   const arch = parse('architecture-beta', samples['architecture-beta'].slice(samples['architecture-beta'].indexOf('\n') + 1)).model;
   const archScene = plain(implementations['architecture-beta'].layout(arch, { width: 800, measure: (s, f) => context.measure(s, f.size, f.weight), ctx: context }).scene);
@@ -116,6 +142,29 @@ test('relation layouts render semantically identified markers, groups, architect
   assert.equal(archEdge.meta.startPort, 'R');
   assert.equal(archEdge.meta.endPort, 'L');
   assert.ok(elements(archScene).some(item => item.meta?.kind === 'icon' && item.meta.icon === 'server'));
+  // 分组只画成外框，不另画节点卡；左右端口按横排布局，连线一路向右、不折回；卡片不重复写 service。
+  const row = parse('architecture-beta', 'group cloud(cloud)[Cloud]\nservice api(server)[API] in cloud\nservice db(database)[DB] in cloud\nservice app(browser)[App]\napp:R --> L:api\napi:R --> L:db').model;
+  const rowScene = plain(implementations['architecture-beta'].layout(row, { width: 800, measure: (s, f) => context.measure(s, f.size, f.weight), ctx: context }).scene);
+  const rowNodes = elements(rowScene).filter(item => item.meta?.kind === 'node');
+  assert.deepEqual(rowNodes.map(item => item.meta.node).sort(), ['api', 'app', 'db']);
+  assert.ok(elements(rowScene).some(item => item.meta?.kind === 'group' && item.meta.group === 'cloud'));
+  assert.ok(!elements(rowScene).some(item => item.meta?.kind === 'node-detail' && item.text === 'service'));
+  for (const node of rowNodes) {
+    const icon = elements(rowScene).find(item => item.meta?.kind === 'icon' && item.meta.node === node.meta.node);
+    const label = elements(rowScene).find(item => item.meta?.kind === 'node-label' && item.meta.node === node.meta.node);
+    const iconRight = Number(/translate\(([\d.]+)/.exec(icon.attrs.transform)[1]) + 24 * .72;
+    const labelLeft = label.attrs.x - context.measure(label.text, 14, 600) / 2;
+    assert.ok(labelLeft >= iconRight + 6, `${node.meta.node}: icon and title keep apart`);
+    assert.ok(labelLeft + context.measure(label.text, 14, 600) <= node.attrs.x + node.attrs.width - 8, `${node.meta.node}: title stays inside its card`);
+    // 只有标题的卡片不画表头色带，标题垂直居中。
+    assert.ok(!elements(rowScene).some(item => item.meta?.kind === 'node-header' && item.meta.node === node.meta.node), `${node.meta.node}: no header band without details`);
+    assert.ok(Math.abs(label.attrs.y - 5 - (node.attrs.y + node.attrs.height / 2)) <= 1, `${node.meta.node}: title is vertically centred`);
+  }
+  for (const edge of elements(rowScene).filter(item => item.meta?.kind === 'edge')) {
+    const xs = [...edge.attrs.d.matchAll(/[ML](-?[\d.]+) /g)].map(match => Number(match[1]));
+    assert.ok(xs.every((x, i) => !i || x >= xs[i - 1]), `edge ${edge.meta.edge} never doubles back: ${edge.attrs.d}`);
+  }
+  assert.ok(parse('architecture-beta', 'group g(cloud)[G]\nservice a(server)[A]\na:R --> L:g').errors.length, 'edges into a group are rejected instead of drawn');
 
   const seq = parse('zenuml', samples.zenuml.slice(samples.zenuml.indexOf('\n') + 1)).model;
   const seqScene = plain(implementations.zenuml.layout(seq, { width: 800, measure: (s, f) => context.measure(s, f.size, f.weight), ctx: context }).scene);
@@ -152,5 +201,25 @@ test('ZenUML fits its participant boxes inside the SVG', () => {
     const routes = elements(rendered.scene).filter(node => ['message', 'call', 'lifeline'].includes(node.meta?.kind));
     assert.equal(routes.length, 4);
     assert.ok(routes.every(({ attrs }) => contrast(attrs.stroke, design.surface) >= 3), theme);
+  }
+});
+
+// 意图：分组按子图参与布局，相邻两个部署节点之间留出边与标签的位置；边标签底板不跨任何分组边框。
+test('relation groups reserve room so an edge label never straddles a boundary', () => {
+  const source = 'C4Deployment\n  Deployment_Node(cloud, "Cloud region", "Kubernetes") {\n    Container(api, "Order API", "Node.js")\n  }\n  Deployment_Node(shop, "Store", "Tablet") {\n    Container(bar, "Bar screen", "Web")\n  }\n  Rel(api, bar, "WebSocket")';
+  for (const width of [338, 760]) {
+    const scene = plain(diagram(source, { width, frame: false, lang: 'en' }).scene);
+    const groups = elements(scene).filter(item => item.meta?.kind === 'group');
+    const label = elements(scene).find(item => item.meta?.kind === 'edge-label');
+    assert.equal(groups.length, 2);
+    const plate = { x0: label.attrs.x - 40, x1: label.attrs.x + 40, y0: label.attrs.y - 15, y1: label.attrs.y + 5 };
+    for (const group of groups) {
+      const box = { x0: group.attrs.x, x1: group.attrs.x + group.attrs.width, y0: group.attrs.y, y1: group.attrs.y + group.attrs.height };
+      const inside = plate.x0 >= box.x0 && plate.x1 <= box.x1 && plate.y0 >= box.y0 && plate.y1 <= box.y1;
+      const outside = plate.y1 <= box.y0 || plate.y0 >= box.y1 || plate.x1 <= box.x0 || plate.x0 >= box.x1;
+      assert.ok(inside || outside, `${width}: label plate crosses the ${group.meta.group} border`);
+    }
+    const [a, b] = groups.map(group => group.attrs).sort((p, q) => p.y - q.y);
+    assert.ok(b.y - (a.y + a.height) >= 24, `${width}: boundaries keep a gap for the edge (${b.y - (a.y + a.height)})`);
   }
 });

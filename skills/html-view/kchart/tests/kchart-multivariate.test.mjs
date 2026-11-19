@@ -282,6 +282,12 @@ test('launch-fan keeps distinct baseline dates, both endpoints, and year changes
         ? dates[i].attrs.x - currentWidth / 2 : dates[i].attrs.x;
     assert.ok(previousRight + 8 <= currentLeft, 'kept baseline labels do not collide');
   }
+  // 大小相近的末端圆相邻时也不相交。
+  const bubbles = visit(scene.children).filter(node => node.tag === 'circle' && node.attrs.r > 3).sort((a, b) => a.attrs.cy - b.attrs.cy);
+  assert.equal(bubbles.length, spec.data.length);
+  for (let i = 1; i < bubbles.length; i++) {
+    assert.ok(bubbles[i].attrs.cy - bubbles[i - 1].attrs.cy >= bubbles[i].attrs.r + bubbles[i - 1].attrs.r, 'neighbouring end circles do not overlap');
+  }
 });
 
 // 意图：锁定目检发现的四处互盖；窄矩阵保留全部值元数据，不能用超宽读数挤在24px格中。
@@ -573,6 +579,11 @@ test('bubble-matrix readouts and bump series labels keep body-text contrast in e
     assert.equal(labels.length, 12, `${theme}: both ends label every series`);
     for (const label of labels) assert.ok(K.util.contrast(hexIn(label.attrs.fill), ctx.palette.bg) >= 4.5, `${theme}: ${label.text}`);
   }
+  // 英文系列名换行只在词间发生，单词不被拆成两行。
+  const words = { chart: 'bump', encode: { category: 't', series: 's', rank: 'rank' }, data: ['P1', 'P2'].flatMap((t, i) => ['Americano', 'Oat latte', 'Tea'].map((s, j) => ({ t, s, rank: (j + i) % 3 + 1 }))) };
+  const shown = visit(K.layout(words, { width: 360, lang: 'en' }).children).filter((node) => node.tag === 'text' && /[a-z]/i.test(node.text) && !/^P\d$/.test(node.text)).map((node) => node.text);
+  assert.ok(shown.filter((text) => text === 'Americano').length === 2, `Americano stays whole: ${shown}`);
+  assert.ok(shown.every((text) => ['Americano', 'Oat', 'latte', 'Oat latte', 'Tea'].includes(text)), `${shown}`);
 });
 
 // 意图：行列变密时格子保持最小槽并加宽；读数只在完全落进气泡时才画，行名按实测留在场景内。

@@ -1,6 +1,6 @@
 ---
 name: html-view
-description: 生成和维护离线单文件 HTML 阅读文档、可核对的数据报表和可点击的界面稿，也能生成数据图与结构图。把 Markdown 或评审材料做成 HTML 文档，把已聚合的 CSV/JSON 做成报表，画界面线框或原型，或需要阅读、检查、截图、换主题、导出本地 HTML 及处理以 Review Document 开头的文档评论时使用。
+description: 生成、检查和导出离线单文件 HTML 文档、数据报表和界面稿，并绘制 SVG 数据图与结构图。需要向用户交付供阅读、核对或评审的 HTML 时先加载此技能，例如 HTML 形式的技术方案、调研报告、评审材料、会议纪要、经营报表、Dashboard、界面线框或可点击原型，包括把 Markdown、CSV 或 JSON 做成 HTML。需要单独的数据图或结构图，或需要阅读、检查、截图、换主题、把本地 HTML 导出为 PDF 或 PNG 时也使用。
 ---
 
 # HTML View

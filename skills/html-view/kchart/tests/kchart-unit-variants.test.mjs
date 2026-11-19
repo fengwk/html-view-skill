@@ -66,7 +66,12 @@ test('unit descriptions localize and reserve measured scene space', () => {
   const base = layout({ ...spec, variant: 'solid' });
   const english = layout(spec, { lang: 'en' });
   const heading = flatten(english.children).find((node) => node.meta?.kind === 'unit-mark-label');
-  assert.match(textOf(heading), /^Each “person” mark represents/);
+  // 字段无单位时用符号名补上单位；单位只出现一次。
+  assert.equal(textOf(heading), 'Each mark represents 2 person');
+  const counted = flatten(layout({ ...spec, unit: 'people' }, { lang: 'en' }).children).find((node) => node.meta?.kind === 'unit-mark-label');
+  assert.equal(textOf(counted), 'Each mark represents 2 people', 'a field unit is not repeated by the mark label');
+  const chinese = flatten(layout({ ...spec, unit: '人', unitMark: { value: 2, label: '人' } }).children).find((node) => node.meta?.kind === 'unit-mark-label');
+  assert.equal(textOf(chinese), '每个符号表示 2人');
   const body = english.children.find((node) => node.tag === 'g' && /translate\(0 \d+\)/.test(node.attrs.transform || ''));
   assert.ok(body && Number(english.height) > Number(base.height));
   assert.equal(Number(body.attrs.transform.match(/translate\(0 (\d+)\)/)[1]), Number(english.height) - Number(base.height), 'the measured description height moves the entire plot body');
@@ -264,6 +269,15 @@ test('histogram rungs label count and horizontal units without placeholder text'
   assert.doesNotMatch(textOf(plainHeader), /横轴单位| \/ x/);
   const englishHeader = flatten(layout(spec, { lang: 'en' }).children).find((node) => node.meta?.kind === 'unit-mark-label');
   assert.match(textOf(englishHeader), /Each cell represents 2次/);
+  // 边界刻度放不下时按统一步长抽稀：首尾保留，中间间隔相等。
+  const wide = { chart: 'histogram', variant: 'rungs', unitMark: { value: 50, label: '单' }, encode: { lower: 'l', upper: 'u', count: 'n' },
+    fields: { l: { unit: '分钟' }, u: { unit: '分钟' }, n: { unit: '单' } },
+    data: [[0, 2, 100], [2, 4, 350], [4, 6, 400], [6, 8, 250], [8, 10, 100], [10, 12, 50]].map(([l, u, n]) => ({ l, u, n })) };
+  const ticks = flatten(layout(wide, { width: 320 }).children).filter((node) => node.tag === 'text' && /^\d+分钟$/.test(node.text)).map((node) => Number(node.text.replace('分钟', '')));
+  assert.equal(ticks[0], 0);
+  assert.equal(ticks.at(-1), 12);
+  const gaps = ticks.slice(1, -1).map((tick, i) => tick - ticks[i]);
+  assert.ok(gaps.every((gap) => gap === gaps[0]), `uneven boundary labels ${ticks}`);
 });
 
 // 意图：测试真实Chromium绘制SVG与clipPath，避免仅凭scene数值误判partial mark越界或不渲染。

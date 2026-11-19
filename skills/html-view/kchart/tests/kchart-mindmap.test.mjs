@@ -205,6 +205,17 @@ test('tree is registered with semantic layouts and tree scene metadata supports 
   }
   const treeWithInteractions = K.layout({ chart: 'tree', data: tree, interaction: ['collapse'] }, { measure: text => [...text].length * 8 });
   assert.equal(treeWithInteractions.nodes.length, 9);
+  // 括号从父节点右侧中点出发、从子节点左侧中点进入，不沿方框边线走。
+  const brace = K.layout({ chart: 'tree', layout: 'brace', data: tree }, { measure: text => [...text].length * 8 });
+  const boxes = new Map(plain(brace.nodes).map(node => [node.id, node]));
+  const edges = brace.children.filter(child => child.tag === 'path' && child.meta?.kind === 'tree' && child.meta.from);
+  assert.ok(edges.length);
+  for (const edge of edges) {
+    const [start, , , end] = [...edge.attrs.d.matchAll(/(-?[\d.]+) (-?[\d.]+)/g)].map(match => ({ x: Number(match[1]), y: Number(match[2]) }));
+    const parent = boxes.get(edge.meta.from), child = boxes.get(edge.meta.to);
+    assert.ok(Math.abs(start.x - (parent.x + parent.w)) < .01 && Math.abs(start.y - (parent.y + parent.h / 2)) < .01, edge.attrs.d);
+    assert.ok(Math.abs(end.x - child.x) < .01 && Math.abs(end.y - (child.y + child.h / 2)) < .01, edge.attrs.d);
+  }
 });
 
 // 意图：在真实gallery场景下固定双侧节点完整入画的宽度，并验证同名叶子仍通过节点身份区分。
@@ -427,6 +438,23 @@ test('tree and mindmap labels and notes keep body-text contrast on their node fi
       const box = boxes.find(node => node.meta.node === text.meta.node);
       const under = box ? hexIn(box.attrs.fill) : bg;
       assert.ok(K.util.contrast(hexIn(text.attrs.fill), under) >= 4.5, `${theme} ${chart}: ${text.text} on ${under}`);
+    }
+  }
+});
+
+// 意图：短标签的框被最小宽撑开时，文字在框内左右留白相等，不贴左留一大块空。
+test('short labels sit centred in boxes widened to the minimum width', () => {
+  const short = { id: 'r', label: 'New store', children: [{ id: 'p', label: 'Prep', children: [{ id: 'q', label: 'Build' }] }, { id: 's', label: 'Site', children: [{ id: 't', label: 'Rent' }] }] };
+  const ctx = K.util.context({ lang: 'en' });
+  for (const layout of ['right', 'left', 'radial', 'org', 'bilateral']) {
+    const nodes = K.layout({ chart: 'mindmap', layout, variant: 'editorial', data: short }, { lang: 'en' }).children;
+    const flat = (list) => list.flatMap((node) => [node, ...flat(node.children || [])]);
+    for (const id of ['p', 's']) {
+      const box = flat(nodes).find((node) => node.tag === 'rect' && node.meta?.node === id);
+      const label = flat(nodes).find((node) => node.tag === 'text' && node.meta?.node === id && node.meta.role === 'label');
+      if (!box) continue;
+      const left = label.attrs.x - box.attrs.x, right = box.attrs.x + box.attrs.width - label.attrs.x - ctx.measure(label.text, 13, 500);
+      assert.ok(Math.abs(left - right) <= 1, `${layout} ${id}: ${left.toFixed(1)} vs ${right.toFixed(1)}`);
     }
   }
 });

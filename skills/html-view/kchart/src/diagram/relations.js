@@ -15,6 +15,16 @@ KChart.define('diagram/relations', ({
     server: 'M3 7a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v2a3 3 0 0 1-3 3h-12a3 3 0 0 1-3-3v-2 M3 15a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v2a3 3 0 0 1-3 3h-12a3 3 0 0 1-3-3l0-2 M7 8l0 .01 M7 16l0 .01',
     browser: 'M4 8h16 M4 6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-12a2 2 0 0 1-2-2l0-12 M8 4v4',
   };
+  // [中文, English] reader-facing names for C4 element macros and requirement-diagram types.
+  const TYPE_WORDS = {
+    person: ['人员', 'Person'], person_ext: ['外部人员', 'External person'],
+    system: ['软件系统', 'Software system'], system_ext: ['外部系统', 'External system'],
+    container: ['容器', 'Container'], containerdb: ['数据库容器', 'Database container'], containerqueue: ['队列容器', 'Queue container'],
+    component: ['组件', 'Component'], deployment_node: ['部署节点', 'Deployment node'],
+    requirement: ['需求', 'Requirement'], functionalrequirement: ['功能需求', 'Functional requirement'],
+    interfacerequirement: ['接口需求', 'Interface requirement'], performancerequirement: ['性能需求', 'Performance requirement'],
+    physicalrequirement: ['物理需求', 'Physical requirement'], designconstraint: ['设计约束', 'Design constraint'], element: ['元素', 'Element'],
+  };
   const validId = value => /^[\w.-]+$/u.test(value);
   const issue = (lang, line, text) => u.error(lang, line, `不支持或无效的关系图语句：「${text}」`, `Unsupported or invalid relation-diagram statement: "${text}"`, '按受支持子集修正；未实现语法不会被忽略', 'Use the supported subset; unsupported syntax is never ignored');
   const unquote = value => String(value || '').trim().replace(/^("|')(.*)\1$/u, '$2');
@@ -72,8 +82,10 @@ KChart.define('diagram/relations', ({
         m = /^([\w.-]+)\s+-\s*(satisfies|contains|derives|refines|traces|copies|verifies)\s*->\s*([\w.-]+)$/iu.exec(text);
         if (m) { addNode(m[1], m[1], 'requirement', line); addNode(m[3], m[3], 'requirement', line); addEdge(m[1], m[3], m[2], line, m[2], 'right'); continue; }
       } else if (/^C4/u.test(kind)) {
-        let m = /^(?:Enterprise_Boundary|System_Boundary|Boundary)\s*\(\s*([^,]+),\s*"([^"]+)"\s*\)\s*\{$/iu.exec(text);
-        if (m) { const id = m[1].trim(); if (parent || !validId(id) || groups.some(g => g.id === id) || byId.has(id)) errors.push(issue(lang, line, `invalid or nested boundary ${id}`)); else { groups.push({ id, label: m[2], line, kind: 'c4', parent: null }); parent = id; } continue; }
+        // One level of grouping: system/container boundaries, or a deployment node that contains elements.
+        let m = /^(Enterprise_Boundary|System_Boundary|Container_Boundary|Boundary|Deployment_Node)\s*\(\s*([^,]+),\s*"([^"]+)"(?:,\s*"([^"]*)")?\s*\)\s*\{$/iu.exec(text);
+        if (m && m[4] && !/^Deployment_Node$/iu.test(m[1])) m = null;
+        if (m) { const id = m[2].trim(); if (parent || !validId(id) || groups.some(g => g.id === id) || byId.has(id)) errors.push(issue(lang, line, `invalid or nested boundary ${id}`)); else { groups.push({ id, label: m[4] ? `${m[3]} [${m[4]}]` : m[3], line, kind: 'c4', parent: null }); parent = id; } continue; }
         if (text === '}') { if (!parent) errors.push(issue(lang, line, text)); parent = null; continue; }
         m = /^Rel(?:_[LRUD])?\s*\(\s*([^,]+),\s*([^,]+),\s*"([^"]+)"(?:,\s*"([^"]*)")?\s*\)$/iu.exec(text);
         if (m) { const label = kind === 'C4Dynamic' && !/^\d+\.\s/u.test(m[3]) ? `${edges.length + 1}. ${m[3]}` : m[3]; addEdge(m[1].trim(), m[2].trim(), label, line, 'Rel', 'right', { description: m[4] || '' }); continue; }
@@ -120,6 +132,8 @@ KChart.define('diagram/relations', ({
       const a = byId.get(edge.from), b = byId.get(edge.to);
       if (!a || !b) errors.push(issue(lang, edge.line, `unknown endpoint ${edge.from} -> ${edge.to}`));
       else if ((/^C4/u.test(kind) || kind === 'architecture-beta') && (a.implicit || b.implicit)) errors.push(issue(lang, edge.line, `undeclared endpoint ${a.implicit ? a.id : b.id}`));
+      // A group is drawn as a container around its services, never as a node of its own.
+      else if (a.type === 'group' || b.type === 'group') errors.push(issue(lang, edge.line, `edges to a group are unsupported: ${a.type === 'group' ? a.id : b.id}`));
     }
     for (const group of groups) {
       if (group.parent && !groups.some(candidate => candidate.id === group.parent)) errors.push(issue(lang, group.line, `unknown group parent ${group.parent}`));
@@ -171,18 +185,42 @@ KChart.define('diagram/relations', ({
   function layoutGeometry(model, { width = 800, lang = 'zh', measure, ctx }) {
     if (model.kind === 'zenuml') return layoutSequence(model, ctx);
     const ids = new Map(model.nodes.map((n, i) => [n.id, `rel_${i}`]));
-    const statements = model.nodes.map(n => ({ text: `${ids.get(n.id)}["${[n.label, ...(n.type !== 'node' && n.type !== 'class' ? [n.type] : []), ...(n.attrs || []), ...(n.methods || [])].join('<br/>').replace(/"/gu, '&quot;')}"]`, line: n.line }));
+    // Type words carry meaning in C4 and requirement diagrams; generic ones would repeat on every card.
+    // Cards show the reader's word for a type, not the macro or keyword that declared it.
+    const english = /^en(?:-|$)/iu.test(String(lang));
+    const typeWord = type => { const words = TYPE_WORDS[String(type).toLowerCase()]; return words ? words[english ? 1 : 0] : type; };
+    const typeLine = n => (['node', 'class', 'service', 'block', 'group', 'junction'].includes(n.type) ? [] : [typeWord(n.type)]);
+    const quoted = text => String(text).replace(/"/gu, '&quot;');
+    const nodeStatement = n => ({ text: `${ids.get(n.id)}["${quoted([n.label, ...typeLine(n), ...(n.attrs || []), ...(n.methods || [])].join('<br/>'))}"]`, line: n.line });
+    // Each group becomes a subgraph, so the layout reserves its title band and padding instead of
+    // boxes being drawn around nodes afterwards and crowding the edge between two groups.
+    const groupIndex = new Map(model.groups.map((group, i) => [group.id, i]));
+    const statements = [], emitted = new Set();
+    for (const n of model.nodes.filter(node => node.type !== 'group')) {
+      if (!groupIndex.has(n.parent)) { statements.push(nodeStatement(n)); continue; }
+      if (emitted.has(n.parent)) continue;
+      emitted.add(n.parent);
+      const group = model.groups[groupIndex.get(n.parent)];
+      statements.push({ text: `subgraph grp_${groupIndex.get(n.parent)}["${quoted(group.label)}"]`, line: group.line },
+        ...model.nodes.filter(member => member.type !== 'group' && member.parent === n.parent).map(nodeStatement), { text: 'end', line: group.line });
+    }
     for (const edge of model.edges) statements.push({ text: `${ids.get(edge.from)} --> ${ids.get(edge.to)}`, line: edge.line });
     if (model.kind === 'block-beta' && model.columns > 1) for (let i = 0; i + model.columns < model.nodes.length; i++) statements.push({ text: `${ids.get(model.nodes[i].id)} --> ${ids.get(model.nodes[i + model.columns].id)}`, line: model.nodes[i].line });
-    const direction = model.kind === 'block-beta' && model.columns > 1 ? 'LR' : 'TB';
+    // Architecture ports say where a neighbour sits; mostly left/right ports read best as a row.
+    const ports = model.kind === 'architecture-beta' ? model.edges.flatMap(edge => [edge.startPort, edge.endPort]).filter(Boolean) : [];
+    const sideways = ports.filter(port => port === 'L' || port === 'R').length;
+    const direction = (model.kind === 'block-beta' && model.columns > 1) || (sideways && sideways * 2 >= ports.length) ? 'LR' : 'TB';
     const parsed = parseFlow(statements, { direction });
     if (parsed.errors?.length) return { width, height: 1, scene: ctx.scene(1, [], model.title || model.kind), errors: parsed.errors };
-    const graph = layoutGraph(parsed.model, { width, measure: (text, font) => measure(text, font) });
+    // An icon sits left of its node's title, so that title is measured 24px wider and drawn 12px right.
+    const iconTitles = new Set(model.nodes.filter(n => n.icon && ICONS[n.icon]).map(n => n.label));
+    const graph = layoutGraph(parsed.model, { width, measure: (text, font) => measure(text, font) + (iconTitles.has(text) ? 24 : 0) });
     const placements = new Map();
-    for (const item of graph.nodes) { const n = model.nodes[Number(String(item.id).replace('rel_', ''))]; if (n) placements.set(n.id, { n, x: item.x + item.w / 2, y: item.y + item.h / 2, w: item.w, h: item.h, attrs: [...(n.type !== 'node' && n.type !== 'class' ? [n.type] : []), ...(n.attrs || [])], methods: n.methods || [] }); }
-    const groupBounds = model.groups.map(group => {
-      const members = [...placements.values()].filter(p => p.n.parent === group.id);
-      return members.length ? { group, left: Math.min(...members.map(p => p.x - p.w / 2)) - 16, right: Math.max(...members.map(p => p.x + p.w / 2)) + 16, top: Math.min(...members.map(p => p.y - p.h / 2)) - 22, bottom: Math.max(...members.map(p => p.y + p.h / 2)) + 14 } : null;
+    for (const item of graph.nodes) { const n = model.nodes[Number(String(item.id).replace('rel_', ''))]; if (n) placements.set(n.id, { n, x: item.x + item.w / 2, y: item.y + item.h / 2, w: item.w, h: item.h, attrs: [...typeLine(n), ...(n.attrs || [])], methods: n.methods || [] }); }
+    const frames = new Map((graph.frames || []).map(frame => [frame.id, frame]));
+    const groupBounds = model.groups.map((group, i) => {
+      const frame = frames.get(`grp_${i}`);
+      return frame ? { group, left: frame.x, right: frame.x + frame.w, top: frame.y, bottom: frame.y + frame.h } : null;
     }).filter(Boolean);
     const overlaps = (a, b) => a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
     const errors = [];
@@ -208,12 +246,19 @@ KChart.define('diagram/relations', ({
       let path;
       if (edge.type === 'architecture' && (edge.startPort || edge.endPort)) {
         const portPoint = (placement, port) => port === 'L' ? { x: placement.x - placement.w / 2, y: placement.y } : port === 'R' ? { x: placement.x + placement.w / 2, y: placement.y } : port === 'T' ? { x: placement.x, y: placement.y - placement.h / 2 } : { x: placement.x, y: placement.y + placement.h / 2 };
+        const step = (point, port) => ({ x: point.x + (port === 'L' ? -12 : port === 'R' ? 12 : 0), y: point.y + (port === 'T' ? -12 : port === 'B' ? 12 : 0) });
         if (edge.startPort) start = portPoint(a, edge.startPort);
         if (edge.endPort) end = portPoint(b, edge.endPort);
-        const points = [start], interior = (route.segments || []).map(segment => segment.p1);
-        if (edge.startPort) { const outward = { ...start }; if (edge.startPort === 'L') outward.x -= 12; else if (edge.startPort === 'R') outward.x += 12; else if (edge.startPort === 'T') outward.y -= 12; else outward.y += 12; points.push(outward); const next = interior[0] || end; points.push(edge.startPort === 'L' || edge.startPort === 'R' ? { x: outward.x, y: next.y } : { x: next.x, y: outward.y }); }
-        points.push(...interior.slice(0, edge.endPort ? -1 : undefined));
-        if (edge.endPort) { const inward = { ...end }; if (edge.endPort === 'L') inward.x -= 12; else if (edge.endPort === 'R') inward.x += 12; else if (edge.endPort === 'T') inward.y -= 12; else inward.y += 12; const previous = interior.length > 1 ? interior[interior.length - 2] : start; points.push(edge.endPort === 'L' || edge.endPort === 'R' ? { x: previous.x, y: inward.y } : { x: inward.x, y: previous.y }, inward, end); }
+        // Leave each port straight out, then join the two stubs with at most two orthogonal bends.
+        const out = edge.startPort ? step(start, edge.startPort) : start, into = edge.endPort ? step(end, edge.endPort) : end;
+        const across = port => port === 'L' || port === 'R';
+        const startAcross = edge.startPort ? across(edge.startPort) : Math.abs(into.x - out.x) >= Math.abs(into.y - out.y);
+        const endAcross = edge.endPort ? across(edge.endPort) : startAcross;
+        const bends = out.x === into.x || out.y === into.y ? []
+          : startAcross && endAcross ? [{ x: (out.x + into.x) / 2, y: out.y }, { x: (out.x + into.x) / 2, y: into.y }]
+            : !startAcross && !endAcross ? [{ x: out.x, y: (out.y + into.y) / 2 }, { x: into.x, y: (out.y + into.y) / 2 }]
+              : startAcross ? [{ x: into.x, y: out.y }] : [{ x: out.x, y: into.y }];
+        const points = [start, out, ...bends, into, end].filter((point, index, all) => !index || point.x !== all[index - 1].x || point.y !== all[index - 1].y);
         path = points.map((point, index) => `${index ? 'L' : 'M'}${point.x} ${point.y}`).join(' ');
       } else path = cubicPath(route.segments);
       const dashed = ['..|>', '<|..', '..>', '..'].includes(edge.type);
@@ -227,7 +272,10 @@ KChart.define('diagram/relations', ({
         const dx = to.x - from.x, dy = to.y - from.y, length = Math.hypot(dx, dy) || 1;
         return { x: dx / length, y: dy / length };
       };
+      // How far each end marker reaches along the edge; the label keeps to the free stretch between them.
+      const reach = { start: 0, end: 0 };
       if (edge.type === '--x') {
+        reach.end = 5;
         const { x, y } = end;
         children.push(ctx.path(`M${x - 4} ${y - 4} L${x + 4} ${y + 4} M${x + 4} ${y - 4} L${x - 4} ${y + 4}`, {
           fill: 'none', stroke: ctx.design.fg4, 'stroke-width': 1.25, meta: { kind: 'relation-marker', edge: String(route.id), marker: 'cross' },
@@ -239,6 +287,7 @@ KChart.define('diagram/relations', ({
         if (type === 'triangle') points = `${point.x},${point.y} ${point.x - ux * 7 + px * 5},${point.y - uy * 7 + py * 5} ${point.x - ux * 7 - px * 5},${point.y - uy * 7 - py * 5}`;
         else if (type === 'diamond') points = `${point.x},${point.y} ${point.x - ux * 6 + px * 5},${point.y - uy * 6 + py * 5} ${point.x - ux * 12},${point.y - uy * 12} ${point.x - ux * 6 - px * 5},${point.y - uy * 6 - py * 5}`;
         else points = `${point.x},${point.y} ${point.x - ux * 7 + px * 4},${point.y - uy * 7 + py * 4} ${point.x - ux * 7 - px * 4},${point.y - uy * 7 - py * 4}`;
+        reach[point === start ? 'start' : 'end'] = type === 'diamond' ? 12 : 7;
         children.push(ctx.shape('polygon', { points, fill: type === 'triangle' || (type === 'diamond' && !filled) ? ctx.color('bg') : ctx.color('muted'), ...(type === 'arrow' ? {} : { stroke: ctx.color('muted'), 'stroke-width': 1 }) }, { kind: 'relation-marker', edge: String(route.id), marker: type }));
       };
       if (edge.type === '<|--' || edge.type === '<|..') marker(start, 'triangle', false, vectorAt(true)); else if (edge.type === '..|>') marker(end, 'triangle', false, vectorAt(false));
@@ -249,7 +298,12 @@ KChart.define('diagram/relations', ({
       }
       let labelBox;
       if (edge.label) {
-        const x = (start.x + end.x) / 2, y = (start.y + end.y) / 2 - (edge.description ? 10 : 4);
+        // Vertical edges centre the plate on the free stretch; horizontal edges keep it just above the line.
+        const dx = end.x - start.x, dy = end.y - start.y, length = Math.hypot(dx, dy) || 1;
+        const along = reach.start + Math.max(0, length - reach.start - reach.end) / 2;
+        const mx = start.x + dx / length * along, my = start.y + dy / length * along;
+        const upright = Math.abs(dy) > Math.abs(dx) && (reach.start || reach.end);
+        const x = mx, y = upright ? my + (edge.description ? -2 : 5) : my - (edge.description ? 10 : 4);
         const labels = [edge.label, edge.description].filter(Boolean);
         const w = Math.max(...labels.map(label => ctx.measure(label, 12, 400))) + 14;
         labelBox = { x: x - w / 2, y: y - 15, w, h: edge.description ? 34 : 20 };
@@ -286,9 +340,13 @@ KChart.define('diagram/relations', ({
     for (const p of placements.values()) {
       if (p.n.hidden) continue;
       const left = p.x - p.w / 2, top = p.y - p.h / 2;
-      children.push(ctx.rect(left, top, p.w, p.h, { rx: 8, fill: ctx.color('bg'), stroke: ctx.color('axis'), 'stroke-width': 1, meta: { kind: 'node', node: p.n.id, type: p.n.type } }), ctx.rect(left, top, p.w, 31, { rx: 8, fill: ctx.color('grid'), 'fill-opacity': .5, stroke: 'none', meta: { kind: 'node-header', node: p.n.id } }));
-      if (p.n.icon && ICONS[p.n.icon]) children.push(ctx.path(ICONS[p.n.icon], { transform: `translate(${left + 9} ${top + 7}) scale(.72)`, fill: 'none', stroke: ctx.color('muted'), 'stroke-width': 1.8, meta: { kind: 'icon', node: p.n.id, icon: p.n.icon } }));
-      children.push(ctx.text(p.x + (p.n.icon ? 8 : 0), top + 20, p.n.label, { anchor: 'middle', size: 14, weight: 600, fill: ctx.color('fg'), meta: { kind: 'node-label', node: p.n.id } }));
+      // A header band only separates the title from detail lines; a title-only card is one plain box with the title centred.
+      const detailed = p.attrs.length + p.methods.length > 0;
+      children.push(ctx.rect(left, top, p.w, p.h, { rx: 8, fill: ctx.color('bg'), stroke: ctx.color('axis'), 'stroke-width': 1, meta: { kind: 'node', node: p.n.id, type: p.n.type } }));
+      if (detailed) children.push(ctx.rect(left, top, p.w, 31, { rx: 8, fill: ctx.color('grid'), 'fill-opacity': .5, stroke: 'none', meta: { kind: 'node-header', node: p.n.id } }));
+      const titleY = detailed ? top + 20 : p.y + 5, iconY = detailed ? top + 7 : p.y - 8.64;
+      if (p.n.icon && ICONS[p.n.icon]) children.push(ctx.path(ICONS[p.n.icon], { transform: `translate(${left + 9} ${iconY}) scale(.72)`, fill: 'none', stroke: ctx.color('muted'), 'stroke-width': 1.8, meta: { kind: 'icon', node: p.n.id, icon: p.n.icon } }));
+      children.push(ctx.text(p.x + (p.n.icon && ICONS[p.n.icon] ? 12 : 0), titleY, p.n.label, { anchor: 'middle', size: 14, weight: 600, fill: ctx.color('fg'), meta: { kind: 'node-label', node: p.n.id } }));
       let y = top + 48;
       for (const [i, text] of [...p.attrs, ...p.methods].entries()) { if (i === p.attrs.length && p.methods.length) children.push(ctx.line(left + 10, y - 12, left + p.w - 10, y - 12, { stroke: ctx.color('grid'), 'stroke-width': .8, meta: { kind: 'member-divider', node: p.n.id } })); for (const paragraph of String(text).split(/<br\s*\/?\s*>/iu)) for (const line of ctx.wrap(u.labelText(paragraph), Math.max(1, p.w - 24), 12, 400)) { children.push(ctx.text(left + 12, y, line, { anchor: 'start', size: 12, fill: ctx.color('muted'), meta: { kind: 'node-detail', node: p.n.id } })); y += 16; } }
     }
