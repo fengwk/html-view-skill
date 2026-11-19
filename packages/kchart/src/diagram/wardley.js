@@ -6,6 +6,7 @@ const QUOTED = String.raw`"(?:\\.|[^"\\])*"`;
 const NAME = String.raw`(?:${QUOTED}|[A-Za-z_](?:[\w()&]|-(?![-.>]))*(?:[ \t]+[A-Za-z(](?:[\w()&]|-(?![-.>]))*)*)`;
 const pair = (number) => String.raw`\[\s*(${number})\s*,\s*(${number})\s*\]`;
 const offset = String.raw`(?:\s+label\s*${pair('-?\\d+')})?`;
+const sizePattern = new RegExp(String.raw`^size\s*${pair('\\d+')}$`);
 const nodePattern = new RegExp(String.raw`^(component|anchor|note|accelerator|deaccelerator)\s+(${NAME})\s*${pair(DEC)}${offset}(?:\s+\((build|buy|outsource|market)\))?(?:\s+(inertia|\(inertia\)))?$`);
 const childPattern = new RegExp(String.raw`^component\s+(${NAME})\s*\[\s*(${DEC})\s*\]${offset}$`);
 const stagePattern = new RegExp(String.raw`^(${NAME})(?:\s*@\s*(${DEC}))?(?:\s*/\s*(${NAME}))?$`);
@@ -74,7 +75,7 @@ function parse(body, { lang, firstLine = 2, title = '' } = {}) {
     if ((m = /^title\s*:?[ \t]+(.+)$/.exec(text))) model.title = readLabel(m[1]);
     else if (/^acc(?:Title|Descr)\s*:/.test(text)) continue; // Shared source preparation owns SVG accessibility.
     else if (/^accDescr\s*\{/.test(text)) accessibility = !text.includes('}');
-    else if ((m = new RegExp(`^size\\s*${pair('\\d+')}$`).exec(text))) {
+    else if ((m = sizePattern.exec(text))) {
       model.size = { width: Number(m[1]), height: Number(m[2]) };
       if (Object.values(model.size).some(n => n > 16000)) bad(line, '地图尺寸超过 16000 像素', 'Map size exceeds 16,000 pixels');
     } else if (text.startsWith('evolution ')) {
@@ -95,7 +96,7 @@ function parse(body, { lang, firstLine = 2, title = '' } = {}) {
     } else if ((m = nodePattern.exec(text))) {
       const [, kind, name, vis, evo, dx, dy, strategy, inertia] = m;
       const label = readLabel(name), point = coords(vis, evo, line);
-      if (kind !== 'component' && dx != null || kind !== 'component' && (strategy || inertia) || kind === 'note' && !name.startsWith('"')) {
+      if ((kind !== 'component' && (dx != null || strategy || inertia)) || (kind === 'note' && !name.startsWith('"'))) {
         bad(line, '无效的装饰或备注', 'Invalid decorator or note');
       } else if (kind === 'note') model.notes.push({ text: label, ...point, line });
       else if (kind.endsWith('accelerator')) model.forces.push({ kind, name: label, ...point, line });
@@ -123,10 +124,15 @@ function parse(body, { lang, firstLine = 2, title = '' } = {}) {
     else for (const child of group.children) add({ ...child, visibility: parent.visibility });
   }
   // Bare dependencies are ambiguous with multi-word names; resolve against declared names after parsing.
-  const resolve = (id) => nodes.has(id) ? id : model.nodes.find(node => node.label === id)?.id ?? id;
+  const childNames = new Map();
+  for (const node of model.nodes) if (node.parent && !childNames.has(node.label)) childNames.set(node.label, node.id);
+  const resolve = (id) => nodes.has(id) ? id : childNames.get(id) ?? id;
   for (const { text, line } of bareLinks) {
-    const split = [...text.matchAll(/\s+/g)].map(({ index, 0: gap }) => [text.slice(0, index), text.slice(index + gap.length)])
-      .find(([a, b]) => nodes.has(resolve(a)) && nodes.has(resolve(b)));
+    let split;
+    for (const { index, 0: gap } of text.matchAll(/\s+/g)) {
+      const a = text.slice(0, index), b = text.slice(index + gap.length);
+      if (nodes.has(resolve(a)) && nodes.has(resolve(b))) { split = [a, b]; break; }
+    }
     if (split) model.links.push({ from: split[0], to: split[1], dashed: false, flow: 'none', label: '', line });
     else bad(line, '无法识别 Wardley 地图语句', 'Unrecognized Wardley map statement');
   }
@@ -173,7 +179,7 @@ const arrowhead = (ctx, a, b, fill) => {
 };
 
 function layout(model, { width, lang, ctx }, info = {}) {
-  const t = appearance(ctx), edge = ctx.color('muted'), grid = ctx.color('grid'), axis = ctx.color('axis');
+  const t = appearance(ctx), edge = ctx.color('muted'), grid = ctx.color('grid'), axis = t.fg4;
   const config = info.config?.wardley || {};
   const pad = 48, top = 48;
   const stages = model.stages.map(stage => stage.secondName ? [stage.name, stage.secondName] : [stage.name]);
@@ -300,7 +306,8 @@ function layout(model, { width, lang, ctx }, info = {}) {
   }
   if (model.title) guides.push(label(W / 2, 23, [model.title], FONT.title));
   guides.push(ctx.line(pad, top, pad, bottom, stroke(axis)), ctx.line(pad, bottom, right, bottom, stroke(axis)));
-  guides.push({ ...ctx.el('g', { transform: `rotate(-90 18 ${(top + bottom) / 2})` }, [label(18, (top + bottom) / 2, ['Visibility'], bold, t.fg2)] ) });
+  const axisMiddle = (top + bottom) / 2;
+  guides.push(ctx.el('g', { transform: `rotate(-90 18 ${axisMiddle})` }, [label(18, axisMiddle, ['Visibility'], bold, t.fg2)]));
   guides.push(label((pad + right) / 2, bottom + 64, ['Evolution'], bold, t.fg2));
   stages.forEach((rows, i) => {
     const x = pad + plotW * (fractions[i - 1] || 0), end = pad + plotW * fractions[i];
@@ -349,6 +356,12 @@ function layout(model, { width, lang, ctx }, info = {}) {
     labels.push(ctx.rect(r.x, r.y, r.w, r.h, { rx: t.radius, fill: t.node, stroke: grid, meta: { kind: 'frame', id: 'annotations' } }),
       label(r.x + 14, r.y + 14, ['Annotations'], bold, t.fg1, 'start'),
       label(r.x + 14, r.y + 27 + rows.length * 8, rows, FONT.label, t.fg2, 'start'));
+  }
+  const strategies = Object.keys(strategyGlyphs).filter(strategy => model.nodes.some(node => node.strategy === strategy));
+  if (strategies.length) {
+    const rows = ctx.wrap(strategies.map(strategy => `${strategyGlyphs[strategy]} · ${strategy}`).join('     /     '), plotW, 12);
+    labels.push(label(pad, footerY + rows.length * 8, rows, FONT.label, t.fg2, 'start'));
+    footerY += rows.length * 16 + 8;
   }
   const errors = W > width * 2 || nodes.size > 60 ? [warning('LARGE_DIAGRAM', lang, info.headerLine || 1,
     '地图较大，可拆成多张地图', 'Large map; consider splitting it into smaller maps')] : [];

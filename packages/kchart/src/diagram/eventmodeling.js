@@ -68,7 +68,9 @@ function stripComments(text, state) {
       continue;
     }
     if (text.startsWith('/*', i)) { state.block = true; i += 2; continue; }
-    if (text.startsWith('//', i)) break;
+    if (text.startsWith('//', i) || text.startsWith('%%', i)) break;
+    const data = /^(?:"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|\{.*\})/.exec(text.slice(i));
+    if (data) { out += data[0]; i += data[0].length; continue; }
     out += text[i];
     i += 1;
   }
@@ -111,12 +113,13 @@ function parse(source, info = {}) {
   const issue = (line, zh, en, fixZh, fixEn) => errors.push(error(lang, line, zh, en, fixZh, fixEn));
   if (String(source ?? '').length > LIMITS.chars) {
     issue(start, `源码超过 ${LIMITS.chars} 个字符`, `Source exceeds ${LIMITS.chars} characters`, '拆成多张事件模型图', 'Split the source into several event modeling diagrams');
+    return { model: null, errors };
   }
   const comment = { block: false };
   const readBlock = (from) => {
     const body = [];
     for (let index = from; index < raw.length; index += 1) {
-      if (/^\s*\}/.test(raw[index])) return { body, next: index + 1 };
+      if (/^}\s*$/.test(raw[index])) return { body, next: index + 1 };
       body.push(raw[index]);
     }
     return { body: null, next: raw.length };
@@ -208,7 +211,15 @@ function parse(source, info = {}) {
     }
 
     if (head === 'gwt') {
-      const match = /^gwt\s+(\d{1,3})\s+(.*)$/.exec(text);
+      let statement = text;
+      while (i + 1 < raw.length) {
+        const next = raw[i + 1].trim();
+        const keyword = next.split(/\s+/, 1)[0];
+        if (!next || next.startsWith('%%')) { i += 1; continue; }
+        if (!['given', 'when', 'then'].includes(keyword) && !ENTITY_KEYWORDS.has(keyword)) break;
+        statement += ` ${stripComments(raw[++i], comment).trim()}`;
+      }
+      const match = /^gwt\s+(\d{1,3})\s+(.*)$/.exec(statement);
       const sections = match && readGwt(match[2]);
       if (!sections) {
         issue(line, 'gwt 写法无效', 'Invalid gwt statement', '使用「gwt 01 given evt A when cmd B then rmo C」', 'Use "gwt 01 given evt A when cmd B then rmo C"');
@@ -218,7 +229,7 @@ function parse(source, info = {}) {
       continue;
     }
 
-    if (head === 'title') { title = text.replace(/^title\s*/i, '').trim() || undefined; continue; }
+    if (head === 'title') { title = text.replace(/^title\s*:?\s*/i, '').trim() || undefined; continue; }
     if (head === 'acctitle' || head === 'accdescr') {
       if (/^accDescr\s*\{/i.test(text)) {
         while (i + 1 < raw.length && !/^\s*\}/.test(raw[i + 1])) i += 1;
@@ -290,21 +301,25 @@ function validate(model, info = {}) {
   return diagnostics;
 }
 
-function dataLinesOf(frame, block, measure, maxText) {
+function dataLinesOf(frame, block, measure, maxText, narrow) {
   const source = frame.inline || (block ? { type: block.type, body: block.lines.join('\n') } : null);
   if (!source) return null;
   const rows = String(source.body ?? '').split('\n').map((row) => row.replace(/\s+$/, ''));
   while (rows.length && !rows[0].trim()) rows.shift();
   while (rows.length && !rows[rows.length - 1].trim()) rows.pop();
   const lines = rows.flatMap((row) => wrapText(row, maxText, DATA_FONT, measure));
-  const visible = lines.slice(0, LIMITS.dataLines);
-  if (lines.length > LIMITS.dataLines) visible[LIMITS.dataLines - 1] = '…';
+  const visible = lines.slice(0, narrow ? 4 : LIMITS.dataLines);
+  if (lines.length > visible.length) {
+    if (narrow) visible.push(`+${lines.length - visible.length}`);
+    else visible[visible.length - 1] = '…';
+  }
   return { type: source.type || null, lines: visible, total: lines.length, text: rows.join('\n') };
 }
 
 function layout(model, options = {}, info = {}) {
   const lang = options.lang || info.lang || 'zh';
   const width = Math.max(1, Number(options.width) || 800);
+  const narrow = width < 560;
   const measure = options.measure || ((value, font = FONT.body) => [...String(value ?? '')].length * font.size * 0.56);
   const errors = [];
   if (!model.frames.length) {
@@ -330,7 +345,7 @@ function layout(model, options = {}, info = {}) {
     }
     frame.lane = lane;
   }
-  const rows = [...lanes].sort((a, b) => a.index - b.index);
+  const rows = [...lanes].sort((a, b) => a.band - b.band || a.index - b.index);
 
   // 2. Box content and size: name wrapped beside the type glyph, data wrapped underneath.
   const maxText = MAX_BOX_W - 2 * BOX_PAD;
@@ -339,7 +354,7 @@ function layout(model, options = {}, info = {}) {
     const spec = TYPES[frame.type];
     const glyphW = Math.ceil(measure(spec.glyph, GLYPH_FONT));
     const nameLines = wrapText(frame.name, maxText - glyphW - 6, NAME_FONT, measure);
-    const data = dataLinesOf(frame, frame.dataRef ? blocks.get(frame.dataRef) : null, measure, maxText);
+    const data = dataLinesOf(frame, frame.dataRef ? blocks.get(frame.dataRef) : null, measure, maxText, narrow);
     const inner = Math.max(maxWidthOf(nameLines, NAME_FONT, measure) + glyphW + 6, data ? maxWidthOf(data.lines, DATA_FONT, measure) : 0);
     const w = Math.min(MAX_BOX_W, Math.max(MIN_BOX_W, snap(inner + 2 * BOX_PAD)));
     const h = Math.max(MIN_BOX_H, snap(BOX_PAD * 2 + nameLines.length * NAME_STEP + (data ? 4 + data.lines.length * DATA_STEP : 0)));
@@ -347,7 +362,8 @@ function layout(model, options = {}, info = {}) {
   });
 
   // 3. Horizontal placement: each frame starts after the previous column and after its own lane's end.
-  const gutter = Math.max(56, ...rows.map((lane) => Math.ceil(measure(lane.label, LANE_FONT)))) + 24;
+  const labelWidth = Math.max(56, ...rows.map((lane) => Math.ceil(measure(lane.label, LANE_FONT))));
+  const gutter = narrow ? LANE_PAD : labelWidth + 24;
   const laneX = PAD, columnX = PAD + gutter;
   const laneRight = new Map();
   let previous = null;
@@ -361,7 +377,7 @@ function layout(model, options = {}, info = {}) {
     previous = box.r;
   }
   const contentRight = Math.max(...boxes.map((box) => box.r));
-  const laneRightX = contentRight + 12;
+  const laneRightX = Math.max(contentRight + LANE_PAD, PAD + labelWidth + 24);
 
   // 4. Relations: explicit ->> first, then the nearest earlier frame in a different lane.
   const rowOf = new Map(rows.map((lane, index) => [lane, index]));
@@ -488,7 +504,7 @@ function layout(model, options = {}, info = {}) {
   for (const lane of rows) {
     const own = boxes.filter((box) => box.lane === lane);
     lane.maxH = Math.max(0, ...own.map((box) => box.h));
-    lane.h = Math.max(MIN_LANE_H, lane.maxH + 2 * LANE_PAD);
+    lane.h = Math.max(MIN_LANE_H, lane.maxH + 2 * LANE_PAD + (narrow ? 18 : 0));
     lane.w = laneRightX - laneX;
     lane.x = laneX;
     lane.labelX = lane.x + 10;
@@ -497,16 +513,18 @@ function layout(model, options = {}, info = {}) {
   const gapH = rows.map((_, gap) => {
     const tracks = gapTracks.get(gap) || [];
     const depth = Math.max(0, ...tracks.map((item) => item.track));
-    return tracks.length ? LANE_GAP + depth * TRACK : 0;
+    return tracks.length ? LANE_GAP + depth * TRACK : gap < rows.length - 1 ? LANE_GAP : 0;
   });
-  let cursor = PAD;
+  const title = info.title || model.title;
+  const titleLines = title ? wrapText(title, laneRightX - PAD, FONT.title, measure) : [];
+  let cursor = PAD + titleLines.length * 20;
   rows.forEach((lane, index) => {
     lane.y = cursor;
-    lane.labelY = lane.y + lane.h / 2;
+    lane.labelY = lane.y + (narrow ? 13 : lane.h / 2);
     cursor += lane.h + gapH[index];
   });
   const stackBottom = cursor;
-  for (const box of boxes) box.y = box.lane.y + LANE_PAD;
+  for (const box of boxes) box.y = box.lane.y + LANE_PAD + (narrow ? 18 : 0);
 
   // 7. Materialise the planned routes.
   const trackY = (gap, track) => rows[gap].y + rows[gap].h + 6 + track * TRACK;
@@ -536,19 +554,19 @@ function layout(model, options = {}, info = {}) {
   // 8. Given/When/Then and note blocks are drawn as a caption under the lanes so nothing is dropped.
   const captions = [];
   const captionX = laneX + 4, captionWidth = Math.max(120, laneRightX - captionX - 12);
-  let captionY = stackBottom;
+  let captionY = stackBottom + 18;
   const pushCaption = (text, kind, fill) => {
     captions.push({ x: captionX, y: captionY, text, kind, fill });
     captionY += CAPTION_STEP;
   };
-  const label = (key, value) => message(lang, ...value);
+  const label = (value) => message(lang, ...value);
   for (const block of model.gwt) {
     if (captions.length) captionY += 6;
     pushCaption(`GWT ${block.id}`, 'heading');
     for (const key of ['given', 'when', 'then']) {
       const list = block.sections[key];
       if (!list.length) continue;
-      const text = `${label(key, { given: ['给定 Given', 'Given'], when: ['当 When', 'When'], then: ['那么 Then', 'Then'] }[key])}: ${list.map((entry) => `${entry.type} ${entry.id}`).join(' · ')}`;
+      const text = `${label({ given: ['给定 Given', 'Given'], when: ['当 When', 'When'], then: ['那么 Then', 'Then'] }[key])}: ${list.map((entry) => `${entry.type} ${entry.id}`).join(' · ')}`;
       for (const line of wrapText(text, captionWidth, CAPTION_FONT, measure)) pushCaption(line, 'body');
     }
   }
@@ -556,6 +574,11 @@ function layout(model, options = {}, info = {}) {
     if (captions.length) captionY += 6;
     pushCaption(`Note ${note.id}`, 'heading');
     for (const line of note.lines.flatMap((row) => wrapText(row, captionWidth, CAPTION_FONT, measure))) pushCaption(line, 'body');
+  }
+  if (model.entities.length) {
+    if (captions.length) captionY += 6;
+    pushCaption(label(['实体', 'Entities']), 'heading');
+    for (const row of wrapText(model.entities.map(entity => entity.name).join(' · '), captionWidth, CAPTION_FONT, measure)) pushCaption(row, 'body');
   }
   const height = (captions.length ? captionY + PAD - CAPTION_STEP + 4 : stackBottom + PAD);
 
@@ -568,13 +591,14 @@ function layout(model, options = {}, info = {}) {
   }
   return {
     type: 'eventmodeling', width: sceneWidth, height: sceneHeight,
-    lanes: rows, boxes, edges, captions, errors,
+    lanes: rows, boxes, edges, captions, errors, title, titleLines,
   };
 }
 
 function scene(geometry, ctx) {
   const look = appearanceOf(ctx);
   const children = [];
+  children.push(ctx.textLines(PAD, PAD, geometry.titleLines, { ...FONT.title, leading: 20, fill: look.fg1 }));
   const marker = 'em-arrow';
   children.push(ctx.el('defs', {}, [ctx.el('marker', {
     id: marker, viewBox: '0 0 8 8', refX: 7, refY: 4, markerWidth: 8, markerHeight: 8, markerUnits: 'userSpaceOnUse', orient: 'auto',
@@ -638,7 +662,7 @@ function scene(geometry, ctx) {
     }));
   }
 
-  return { width: geometry.width, height: geometry.height, children };
+  return { width: geometry.width, height: geometry.height, title: geometry.title, children };
 }
 
 export const implementations = { eventmodeling: { parse, validate, layout, scene } };
