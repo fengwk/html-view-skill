@@ -5,7 +5,9 @@ import { defaultStyle, statusMarks } from "../core/theme.js";
 var support_exports = /* @__PURE__ */ __exportAll({
 	DIRECTIONS: () => DIRECTIONS,
 	FONT: () => FONT,
+	WARNING_CODES: () => WARNING_CODES,
 	appearance: () => appearance,
+	blocking: () => blocking,
 	error: () => error,
 	fallbackMeasure: () => fallbackMeasure,
 	isEn: () => isEn,
@@ -17,6 +19,7 @@ var support_exports = /* @__PURE__ */ __exportAll({
 	snap: () => snap,
 	statusMarks: () => statusMarks,
 	textBlock: () => textBlock,
+	warning: () => warning,
 	wrapText: () => wrapText
 });
 var FONT = Object.freeze({
@@ -47,6 +50,23 @@ var error = (lang, line, zh, en, fixZh, fixEn, column = 1) => ({
 	message: message(lang, zh, en),
 	fix: message(lang, fixZh, fixEn)
 });
+var WARNING_CODES = Object.freeze([
+	"IGNORED_CONFIG",
+	"IGNORED_STYLE",
+	"IGNORED_INTERACTION",
+	"IGNORED_ASSET",
+	"LARGE_DIAGRAM",
+	"DIAGRAM_HINT"
+]);
+var warning = (code, lang, line, zh, en, fixZh, fixEn, column = 1) => {
+	if (!WARNING_CODES.includes(code)) throw new TypeError(`Unknown diagram warning code: ${code}`);
+	return {
+		...error(lang, line, zh, en, fixZh, fixEn, column),
+		code,
+		severity: "warning"
+	};
+};
+var blocking = (diagnostic) => diagnostic.severity !== "warning";
 var snap = (n) => Math.ceil(n / 4) * 4;
 var measureOf = (ctx) => (value, font = FONT.body) => ctx.measure(value, font.size, font.weight);
 var fallbackMeasure = (value, font = FONT.body) => fallbackMeasure$1(value, font.size, font.weight);
@@ -130,4 +150,4 @@ function textBlock(ctx, { x, y, lines, font = FONT.body, anchor = "middle", line
 		...meta ? { meta } : {}
 	};
 }
-export { DIRECTIONS, FONT, appearance, error, fallbackMeasure, isEn, labelText, maxWidthOf, measureOf, message, parseIndented, snap, statusMarks, support_exports, textBlock, wrapText };
+export { DIRECTIONS, FONT, WARNING_CODES, appearance, blocking, error, fallbackMeasure, isEn, labelText, maxWidthOf, measureOf, message, parseIndented, snap, statusMarks, support_exports, textBlock, warning, wrapText };

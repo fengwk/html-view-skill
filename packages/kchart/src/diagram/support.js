@@ -8,6 +8,13 @@ const message = (lang, zh, en) => isEn(lang) && en ? en : zh;
 const error = (lang, line, zh, en, fixZh, fixEn, column = 1) => ({
   line, column, message: message(lang, zh, en), fix: message(lang, fixZh, fixEn),
 });
+// Warnings never block rendering: they report accepted input that KChart draws differently or ignores.
+const WARNING_CODES = Object.freeze(['IGNORED_CONFIG', 'IGNORED_STYLE', 'IGNORED_INTERACTION', 'IGNORED_ASSET', 'LARGE_DIAGRAM', 'DIAGRAM_HINT']);
+const warning = (code, lang, line, zh, en, fixZh, fixEn, column = 1) => {
+  if (!WARNING_CODES.includes(code)) throw new TypeError(`Unknown diagram warning code: ${code}`);
+  return { ...error(lang, line, zh, en, fixZh, fixEn, column), code, severity: 'warning' };
+};
+const blocking = (diagnostic) => diagnostic.severity !== 'warning';
 const snap = n => Math.ceil(n / 4) * 4;
 const measureOf = ctx => (value, font = FONT.body) => ctx.measure(value, font.size, font.weight);
 const fallbackMeasure = (value, font = FONT.body) => measureFallback(value, font.size, font.weight);
@@ -67,4 +74,4 @@ function textBlock(ctx, { x, y, lines, font = FONT.body, anchor = 'middle', line
   return { ...ctx.el('g', {}, children), ...(meta ? { meta } : {}) };
 }
 
-export { FONT, DIRECTIONS, statusMarks, isEn, message, error, snap, measureOf, fallbackMeasure, maxWidthOf, wrapText, labelText, parseIndented, appearance, textBlock };
+export { FONT, DIRECTIONS, statusMarks, isEn, message, error, warning, blocking, WARNING_CODES, snap, measureOf, fallbackMeasure, maxWidthOf, wrapText, labelText, parseIndented, appearance, textBlock };

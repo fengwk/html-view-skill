@@ -17,7 +17,7 @@ const bars = await render({
 }, { theme: 'paper', prefix: 'bars-1' });
 ```
 
-`render(spec, options?)` 和 `diagram(source, options?)` 返回 Promise，结果为 `{ svg, scene, diagnostics }`。输入无效或无法布局时，`svg` 和 `scene` 均为 `null`；意外错误会拒绝 Promise。`check(source, { syntax, lang }?)` 仅解析和校验，不执行布局，异步返回诊断数组。结构图默认使用 `mermaid` 语法，原生结构图使用 `layers`、`blocks` 或 `swimlane`。`catalog` 和 `diagramTypes` 可同步查询支持的图型及结构图别名。
+`render(spec, options?)` 和 `diagram(source, options?)` 返回 Promise，结果为 `{ svg, scene, diagnostics }`。输入无效或无法布局时，`svg` 和 `scene` 均为 `null`；意外错误会拒绝 Promise。每条结构图诊断带 `severity`：`error` 阻止渲染；`warning` 表示 KChart 接受但忽略或按自身方式绘制的输入（如 Mermaid 颜色、回调），会随 SVG 一起返回。`check(source, { syntax, lang }?)` 仅解析和校验，不执行布局，异步返回含警告在内的诊断数组。结构图默认使用 `mermaid` 语法，原生结构图使用 `layers`、`blocks` 或 `swimlane`。`catalog` 和 `diagramTypes` 可同步查询支持的图型及结构图别名。
 
 渲染选项包括 `width`、`lang`、`theme`、`media`、`frame`、`prefix` 和 `measure(text, size, weight, fontFamily)`。宿主已有图框时可设置 `frame: false`。每个内联 SVG 应使用不同的 `prefix`；结构图可能宽于请求值，建议让容器可以横向滚动。
 
@@ -41,7 +41,7 @@ mermaid.initialize({ theme: 'paper' });
 const { svg, diagramType, diagnostics } = await mermaid.render('preview-1', 'graph LR\nA --> B');
 ```
 
-`initialize(config)` 替换 KChart 的默认渲染选项。`render(id, text, options?)` 默认用 `id` 作为 SVG 前缀，可通过单次调用的 `prefix` 覆盖；遇到无效图时以带 `diagnostics` 的 `Error` 拒绝。`parse(text, { suppressErrors }?)` 成功时返回 `{ diagramType }`，无效输入在启用抑制时返回 `false`，否则以带诊断的错误拒绝。同步的 `detectType(text)` 根据首行图型声明返回标准图型名，不校验正文；图型未知时抛出异常。
+`initialize(config)` 替换 KChart 的默认渲染选项。`render(id, text, options?)` 默认用 `id` 作为 SVG 前缀，可通过单次调用的 `prefix` 覆盖；遇到无效图时以带 `diagnostics` 的 `Error` 拒绝，警告不会导致拒绝。`parse(text, { suppressErrors }?)` 成功时返回 `{ diagramType, diagnostics }`（只含警告），无效输入在启用抑制时返回 `false`，否则以带诊断的错误拒绝。同步的 `detectType(text)` 根据首行图型声明返回标准图型名，不校验正文；图型未知时抛出异常。
 
 适配器仅支持 KChart 文档列出的 Mermaid 子集，不是完整的 Mermaid API；不执行回调，也不返回 DOM 绑定函数。
 

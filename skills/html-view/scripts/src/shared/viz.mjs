@@ -65,7 +65,11 @@ export function auditViz(content, { lang = 'zh-CN', theme = 'claude', requireTit
     const { svg, scene, diagnostics } = item.syntax === 'kchart'
       ? renderer.render(spec, { lang, theme, width })
       : renderer.diagram(item.source, { syntax: item.syntax, lang, theme, width });
-    for (const diagnostic of diagnostics) failures.push(vizFailure(item, contentLine, diagnostic));
+    for (const diagnostic of diagnostics) {
+      // Diagram warnings (ignored Mermaid colors, callbacks or config) are notes, never audit failures.
+      if (diagnostic.severity === 'warning') notes.push({ ...vizFailure(item, contentLine, diagnostic), code: 'VIZ_WARNING' });
+      else failures.push(vizFailure(item, contentLine, diagnostic));
+    }
     if (!svg && !diagnostics.length) throw new Error('图形渲染没有返回 SVG 或诊断');
     if (requireTitle && svg && !(spec?.title ?? scene?.heading)?.trim()) failures.push(vizFailure(item, contentLine, {
       message: '文档图形缺少图题', fix: '为 KChart 声明写 title，或为结构图添加 title 前言。',

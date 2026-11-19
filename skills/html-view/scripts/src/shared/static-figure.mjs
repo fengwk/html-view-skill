@@ -94,7 +94,8 @@ export async function measureFigure(source, { theme, width, lang, standalone }) 
     const syntax = detectSyntax(source);
     input = { source, syntax };
     const renderer = createRenderer({ sources: [input] });
-    const diagnostics = renderer.check(source, { syntax, theme, lang });
+    // Warnings accompany a rendered figure; only errors stop the build.
+    const diagnostics = renderer.check(source, { syntax, theme, lang }).filter((item) => item.severity !== 'warning');
     if (diagnostics.length) fail('USAGE', '结构图源码不符合语法契约', {
       next: '按 diagnostics 中的位置与改法修正源码', details: { diagnostics },
     });

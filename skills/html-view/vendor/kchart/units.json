@@ -324,7 +324,7 @@
       "core/svg",
       "core/diagnostics"
     ],
-    "bytes": 4451
+    "bytes": 4650
   },
   "diagram/relations": {
     "file": "units/diagram/relations.js",
@@ -356,7 +356,7 @@
       "core/text",
       "core/theme"
     ],
-    "bytes": 2542
+    "bytes": 2885
   },
   "diagram/swimlane": {
     "file": "units/diagram/swimlane.js",
@@ -383,6 +383,6 @@
   "runtime": {
     "file": "units/runtime.js",
     "deps": [],
-    "bytes": 8081
+    "bytes": 8024
   }
 }

@@ -44,7 +44,7 @@ it('implements the Mermaid facade', async () => {
   try {
     expect(mermaid.detectType(source)).toBe('flowchart');
     expect(() => mermaid.detectType('not-a-diagram')).toThrow(Error);
-    expect(await mermaid.parse(source)).toEqual({ diagramType: 'flowchart' });
+    expect(await mermaid.parse(source)).toEqual({ diagramType: 'flowchart', diagnostics: [] });
     expect(await mermaid.render('preview', source, { width: 500 })).toEqual({
       svg: node.diagram(source, { theme: 'paper', width: 500, prefix: 'preview' }).svg,
       diagramType: 'flowchart', diagnostics: [],

@@ -146,10 +146,9 @@
           if (validation?.errors?.length) throw new Error(validation.errors.map((item) => item.message).join('; '));
           result = K.render(spec, renderOptions);
         }
-        if (result?.diagnostics?.some((item) => item.severity === 'error' || item.code)) {
-          const errors = result.diagnostics.filter((item) => item.severity === 'error' || item.code).map((item) => item.message).join('; ');
-          if (errors) throw new Error(errors);
-        }
+        // Diagram warnings ride along with a rendered SVG; anything without severity "warning" blocks.
+        const errors = (result?.diagnostics || []).filter((item) => item.severity !== 'warning').map((item) => item.message).join('; ');
+        if (errors) throw new Error(errors);
         if (!result?.svg) throw new Error('KChart did not produce an SVG');
         const title = !parsed.diagram ? spec.title : result.scene?.heading;
         captionText.data = title || (isZh(lang) ? '图表' : 'Chart');

@@ -1,6 +1,6 @@
 import { __exportAll } from "../_virtual/_rolldown/runtime.js";
 import { parseOptions, prepareSource } from "./source.js";
-import { measureOf } from "./support.js";
+import { blocking, measureOf } from "./support.js";
 import { createContext } from "../core/context.js";
 import { containText, el } from "../core/scene.js";
 import { renderScene } from "../core/svg.js";
@@ -28,19 +28,21 @@ function createDiagramApi(implementations, types) {
 		column: error.column ?? 1,
 		message: error.message || "无效的结构图",
 		fix: error.fix || "修正结构图声明后重试",
-		topic: error.topic || type?.topic || "diagram"
+		topic: error.topic || type?.topic || "diagram",
+		severity: error.severity === "warning" ? "warning" : "error"
 	});
-	const normalizeErrors = (errors, type) => (errors || []).map((error) => diagnostic(error, type));
-	const mergeErrors = (...groups) => {
+	const normalize = (items, type) => (items || []).map((item) => diagnostic(item, type));
+	const merge = (...groups) => {
 		const seen = /* @__PURE__ */ new Set();
-		return groups.flat().filter((error) => {
+		return groups.flat().filter((item) => {
 			const key = JSON.stringify([
-				error.code,
-				error.line,
-				error.column,
-				error.message,
-				error.fix,
-				error.topic
+				item.code,
+				item.line,
+				item.column,
+				item.message,
+				item.fix,
+				item.topic,
+				item.severity
 			]);
 			if (seen.has(key)) return false;
 			seen.add(key);
@@ -71,20 +73,19 @@ function createDiagramApi(implementations, types) {
 			syntax,
 			lang: options.lang || "zh"
 		};
-		const sourceErrors = mergeErrors(prepared.errors || [], optionResult.errors || []);
-		const preparedErrors = normalizeErrors(sourceErrors, type);
+		const preparedDiagnostics = normalize(merge(prepared.errors || [], optionResult.errors || []), type);
 		if (!type) {
-			if (preparedErrors.length) return {
+			if (preparedDiagnostics.some(blocking)) return {
 				info,
 				type: null,
 				model: null,
-				errors: preparedErrors
+				diagnostics: preparedDiagnostics
 			};
 			return {
 				info,
 				type: null,
 				model: null,
-				errors: [diagnostic({
+				diagnostics: [...preparedDiagnostics, diagnostic({
 					line: headerLineOf(prepared),
 					message: `未知结构图类型「${prepared.kind || syntax}」`,
 					fix: "使用已声明的结构图类型"
@@ -101,20 +102,20 @@ function createDiagramApi(implementations, types) {
 				info,
 				type,
 				model: null,
-				errors: mergeErrors(preparedErrors, [syntaxError])
+				diagnostics: merge(preparedDiagnostics, [syntaxError])
 			};
 		}
-		if (preparedErrors.length) return {
+		if (preparedDiagnostics.some(blocking)) return {
 			info,
 			type,
 			model: null,
-			errors: preparedErrors
+			diagnostics: preparedDiagnostics
 		};
 		if (!implementation) return {
 			info,
 			type,
 			model: null,
-			errors: [diagnostic({
+			diagnostics: [...preparedDiagnostics, diagnostic({
 				line: headerLineOf(prepared),
 				message: `已知图类型「${type.kind}」尚未装入`,
 				fix: "重新组装并装入该图类型"
@@ -123,13 +124,13 @@ function createDiagramApi(implementations, types) {
 		if (typeof implementation.parse !== "function") throw new TypeError(`Missing parser for diagram: ${type.kind}`);
 		const parsed = implementation.parse(prepared.body, info);
 		if (!parsed || !Array.isArray(parsed.errors)) throw new TypeError(`Invalid parser result for diagram: ${type.kind}`);
-		const validationErrors = parsed.errors.length === 0 && typeof implementation.validate === "function" ? implementation.validate(parsed.model, info) || [] : [];
-		if (!Array.isArray(validationErrors)) throw new TypeError(`Invalid validation result for diagram: ${type.kind}`);
+		const validation = !parsed.errors.some(blocking) && typeof implementation.validate === "function" ? implementation.validate(parsed.model, info) || [] : [];
+		if (!Array.isArray(validation)) throw new TypeError(`Invalid validation result for diagram: ${type.kind}`);
 		return {
 			info,
 			type,
 			model: parsed.model,
-			errors: mergeErrors(normalizeErrors(parsed.errors, type), normalizeErrors(validationErrors, type))
+			diagnostics: merge(preparedDiagnostics, normalize(parsed.errors, type), normalize(validation, type))
 		};
 	}
 	function parse(input, options = {}) {
@@ -141,19 +142,19 @@ function createDiagramApi(implementations, types) {
 				info: null,
 				type: null,
 				model: null,
-				errors: normalizeErrors(error.errors, null)
+				diagnostics: normalize(error.errors, null)
 			};
 		}
 	}
 	function check(input, options = {}) {
-		return parse(input, options).errors;
+		return parse(input, options).diagnostics;
 	}
 	function diagram(input, options = {}) {
 		const parsed = parse(input, options);
-		if (parsed.errors.length) return {
+		if (parsed.diagnostics.some(blocking)) return {
 			svg: null,
 			scene: null,
-			diagnostics: parsed.errors
+			diagnostics: parsed.diagnostics
 		};
 		try {
 			const implementation = implementations[parsed.type.kind];
@@ -176,11 +177,11 @@ function createDiagramApi(implementations, types) {
 				ctx,
 				renderOptions
 			}, parsed.info);
-			const layoutErrors = normalizeErrors(geometry?.errors, parsed.type);
-			if (layoutErrors.length) return {
+			const diagnostics = merge(parsed.diagnostics, normalize(geometry?.errors, parsed.type));
+			if (diagnostics.some(blocking)) return {
 				svg: null,
 				scene: null,
-				diagnostics: layoutErrors
+				diagnostics
 			};
 			const laid = geometry?.scene || (typeof implementation.scene === "function" ? implementation.scene(geometry, ctx, parsed.info) : null);
 			if (!laid || !Number.isFinite(laid.width) || !Number.isFinite(laid.height) || !Array.isArray(laid.children)) throw new TypeError(`Invalid scene for diagram: ${parsed.type.kind}`);
@@ -204,14 +205,14 @@ function createDiagramApi(implementations, types) {
 			return {
 				svg: renderScene(scene, renderOptions),
 				scene,
-				diagnostics: []
+				diagnostics
 			};
 		} catch (error) {
 			if (!(error instanceof ExpectedDiagnostic)) throw error;
 			return {
 				svg: null,
 				scene: null,
-				diagnostics: normalizeErrors(error.errors, parsed.type)
+				diagnostics: merge(parsed.diagnostics, normalize(error.errors, parsed.type))
 			};
 		}
 	}

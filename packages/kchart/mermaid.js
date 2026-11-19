@@ -16,8 +16,11 @@ export function detectType(text) {
   return type.kind;
 }
 
+// Warnings never reject: only diagnostics with severity "error" make a diagram invalid.
+const isError = (item) => item.severity !== 'warning';
+
 function invalid(diagnostics) {
-  return Object.assign(new Error(diagnostics[0]?.message ?? 'Mermaid diagram could not be rendered'), { diagnostics });
+  return Object.assign(new Error(diagnostics.find(isError)?.message ?? 'Mermaid diagram could not be rendered'), { diagnostics });
 }
 
 export async function render(id, text, options = {}) {
@@ -28,9 +31,9 @@ export async function render(id, text, options = {}) {
 
 export async function parse(text, { suppressErrors = false } = {}) {
   const diagnostics = await check(text, { lang: config.lang, syntax: 'mermaid' });
-  if (diagnostics.length) {
+  if (diagnostics.some(isError)) {
     if (suppressErrors) return false;
     throw invalid(diagnostics);
   }
-  return { diagramType: detectType(text) };
+  return { diagramType: detectType(text), diagnostics };
 }

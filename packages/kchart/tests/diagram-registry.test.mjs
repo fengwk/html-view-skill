@@ -26,7 +26,7 @@ test('diagram check normalizes aliases and parser diagnostics without layout', (
   let layouts = 0;
   const api = createDiagramApi({ flowchart: implementation({ layout: () => { layouts++; throw new Error('must not layout'); } }) }, types);
   const diagnostics = api.check('graph\ninvalid');
-  assert.deepEqual(JSON.parse(JSON.stringify(diagnostics)), [{ code: 'BAD_DIAGRAM', line: 2, column: 2, message: 'bad body', fix: 'repair', topic: 'flow' }]);
+  assert.deepEqual(JSON.parse(JSON.stringify(diagnostics)), [{ code: 'BAD_DIAGRAM', line: 2, column: 2, message: 'bad body', fix: 'repair', topic: 'flow', severity: 'error' }]);
   assert.equal(layouts, 0);
   assert.equal(api.parse('graph\nok').info.kind, 'flowchart');
 });
@@ -75,7 +75,7 @@ test('semantic validation and geometry errors avoid invalid scene creation', () 
     scene() { sceneCalls++; throw new Error('must not build scene'); },
   });
   const api = createDiagramApi({ flowchart: impl }, types);
-  assert.deepEqual(JSON.parse(JSON.stringify(api.check('graph\nbody'))), [{ code: 'SEMANTIC', line: 7, column: 4, message: 'semantic problem', fix: 'repair', topic: 'semantic-topic' }]);
+  assert.deepEqual(JSON.parse(JSON.stringify(api.check('graph\nbody'))), [{ code: 'SEMANTIC', line: 7, column: 4, message: 'semantic problem', fix: 'repair', topic: 'semantic-topic', severity: 'error' }]);
   assert.equal(api.diagram('graph\nbody').diagnostics[0].code, 'SEMANTIC');
   assert.equal(layoutCalls, 0);
   const geometryImpl = implementation({
@@ -83,7 +83,7 @@ test('semantic validation and geometry errors avoid invalid scene creation', () 
     scene() { sceneCalls++; throw new Error('must not build scene'); },
   });
   const result = createDiagramApi({ flowchart: geometryImpl }, types).diagram('graph\nbody');
-  assert.deepEqual(JSON.parse(JSON.stringify(result.diagnostics)), [{ code: 'GEOMETRY', line: 8, column: 5, message: 'geometry problem', fix: 'simplify', topic: 'flow' }]);
+  assert.deepEqual(JSON.parse(JSON.stringify(result.diagnostics)), [{ code: 'GEOMETRY', line: 8, column: 5, message: 'geometry problem', fix: 'simplify', topic: 'flow', severity: 'error' }]);
   assert.equal(layoutCalls, 1);
   assert.equal(sceneCalls, 0);
 });
@@ -132,7 +132,21 @@ test('diagram distinguishes unknown type, syntax misuse, and unloaded implementa
 // 意图：只将 ExpectedDiagnostic 归一；内部错误应原样上抛。
 test('diagram catches only expected diagnostics', () => {
   const expected = createDiagramApi({ flowchart: implementation({ layout() { throw new ExpectedDiagnostic('expected', [{ code: 'LAYOUT', line: 3, message: 'no fit', fix: 'simplify' }]); } }) }, types);
-  assert.deepEqual(JSON.parse(JSON.stringify(expected.diagram('flowchart\nbody').diagnostics)), [{ code: 'LAYOUT', line: 3, column: 1, message: 'no fit', fix: 'simplify', topic: 'flow' }]);
+  assert.deepEqual(JSON.parse(JSON.stringify(expected.diagram('flowchart\nbody').diagnostics)), [{ code: 'LAYOUT', line: 3, column: 1, message: 'no fit', fix: 'simplify', topic: 'flow', severity: 'error' }]);
   const unexpected = createDiagramApi({ flowchart: implementation({ layout() { throw new TypeError('bug'); } }) }, types);
   assert.throws(() => unexpected.diagram('flowchart\nbody'), /bug/);
+});
+
+// 意图：warning 不阻止渲染，随 SVG 返回；check 一并报告；error 与 warning 同时出现时仍阻止渲染。
+test('warnings ride along with a rendered SVG and never block', () => {
+  const warn = { code: 'IGNORED_STYLE', severity: 'warning', line: 2, message: 'colour ignored', fix: 'none' };
+  const impl = implementation({ parse: (body) => ({ model: { text: body.trim() }, errors: [warn, ...(body.includes('bad') ? [{ line: 3, message: 'bad', fix: 'x' }] : [])] }) });
+  const api = createDiagramApi({ flowchart: impl }, types);
+  const result = api.diagram('graph\nHello');
+  assert.ok(result.svg);
+  assert.deepEqual(result.diagnostics.map(d => [d.code, d.severity]), [['IGNORED_STYLE', 'warning']]);
+  assert.deepEqual(api.check('graph\nHello').map(d => d.severity), ['warning']);
+  const blocked = api.diagram('graph\nbad');
+  assert.equal(blocked.svg, null);
+  assert.deepEqual(blocked.diagnostics.map(d => d.severity), ['warning', 'error']);
 });

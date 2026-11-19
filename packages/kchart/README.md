@@ -17,7 +17,7 @@ const bars = await render({
 }, { theme: 'paper', prefix: 'bars-1' });
 ```
 
-`render(spec, options?)` and `diagram(source, options?)` resolve to `{ svg, scene, diagnostics }`. For invalid input or a layout that cannot be rendered, `svg` and `scene` are `null`; unexpected failures reject. `check(source, { syntax, lang }?)` resolves to the parse/validation diagnostics without laying out the diagram. The diagram syntax defaults to `mermaid`; use `layers`, `blocks`, or `swimlane` for native diagrams. `catalog` and `diagramTypes` expose the supported types and diagram aliases synchronously.
+`render(spec, options?)` and `diagram(source, options?)` resolve to `{ svg, scene, diagnostics }`. For invalid input or a layout that cannot be rendered, `svg` and `scene` are `null`; unexpected failures reject. Each diagram diagnostic has `severity`: an `error` blocks rendering, while a `warning` (accepted input that KChart ignores or draws its own way, such as Mermaid colors or callbacks) accompanies a rendered SVG. `check(source, { syntax, lang }?)` resolves to the parse/validation diagnostics, warnings included, without laying out the diagram. The diagram syntax defaults to `mermaid`; use `layers`, `blocks`, or `swimlane` for native diagrams. `catalog` and `diagramTypes` expose the supported types and diagram aliases synchronously.
 
 Render options include `width`, `lang`, `theme`, `media`, `frame`, `prefix`, and `measure(text, size, weight, fontFamily)`. Set `frame: false` if your host already supplies a figure frame. Give each inline SVG a unique `prefix`; allow horizontal scrolling if a diagram needs more room than the requested width.
 
@@ -41,7 +41,7 @@ mermaid.initialize({ theme: 'paper' });
 const { svg, diagramType, diagnostics } = await mermaid.render('preview-1', 'graph LR\nA --> B');
 ```
 
-`initialize(config)` replaces the default KChart render options; the render ID supplies the SVG prefix unless a per-call prefix is provided. `render(id, text, options?)` rejects invalid diagrams with an `Error` carrying `diagnostics`. `parse(text, { suppressErrors }?)` resolves to `{ diagramType }`, or to `false` for invalid input when suppression is enabled; otherwise it rejects with diagnostics. Synchronous `detectType(text)` returns the canonical type for a recognized Mermaid header, without validating the body, and throws for unknown types.
+`initialize(config)` replaces the default KChart render options; the render ID supplies the SVG prefix unless a per-call prefix is provided. `render(id, text, options?)` rejects invalid diagrams with an `Error` carrying `diagnostics`; warnings never reject. `parse(text, { suppressErrors }?)` resolves to `{ diagramType, diagnostics }` (warnings only), or to `false` for invalid input when suppression is enabled; otherwise it rejects with diagnostics. Synchronous `detectType(text)` returns the canonical type for a recognized Mermaid header, without validating the body, and throws for unknown types.
 
 This facade supports KChart's documented Mermaid subset, not the entire Mermaid API. It does not run callbacks or return DOM binding functions.
 

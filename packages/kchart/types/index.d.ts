@@ -70,6 +70,8 @@ export interface DiagramDiagnostic {
   line: number;
   column: number;
   topic: string;
+  /** Errors block rendering; warnings accompany a rendered SVG. */
+  severity: 'error' | 'warning';
 }
 
 export interface SceneNode {
@@ -93,7 +95,7 @@ export interface Scene {
 }
 
 export type RenderResult<D = ChartDiagnostic> =
-  | { svg: string; scene: Scene; diagnostics: [] }
+  | { svg: string; scene: Scene; diagnostics: D[] }
   | { svg: null; scene: null; diagnostics: D[] };
 
 export interface DiagramType {
