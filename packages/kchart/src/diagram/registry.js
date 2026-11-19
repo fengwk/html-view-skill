@@ -1,9 +1,55 @@
-import { parseOptions, prepareSource } from './source.js';
-import { blocking, measureOf } from './support.js';
+import { ignoredConfigWarning, parseOptions, prepareSource } from './source.js';
+import { blocking, error, measureOf } from './support.js';
 import { createContext } from '../core/context.js';
 import { containText, el } from '../core/scene.js';
 import { renderScene } from '../core/svg.js';
 import { ExpectedDiagnostic } from '../core/diagnostics.js';
+
+const SILENT_CONFIG = new Set([
+  'securitylevel', 'startonload', 'loglevel', 'deterministicids', 'deterministicidseed',
+  'maxtextsize', 'maxedges', 'suppresserrorrendering', 'htmllabels', 'markdownautowrap',
+  'arrowmarkerabsolute', 'secure', 'dompurifyconfig', 'fontfamily', 'fontsize',
+]);
+const DEFAULT_CONFIG = new Map([['look', 'classic'], ['layout', 'dagre'], ['theme', 'default']]);
+
+function configWarning(info, implementation) {
+  const honored = (implementation?.honoredConfig ?? []).map(key => key.toLowerCase());
+  const ignored = [];
+  function visit(config, prefix = '') {
+    for (const [name, value] of Object.entries(config)) {
+      const key = prefix + name, path = key.toLowerCase();
+      if (SILENT_CONFIG.has(path) || honored.some(entry => path === entry || path.startsWith(`${entry}.`))) continue;
+      if (value && typeof value === 'object' && !Array.isArray(value)) visit(value, `${key}.`);
+      else if (typeof value !== 'string' || DEFAULT_CONFIG.get(path) !== value.toLowerCase()) {
+        ignored.push([key, info.configLines[path] ?? 1]);
+      }
+    }
+  }
+  visit(info.config);
+  const previous = info.errors.find(item => item.code === 'IGNORED_CONFIG');
+  if (!ignored.length) return previous;
+  ignored.sort((a, b) => a[1] - b[1]);
+  const subjects = ignored.map(([key]) => key).join(', ');
+  if (previous) return { ...previous, line: Math.min(previous.line, ignored[0][1]), message: `${previous.message}, ${subjects}` };
+  return ignoredConfigWarning(info.lang, ignored[0][1], subjects);
+}
+
+function presentationErrors(info) {
+  if (info.syntax !== 'mermaid') return [];
+  const errors = [];
+  for (const [i, raw] of info.body.split('\n').entries()) {
+    const code = raw.replace(/"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'/g, '');
+    const forbidden = /^\s*(classDef|style|linkStyle|click|href|callback)\s/i.exec(code) || /::icon\s*\(/i.exec(code);
+    const line = info.firstLine + i;
+    if (forbidden) {
+      const word = forbidden[1] || '::icon';
+      errors.push(error(info.lang, line, `不支持 Mermaid 写法「${word}」`, `Unsupported Mermaid syntax "${word}"`, '移除样式、链接或回调写法；颜色由主题决定', 'Remove styles, links, or callbacks; colors are controlled by the theme', raw.toLowerCase().indexOf(word.toLowerCase()) + 1));
+    } else if (!info.kind.toLowerCase().startsWith('classdiagram') && /^\s*class\s+\S+\s+\S+/i.test(code)) {
+      errors.push(error(info.lang, line, '不支持 Mermaid 样式类声明', 'Mermaid style-class declarations are not supported', '使用 ::: 状态分类；不要声明通用样式类', 'Use ::: status classes; generic style classes are unsupported', raw.search(/\S/) + 1));
+    }
+  }
+  return errors;
+}
 
 function createDiagramApi(implementations, types) {
   if (!implementations || typeof implementations !== 'object' || !Array.isArray(types)) throw new TypeError('Invalid diagram registry configuration');
@@ -53,7 +99,10 @@ function createDiagramApi(implementations, types) {
       ? { options: prepared.options || Object.create(null), errors: [] }
       : parseOptions(prepared.params, { lang: options.lang, line: prepared.headerLine || prepared.firstLine });
     const info = { ...prepared, ...(optionResult.options ? { options: optionResult.options } : {}), kind: type?.kind || prepared.kind, syntax, lang: options.lang || 'zh' };
-    const preparedDiagnostics = normalize(merge(prepared.errors || [], optionResult.errors || []), type);
+    const config = configWarning(info, implementation);
+    const sourceErrors = prepared.errors.filter(item => item.code !== 'IGNORED_CONFIG');
+    const presentation = implementation && implementation.acceptsPresentation !== true ? presentationErrors(info) : [];
+    const preparedDiagnostics = normalize(merge(sourceErrors, config ? [config] : [], presentation, optionResult.errors || []), type);
     if (!type) {
       if (preparedDiagnostics.some(blocking)) return { info, type: null, model: null, diagnostics: preparedDiagnostics };
       return { info, type: null, model: null, diagnostics: [...preparedDiagnostics, diagnostic({ line: headerLineOf(prepared), message: `未知结构图类型「${prepared.kind || syntax}」`, fix: '使用已声明的结构图类型' })] };
@@ -111,13 +160,14 @@ function createDiagramApi(implementations, types) {
       const offset = Math.max(0, (sceneWidth - contained.width) / 2);
       const children = offset ? [el('g', { transform: `translate(${offset} 0)` }, contained.children)] : contained.children;
       const anchor = contained.anchor ? { ...contained.anchor, x: contained.anchor.x + offset } : contained.anchor;
-      const title = parsed.info.title || contained.title || parsed.type.kind;
+      const title = parsed.info.accTitle || parsed.info.title || contained.title || parsed.type.kind;
       const scene = {
         ...contained,
         width: sceneWidth,
         children,
         ...(anchor ? { anchor } : {}),
         title,
+        ...(parsed.info.accDescr !== undefined ? { description: parsed.info.accDescr } : {}),
         heading: parsed.info.title || contained.heading,
       };
       return { svg: renderScene(scene, renderOptions), scene, diagnostics };

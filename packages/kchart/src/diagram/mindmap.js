@@ -112,4 +112,4 @@ function layout(model, options = {}) {
   return { width: scene.width, height: scene.height, scene };
 }
 
-export const implementations = { mindmap: { parse, layout, scene: geometry => geometry.scene } };
+export const implementations = { mindmap: { honoredConfig: ['layout', 'mindmap.colorBy'], parse, layout, scene: geometry => geometry.scene } };
