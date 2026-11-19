@@ -3,6 +3,7 @@ import { runInNewContext } from 'node:vm';
 import { expect, it } from 'vitest';
 import { galleryCases } from '../../../../docs/showcase/gallery-cases.mjs';
 import * as node from '../../dist/esm/node.js';
+import { laneExamples } from '../helpers/lane-examples.mjs';
 
 const families = JSON.parse(readFileSync(new URL('../../src/families.json', import.meta.url), 'utf8'));
 const gallery = galleryCases('en');
@@ -41,7 +42,7 @@ for (const [family, entry] of Object.entries(families)) {
       expect(browser.render(spec, { ...options, assets: renderer.assets(spec) }).svg).toBe(svg);
     } else {
       const keys = [kind, ...(entry.diagrams[kind].aliases ?? [])];
-      const [syntax, source] = keys.map(key => gallery.diagrams[key]).find(Boolean);
+      const [syntax, source] = keys.map(key => gallery.diagrams[key] ?? laneExamples[key]).find(Boolean);
       const declaration = { syntax, source };
       const renderer = node.createRenderer({ specs: [declaration] });
       const browser = page(node.browserSource([declaration]));

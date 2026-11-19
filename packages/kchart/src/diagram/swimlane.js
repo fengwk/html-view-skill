@@ -326,7 +326,8 @@ export function layout(model, { measure, width, lang }) {
   for (const item of lanes) {
     item.rooms = item.columns.map((column) => column.reduce((sum, node) => sum + crossOf(node), 0) + NODE_GAP * Math.max(0, column.length - 1));
     const title = horizontal ? 0 : measure(item.lane.name, FONT.title) + LANE_PAD * 2;
-    item.size = snap(Math.max(0, ...item.rooms, title, horizontal ? MIN_LANE_LR : MIN_LANE_TB) + LANE_PAD * 2);
+    const groupHeadroom = horizontal ? 24 * (model.nested?.filter(group => group.lane === item.lane.id).length || 0) : 0;
+    item.size = snap(Math.max(0, ...item.rooms, title, horizontal ? MIN_LANE_LR : MIN_LANE_TB) + LANE_PAD * 2 + groupHeadroom * 2);
   }
   let nominal = 0;
   const nominalAt = lanes.map((item, index) => {
@@ -647,7 +648,7 @@ export function layout(model, { measure, width, lang }) {
   }
   const bands = Array.from({ length: maxStep + 1 }, (_, band) => capacity(bandTracks.get(band) || 0, STEP_GAP));
 
-  let alongCursor = horizontal ? snap(Math.max(HEADER, ...model.lanes.map((lane) => measure(lane.name, FONT.title) + 24))) : HEADER;
+  let alongCursor = horizontal ? snap(Math.max(HEADER, ...model.lanes.map((lane) => measure(lane.name, FONT.title) + 24))) : HEADER + 24 * (model.nested?.length || 0);
   const alongAt = Array.from({ length: maxStep + 1 }, (_, index) => {
     if (index) alongCursor += bands[index - 1] + steps[index - 1];
     return alongCursor;
@@ -751,6 +752,23 @@ export function scene(layout, ctx) {
     ]);
     group.meta = { lane: lane.id, ...(mermaid ? { kind: 'frame', id: lane.id } : {}) };
     children.push(group);
+  }
+  if (mermaid) {
+    const nodes = new Map(layout.nodes.map(node => [node.id, node]));
+    const groups = model.nested.filter(group => group.nodes.length);
+    for (const [index, group] of groups.entries()) {
+      const members = group.nodes.map(id => nodes.get(id));
+      const lane = layout.lanes.find(item => item.id === group.lane);
+      const x = Math.min(...members.map(node => node.x)) - 4;
+      const titleY = Math.min(...members.map(node => node.y)) - 14 - (groups.slice(index + 1).filter(item => item.lane === group.lane).length * 20);
+      const y = Math.max(lane.y + 2, titleY - 8);
+      const titleWidth = ctx.measure(group.title, FONT.label.size, 600) + 12;
+      const w = Math.min(lane.x + lane.w - x - 2, Math.max(titleWidth, ...members.map(node => node.x + node.w + 4 - x)));
+      const h = Math.max(...members.map(node => node.y + node.h + 4 - y));
+      children.push(ctx.rect(x, y, w, h, { fill: appearance.surface2, stroke: appearance.line2, rx: appearance.smallRadius,
+        meta: { kind: 'frame', id: group.id } }));
+      children.push(ctx.text(x + 6, y + 9, group.title, { size: FONT.label.size, weight: 600, anchor: 'start', 'dominant-baseline': 'central', fill: appearance.fg2 }));
+    }
   }
   for (const edge of layout.edges) {
     const flow = flowEdges.get(edge.id);

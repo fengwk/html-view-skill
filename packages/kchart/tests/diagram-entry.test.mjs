@@ -6,8 +6,8 @@ import * as chart from '../dist/esm/node.js';
 const { check, createRenderer, diagram, diagramTypes, modulesFor } = chart;
 
 // 清单上的每个规范图型必须有实际实现；任何额外实现都要通过同一处登记。
-test('结构图目录与实际模块覆盖 27 个 Mermaid 类型和 3 个原生类型', () => {
-  assert.equal(diagramTypes.filter(({ syntax }) => syntax === 'mermaid').length, 27);
+test('结构图目录与实际模块覆盖 29 个 Mermaid 类型和 3 个原生类型', () => {
+  assert.equal(diagramTypes.filter(({ syntax }) => syntax === 'mermaid').length, 29);
   assert.deepEqual(diagramTypes.filter(({ syntax }) => syntax !== 'mermaid').map(({ kind }) => kind), ['layers', 'blocks', 'swimlane']);
   const modules = import.meta.glob('../src/diagram/*.js', { eager: true });
   const implemented = Object.values(modules).flatMap(unit => Object.keys(unit.implementations || {}));

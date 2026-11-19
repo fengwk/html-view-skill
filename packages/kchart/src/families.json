@@ -158,6 +158,11 @@
       }
     }
   },
+  "diagram/usecase": {
+    "diagrams": {
+      "usecase-beta": { "syntax": "mermaid", "topic": "sequence" }
+    }
+  },
   "diagram/swimlane-mermaid": {
     "diagrams": {
       "swimlane-beta": { "syntax": "mermaid", "topic": "flow" }
