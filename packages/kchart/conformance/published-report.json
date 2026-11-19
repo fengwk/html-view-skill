@@ -1,0 +1,69 @@
+{
+  "version": "12.3.0",
+  "total": 64,
+  "valid": 54,
+  "rejected": [
+    {
+      "id": "skills/html-view/references/diagrams/time.md:32",
+      "header": "quadrantChart",
+      "mermaid": "invalid",
+      "error": "Parse error on line 8: | ...uadrant-4 快速完成  交付A: 0.8, 0.9  交付B: 0. | ----------------------^ | Expecting 'ALPHA', 'NUM', 'MINUS', 'COMMA', 'AMP', 'BRKT', 'MULT', 'UNICODE_TEXT', 'SPACE', 'point_start', 'class_name', 'AXIS-TEXT-DELIMITER', 'NEWLINE', 'SEMI', 'EOF', 'PUNCTUATION', 'PLUS', 'EQUALS', 'DOT', 'UNDERSCORE', got 'COLON'"
+    },
+    {
+      "id": "docs/showcase/gallery-cases.mjs:zh-CN:zenuml",
+      "header": "zenuml",
+      "mermaid": "plugin",
+      "error": "No diagram type detected matching given configuration for text: zenuml |   App |   OrderAPI |   App->OrderAPI: 查询进度",
+      "type": "zenuml"
+    },
+    {
+      "id": "docs/showcase/gallery-cases.mjs:zh-CN:requirementDiagram",
+      "header": "requirementDiagram",
+      "mermaid": "invalid",
+      "error": "Parse error on line 3: | ...t peak {    id: REQ-12    text: 高峰期 3  | ----------------------^ | Expecting 'NEWLINE', got 'LINE'"
+    },
+    {
+      "id": "docs/showcase/gallery-cases.mjs:zh-CN:quadrantChart",
+      "header": "quadrantChart",
+      "mermaid": "invalid",
+      "error": "Parse error on line 8: | ... quadrant-4 潜力款  拿铁: 0.62, 0.86  美式: 0 | ----------------------^ | Expecting 'ALPHA', 'NUM', 'MINUS', 'COMMA', 'AMP', 'BRKT', 'MULT', 'UNICODE_TEXT', 'SPACE', 'point_start', 'class_name', 'AXIS-TEXT-DELIMITER', 'NEWLINE', 'SEMI', 'EOF', 'PUNCTUATION', 'PLUS', 'EQUALS', 'DOT', 'UNDERSCORE', got 'COLON'"
+    },
+    {
+      "id": "docs/showcase/gallery-cases.mjs:zh-CN:xychart-beta",
+      "header": "xychart-beta",
+      "mermaid": "invalid",
+      "error": "Lexical error on line 2. Unrecognized text. | ...hart-beta  x-axis [周一, 周二, 周三, 周四, 周五,  | ----------------------^"
+    },
+    {
+      "id": "docs/showcase/gallery-cases.mjs:zh-CN:sankey-beta",
+      "header": "sankey-beta",
+      "mermaid": "invalid",
+      "error": "Parse error on line 2: | sankey-beta门店,拿铁,420门店,美式,260 | -----------^ | Expecting 'NEWLINE', 'EOF', 'COMMA', got 'NON_ESCAPED_TEXT'"
+    },
+    {
+      "id": "docs/showcase/gallery-cases.mjs:zh-CN:radar-beta",
+      "header": "radar-beta",
+      "mermaid": "invalid",
+      "error": "Parsing failed: Lexer error on line 2, column 8: unexpected character: ->酸<- at offset: 18, skipped 2 characters. | Lexer error on line 2, column 12: unexpected character: ->醇<- at offset: 22, skipped 2 characters. | Lexer error on line 2, column 16: unexpected character: ->甜<- at offset: 26, skipped 2 characters. | Lexer error on line 2, column 20: unexpected character: ->香<- at offset: 30, skipp"
+    },
+    {
+      "id": "docs/showcase/gallery-cases.mjs:en:zenuml",
+      "header": "zenuml",
+      "mermaid": "plugin",
+      "error": "No diagram type detected matching given configuration for text: zenuml |   App |   OrderAPI |   App->OrderAPI: check status",
+      "type": "zenuml"
+    },
+    {
+      "id": "docs/showcase/gallery-cases.mjs:en:requirementDiagram",
+      "header": "requirementDiagram",
+      "mermaid": "invalid",
+      "error": "Parse error on line 3: | ...t peak {    id: REQ-12    text: Serve  | ----------------------^ | Expecting 'NEWLINE', got 'LINE'"
+    },
+    {
+      "id": "docs/showcase/gallery-cases.mjs:en:quadrantChart",
+      "header": "quadrantChart",
+      "mermaid": "invalid",
+      "error": "Parse error on line 8: | ... Hidden gems  Latte: 0.62, 0.86  Ameri | ----------------------^ | Expecting 'ALPHA', 'NUM', 'MINUS', 'COMMA', 'AMP', 'BRKT', 'MULT', 'UNICODE_TEXT', 'SPACE', 'point_start', 'class_name', 'AXIS-TEXT-DELIMITER', 'NEWLINE', 'SEMI', 'EOF', 'PUNCTUATION', 'PLUS', 'EQUALS', 'DOT', 'UNDERSCORE', got 'COLON'"
+    }
+  ]
+}
