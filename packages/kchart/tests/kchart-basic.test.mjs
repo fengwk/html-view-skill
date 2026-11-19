@@ -1,8 +1,9 @@
-import { test } from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
+import { install } from '../src/chart/basic.js';
 import { loadChart } from './kchart-fixture.mjs';
 
-const { api: K } = loadChart(['chart/basic']);
+const { api: K } = loadChart([install]);
 const { palette } = K.util.context();
 const plain = (value) => JSON.parse(JSON.stringify(value));
 const table = (chart, data, encode, extra = {}) => ({ chart, data, encode, ...extra });

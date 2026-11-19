@@ -1,9 +1,10 @@
-import { test } from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
+import { install } from '../src/chart/relations.js';
 import { loadChart } from './kchart-fixture.mjs';
 import { KCHART_CASES } from './kchart-cases.mjs';
 
-const { api: K } = loadChart(['chart/relations']);
+const { api: K } = loadChart([install]);
 const plain = (value) => JSON.parse(JSON.stringify(value));
 const layout = (chart, data, options = {}) => {
   const { lang = 'zh', ...specOptions } = options;

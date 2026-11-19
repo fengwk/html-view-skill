@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
-import { test } from 'node:test';
-import { render } from '../node.mjs';
+import { test } from 'vitest';
+import { render } from '../dist/esm/node.js';
 
 const spec = (chart, values) => ({
   chart,

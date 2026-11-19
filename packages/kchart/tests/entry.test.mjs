@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
-import { test } from 'node:test';
+import { test } from 'vitest';
 import vm from 'node:vm';
-import { browserSource, catalog, createRenderer, modulesFor, parse, render, schema, validate } from '../node.mjs';
+import { browserSource, catalog, createRenderer, modulesFor, parse, render, schema, validate } from '../dist/esm/node.js';
 
 const bar = { chart: 'bar', title: '华东收入', data: [{ region: '华东', sales: 1200000 }], encode: { category: 'region', value: 'sales' }, unit: '元' };
 

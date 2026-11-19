@@ -1,23 +1,23 @@
-import vm from 'node:vm';
-import { assembleModules } from '../modules.mjs';
+import { createRegistry } from '../src/chart/registry.js';
+import * as spec from '../src/chart/spec.js';
+import { dataTable, makeContext } from '../src/chart/context.js';
+import * as svg from '../src/core/svg.js';
+import * as scale from '../src/core/scale.js';
+import * as color from '../src/core/color.js';
+import * as geometry from '../src/core/geometry.js';
+import * as text from '../src/core/text.js';
+import * as scene from '../src/core/scene.js';
 
-export function loadChart(families = [], globals = {}) {
-  const context = vm.createContext(globals);
-  const source = assembleModules(['chart/registry', ...families]);
-  const modules = vm.runInContext(source, context, { filename: 'kchart.js', timeout: 10000 });
+export function loadChart(installers = []) {
+  const registry = createRegistry(spec.validate);
+  for (const install of installers) install(registry);
   const api = {
-    ...modules['chart/registry'],
-    ...modules['chart/spec'],
-    ...modules['core/svg'],
-    dataTable: modules['chart/context'].dataTable,
-    util: {
-      context: modules['chart/context'].makeContext,
-      ...modules['core/scale'],
-      ...modules['core/color'],
-      ...modules['core/geometry'],
-      ...modules['core/text'],
-      ...modules['core/scene'],
-    },
+    ...registry,
+    createRegistry,
+    ...spec,
+    ...svg,
+    dataTable,
+    util: { context: makeContext, ...scale, ...color, ...geometry, ...text, ...scene },
   };
-  return { api, context, modules };
+  return { api };
 }

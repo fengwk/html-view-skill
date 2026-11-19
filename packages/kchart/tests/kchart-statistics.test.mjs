@@ -1,11 +1,13 @@
-import { test } from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
-import vm from 'node:vm';
+import { install as installBasic } from '../src/chart/basic.js';
+import { install as installStatistics } from '../src/chart/statistics.js';
+import { install as installVariants } from '../src/chart/variants.js';
 import { loadChart } from './kchart-fixture.mjs';
-import { themes } from '../node.mjs';
+import { themes } from '../src/core/theme.js';
 
-const { api: K, context } = loadChart(['chart/statistics']);
-const { api: KV } = loadChart(['chart/statistics', 'chart/variants']);
+const { api: K } = loadChart([installStatistics]);
+const { api: KV } = loadChart([installStatistics, installBasic, installVariants]);
 const plain = (value) => JSON.parse(JSON.stringify(value));
 
 const cases = [
@@ -45,8 +47,8 @@ test('histogram wraps a long density-axis title inside the plot width', () => {
 });
 
 // 意图：验证11图都能由严格spec入口布局成纯SVG场景，且从不带DOM或危险属性进入scene。
-test('all statistical chart layouts produce safe scene elements in a DOM-free VM', () => {
-  assert.equal(vm.runInContext('typeof document', context), 'undefined');
+test('all statistical chart layouts produce safe scene elements in a DOM-free Node environment', () => {
+  assert.equal(typeof globalThis.document, 'undefined');
   assert.equal(K.layouts.size, 11);
   for (const spec of cases) {
     const result = K.validate(spec);
@@ -874,10 +876,10 @@ test('趋势图对缺失值断线，但保留没有相邻线段的观测', () =>
   }
 });
 
-// 意图：模块化组装后的统计图无需宿主全局；未选中的图族返回诊断，不渲染假图。
+// 意图：ESM 统计图无需宿主全局；未安装的图族返回诊断，不渲染假图。
 test('statistics uses only declared modules and rejects an absent layout', () => {
-  assert.equal(vm.runInContext('typeof HtmlChart + ":" + typeof HtmlDiagram', context), 'undefined:undefined');
-  const { api } = loadChart(['chart/basic']);
+  assert.equal(`${typeof globalThis.HtmlChart}:${typeof globalThis.HtmlDiagram}`, 'undefined:undefined');
+  const { api } = loadChart([installBasic]);
   const { scene, svg, diagnostics } = api.render(cases[0]);
   assert.equal(scene, null);
   assert.equal(svg, null);

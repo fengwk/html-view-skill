@@ -1,10 +1,12 @@
-import { test } from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
-import vm from 'node:vm';
+import { install as installBasic } from '../src/chart/basic.js';
+import { install as installStatistics } from '../src/chart/statistics.js';
+import { install as installUnitVariants } from '../src/chart/unit-variants.js';
+import { geometry } from '../src/core/icons.js';
 import { loadChart } from './kchart-fixture.mjs';
 
-const { api: K, context, modules } = loadChart(['chart/unit-variants']);
-const { geometry } = modules['core/icons'];
+const { api: K } = loadChart([installBasic, installStatistics, installUnitVariants]);
 const plain = (value) => JSON.parse(JSON.stringify(value));
 const flatten = (nodes) => nodes.flatMap((node) => [node, ...flatten(node.children || [])]);
 const textOf = (node) => flatten([node]).filter((item) => item.tag === 'text').map((item) => item.text).join('');
@@ -12,7 +14,7 @@ const layout = (spec, options) => K.layout(spec, { width: 640, ...options });
 
 // 意图：验证公开图标geometry API仅返回安全几何数据、不依赖DOM，并拒绝不存在的名称。
 test('icon geometry exposes sanitized pure shape data', () => {
-  assert.equal(vm.runInContext('typeof document', context), 'undefined');
+  assert.equal(typeof globalThis.document, 'undefined');
   const icon = geometry('chart-bar');
   assert.equal(icon.set, 'tabler');
   assert.match(icon.viewBox, /^0 0 /);

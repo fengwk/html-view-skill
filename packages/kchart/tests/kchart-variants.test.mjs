@@ -1,9 +1,12 @@
-import { test } from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
+import { install as installBasic } from '../src/chart/basic.js';
+import { install as installStatistics } from '../src/chart/statistics.js';
+import { install as installVariants } from '../src/chart/variants.js';
 import { loadChart } from './kchart-fixture.mjs';
-import { themes } from '../node.mjs';
+import { themes } from '../src/core/theme.js';
 
-const { api: K } = loadChart(['chart/variants']);
+const { api: K } = loadChart([installBasic, installStatistics, installVariants]);
 const plain = value => JSON.parse(JSON.stringify(value));
 const elements = (scene, tag) => {
   const found=[]; const visit=node=>{if(node.tag===tag)found.push(node);for(const child of node.children||[])visit(child);};

@@ -1,10 +1,11 @@
-import { test } from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { install, maps } from '../src/chart/maps.js';
 import { loadChart } from './kchart-fixture.mjs';
 
-const { api, modules } = loadChart(['chart/maps']);
-const K = { ...api, ...modules['chart/maps'] };
+const { api } = loadChart([install]);
+const K = { ...api, maps };
 const square = (x, y) => ({ type: 'Polygon', coordinates: [[[x, y], [x + 2, y], [x + 2, y + 2], [x, y + 2], [x, y]]] });
 const fc = (features) => ({ type: 'FeatureCollection', features });
 const feature = (id, name, x, y) => ({ type: 'Feature', properties: { id, name }, geometry: square(x, y) });

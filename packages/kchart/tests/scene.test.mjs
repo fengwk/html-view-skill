@@ -1,16 +1,15 @@
-import { test } from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
-import { loadModules } from '../modules.mjs';
+import * as scene from '../src/core/scene.js';
+import * as svg from '../src/core/svg.js';
+import * as context from '../src/core/context.js';
+import * as registry from '../src/chart/registry.js';
+import * as diagnostics from '../src/core/diagnostics.js';
+import { makeContext } from '../src/chart/context.js';
+import { theme as resolveTheme } from '../src/core/theme.js';
 
-const modules = loadModules(['chart/registry']);
-const scene = modules['core/scene'];
-const svg = modules['core/svg'];
-const context = modules['core/context'];
-const registry = modules['chart/registry'];
-const diagnostics = modules['core/diagnostics'];
-const { makeContext } = modules['chart/context'];
 const fontFamily = '"System UI & Sans", monospace';
-const theme = { ...modules['core/theme'].theme('paper'), fontFamily };
+const theme = { ...resolveTheme('paper'), fontFamily };
 
 // SVG 只接受受控图元；文本经 XML 转义，实例内的 ID 与引用一起改写。
 test('场景序列化转义文本、改写引用并拒绝非法属性', () => {

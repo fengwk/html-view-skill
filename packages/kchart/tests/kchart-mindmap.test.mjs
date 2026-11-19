@@ -1,10 +1,11 @@
-import { test } from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
+import { install } from '../src/chart/mindmap.js';
 import { loadChart } from './kchart-fixture.mjs';
-import { themes } from '../node.mjs';
+import { themes } from '../src/core/theme.js';
 import { KCHART_CASES } from './kchart-cases.mjs';
 
-const { api: K } = loadChart(['chart/mindmap']);
+const { api: K } = loadChart([install]);
 const plain = value => JSON.parse(JSON.stringify(value));
 const data = {
   id: 'root', label: '中心主题：覆盖所有结构与长标签', note: '根节点注释也需要清晰可见', children: [

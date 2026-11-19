@@ -1,12 +1,12 @@
 // KChart 基础契约：设计样例、严格语义校验、重复 JSON 属性定位与生成schema。
-import { test } from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { loadModules } from '../modules.mjs';
-import { createRenderer } from '../node.mjs';
+import * as spec from '../src/chart/spec.js';
+import * as catalog from '../src/chart/catalog.js';
+import { createRenderer } from '../dist/esm/node.js';
 
-const modules = loadModules(['chart/spec']);
-const K = { ...modules['chart/spec'], ...modules['chart/catalog'] };
+const K = { ...spec, ...catalog };
 const examples = JSON.parse(readFileSync(new URL('./kchart-examples.json', import.meta.url), 'utf8'));
 const plain = value => JSON.parse(JSON.stringify(value));
 

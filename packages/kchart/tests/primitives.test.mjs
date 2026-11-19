@@ -1,21 +1,10 @@
-import { test } from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-import vm from 'node:vm';
+import * as format from '../src/core/format.js';
+import * as scale from '../src/core/scale.js';
+import * as text from '../src/core/text.js';
+import * as geometry from '../src/core/geometry.js';
 
-const modules = new Map();
-const dependencies = { 'core/format': ['core/scale'] };
-const context = vm.createContext({ KChart: { define(name, factory) {
-  const deps = Object.fromEntries((dependencies[name] || []).map((dependency) => [dependency, modules.get(dependency)]));
-  modules.set(name, factory(deps));
-} } });
-for (const file of ['scale.js', 'format.js', 'text.js', 'geometry.js']) {
-  vm.runInContext(readFileSync(new URL(`../src/core/${file}`, import.meta.url), 'utf8'), context, { filename: file });
-}
-const format = modules.get('core/format');
-const scale = modules.get('core/scale');
-const text = modules.get('core/text');
-const geometry = modules.get('core/geometry');
 const plain = (value) => JSON.parse(JSON.stringify(value));
 
 // 意图：锁定舍入进位后升级缩写单位，并保证百分比参数按百分数点而非比例值解释。
