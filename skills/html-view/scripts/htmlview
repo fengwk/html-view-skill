@@ -1,0 +1,18 @@
+#!/usr/bin/env node
+'use strict';
+
+if (Number(process.versions.node.split('.')[0]) < 22) {
+  process.stdout.write(JSON.stringify({ ok: false, error: {
+    code: 'NODE_TOO_OLD', message: 'htmlview 需要 Node.js 22 或更新版本。',
+    next: '切换到 Node.js 22 或更新版本后重试。',
+  } }) + '\n');
+  process.exitCode = 3;
+} else {
+  import('./src/cli/main.mjs').then(({ main }) => main(process.argv.slice(2))).catch(error => {
+    process.stderr.write(String(error.stack || error) + '\n');
+    process.stdout.write(JSON.stringify({ ok: false, error: {
+      code: 'INTERNAL', message: '无法启动 htmlview。', next: '保留 stderr，并检查技能目录文件是否完整。',
+    } }) + '\n');
+    process.exitCode = 4;
+  });
+}

@@ -1,0 +1,272 @@
+{
+  "purpose": "KChart 当前声明契约的示例与正反例；数据均为虚构，expect描述预期语义，不是测试运行结果",
+  "cases": [
+    {
+      "name": "basic-bar",
+      "expect": "accept",
+      "spec": {
+        "chart": "bar", "title": "区域收入比较", "unit": "元",
+        "data": [{"region":"华东","amount":5880000},{"region":"华南","amount":3500000}],
+        "encode": {"category":"region","value":"amount"}
+      }
+    },
+    {
+      "name": "month-gap-wide",
+      "expect": "accept",
+      "assert": "补出2026-02空档并断线，不补0；两系列同轴",
+      "spec": {
+        "chart": "line", "unit": "元",
+        "data": [{"month":"2026-01","a":10000,"b":9000},{"month":"2026-03","a":12000,"b":9500}],
+        "encode": {"category":"month","value":["a","b"]},
+        "fields": {"month":{"type":"month"},"a":{"label":"直接"},"b":{"label":"渠道"}}
+      }
+    },
+    {
+      "name": "month-gap-long",
+      "expect": "accept",
+      "assert": "与宽表同一值矩阵；不进行业务聚合",
+      "spec": {
+        "chart": "line", "unit": "元",
+        "data": [{"month":"2026-01","channel":"直接","amount":10000},{"month":"2026-01","channel":"渠道","amount":9000},{"month":"2026-03","channel":"直接","amount":12000},{"month":"2026-03","channel":"渠道","amount":9500}],
+        "encode": {"category":"month","value":"amount","series":"channel"},
+        "fields": {"month":{"type":"month"}}
+      }
+    },
+    {
+      "name": "percent-is-fraction",
+      "expect": "accept",
+      "assert": "0.981显示98.1%，root没有unit百分号",
+      "spec": {
+        "chart": "line",
+        "data": [{"week":"第一周","rate":0.981},{"week":"第二周","rate":0.986}],
+        "encode": {"category":"week","value":"rate"},
+        "fields": {"rate":{"format":"percent","decimals":1}}
+      }
+    },
+    {
+      "name": "combo-two-units",
+      "expect": "accept",
+      "spec": {
+        "chart": "combo", "title": "收入与转化率的同期变化",
+        "data": [{"month":"2026-09","revenue":1000000,"rate":0.19},{"month":"2026-10","revenue":1200000,"rate":0.20}],
+        "encode": {"category":"month"},
+        "fields": {"month":{"type":"month"},"revenue":{"unit":"元"},"rate":{"format":"percent","decimals":1}},
+        "layers": [{"mark":"column","field":"revenue","axis":"left"},{"mark":"line","field":"rate","axis":"right"}],
+        "annotations": [{"kind":"rule","field":"rate","value":0.21,"label":"目标转化率"}]
+      }
+    },
+    {
+      "name": "interval-and-record-note",
+      "expect": "accept",
+      "spec": {
+        "chart": "interval", "unit": "ms", "note": "模拟实验的已计算95%置信区间",
+        "data": [{"id":"a","label":"方案A","lo":12,"estimate":15,"hi":19},{"id":"b","label":"方案B","lo":11,"estimate":13,"hi":16}],
+        "encode": {"id":"id","category":"label","low":"lo","high":"hi","value":"estimate"},
+        "annotations": [{"kind":"note","record":"b","field":"estimate","text":"示例结果，不作实际性能结论"}]
+      }
+    },
+    {
+      "name": "boxplot-whiskers-and-outliers",
+      "expect": "accept",
+      "spec": {
+        "chart": "boxplot", "unit": "ms", "note": "须端与异常点由上游提供，未在图中拟合",
+        "data": [{"group":"标准","lo":2,"q1":3,"median":5,"q3":7,"hi":9,"outside":[1,11]}],
+        "encode": {"category":"group","low":"lo","q1":"q1","median":"median","q3":"q3","high":"hi","outliers":"outside"}
+      }
+    },
+    {
+      "name": "violin-precomputed",
+      "expect": "accept",
+      "spec": {
+        "chart": "violin", "unit": "h", "note": "密度采样及中位数已在上游算好，数据虚构",
+        "data": [{"group":"A","density":[[0,0],[2,0.3],[4,0.2],[6,0]],"median":2.5},{"group":"B","density":[[0,0],[2,0.2],[4,0.3],[6,0]],"median":3.5}],
+        "encode": {"category":"group","density":"density","median":"median"}
+      }
+    },
+    {
+      "name": "histogram-unequal-rungs",
+      "expect": "reject",
+      "assert": "不等宽分箱不得用rungs；改用默认实心直方图以保留密度几何",
+      "spec": {
+        "chart": "histogram", "variant": "rungs", "unit": "h",
+        "unitMark": {"value":1,"label":"每档表示一条记录"},
+        "data": [{"lo":0,"hi":2,"count":4},{"lo":2,"hi":6,"count":6}],
+        "encode": {"lower":"lo","upper":"hi","count":"count"}
+      }
+    },
+    {
+      "name": "radial-share-two-encodings",
+      "expect": "accept",
+      "spec": {
+        "chart": "radial-share", "title": "渠道份额与互动强度",
+        "data": [{"channel":"直接","users":60,"engagement":12},{"channel":"外部","users":40,"engagement":0}],
+        "encode": {"category":"channel","value":"users","intensity":"engagement"},
+        "fields": {"users":{"unit":"人"},"engagement":{"unit":"指数"}}
+      }
+    },
+    {
+      "name": "split-two-unit-panels",
+      "expect": "accept",
+      "spec": {
+        "chart": "split-compare",
+        "data": [{"day":"2026-01-01","spend":3000,"visits":420},{"day":"2026-01-02","spend":5000,"visits":480}],
+        "encode": {"category":"day","upper":"spend","lower":"visits"},
+        "fields": {"day":{"type":"date"},"spend":{"unit":"元"},"visits":{"unit":"次"}}
+      }
+    },
+    {
+      "name": "stream-center-baseline",
+      "expect": "accept",
+      "spec": {
+        "chart": "stream", "unit": "次",
+        "data": [{"month":"2026-01","a":12,"b":8},{"month":"2026-02","a":8,"b":15},{"month":"2026-03","a":16,"b":12}],
+        "encode": {"category":"month","value":["a","b"]},
+        "fields": {"month":{"type":"month"}}
+      }
+    },
+    {
+      "name": "heatmap-arc-range",
+      "expect": "accept",
+      "spec": {
+        "chart": "heatmap", "variant": "arc",
+        "data": [{"product":"A","city":"上海","amount":12},{"product":"B","city":"上海","amount":30}],
+        "encode": {"row":"product","column":"city","value":"amount"},
+        "fields": {"amount":{"domain":[0,40],"unit":"个"}}
+      }
+    },
+    {
+      "name": "calendar-leap-and-missing",
+      "expect": "accept",
+      "assert": "显示2024-02-29；2月28日缺失与3月1日0不同",
+      "spec": {
+        "chart": "calendar", "period": "2024", "unit": "次",
+        "data": [{"date":"2024-02-29","count":5},{"date":"2024-03-01","count":0}],
+        "encode": {"date":"date","value":"count"}
+      }
+    },
+    {
+      "name": "same-label-hierarchy",
+      "expect": "accept",
+      "assert": "所有8个mindmap布局使用同一树；不把两个监控节点合并",
+      "spec": {
+        "chart": "mindmap", "layout": "bilateral",
+        "data": {"label":"稳定性","children":[{"label":"服务","children":[{"id":"service-monitor","label":"监控"}]},{"label":"存储","children":[{"id":"storage-monitor","label":"监控"}]}]},
+        "emphasis": {"nodes":["service-monitor"]}
+      }
+    },
+    {
+      "name": "weighted-hierarchy",
+      "expect": "accept",
+      "spec": {
+        "chart": "treemap", "unit": "元",
+        "data": {"label":"预算","value":100,"children":[{"label":"研发","children":[{"label":"计算","value":40},{"label":"存储","value":20}]},{"label":"运营","value":40}]}
+      }
+    },
+    {
+      "name": "network-cycle-parallel-isolate",
+      "expect": "accept",
+      "spec": {
+        "chart": "network", "layout": "force", "directed": true,
+        "data": {"nodes":[{"id":"a","label":"A"},{"id":"b","label":"B"},{"id":"c","label":"孤立节点"}],"edges":[{"id":"a-b1","source":"a","target":"b","label":"请求"},{"id":"a-b2","source":"a","target":"b","label":"事件"},{"id":"b-a","source":"b","target":"a","label":"回执"}]},
+        "interaction": ["inspect","focus","pan-zoom","drag"]
+      }
+    },
+    {
+      "name": "sankey-conservation",
+      "expect": "accept",
+      "spec": {
+        "chart": "sankey", "unit": "人",
+        "data": {"nodes":[{"id":"in","stage":0},{"id":"mid","stage":1},{"id":"success","stage":2},{"id":"lost","stage":2}],"edges":[{"source":"in","target":"mid","value":100},{"source":"mid","target":"success","value":70},{"source":"mid","target":"lost","value":30}]}
+      }
+    },
+    {
+      "name": "threads-path-identity",
+      "expect": "accept",
+      "assert": "相同节点序列的两个path仍独立；focus节点m突出整束并可钉住",
+      "spec": {
+        "chart": "threads", "unit": "次",
+        "data": {"stages":[{"id":"s","label":"来源"},{"id":"m","label":"中间"},{"id":"t","label":"终点"}],"nodes":[{"id":"a","stage":"s","label":"直接"},{"id":"m","stage":"m","label":"浏览"},{"id":"z","stage":"t","label":"购买"}],"paths":[{"id":"p1","nodes":["a","m","z"],"value":5},{"id":"p2","nodes":["a","m","z"],"value":3}]},
+        "interaction": ["inspect","focus"]
+      }
+    },
+    {
+      "name": "map-stable-region-key",
+      "expect": "accept",
+      "assert": "USA无记录、CAN=0和MEX=3分别表达",
+      "spec": {
+        "chart": "choropleth", "unit": "个",
+        "data": {"map":{"asset":"world"},"rows":[{"region":"CAN","count":0},{"region":"MEX","count":3}]},
+        "encode": {"region":"region","value":"count"}
+      }
+    },
+    {
+      "name": "different-units-parallel",
+      "expect": "accept",
+      "spec": {
+        "chart": "parallel",
+        "data": [{"product":"A","cost":120,"latency":15,"quality":0.96},{"product":"B","cost":90,"latency":22,"quality":0.94}],
+        "encode": {"label":"product","dimensions":["cost","latency","quality"]},
+        "fields": {"cost":{"unit":"元","domain":[0,200]},"latency":{"unit":"ms","domain":[0,30]},"quality":{"format":"percent","domain":[0.9,1]}}
+      }
+    },
+    {
+      "name": "id-independent-tally",
+      "expect": "accept",
+      "assert": "合计大于100%合法，不归一化",
+      "spec": {
+        "chart": "tally",
+        "data": [{"item":"易用性","share":0.7},{"item":"外观","share":0.6}],
+        "encode": {"category":"item","value":"share"},
+        "fields": {"share":{"format":"percent"}}
+      }
+    },
+    {
+      "name": "duplicate-long-key",
+      "expect": "reject",
+      "reason": "同一时点和系列重复，不自动求和",
+      "spec": {"chart":"line","data":[{"month":"2026-01","series":"A","value":3},{"month":"2026-01","series":"A","value":4}],"encode":{"category":"month","series":"series","value":"value"}}
+    },
+    {
+      "name": "outlier-inside-whiskers",
+      "expect": "reject",
+      "reason": "异常值4位于须端2至9内",
+      "spec": {"chart":"boxplot","note":"须端已在上游定义","data":[{"group":"A","lo":2,"q1":3,"median":5,"q3":7,"hi":9,"outliers":[4]}],"encode":{"category":"group","low":"lo","q1":"q1","median":"median","q3":"q3","high":"hi","outliers":"outliers"}}
+    },
+    {
+      "name": "sankey-unbalanced",
+      "expect": "reject",
+      "reason": "中间节点流入100流出70，不能编造30流失",
+      "spec": {"chart":"sankey","data":{"nodes":[{"id":"a"},{"id":"b"},{"id":"c"}],"edges":[{"source":"a","target":"b","value":100},{"source":"b","target":"c","value":70}]}}
+    },
+    {
+      "name": "tree-parent-double-count",
+      "expect": "reject",
+      "reason": "父值10与叶子合计12不一致",
+      "spec": {"chart":"sunburst","data":{"label":"总计","value":10,"children":[{"label":"A","value":7},{"label":"B","value":5}]}}
+    },
+    {
+      "name": "forbidden-arbitrary-style",
+      "expect": "reject",
+      "reason": "color不是协议字段，不能绕过设计规范",
+      "spec": {"chart":"bar","color":"#ff0000","data":[{"name":"A","value":1}],"encode":{"category":"name","value":"value"}}
+    },
+    {
+      "name": "forbidden-version",
+      "expect": "reject",
+      "reason": "DSL只维护当前格式，无version字段",
+      "spec": {"version":1,"chart":"bar","data":[{"name":"A","value":1}],"encode":{"category":"name","value":"value"}}
+    },
+    {
+      "name": "invalid-brain-layout",
+      "expect": "reject",
+      "reason": "布局不在枚举内，不静默回默认",
+      "spec": {"chart":"mindmap","layout":"anything","data":{"label":"根"}}
+    },
+    {
+      "name": "invalid-percent-root",
+      "expect": "reject",
+      "reason": "unit百分号语义不明，改用fields.format=percent及比例值",
+      "spec": {"chart":"bar","unit":"%","data":[{"name":"A","value":98}],"encode":{"category":"name","value":"value"}}
+    }
+  ]
+}

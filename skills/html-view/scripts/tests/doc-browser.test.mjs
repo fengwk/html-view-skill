@@ -1,0 +1,125 @@
+import assert from 'node:assert/strict';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
+import test from 'node:test';
+import { findBrowser, launchBrowser } from '../src/shared/browser.mjs';
+import { readAsset } from '../src/shared/assets.mjs';
+import { renderShell } from '../src/shared/shell.mjs';
+
+const chrome = findBrowser();
+const waitFor = (page, expression, label) => page.evaluate(`new Promise((resolve, reject) => {
+  const start = performance.now();
+  const poll = () => {
+    try { if (${expression}) { resolve(true); return; } }
+    catch (error) { reject(error); return; }
+    if (performance.now() - start > 5000) { reject(new Error('等待超时：${label}')); return; }
+    requestAnimationFrame(poll);
+  };
+  poll();
+})`);
+
+// 意图：真实 Chrome 验证 KChart 异步图题编号/交叉引用，并覆盖评论 UI、键盘操作与导出协议。
+test('doc runtime renders a KChart figure and supports numbered xrefs and Review Document comments', { skip: !chrome && '未找到可执行 Chrome；设置 CHROME_PATH 后自动启用此浏览器回归' }, async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'htmlview-doc-browser-'));
+  const file = join(dir, 'document.html');
+  const title = '虚构服务访问量比较';
+  const selected = '选择这段虚构文字作为审阅锚点';
+  const source = JSON.stringify({
+    chart: 'bar', title, data: [{ name: '甲', count: 3 }, { name: '乙', count: 5 }],
+    encode: { category: 'name', value: 'count' },
+  });
+  const content = `\n<header class="doc-head"><h1>虚构服务说明</h1></header>\n<div class="doc-body"><section><h2 id="sec-overview">服务概览</h2><p id="review-quote">${selected}。这句话用于检查选区恢复。</p><p>比较结果见 <a class="xref" href="#fig-traffic"></a>。</p><pre data-viz="kchart" id="fig-traffic">${source}</pre></section></div>\n`;
+  const html = renderShell({
+    kind: 'doc', lang: 'zh-CN', title: '虚构服务说明', theme: 'claude',
+    attrs: { 'data-layout': 'article' }, meta: { 'doc:type': 'doc', 'doc:id': 'browser-fixture' },
+    before: '<a class="skip" href="#main">跳到正文</a><div class="page"><aside class="side"><div class="side-title">目录</div><nav class="toc" id="toc"></nav></aside><main class="main" id="main"><details class="toc-mobile" id="toc-mobile"><summary>目录</summary></details>',
+    after: '</main></div>', content,
+    styles: [readAsset('page/doc.css')],
+    scripts: [readAsset('vendor/prism.js'), readAsset('page/doc.js')],
+  });
+  writeFileSync(file, html, 'utf8');
+
+  let browser;
+  let page;
+  try {
+    browser = await launchBrowser({ chromePath: chrome });
+    page = await browser.newPage();
+    await page.setViewport({ width: 1500, height: 1000 });
+    await page.goto(pathToFileURL(file).href);
+    await page.evaluate('KChart.ready()');
+    await waitFor(page, `document.querySelector('#fig-traffic .fig-title')?.textContent.includes(${JSON.stringify(title)})`, '真实图形图题');
+    await waitFor(page, `document.querySelector('a.xref')?.textContent.includes(${JSON.stringify(title)})`, '图形交叉引用');
+
+    const rendered = await page.json(`JSON.stringify((() => ({
+      figure: document.querySelector('#fig-traffic')?.classList.contains('viz-figure'),
+      title: document.querySelector('#fig-traffic .fig-title')?.textContent,
+      svg: Boolean(document.querySelector('#fig-traffic svg')),
+      xref: document.querySelector('a.xref')?.textContent,
+      toc: [...document.querySelectorAll('#toc .toc-num')].map((item) => item.textContent),
+    }))())`);
+    assert.equal(rendered.figure, true);
+    assert.equal(rendered.svg, true);
+    assert.match(rendered.title, /图 1/);
+    assert.match(rendered.xref, /图 1 .*虚构服务访问量比较/);
+    assert.deepEqual(rendered.toc, ['1'], JSON.stringify(rendered));
+
+    await page.evaluate(`(() => {
+      const text = document.querySelector('#review-quote').firstChild;
+      const start = text.data.indexOf(${JSON.stringify(selected)});
+      const range = document.createRange();
+      range.setStart(text, start);
+      range.setEnd(text, start + ${selected.length});
+      const selection = getSelection();
+      selection.removeAllRanges();
+      selection.addRange(range);
+    })()`);
+    await waitFor(page, `!document.querySelector('.cm-action').hidden`, '划词评论入口');
+    await page.evaluate("document.querySelector('.cm-action').click()");
+    await page.evaluate(`(() => {
+      const input = document.querySelector('.cm-input');
+      input.value = '核对这段虚构说明';
+      input.focus();
+      input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', ctrlKey: true, bubbles: true }));
+    })()`);
+    await waitFor(page, 'document.querySelectorAll(".cm-item").length === 1', '保存后的评论面板');
+
+    const comment = await page.json(`JSON.stringify((() => ({
+      quote: document.querySelector('.cm-item .cm-quote')?.textContent,
+      body: document.querySelector('.cm-item .cm-text')?.textContent,
+      label: document.querySelector('.cm-item .cm-jump')?.textContent,
+      storage: localStorage.getItem('htmlview-comments:browser-fixture'),
+    }))())`);
+    assert.equal(comment.quote, selected);
+    assert.equal(comment.body, '核对这段虚构说明');
+    assert.match(comment.label, /^§\d+ /);
+    assert.match(comment.storage, /核对这段虚构说明/);
+
+    await page.evaluate(`Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: (text) => { window.__reviewExport = text; return Promise.resolve(); } } })`);
+    await page.evaluate("document.querySelector('.cm-copy').click()");
+    await waitFor(page, 'typeof window.__reviewExport === "string"', 'Review Document 导出文本');
+    const exported = await page.evaluate('window.__reviewExport');
+    assert.match(exported, /^Review Document: 虚构服务说明\nFile: /);
+    assert.match(exported, /§\d+ 服务概览\n\nSelected Text\n```\n选择这段虚构文字作为审阅锚点\n```/);
+    assert.match(exported, /User Comment\n```\n核对这段虚构说明\n```/);
+
+    // Escape 关闭未保存编辑框，保留已保存评论。
+    await page.evaluate(`(() => {
+      const text = document.querySelector('#review-quote').firstChild;
+      const range = document.createRange();
+      range.selectNodeContents(text);
+      getSelection().removeAllRanges();
+      getSelection().addRange(range);
+    })()`);
+    await waitFor(page, `!document.querySelector('.cm-action').hidden`, '第二次划词评论入口');
+    await page.evaluate("document.querySelector('.cm-action').click()");
+    await page.evaluate("document.querySelector('.cm-editor').dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))");
+    assert.equal(await page.evaluate('document.querySelectorAll(".cm-item").length'), 1);
+    assert.equal(await page.evaluate('document.querySelector(".cm-editor").hidden'), true);
+  } finally {
+    await page?.close();
+    await browser?.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});

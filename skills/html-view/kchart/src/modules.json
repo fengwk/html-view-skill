@@ -1,0 +1,142 @@
+{
+  "core/scale": { "file": "src/core/scale.js", "deps": [] },
+  "core/format": { "file": "src/core/format.js", "deps": ["core/scale"] },
+  "core/text": { "file": "src/core/text.js", "deps": [] },
+  "core/geometry": { "file": "src/core/geometry.js", "deps": [] },
+  "core/color": { "file": "src/core/color.js", "deps": [] },
+  "core/theme": { "file": "src/core/theme.js", "deps": ["core/color"] },
+  "core/icon-data": { "file": "assets/icons.json", "deps": [] },
+  "core/icons": { "file": "src/core/icons.js", "deps": ["core/icon-data"] },
+  "core/scene": { "file": "src/core/scene.js", "deps": [] },
+  "core/diagnostics": { "file": "src/core/diagnostics.js", "deps": [] },
+  "core/context": {
+    "file": "src/core/context.js",
+    "deps": ["core/scene", "core/theme", "core/color", "core/text", "core/scale", "core/geometry", "core/diagnostics"]
+  },
+  "core/svg": { "file": "src/core/svg.js", "deps": ["core/context", "core/scene"] },
+  "chart/catalog": { "file": "src/chart/catalog.js", "deps": [] },
+  "chart/spec": { "file": "src/chart/spec.js", "deps": ["chart/catalog"] },
+  "chart/fields": { "file": "src/chart/fields.js", "deps": ["core/format"] },
+  "chart/context": {
+    "file": "src/chart/context.js", "deps": ["core/context", "core/format", "core/scale", "chart/fields"]
+  },
+  "chart/registry": {
+    "file": "src/chart/registry.js",
+    "deps": ["chart/spec", "chart/context", "core/scene", "core/svg", "core/diagnostics"]
+  },
+  "chart/basic": {
+    "file": "src/chart/basic.js", "deps": ["chart/registry"],
+    "charts": ["line", "area", "column", "bar", "share", "funnel"]
+  },
+  "chart/stat-compare": { "file": "src/chart/stat-compare.js", "deps": ["core/geometry", "core/format"] },
+  "chart/stat-trend": { "file": "src/chart/stat-trend.js", "deps": [] },
+  "chart/statistics": {
+    "file": "src/chart/statistics.js", "deps": ["chart/registry", "core/geometry", "chart/stat-compare", "chart/stat-trend"],
+    "charts": ["waffle", "sparkline", "small-multiples", "bullet", "dumbbell", "slope", "waterfall", "histogram", "boxplot", "scatter", "heatmap"]
+  },
+  "chart/composition": {
+    "file": "src/chart/composition.js", "deps": ["chart/registry"],
+    "charts": ["pie", "donut", "radial-share", "rose", "gauge", "treemap", "sunburst"]
+  },
+  "chart/distribution": {
+    "file": "src/chart/distribution.js", "deps": ["chart/registry"],
+    "charts": ["interval", "candlestick", "strip", "violin"]
+  },
+  "chart/multivariate": {
+    "file": "src/chart/multivariate.js", "deps": ["chart/registry", "core/geometry"],
+    "charts": ["stream", "split-compare", "combo", "bubble-matrix", "calendar", "tally", "bump", "radar", "parallel", "launch-fan"]
+  },
+  "chart/mindmap": { "file": "src/chart/mindmap.js", "deps": ["chart/registry", "core/theme"], "charts": ["mindmap", "tree"] },
+  "chart/relations": { "file": "src/chart/relations.js", "deps": ["chart/registry"], "charts": ["network", "sankey", "threads"] },
+  "chart/maps": { "file": "src/chart/maps.js", "deps": ["chart/registry"], "charts": ["choropleth", "geo-scatter"] },
+  "chart/unit-variants": {
+    "file": "src/chart/unit-variants.js", "deps": ["chart/registry", "chart/basic", "chart/statistics", "core/geometry", "core/icons"],
+    "variants": {
+      "bar": ["rungs", "pictorial", "lollipop"], "column": ["rungs", "pictorial", "lollipop"],
+      "dumbbell": ["rungs"], "waterfall": ["rungs"], "histogram": ["rungs"]
+    }
+  },
+  "chart/variants": {
+    "file": "src/chart/variants.js", "deps": ["chart/registry", "chart/basic", "chart/statistics", "core/geometry"],
+    "variants": {
+      "line": ["counter", "barcode"], "share": ["ticks"], "funnel": ["hourglass"],
+      "scatter": ["plumb"], "heatmap": ["dots", "arc"], "waffle": ["field"]
+    }
+  },
+  "diagram/support": { "file": "src/diagram/support.js", "deps": ["core/text", "core/theme"] },
+  "diagram/source": { "file": "src/diagram/source.js", "deps": ["diagram/support"] },
+  "diagram/registry": {
+    "file": "src/diagram/registry.js",
+    "deps": ["diagram/source", "diagram/support", "core/context", "core/scene", "core/svg", "core/diagnostics"]
+  },
+  "diagram/graph-parse": { "file": "src/diagram/graph-parse.js", "deps": ["diagram/support"] },
+  "diagram/graph-layout": { "file": "src/diagram/graph-layout.js", "deps": ["diagram/support"] },
+  "diagram/graph": {
+    "file": "src/diagram/graph.js", "deps": ["diagram/support", "diagram/graph-parse", "diagram/graph-layout", "core/geometry"],
+    "diagrams": {
+      "flowchart": { "topic": "flow", "aliases": ["graph"] },
+      "stateDiagram-v2": { "topic": "flow", "aliases": ["stateDiagram"] },
+      "erDiagram": { "topic": "data-model" }
+    }
+  },
+  "diagram/layers": {
+    "file": "src/diagram/layers.js", "deps": ["diagram/support"],
+    "diagrams": { "layers": { "syntax": "layers", "topic": "architecture" } }
+  },
+  "diagram/blocks": {
+    "file": "src/diagram/blocks.js", "deps": ["diagram/support", "core/icons"],
+    "diagrams": { "blocks": { "syntax": "blocks", "topic": "architecture" } }
+  },
+  "diagram/swimlane": {
+    "file": "src/diagram/swimlane.js", "deps": ["diagram/support", "diagram/graph-parse"],
+    "diagrams": { "swimlane": { "syntax": "swimlane", "topic": "flow" } }
+  },
+  "diagram/sequence": {
+    "file": "src/diagram/sequence.js", "deps": ["diagram/support"],
+    "diagrams": { "sequenceDiagram": { "topic": "sequence" } }
+  },
+  "diagram/mindmap": {
+    "file": "src/diagram/mindmap.js", "deps": ["diagram/support", "chart/spec", "chart/registry", "chart/mindmap"],
+    "diagrams": { "mindmap": { "topic": "hierarchy" } }
+  },
+  "diagram/time": {
+    "file": "src/diagram/time.js", "deps": ["diagram/support"],
+    "diagrams": {
+      "gantt": { "topic": "time" }, "timeline": { "topic": "time" }, "journey": { "topic": "flow" },
+      "gitGraph": { "topic": "time" }, "kanban": { "topic": "time" },
+      "packet-beta": { "topic": "time" }, "quadrantChart": { "topic": "time" }
+    }
+  },
+  "diagram/relations": {
+    "file": "src/diagram/relations.js", "deps": ["diagram/support", "diagram/graph-parse", "diagram/graph-layout", "core/geometry"],
+    "diagrams": {
+      "classDiagram": { "topic": "data-model" }, "requirementDiagram": { "topic": "data-model" },
+      "C4Context": { "topic": "architecture" }, "C4Container": { "topic": "architecture" },
+      "C4Component": { "topic": "architecture" }, "C4Dynamic": { "topic": "architecture" },
+      "C4Deployment": { "topic": "architecture" }, "architecture-beta": { "topic": "architecture" },
+      "block-beta": { "topic": "architecture" }, "zenuml": { "topic": "sequence" }
+    }
+  },
+  "diagram/numeric-parse": { "file": "src/diagram/numeric-parse.js", "deps": ["diagram/support"] },
+  "diagram/numeric-common": {
+    "file": "src/diagram/numeric-common.js", "deps": ["diagram/support", "chart/spec", "chart/registry", "core/diagnostics"]
+  },
+  "diagram/numeric-composition": {
+    "file": "src/diagram/numeric-composition.js", "deps": ["diagram/numeric-parse", "diagram/numeric-common", "chart/composition"],
+    "diagrams": { "pie": { "topic": "composition" }, "treemap-beta": { "topic": "composition" } }
+  },
+  "diagram/numeric-xy": {
+    "file": "src/diagram/numeric-xy.js",
+    "deps": ["diagram/numeric-parse", "diagram/numeric-common", "chart/basic", "chart/multivariate"],
+    "diagrams": { "xychart": { "topic": "trend", "aliases": ["xychart-beta"] } }
+  },
+  "diagram/numeric-sankey": {
+    "file": "src/diagram/numeric-sankey.js", "deps": ["diagram/numeric-parse", "diagram/numeric-common", "chart/relations"],
+    "diagrams": { "sankey-beta": { "topic": "network" } }
+  },
+  "diagram/numeric-radar": {
+    "file": "src/diagram/numeric-radar.js", "deps": ["diagram/numeric-parse", "diagram/numeric-common", "chart/multivariate"],
+    "diagrams": { "radar-beta": { "topic": "matrix" } }
+  },
+  "interaction": { "file": "src/interaction.js", "deps": ["chart/fields"] }
+}

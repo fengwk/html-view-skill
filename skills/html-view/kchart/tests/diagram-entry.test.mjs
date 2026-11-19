@@ -1,0 +1,84 @@
+import assert from 'node:assert/strict';
+import { test } from 'node:test';
+import { runInNewContext } from 'node:vm';
+import { browserSource, check, createRenderer, diagram, diagramTypes, modulesFor } from '../diagram.mjs';
+import { loadModules } from '../modules.mjs';
+import * as chart from '../node.mjs';
+
+// 清单上的每个规范图型必须有实际实现；任何额外实现都要通过同一处登记。
+test('结构图目录与实际模块覆盖 27 个 Mermaid 类型和 3 个原生类型', () => {
+  assert.equal(diagramTypes.filter(({ syntax }) => syntax === 'mermaid').length, 27);
+  assert.deepEqual(diagramTypes.filter(({ syntax }) => syntax !== 'mermaid').map(({ kind }) => kind), ['layers', 'blocks', 'swimlane']);
+  const modules = loadModules(modulesFor());
+  const implemented = Object.values(modules).flatMap(unit => Object.keys(unit.implementations || {}));
+  assert.deepEqual([...new Set(implemented)].sort(), diagramTypes.map(({ kind }) => kind).sort());
+  assert.equal(implemented.length, diagramTypes.length);
+});
+
+// 实测每个数值闭包包含实际渲染模块，原生、流程与时序不引入数据图。
+test('按声明组装只载入图型所需的依赖，浏览器与 Node 输出一致', () => {
+  const cases = [
+    { syntax: 'layers', source: '- 接入层\n  - 门户: Web, API' },
+    { syntax: 'blocks', source: 'blocks\nbox 接入: 网关' },
+    { syntax: 'swimlane', source: 'swimlane\nlane 接入\n  A[接入]\nlane 服务\n  B[服务]\nA --> B' },
+    { source: 'graph LR; A[入口] --> B[出口]' },
+    { source: 'sequenceDiagram\n  A->>B: 请求' },
+    { source: 'pie\n  Web: 42\n  App: 58', chartFamily: 'chart/composition' },
+    { source: 'xychart-beta\n  x-axis [Q1, Q2]\n  bar [3, 4]', chartFamily: 'chart/basic' },
+    { source: 'sankey-beta\n  A,B,4\n  B,C,4', chartFamily: 'chart/relations' },
+    { source: 'radar-beta\n  axis A, B, C\n  curve One{1, 2, 3}', chartFamily: 'chart/multivariate' },
+    { source: 'treemap-beta\nRoot\n  A: 2\n  B: 3', chartFamily: 'chart/composition' },
+    { source: 'mindmap\n  根\n    叶子', chartFamily: 'chart/mindmap' },
+  ];
+  for (const item of cases) {
+    const { syntax, source, chartFamily } = item;
+    const roots = modulesFor([item]);
+    if (chartFamily) assert.ok(roots.includes(chartFamily), source);
+    else assert.ok(!roots.some(id => id.startsWith('chart/')), source);
+    assert.ok(!roots.includes('interaction') && !roots.includes('chart/maps'), source);
+    const env = {};
+    runInNewContext(browserSource([item]), env);
+    assert.equal(env.KChart.render, undefined);
+    const options = { syntax, width: 360, frame: false, prefix: 'same' };
+    const expected = diagram(source, options);
+    assert.ok(expected.svg, JSON.stringify(expected.diagnostics));
+    assert.equal(env.KChart.diagram(source, options).svg, expected.svg, source);
+    assert.equal(createRenderer({ sources: [item] }).diagram(source, options).svg, expected.svg, source);
+  }
+});
+
+test('混合浏览器入口可同时渲染数据图和结构图；只组装数据图的入口不装入结构图库', () => {
+  const source = 'flowchart TD\nA --> B';
+  const spec = { chart: 'bar', data: [{ key: '甲', count: 2 }], encode: { category: 'key', value: 'count' } };
+  const env = {};
+  runInNewContext(chart.browserSource([{ source }, spec]), env);
+  assert.equal(env.KChart.diagram(source).svg, diagram(source).svg);
+  assert.equal(env.KChart.render(spec).svg, chart.render(spec).svg);
+  assert.ok(!chart.modulesFor([spec]).some(id => id.startsWith('diagram/')));
+});
+
+// 真入口覆盖跨行标签、行号、别名、拦截规则及窄闭包的诊断边界。
+test('共用入口保留 Markdown 换行并定位未支持的写法', () => {
+  const script = '---\ntitle: 方案\nconfig:\n  layout: right\n---\nmindmap\n  root["`**第一行**\n第二行`"]\n    api_v2_auth\n    :::ok';
+  const rendered = diagram(script, { width: 324 });
+  assert.deepEqual(rendered.diagnostics, []);
+  assert.equal(rendered.scene.layout, 'right');
+  assert.equal(rendered.scene.nodes[0].label, '第一行\n第二行');
+  assert.equal(rendered.scene.nodes[1].label, 'api_v2_auth');
+  assert.equal(rendered.scene.nodes[1].status, 'ok');
+  assert.match(rendered.svg, /第一行<\/text>/);
+  for (const [input, line] of [
+    ['flowchart LR\n A --> B\n class A danger', 3],
+    ['flowchart LR; A --> B; class A danger', 1],
+    ['mindmap\n  root\n    label\n    ::icon(fa fa-book)', 4],
+  ]) {
+    const { svg, diagnostics } = diagram(input);
+    assert.equal(svg, null);
+    assert.equal(diagnostics[0].line, line);
+    assert.ok(diagnostics[0].fix && diagnostics[0].topic);
+  }
+  assert.ok(check('sankey-beta\nA,B,5\nB,A,5').length > 0);
+  const selected = createRenderer({ sources: ['mindmap\n  root'] });
+  assert.match(selected.check('\n\nflowchart TD\nA --> B')[0].message, /未装入/);
+  assert.equal(selected.check('\n\nflowchart TD\nA --> B')[0].line, 3);
+});

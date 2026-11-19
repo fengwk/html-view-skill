@@ -1,0 +1,92 @@
+<style>
+.x-hero { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 16px; padding: 20px; border-radius: 16px; background: var(--accent); color: var(--on-accent); }
+.x-hero h2 { color: inherit; font-size: 20px; }
+.x-hero p { max-width: 34em; opacity: .86; }
+.x-hero-stat { display: grid; justify-items: end; gap: 2px; font-variant-numeric: tabular-nums; }
+.x-hero-stat strong { font-size: 30px; line-height: 1.1; }
+.x-trend { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.x-filter-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+@container (max-width: 479px) { .x-hero { grid-template-columns: 1fr; } .x-hero-stat { justify-items: start; } .x-filter-grid { grid-template-columns: 1fr; gap: 12px; } }
+</style>
+<script>window.retentionFixtureLabel = '<title>示例字串，不是页面标题</title>';</script>
+<section class="screen" id="scr-overview" data-title="经营概览" data-states="默认,提醒已读">
+  <div class="app">
+    <header class="app-bar">
+      <i class="icon" data-icon="dashboard"></i>
+      <h1>经营概览</h1>
+      <button class="icon-btn" type="button" aria-label="标记提醒已读" data-state-to="提醒已读">
+        <i class="icon" data-icon="bell"></i>
+      </button>
+    </header>
+    <div class="app-body stack">
+      <header class="page-head">
+        <div><h2>周度留存表现</h2><p>截至 2026 年 11 月 19 日 · 示例数据</p></div>
+        <span class="badge" data-k="ok">表现稳定</span>
+      </header>
+      <section class="x-hero" data-note="留存率为虚构示例，正式指标由产品分析数据源提供。">
+        <div class="stack">
+          <p>近 7 日平均留存</p>
+          <h2>产品健康度持续向好</h2>
+          <p>本周回访用户稳定增长，重点关注新用户首周体验。</p>
+        </div>
+        <div class="x-hero-stat"><strong>68.4%</strong><span>较上周 +3.2%</span></div>
+      </section>
+      <div class="grid">
+        <section class="card stack"><p class="field-help">周活跃用户</p><div class="stat"><span class="stat-v">12,480</span><span class="stat-l">较上周 +8.6%</span></div></section>
+        <section class="card stack"><p class="field-help">新用户次日留存</p><div class="stat"><span class="stat-v">42.7%</span><span class="stat-l">目标 40%</span></div></section>
+      </div>
+      <section class="card stack">
+        <h3 class="section-title">留存趋势 <span class="badge" data-k="info">近 7 日</span></h3>
+        <div class="x-trend"><span>日均留存率</span><strong>68.4%</strong><span class="badge" data-k="ok">+3.2%</span></div>
+        <pre data-viz="kchart" id="weekly-retention">{"chart":"line","title":"近七日用户留存率","subtitle":"虚构示例 · 百分比","data":[{"day":"周一","retention":0.62},{"day":"周二","retention":0.65},{"day":"周三","retention":0.64},{"day":"周四","retention":0.69},{"day":"周五","retention":0.68},{"day":"周六","retention":0.72},{"day":"周日","retention":0.75}],"encode":{"category":"day","value":"retention"},"fields":{"retention":{"format":"percent"}},"source":"虚构产品分析样例"}</pre>
+      </section>
+      <p class="alert" data-k="info" role="status" data-when="默认">有 2 条新提醒。点击铃铛可标记已读。</p>
+      <p class="alert" data-k="ok" role="status" data-when="提醒已读">提醒已读，概览数据保持不变。</p>
+      <a class="btn" href="#scr-insights" data-go="scr-insights">查看筛选与留存明细</a>
+    </div>
+    <nav class="tab-bar" aria-label="主导航">
+      <a class="tab-bar-item" href="#scr-overview" data-go="scr-overview" aria-current="page"><i class="icon" data-icon="dashboard"></i><span>概览</span></a>
+      <a class="tab-bar-item" href="#scr-insights" data-go="scr-insights"><i class="icon" data-icon="chart-line"></i><span>明细</span></a>
+    </nav>
+  </div>
+</section>
+<section class="screen" id="scr-insights" data-title="留存明细" data-states="默认,已筛选">
+  <div class="app">
+    <header class="app-bar">
+      <a class="icon-btn" href="#scr-overview" data-go="scr-overview" aria-label="返回经营概览"><i class="icon" data-icon="arrow-narrow-right"></i></a>
+      <h1>留存明细</h1>
+      <span class="badge" data-k="info">分析</span>
+    </header>
+    <div class="app-body stack">
+      <header class="page-head"><div><h2>筛选分析范围</h2><p>选择渠道与日期后查看本次筛选状态。</p></div></header>
+      <form class="card stack" id="retention-filters" data-state-to="已筛选" data-toast="筛选条件已应用">
+        <div class="x-filter-grid">
+          <div class="field"><label for="retention-channel">获客渠道</label>
+            <select id="retention-channel" name="channel" required>
+              <option value="">请选择渠道</option>
+              <option value="organic">自然流量</option>
+              <option value="campaign">内容活动</option>
+              <option value="referral">用户推荐</option>
+            </select>
+            <p class="field-help">必选，用于比较不同来源的新用户留存。</p>
+          </div>
+          <div class="field"><label for="retention-date">分析日期</label>
+            <input id="retention-date" name="date" type="date" min="2026-11-01" max="2026-12-31" required>
+            <p class="field-help">日期范围：2026 年 11 月 1 日至 12 月 31 日。</p>
+          </div>
+        </div>
+        <div class="row"><button class="btn" type="submit" data-variant="primary">应用筛选</button><button class="btn" type="reset">重置</button></div>
+        <p class="alert" data-k="ok" role="status" data-when="已筛选">筛选已应用；图表仍展示一组虚构留存数据。</p>
+      </form>
+      <section class="card stack" data-note="图表数值为虚构合成样例，不代表真实业务数据。">
+        <h3 class="section-title">渠道留存率</h3>
+        <pre data-viz="kchart" id="channel-retention">{"chart":"bar","title":"各渠道次日留存率","data":[{"channel":"自然流量","rate":0.43},{"channel":"内容活动","rate":0.39},{"channel":"用户推荐","rate":0.51}],"encode":{"category":"channel","value":"rate"},"fields":{"rate":{"format":"percent"}},"source":"虚构产品分析样例"}</pre>
+      </section>
+      <a class="btn" href="#scr-overview" data-go="scr-overview">返回经营概览</a>
+    </div>
+    <nav class="tab-bar" aria-label="主导航">
+      <a class="tab-bar-item" href="#scr-overview" data-go="scr-overview"><i class="icon" data-icon="dashboard"></i><span>概览</span></a>
+      <a class="tab-bar-item" href="#scr-insights" data-go="scr-insights" aria-current="page"><i class="icon" data-icon="chart-line"></i><span>明细</span></a>
+    </nav>
+  </div>
+</section>

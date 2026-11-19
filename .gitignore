@@ -1,0 +1,11 @@
+node_modules/
+package-lock.json
+*.tgz
+*.log
+.env
+.env.*
+.DS_Store
+Thumbs.db
+/kchart-showcase/
+/notification-platform.html
+/notification-platform.pdf

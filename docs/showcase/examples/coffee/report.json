@@ -1,0 +1,76 @@
+{
+  "title": "拾光咖啡｜2026 年 10 月经营月报",
+  "layout": "periodic",
+  "period": {
+    "current": "2026-10",
+    "compare": ["mom", "yoy"],
+    "timezone": "Asia/Shanghai",
+    "complete": true
+  },
+  "sources": [
+    {
+      "id": "fictional-ops",
+      "name": "虚构月度汇总（展示样例）",
+      "query": "data/ 中三份按月汇总 CSV；全部数据为虚构",
+      "pulledAt": "2026-11-16T09:00:00+08:00"
+    }
+  ],
+  "datasets": [
+    {
+      "id": "monthly",
+      "label": "月度经营",
+      "file": "data/monthly.csv",
+      "source": "fictional-ops",
+      "periodField": "month",
+      "dimensions": { "month": { "type": "month", "label": "月份" } },
+      "measures": {
+        "revenue": { "label": "营业收入", "unit": "元", "kind": "sum", "definition": "按月汇总的虚构营业收入；可与分渠道、分区域收入核对" },
+        "orders": { "label": "订单数", "unit": "单", "kind": "sum", "definition": "按支付月汇总的虚构订单数" },
+        "visitors": { "label": "到访人次", "unit": "人次", "kind": "sum", "definition": "按月汇总的虚构到访人次；用于计算订单转化率" },
+        "conversion": { "label": "订单转化率", "unit": "%", "kind": "ratio", "format": "percent", "numerator": "orders", "denominator": "visitors", "definition": "订单数 ÷ 到访人次，按分子分母汇总后重算" },
+        "average_order_value": { "label": "平均订单金额", "unit": "元/单", "kind": "mean", "numerator": "revenue", "denominator": "orders", "definition": "营业收入 ÷ 订单数，按分子分母汇总后重算" },
+        "active_members": { "label": "月活跃会员", "unit": "人", "kind": "snapshot", "definition": "每月期内活跃会员去重快照；仅展示月度值，不跨月求和" }
+      }
+    },
+    {
+      "id": "channels",
+      "label": "渠道收入",
+      "file": "data/channels.csv",
+      "source": "fictional-ops",
+      "periodField": "month",
+      "dimensions": { "month": { "type": "month", "label": "月份" }, "channel": { "type": "category", "label": "渠道" } },
+      "measures": {
+        "revenue": { "label": "本月收入", "unit": "元", "kind": "sum", "definition": "渠道归因后的虚构营业收入；各渠道互斥且每月合计等于月报收入" },
+        "previous_revenue": { "label": "上月收入", "unit": "元", "kind": "sum", "definition": "同渠道上一个公历月的虚构收入，用于渠道环比对照" }
+      }
+    },
+    {
+      "id": "regions",
+      "label": "区域收入",
+      "file": "data/regions.csv",
+      "source": "fictional-ops",
+      "periodField": "month",
+      "dimensions": { "month": { "type": "month", "label": "月份" }, "region": { "type": "category", "label": "区域" } },
+      "measures": {
+        "revenue": { "label": "营业收入", "unit": "元", "kind": "sum", "definition": "区域归属后的虚构营业收入；各区域互斥且每月合计等于月报收入" }
+      }
+    }
+  ],
+  "blocks": [
+    { "type": "kpi", "dataset": "monthly", "measures": ["revenue", "orders", "visitors", "conversion", "average_order_value", "active_members"] },
+    { "type": "chart", "chart": "line", "dataset": "monthly", "encode": { "category": "month", "value": "revenue" }, "title": "收入总体向上，并在本期达到观察期高位" },
+    { "type": "chart", "chart": "bar", "dataset": "channels", "encode": { "category": "channel", "value": ["previous_revenue", "revenue"] }, "title": "小程序增长覆盖门店回落，渠道收入环比对照" },
+    { "type": "chart", "chart": "bar", "dataset": "regions", "encode": { "category": "region", "value": "revenue" }, "title": "华东收入领先，四个区域按规模形成梯次" },
+    { "type": "table", "dataset": "channels", "columns": ["channel", "previous_revenue", "revenue"] },
+    { "type": "text", "file": "narrative.md", "dataset": "monthly" }
+  ],
+  "views": [
+    { "id": "store", "label": "门店", "filters": { "channels": { "channel": "门店" } } },
+    { "id": "delivery", "label": "外卖", "filters": { "channels": { "channel": "外卖" } } },
+    { "id": "mini-program", "label": "小程序", "filters": { "channels": { "channel": "小程序" } } },
+    { "id": "east", "label": "华东", "filters": { "regions": { "region": "华东" } } },
+    { "id": "south", "label": "华南", "filters": { "regions": { "region": "华南" } } },
+    { "id": "north", "label": "华北", "filters": { "regions": { "region": "华北" } } },
+    { "id": "west", "label": "西部", "filters": { "regions": { "region": "西部" } } }
+  ]
+}
