@@ -211,7 +211,7 @@ function drawIcon(ctx, icon, x, y, size = ICON_SIZE, color = ctx.color('fg')) {
 }
 
 function layout(model, options = {}) {
-  const { width = 800, ctx, renderOptions = {} } = options;
+  const { width = 800, ctx, renderOptions = {}, compact } = options;
   if (!ctx) throw new TypeError('journey layout needs a theme context');
   const look = appearanceOf(ctx);
   const measure = options.measure || ((value, font) => ctx.measure(value, font.size, font.weight));
@@ -247,9 +247,9 @@ function layout(model, options = {}) {
   const pitch = bodyFont.size + 5;
   const left = Math.max(config.leftMargin || 0, LAYOUT.labelX + Math.max(labelWidth, sectionWidth, widthOf(scoreCaption, labelFont)) + LAYOUT.labelPad + FACE_R + LAYOUT.plotGap);
   // A five-stop scale needs room for a legible step; the scene widens (the host scrolls) instead of shrinking text.
-  const plotW = Math.max(140, width - left - LAYOUT.right);
+  const plotW = compact ? 140 : Math.max(140, width - left - LAYOUT.right);
   const x0 = left, x1 = left + plotW, step = plotW / (MAX_SCORE - 1);
-  const sceneWidth = Math.ceil(Math.max(width, x1 + LAYOUT.right));
+  const sceneWidth = Math.ceil(Math.max(compact ? 0 : width, x1 + LAYOUT.right));
 
   // 2. Top band: optional in-scene title, the actor legend, then the numbered 1–5 scale.
   const inSceneTitle = Boolean(model.title) && !renderOptions?.frame;
