@@ -541,7 +541,7 @@ function layout(model, options = {}) {
 	}
 	const planWidth = Math.ceil(plotW + 48);
 	const planHeight = Math.ceil(plotY + plotH + MARGIN);
-	if (planWidth > width * 2 || planHeight > width * 2) {
+	if (count <= NODE_HINT && (planWidth > width * 2 || planHeight > width * 2)) {
 		const line = confusionRows[0]?.line || 1;
 		errors.push(warning("LARGE_DIAGRAM", lang, line, `Cynefin 图需要 ${planWidth}×${planHeight}px，超过图框两倍`, `The Cynefin map needs ${planWidth}×${planHeight}px, more than twice the frame`, "加宽图框，或减少域条目", "Widen the frame, or trim the domain items"));
 	}

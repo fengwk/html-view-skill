@@ -253,7 +253,7 @@ function parseRadar(source, info) {
 	const declaredMax = configNumber(radarConfig, "max") ?? options.max ?? null;
 	const showLegend = configFlag(radarConfig, "showLegend") ?? options.showLegend ?? true;
 	const graticule = String(configValue(radarConfig, "graticule") ?? options.graticule ?? "circle").toLowerCase();
-	if (axes.length < MIN_AXES || axes.length > MAX_AXES) errors.push(issue(info, axisLine || info.firstLine, `radar 需要 ${MIN_AXES}–${MAX_AXES} 个维度，当前 ${axes.length} 个`, `Radar needs ${MIN_AXES}–${MAX_AXES} axes, got ${axes.length}`, `${MAX_AXES} 个维度以上在 12px 标签下无法读清；请合并维度`, `More than ${MAX_AXES} axes cannot be read at 12px text; merge axes`));
+	if (axes.length < MIN_AXES || axes.length > MAX_AXES) errors.push(issue(info, axisLine || info.firstLine, `radar 需要 ${MIN_AXES}–${MAX_AXES} 个维度，当前 ${axes.length} 个`, `Radar needs ${MIN_AXES}–${MAX_AXES} axes, got ${axes.length}`, `维度必须在 ${MIN_AXES}–${MAX_AXES} 个之间；合并维度或拆分图表`, `Keep axes between ${MIN_AXES} and ${MAX_AXES}; merge dimensions or split the chart`));
 	if (!curves.length && !errors.length) errors.push(issue(info, info.firstLine, "radar 至少需要一条 curve", "Radar needs at least one curve"));
 	if (declaredMax !== null && declaredMax <= min) errors.push(issue(info, options.line || info.firstLine, "radar max 必须大于 min", "Radar max must be greater than min"));
 	const resolved = resolveCurves(info, curves, axes, errors);
@@ -262,7 +262,7 @@ function parseRadar(source, info) {
 		errors.push(hint(info, curve.line, `radar 曲线「${curve.label}」有 ${curve.values.length} 个值、${axes.length} 个维度，已跳过`, `Radar curve "${curve.label}" has ${curve.values.length} values for ${axes.length} axes and was skipped`, "为每个维度写一个值", "Give one value per axis"));
 		return false;
 	});
-	if (resolved.length > limit) errors.push(issue(info, resolved[limit].line, `radar 最多 ${limit} 条 curve`, `Radar supports at most ${limit} curves`));
+	if (resolved.length > limit) errors.push(issue(info, resolved[limit].line, `radar 安全上限为 ${limit} 条曲线，当前 ${resolved.length} 条`, `radar safety cap is ${limit} curves; got ${resolved.length}`, `将曲线合并到 ${limit} 条以内，或拆成多张图`, `Merge curves to stay within ${limit}, or split the chart`));
 	const values = kept.flatMap((curve) => curve.values).filter(Number.isFinite);
 	const dataMax = values.length ? Math.max(...values) : 0, dataMin = values.length ? Math.min(...values) : 0;
 	let top = declaredMax ?? Math.max(dataMax, min + 1), bottom = min;
@@ -333,7 +333,11 @@ function lineFor(model, detail) {
 	return model.axisLine || model.curveLines[0] || model.optionsLine;
 }
 var validate = (model, info) => validateWith(toSpec(model), info, (detail) => lineFor(model, detail));
-var layout = (model, options, info) => renderWith(toSpec(model), options, info, (detail) => lineFor(model, detail));
+var layout = (model, options, info) => {
+	const result = renderWith(toSpec(model), options, info, (detail) => lineFor(model, detail));
+	if (result.scene && (model.rows.length > 12 || result.width > options.width * 2)) result.errors.push(warning("LARGE_DIAGRAM", info.lang, model.curveLines[0] || model.optionsLine, `radar 有 ${model.rows.length} 条曲线，图表较大，可滚动查看`, `The radar chart has ${model.rows.length} curves and is large; scroll to view`, "按主题拆分为多张雷达图", "Split the curves into smaller radar charts by topic"));
+	return result;
+};
 var honoredConfig = Object.freeze([
 	"radar.ticks",
 	"radar.min",

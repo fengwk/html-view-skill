@@ -10,9 +10,9 @@ var sequence_exports = /* @__PURE__ */ __exportAll({
 	implementations: () => implementations
 });
 var LIMITS = Object.freeze({
-	participants: 20,
-	messages: 200,
-	fragmentDepth: 4,
+	participants: 300,
+	messages: 500,
+	fragmentDepth: 32,
 	lines: 4
 });
 var SECTIONS = /* @__PURE__ */ new Set([
@@ -465,7 +465,8 @@ function parse(source, info) {
 			type: "sequence",
 			participants,
 			statements,
-			title
+			title,
+			messages
 		},
 		errors
 	};
@@ -901,7 +902,7 @@ function layout(model, { measure, width, lang }, info = {}) {
 	}
 	const naturalWidth = snap(contentRight + 8);
 	const canvas = naturalWidth <= width ? Math.floor(width) : naturalWidth;
-	if (naturalWidth > width * 2) errors.push(warning("LARGE_DIAGRAM", lang, actors[0].line, "时序图较宽，需要横向滚动", "Wide sequence diagram requires horizontal scrolling", "可将时序图拆分", "Consider splitting the diagram"));
+	if (naturalWidth > width * 2 || actors.length > 60 || model.messages > 200) errors.push(warning("LARGE_DIAGRAM", lang, actors[0].line, "时序图较大，可滚动查看", "Large sequence diagram; scroll to view it", "可将时序图拆分", "Consider splitting the diagram"));
 	return {
 		type: "sequence",
 		width: canvas,

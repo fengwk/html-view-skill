@@ -56,8 +56,8 @@ var iconRow = "";
 var withIconRow = (value, icon) => icon ? value ? `${iconRow}\n${value}` : iconRow : value;
 var attrText = (value) => value.replace(/^`([^`]+)`(\??)$/, "$1$2");
 var LIMITS = {
-	nodes: 30,
-	edges: 50,
+	nodes: 300,
+	edges: 180,
 	depth: 3
 };
 function parseEr(body, info = {}) {
@@ -226,7 +226,7 @@ function parseEr(body, info = {}) {
 					extra: 0,
 					line
 				});
-				if (model.edges.length === LIMITS.edges + 1) issue(line, `关系超过 ${LIMITS.edges} 条`, `More than ${LIMITS.edges} relationships`);
+				if (model.edges.length === LIMITS.edges + 1) issue(line, `关系超过 ${LIMITS.edges} 条，请拆分图表`, `More than ${LIMITS.edges} relationships; split the diagram`);
 				return;
 			}
 			const decl = declaration.exec(text);
@@ -275,7 +275,7 @@ function parseEr(body, info = {}) {
 			};
 			entities.set(id, entity);
 			model.nodes.push(entity);
-			if (model.nodes.length === LIMITS.nodes + 1) issue(line, `实体超过 ${LIMITS.nodes} 个`, `More than ${LIMITS.nodes} entities`);
+			if (model.nodes.length === LIMITS.nodes + 1) issue(line, `实体超过 ${LIMITS.nodes} 个，请拆分图表`, `More than ${LIMITS.nodes} entities; split the diagram`);
 		}
 		if (parent && !entity.parent) entity.parent = parent;
 		else if (parent && parent !== entity.parent && !duplicateMember) {
@@ -308,6 +308,16 @@ function parseEr(body, info = {}) {
 		edge.fromFrame = groups.has(edge.from);
 		edge.toFrame = groups.has(edge.to);
 		edge.status = look.edgeStatusOf(edge.seq);
+	}
+	if (model.nodes.length > 30 || model.edges.length > 50) {
+		const degree = /* @__PURE__ */ new Map();
+		const limit = 6;
+		for (const edge of model.edges) {
+			for (const id of /* @__PURE__ */ new Set([edge.from, edge.to])) degree.set(id, (degree.get(id) ?? 0) + 1);
+			if (degree.get(edge.from) <= limit && degree.get(edge.to) <= limit) continue;
+			errors.push(error(lang, edge.line, `大型 ER 图每个实体最多连接 ${limit} 条关系`, `Large ER diagrams support at most ${limit} relations per entity`, "请按关系拆分 ER 图", "Split the ER diagram by relationship"));
+			break;
+		}
 	}
 	errors.push(...look.diagnostics(), ...assets.values());
 	const parentOf = (id) => (groups.get(id) ?? entities.get(id))?.parent;
@@ -436,7 +446,7 @@ function layout(model, options, info = {}) {
 			endCard
 		});
 	}
-	if (geometry.width > options.width * 2 || nodes.length > 60) geometry.errors = [...geometry.errors ?? [], warning("LARGE_DIAGRAM", info.lang, info.headerLine, "ER 图较大，可横向滚动", "This ER diagram is large and can be scrolled horizontally", "可拆成多个局部图", "Consider splitting it into smaller diagrams")];
+	if (geometry.width > options.width * 2 || nodes.length > 60 || edges.length > 50 || nodes.length > 30) geometry.errors = [...geometry.errors ?? [], warning("LARGE_DIAGRAM", info.lang, info.headerLine, "ER 图较大，可横向滚动", "This ER diagram is large and can be scrolled horizontally", "可拆成多个局部图", "Consider splitting it into smaller diagrams")];
 	return {
 		...geometry,
 		model,

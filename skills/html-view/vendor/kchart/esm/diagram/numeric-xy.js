@@ -12,7 +12,9 @@ var BAND = /^(.*?)\s*\[([^\]]*)\]\s*$/;
 var PLOT = /^(bar|line)\b([\s\S]*)$/i;
 var POINT = new RegExp(`^(${NUMBER})\\s*(?:"((?:[^"\\\\]|\\\\.)*)"|'((?:[^'\\\\]|\\\\.)*)')?$`);
 var NAME = /^\s*(?:"((?:[^"\\]|\\.)*)"|'((?:[^'\\]|\\.)*)'|([^\s[\]"]+))?\s*\[([\s\S]*)\]\s*$/;
-var MAX_PLOTS = 6;
+var PANEL_PLOTS = 6;
+var MAX_PLOTS = 24;
+var MAX_POINTS = 120;
 var issue = (info, line, zh, en, fixZh = "修正 Mermaid xychart 语法", fixEn = "Correct the Mermaid xychart syntax") => error(info.lang, line, zh, en, fixZh, fixEn);
 var hint = (errors, info, line, zh, en, fixZh = "检查图表声明", fixEn = "Check the chart declaration") => errors.push(warning("DIAGRAM_HINT", info.lang, line, zh, en, fixZh, fixEn));
 var isEnglish = (lang) => /^en(?:-|$)/i.test(String(lang || ""));
@@ -222,13 +224,14 @@ function parseXychart(source, info) {
 		errors.push(issue(info, item.line, `无法识别 xychart 语句「${item.text}」`, `Unrecognized xychart statement "${item.text}"`, "支持 title、x-axis、y-axis、bar、line", "Supported: title, x-axis, y-axis, bar, line"));
 	}
 	if (!plots.length) errors.push(issue(info, info.firstLine, "xychart 至少需要一条 bar 或 line 数据", "xychart needs at least one bar or line plot"));
-	if (plots.length > MAX_PLOTS) errors.push(issue(info, plots[MAX_PLOTS].line, `xychart 最多支持 ${MAX_PLOTS} 条数据序列`, `xychart supports at most ${MAX_PLOTS} plots`, `合并到 ${MAX_PLOTS} 条以内，或拆成两张图`, `Merge into ${MAX_PLOTS} plots or split the chart`));
+	if (plots.length > MAX_PLOTS) errors.push(issue(info, plots[MAX_PLOTS].line, `xychart 安全上限为 ${MAX_PLOTS} 条数据序列，当前 ${plots.length} 条`, `xychart safety cap is ${MAX_PLOTS} plots; got ${plots.length}`, `将数据序列合并到 ${MAX_PLOTS} 条以内，或拆成多张图`, `Merge series to stay within ${MAX_PLOTS} plots, or split the chart`));
 	const hasNamedOnly = plots.length === 1 && plots[0].name;
 	const hasPointLabels = plots.some((plot) => plot.type === "line" && plot.points.some((point) => point.label));
 	const chart = plots.length > 1 ? "combo" : hasNamedOnly && !(plots[0].type === "line" && plots[0].points.some((point) => point.label)) ? "combo" : plots[0]?.type === "bar" ? "column" : "line";
 	const categoryLine = xAxisLine || plots[0]?.line || info.firstLine;
 	const lengths = plots.map((plot) => plot.points.length);
 	const categoryCount = xData?.kind === "band" ? xData.categories.length : Math.max(0, ...lengths);
+	if (categoryCount > MAX_POINTS && chart !== "column") errors.push(issue(info, categoryLine, `xychart 最多支持 ${MAX_POINTS} 个横轴类别`, `xychart supports at most ${MAX_POINTS} x-axis categories`, "按横轴范围拆分图表", "Split the chart by x-axis range"));
 	let categories;
 	if (xData?.kind === "band") categories = uniqueCategories(errors, info, categoryLine, xData.categories.map((value) => numericLabel(value, info, categoryLine, errors)));
 	else if (xData?.kind === "linear") categories = linearLabels(xData.min, xData.max, categoryCount);
@@ -368,8 +371,48 @@ function lineFor(model, detail) {
 	}
 	return model.datasets[0]?.line;
 }
-var validate = (model, info) => validateWith(specOf(model, info), info, (detail) => lineFor(model, detail));
-var layout = (model, options, info) => renderWith(specOf(model, info), options, info, (detail) => lineFor(model, detail));
+function panelsOf(model, info) {
+	if (model.datasets.length <= PANEL_PLOTS) return [model];
+	const values = model.datasets.flatMap((dataset) => dataset.values.filter(Number.isFinite));
+	const zero = model.datasets.some((dataset) => dataset.type === "bar") ? [0] : [];
+	const min = Math.min(...values, ...zero), max = Math.max(...values, ...zero);
+	const yDomain = model.yDomain ?? [min, max > min ? max : min + 1];
+	const panels = [];
+	for (let offset = 0; offset < model.datasets.length; offset += PANEL_PLOTS) panels.push({
+		...model,
+		yDomain,
+		title: offset ? null : model.title,
+		datasets: model.datasets.slice(offset, offset + PANEL_PLOTS).map((dataset, i) => ({
+			...dataset,
+			name: dataset.name || `${isEnglish(info.lang) ? "Series " : "系列 "}${offset + i + 1}`
+		}))
+	});
+	return panels;
+}
+var validate = (model, info) => panelsOf(model, info).flatMap((panel) => validateWith(specOf(panel, info), info, (detail) => lineFor(panel, detail)));
+var layout = (model, options, info) => {
+	const results = panelsOf(model, info).map((panel) => renderWith(specOf(panel, info), options, info, (detail) => lineFor(panel, detail)));
+	if (results.some((result) => !result.scene)) return results.find((result) => !result.scene);
+	const result = results[0];
+	if (results.length > 1) {
+		let width = 0;
+		const children = results.map(({ scene }) => {
+			const group = options.ctx.el("g", { transform: `translate(${width} 0)` }, scene.children);
+			width += scene.width + 24;
+			return group;
+		});
+		result.width = width - 24;
+		result.height = Math.max(...results.map((panel) => panel.height));
+		result.scene = {
+			...result.scene,
+			width: result.width,
+			height: result.height,
+			children
+		};
+	}
+	if (model.categories.length > 60 || result.width > options.width * 2 || results.length > 1) result.errors.push(warning("LARGE_DIAGRAM", info.lang, model.xLine || model.datasets[0]?.line || info.firstLine, results.length > 1 ? "XY 图按数据序列分栏，可横向滚动" : "XY 图较大，可滚动查看", results.length > 1 ? "XY series are arranged in panels; scroll horizontally" : "Large XY chart; scroll to view it", "按数据序列或横轴范围拆分图表", "Split the chart by series or x-axis range"));
+	return result;
+};
 var implementations = { xychart: {
 	parse: parseXychart,
 	validate,

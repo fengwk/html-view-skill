@@ -95,7 +95,8 @@ function parse(body, info) {
 			lane: lane.id
 		};
 	});
-	if (lanes.length > 6) fail(lanes[6].line, "最多 6 条泳道", "At most 6 lanes");
+	const laneCap = 40;
+	if (lanes.length > laneCap) errors.push(error(lang, lanes[laneCap].line, `最多 ${laneCap} 条泳道`, `At most ${laneCap} lanes`, "请拆分泳道图", "Split the swimlane diagram"));
 	const unsupported = nodes.filter((node) => ![
 		"rect",
 		"round",
@@ -126,7 +127,7 @@ function parse(body, info) {
 }
 function layout(model, options) {
 	const geometry = layout$1(model, options);
-	if (!geometry.errors.length && (geometry.width > options.width * 2 || model.nodes.length > 60)) geometry.errors.push(warning("LARGE_DIAGRAM", options.lang, model.lanes[0]?.line, "泳道图较宽，可拆成多张图", "Wide swimlane diagram; consider splitting it"));
+	if (!geometry.errors.length && (geometry.width > options.width * 2 || model.nodes.length > 60 || model.lanes.length > 6)) geometry.errors.push(warning("LARGE_DIAGRAM", options.lang, model.lanes[0]?.line, "泳道图较宽，可拆成多张图", "Wide swimlane diagram; consider splitting it"));
 	return geometry;
 }
 var implementations = { "swimlane-beta": {

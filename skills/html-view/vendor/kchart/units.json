@@ -224,7 +224,7 @@
       "diagram/source",
       "diagram/support"
     ],
-    "bytes": 13957
+    "bytes": 13920
   },
   "diagram/architecture": {
     "file": "units/diagram/architecture.js",
@@ -234,7 +234,7 @@
       "diagram/presentation",
       "diagram/support"
     ],
-    "bytes": 15073
+    "bytes": 15674
   },
   "diagram/block": {
     "file": "units/diagram/block.js",
@@ -263,7 +263,7 @@
       "diagram/presentation",
       "diagram/support"
     ],
-    "bytes": 16966
+    "bytes": 17092
   },
   "diagram/class": {
     "file": "units/diagram/class.js",
@@ -285,7 +285,7 @@
       "diagram/presentation",
       "diagram/support"
     ],
-    "bytes": 13456
+    "bytes": 13465
   },
   "diagram/emphasis": {
     "file": "units/diagram/emphasis.js",
@@ -302,7 +302,7 @@
       "core/geometry",
       "core/icons"
     ],
-    "bytes": 12705
+    "bytes": 13201
   },
   "diagram/eventmodeling": {
     "file": "units/diagram/eventmodeling.js",
@@ -436,20 +436,23 @@
       "diagram/presentation",
       "diagram/label",
       "core/icons",
-      "chart/spec",
       "chart/registry",
+      "chart/spec",
       "chart/mindmap"
     ],
-    "bytes": 5901
+    "bytes": 6685
   },
   "diagram/numeric-composition": {
     "file": "units/diagram/numeric-composition.js",
     "deps": [
       "diagram/numeric-parse",
       "diagram/numeric-model",
-      "chart/composition"
+      "chart/composition",
+      "chart/registry",
+      "chart/spec",
+      "diagram/support"
     ],
-    "bytes": 1308
+    "bytes": 2087
   },
   "diagram/numeric-model": {
     "file": "units/diagram/numeric-model.js",
@@ -460,7 +463,7 @@
       "chart/registry",
       "core/diagnostics"
     ],
-    "bytes": 1975
+    "bytes": 1908
   },
   "diagram/numeric-parse": {
     "file": "units/diagram/numeric-parse.js",
@@ -470,7 +473,7 @@
       "diagram/numeric-model",
       "chart/composition"
     ],
-    "bytes": 5958
+    "bytes": 6376
   },
   "diagram/numeric-radar": {
     "file": "units/diagram/numeric-radar.js",
@@ -479,7 +482,7 @@
       "diagram/numeric-model",
       "chart/multivariate"
     ],
-    "bytes": 9436
+    "bytes": 9990
   },
   "diagram/numeric-sankey": {
     "file": "units/diagram/numeric-sankey.js",
@@ -487,9 +490,11 @@
       "diagram/support",
       "diagram/numeric-model",
       "diagram/presentation",
-      "chart/relations"
+      "chart/relations",
+      "chart/registry",
+      "chart/spec"
     ],
-    "bytes": 4581
+    "bytes": 5836
   },
   "diagram/numeric-xy": {
     "file": "units/diagram/numeric-xy.js",
@@ -499,7 +504,7 @@
       "chart/basic",
       "chart/multivariate"
     ],
-    "bytes": 11905
+    "bytes": 13417
   },
   "diagram/packet": {
     "file": "units/diagram/packet.js",
@@ -556,7 +561,7 @@
       "core/svg",
       "core/diagnostics"
     ],
-    "bytes": 7443
+    "bytes": 7706
   },
   "diagram/relations": {
     "file": "units/diagram/relations.js",
@@ -585,7 +590,7 @@
       "diagram/presentation",
       "diagram/support"
     ],
-    "bytes": 27268
+    "bytes": 27298
   },
   "diagram/shapes": {
     "file": "units/diagram/shapes.js",
@@ -615,7 +620,7 @@
       "diagram/swimlane",
       "diagram/support"
     ],
-    "bytes": 2909
+    "bytes": 3001
   },
   "diagram/swimlane": {
     "file": "units/diagram/swimlane.js",

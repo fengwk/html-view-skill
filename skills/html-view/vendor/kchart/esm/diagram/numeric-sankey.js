@@ -1,15 +1,19 @@
 import { __exportAll } from "../_virtual/_rolldown/runtime.js";
-import { error } from "./support.js";
+import { error, warning } from "./support.js";
 import { numericLabel, renderWith, validateWith } from "./numeric-model.js";
 import { presentation } from "./presentation.js";
 import { sankeyPresentation } from "../chart/relations.js";
+import { createRegistry, layouts } from "../chart/registry.js";
+import { validate as validate$1 } from "../chart/spec.js";
 // src/diagram/numeric-sankey.js
 var numeric_sankey_exports = /* @__PURE__ */ __exportAll({
 	honoredConfig: () => honoredConfig,
 	implementations: () => implementations
 });
-var MAX_NODES = 60;
-var MAX_EDGES = 120;
+var MAX_NODES = 600;
+var MAX_EDGES = 500;
+var LARGE_NODES = 60;
+var LARGE_EDGES = 120;
 var issue = (info, line, zh, en, fixZh = "修正 Mermaid sankey 语法", fixEn = "Correct the Mermaid sankey syntax") => error(info.lang, line, zh, en, fixZh, fixEn);
 var csv = (text) => {
 	const cells = [];
@@ -88,8 +92,8 @@ function parseSankey(source, info) {
 		});
 	});
 	if (!rows.length && !errors.length) errors.push(issue(info, info.firstLine, "sankey 至少需要一条有效流量 CSV 记录", "Sankey needs at least one valid CSV flow record"));
-	if (nodes.length > MAX_NODES) errors.push(issue(info, info.firstLine, `sankey 最多 ${MAX_NODES} 个节点，当前 ${nodes.length} 个`, `Sankey supports at most ${MAX_NODES} nodes, got ${nodes.length}`, "合并同名来源或目标后重试", "Merge related sources or targets"));
-	if (rows.length > MAX_EDGES) errors.push(issue(info, info.firstLine, `sankey 最多 ${MAX_EDGES} 条流量，当前 ${rows.length} 条`, `Sankey supports at most ${MAX_EDGES} flows, got ${rows.length}`, "合并相同来源与目标的流量后重试", "Combine flows that share a source and target"));
+	if (nodes.length > MAX_NODES) errors.push(issue(info, info.firstLine, `sankey 超过安全上限 ${MAX_NODES} 个节点（当前 ${nodes.length}）`, `Sankey exceeds the safety cap of ${MAX_NODES} nodes (got ${nodes.length})`, "拆分图表后重试", "Split the diagram and try again"));
+	if (rows.length > MAX_EDGES) errors.push(issue(info, info.firstLine, `sankey 超过 Mermaid maxEdges 安全上限 ${MAX_EDGES} 条流量（当前 ${rows.length}）`, `Sankey exceeds the Mermaid maxEdges safety cap of ${MAX_EDGES} flows (got ${rows.length})`, "拆分图表后重试", "Split the diagram and try again"));
 	const showValues = configFlag(configValue(info.config, "sankey"), "showValues") ?? true;
 	return {
 		model: {
@@ -146,8 +150,43 @@ function lineFor(model, detail) {
 	}
 	return model.edges[0]?.line;
 }
-var validate = (model, info) => validateWith(toSpec(model), info, (detail) => lineFor(model, detail));
-var layout = (model, options, info) => renderWith(toSpec(model), options, info, (detail) => lineFor(model, detail));
+function validate(model, info) {
+	const errors = validateWith(toSpec(model), info, (detail) => lineFor(model, detail));
+	if (errors.length || model.nodes.length <= LARGE_NODES && model.edges.length <= LARGE_EDGES) return errors;
+	const indegree = new Map(model.nodes.map((node) => [node.id, 0]));
+	const outgoing = new Map(model.nodes.map((node) => [node.id, []]));
+	const stage = new Map(model.nodes.map((node) => [node.id, 0]));
+	for (const { source, target } of model.edges) {
+		outgoing.get(source).push(target);
+		indegree.set(target, indegree.get(target) + 1);
+	}
+	const queue = model.nodes.map((node) => node.id).filter((id) => !indegree.get(id));
+	for (const id of queue) for (const target of outgoing.get(id)) {
+		stage.set(target, Math.max(stage.get(target), stage.get(id) + 1));
+		indegree.set(target, indegree.get(target) - 1);
+		if (!indegree.get(target)) queue.push(target);
+	}
+	const cap = 1e3;
+	let segments = 0;
+	for (const { source, target, line } of model.edges) {
+		segments += stage.get(target) - stage.get(source);
+		if (segments > cap) return [issue(info, line, `桑基图最多支持 ${cap} 个跨阶段流量分段`, `Sankey supports at most ${cap} flow segments across stages`, "请按阶段拆分图表", "Split the chart by stage")];
+	}
+	return errors;
+}
+var sankeyRegistry = createRegistry(validate$1);
+var sankeyLayout = layouts.get("sankey");
+sankeyRegistry.register("sankey", (spec, ctx) => sankeyLayout(spec, {
+	...ctx,
+	fit(message, fix) {
+		if (message !== "sankey超过60个节点或120条边") ctx.fit(message, fix);
+	}
+}));
+var layout = (model, options, info) => {
+	const result = renderWith(toSpec(model), options, info, (detail) => lineFor(model, detail), sankeyRegistry.layout);
+	if (result.scene && (result.width > options.width * 2 || model.nodes.length > LARGE_NODES || model.edges.length > LARGE_EDGES)) result.errors.push(warning("LARGE_DIAGRAM", info.lang, info.headerLine, "桑基图较大，可滚动查看", "Large Sankey diagram; scroll to view it", "考虑拆分图表", "Consider splitting the diagram"));
+	return result;
+};
 var honoredConfig = Object.freeze([
 	"sankey.showValues",
 	"sankey.prefix",

@@ -11,6 +11,8 @@ var numeric_parse_exports = /* @__PURE__ */ __exportAll({
 var issue = (info, line, text, en) => error(info.lang, line, text, en, "修正图表语法", "Correct the chart syntax");
 var unquote = (text) => text.replace(/^(["'])(.*)\1$/, "$2");
 var numeric = (value) => /^[-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[-+]?\d+)?$/i.test(value) && Number.isFinite(Number(value));
+var TREEMAP_MAX_NODES = 201;
+var TREEMAP_MAX_DEPTH = 100;
 var linesOf = (source, firstLine) => source.split("\n").map((raw, i) => ({
 	raw,
 	text: raw.trim(),
@@ -58,10 +60,11 @@ function parsePie(source, info) {
 		const names = [...new Set(duplicates.map((x) => x.label))].join(", ");
 		errors.push(warning("DIAGRAM_HINT", info.lang, duplicates[0].line, `pie 重复标签仅保留首次值：${names}`, `Pie keeps the first value for duplicate labels: ${names}`, "删除重复条目", "Remove duplicate sections"));
 	}
+	if (rows.length > 60) errors.push(warning("LARGE_DIAGRAM", info.lang, rows[60].line, "饼图条目较多，建议拆分图表", "Large pie chart; consider splitting it", "请拆分图表", "Split the chart"));
 	if (rows.length > 6) {
 		const overflow = rows.splice(5), value = overflow.reduce((sum, row) => sum + row.value, 0);
 		const names = overflow.map((row) => row.category).join(", ");
-		let category = `${info.lang?.startsWith("en") ? "Other" : "其他"} (${names})`;
+		let category = `${/^en/i.test(info.lang) ? "Other" : "其他"} (${names})`;
 		while (labels.has(category)) category += "*";
 		if (!(value > 0)) errors.push(issue(info, overflow[0].line, "pie 合并项的总值必须大于零", "The combined pie section must have a positive total"));
 		rows.push({
@@ -88,6 +91,7 @@ function parsePie(source, info) {
 }
 function parseTreemap(source, info) {
 	const errors = [], roots = [], stack = [], levels = [], names = /* @__PURE__ */ new Map();
+	let nodeCount = 0;
 	const look = presentation({ lang: info.lang });
 	let title = null, titleLine = null;
 	for (const key of Object.keys(info.options || {})) errors.push(issue(info, info.headerLine, `treemap 不支持选项 ${key}`, `Unsupported treemap option ${key}`));
@@ -114,6 +118,8 @@ function parseTreemap(source, info) {
 			errors.push(issue(info, line, "treemap 节点名称无效", "Invalid treemap node name"));
 			continue;
 		}
+		nodeCount += 1;
+		if (nodeCount === 202) errors.push(issue(info, line, `treemap 超过安全上限 ${TREEMAP_MAX_NODES} 个节点`, `Treemap exceeds the safety cap of ${TREEMAP_MAX_NODES} nodes; split the diagram`));
 		const node = {
 			label: numericLabel(name, info, line, errors),
 			children: [],
@@ -144,10 +150,12 @@ function parseTreemap(source, info) {
 		line: info.firstLine
 	};
 	const treeLines = {};
+	let maxDepth = 0;
 	const clean = (node, path, depth) => {
+		maxDepth = Math.max(maxDepth, depth);
 		treeLines[path] = node.line;
-		if (depth > 5) {
-			errors.push(issue(info, node.line, "treemap 深度最多 5 层", "Treemap depth is limited to five levels"));
+		if (depth > TREEMAP_MAX_DEPTH) {
+			errors.push(issue(info, node.line, `treemap 超过安全深度上限 ${TREEMAP_MAX_DEPTH} 层`, `Treemap exceeds the safety depth cap of ${TREEMAP_MAX_DEPTH}; split the diagram`));
 			return;
 		}
 		node.children.forEach((child, i) => clean(child, `${path}/children/${i}`, depth + 1));
@@ -183,6 +191,8 @@ function parseTreemap(source, info) {
 			titleLine,
 			treeLines,
 			data,
+			nodeCount,
+			depth: maxDepth,
 			namedRoot: roots.length === 1 && data.children.length > 0,
 			valueField,
 			prefix: valueField?.format === "percent" && pattern.startsWith("$") ? "$" : ""

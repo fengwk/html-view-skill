@@ -47,13 +47,7 @@ function addVisibleHeader(scene, options) {
 		children: [...children, ctx.el("g", { transform: `translate(0 ${top})` }, scene.children)]
 	};
 }
-function renderWith(spec, options, info, lineFor) {
-	const errors = validateWith(spec, info, lineFor);
-	if (errors.length) return {
-		width: options.width,
-		height: 0,
-		errors
-	};
+function renderWith(spec, options, info, lineFor, layoutSpec = layout) {
 	const layoutOptions = {
 		...options.renderOptions,
 		width: options.width,
@@ -64,7 +58,7 @@ function renderWith(spec, options, info, lineFor) {
 		}) } : {}
 	};
 	try {
-		const scene = addVisibleHeader(layout(spec, layoutOptions), options);
+		const scene = addVisibleHeader(layoutSpec(spec, layoutOptions), options);
 		return {
 			width: scene.width,
 			height: scene.height,

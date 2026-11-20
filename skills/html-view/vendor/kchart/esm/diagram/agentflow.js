@@ -44,12 +44,12 @@ var EDGE_KINDS = /* @__PURE__ */ new Map([
 	["solid:cross", "failure"]
 ]);
 var LIMITS = {
-	nodes: 60,
-	edges: 90,
-	frames: 12,
-	depth: 4,
-	connectors: 8,
-	lines: 400,
+	nodes: 300,
+	edges: 420,
+	frames: 60,
+	depth: 12,
+	connectors: 60,
+	lines: 2e3,
 	metadataKeys: 24,
 	metadataString: 400
 };
@@ -198,8 +198,8 @@ function parse(body, info) {
 	const [head, ...inline] = (info.params || "").split(";");
 	if (head.trim()) direction = candidate(head.trim(), headerLine) || direction;
 	const input = inline.length ? `${inline.join(";")}\n${body}` : body;
-	if (body.split("\n").length > LIMITS.lines || input.length > 2e5) {
-		fail(firstLine, "Agentflow 源码过长", "Agentflow source exceeds its work budget");
+	if (body.split("\n").length > LIMITS.lines || input.length > 5e4) {
+		fail(firstLine, `Agentflow 最多 ${LIMITS.lines} 行、50000 个字符，请拆分图表`, `Agentflow supports up to ${LIMITS.lines} lines and 50,000 characters; split the diagram`);
 		return {
 			model: null,
 			errors
@@ -233,7 +233,7 @@ function parse(body, info) {
 			if (frames.has(id)) fail(line, `流程重复：${id}`, `Duplicate flow: ${id}`);
 			else frames.set(id, declared);
 			stack.push(declared);
-			if (declared.depth > LIMITS.depth) fail(line, "流程嵌套过深", "Flow nesting is too deep");
+			if (declared.depth > LIMITS.depth) fail(line, `流程最多嵌套 ${LIMITS.depth} 层，请拆分图表`, `Flow nesting is limited to ${LIMITS.depth} levels; split the diagram`);
 		} else if (/^global$/i.test(text)) stack.push(null);
 		else if (/^end$/i.test(text)) {
 			if (stack.length) stack.pop();
@@ -396,7 +396,7 @@ function parse(body, info) {
 		[edges.length, "edges"],
 		[frames.size, "frames"],
 		[connectors.size, "connectors"]
-	]) if (size > LIMITS[key]) fail(firstLine, `${key} 超过上限 ${LIMITS[key]}`, `Too many ${key} (limit ${LIMITS[key]})`);
+	]) if (size > LIMITS[key]) fail(firstLine, `${key} 超过上限 ${LIMITS[key]}，请拆分图表`, `Too many ${key} (limit ${LIMITS[key]}); split the diagram`);
 	if (ignored.size) errors.push(ignoredConfigWarning(lang, Math.min(...ignored.values()), [...ignored.keys()].join(", ")));
 	return {
 		model: {
@@ -468,14 +468,12 @@ function layout(model, options, info) {
 			return measured;
 		}
 	};
-	const result = layoutGraph({
+	return layoutGraph({
 		...model,
 		nodes,
 		subgraphs,
 		edges
-	}, graphOptions);
-	if (result.width > options.width * 2 || model.nodes.length > 60) (result.errors ??= []).push(warning("LARGE_DIAGRAM", info.lang, info.headerLine, "图较宽，可在框中滚动", "Large diagram; scroll within the frame", "考虑拆成多个图", "Consider splitting it"));
-	return result;
+	}, graphOptions, info);
 }
 function drawIcon(ctx, icon, x, y, color) {
 	const [left, top, w, h] = icon.viewBox.split(/\s+/).map(Number), scale = 14 / Math.max(w, h);

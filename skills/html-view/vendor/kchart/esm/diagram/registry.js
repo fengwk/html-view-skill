@@ -121,6 +121,12 @@ function createDiagramApi(implementations, types) {
 			lang: options.lang || inferLang(input)
 		};
 		const syntax = options.syntax || "mermaid";
+		if (/^mermaid$/i.test(syntax) && String(input ?? "").length > 5e4) return {
+			info: null,
+			type: null,
+			model: null,
+			diagnostics: normalize([error(options.lang, 1, "Mermaid 源码最多 50000 个字符", "Mermaid source is limited to 50,000 characters", "请拆分图表", "Split the diagram")], null)
+		};
 		const keepsTrailingComments = (kind) => {
 			return implementations[byAlias.get(kind.toLowerCase())?.kind]?.trailingComments === false;
 		};

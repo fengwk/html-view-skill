@@ -136,7 +136,7 @@ function parse(source, info) {
 			});
 		} else fail(line, "无法识别架构图语句", "Unrecognized architecture statement");
 	}
-	if (items.size > 400 || edges.length > 600 || aligns.length > 400) fail(info.firstLine, "架构图过大，请拆分", "Architecture diagram is too large; split it into smaller diagrams");
+	if (items.size > 400 || edges.length > 600 || aligns.length > 400) fail(info.firstLine, "架构图超过安全上限（400 个元素、600 条边或 400 条对齐），请拆分", "Architecture exceeds its safety cap (400 items, 600 edges, or 400 alignments); split it into smaller diagrams");
 	errors.push(...look.diagnostics());
 	for (const item of items.values()) {
 		item.status = look.statusOf(item.id);
@@ -199,6 +199,28 @@ function place({ items, nodes, edges, aligns }, preferStraight = true) {
 		else ids.push(item.id);
 	};
 	visit(void 0);
+	if (ids.length > 60 && !edges.length && !aligns.length) return { xy: [new Map(ids.map((id) => [id, 0])), new Map(ids.map((id, index) => [id, index]))] };
+	if (ids.length > 60 && ids.length === items.size) {
+		const pinned = new Set(edges.flatMap(({ from, to }) => [from, to]));
+		for (const { members } of aligns) for (const id of members) pinned.add(id);
+		const free = ids.filter((id) => !pinned.has(id));
+		if (free.length) {
+			const placement = place({
+				items: new Map([...items].filter(([id]) => pinned.has(id))),
+				nodes: nodes.filter((node) => pinned.has(node.id)),
+				edges,
+				aligns
+			}, preferStraight);
+			if (!placement.xy) return placement;
+			const [columns, rows] = placement.xy;
+			let row = Math.max(-1, ...rows.values()) + 1;
+			for (const id of free) {
+				columns.set(id, 0);
+				rows.set(id, row++);
+			}
+			return placement;
+		}
+	}
 	const constraints = [[], []], perpendicular = [[], []];
 	const add = (axis, relation) => {
 		const rules = constraints[axis];
