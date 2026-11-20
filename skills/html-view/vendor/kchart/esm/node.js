@@ -48,6 +48,7 @@ import { journey_exports } from "./diagram/journey.js";
 import { kanban_exports } from "./diagram/kanban.js";
 import { label_exports } from "./diagram/label.js";
 import { layers_exports } from "./diagram/layers.js";
+import { map_label_exports } from "./diagram/map-label.js";
 import { mindmap_exports as mindmap_exports$1 } from "./diagram/mindmap.js";
 import { numeric_composition_exports } from "./diagram/numeric-composition.js";
 import { numeric_model_exports } from "./diagram/numeric-model.js";
@@ -131,6 +132,7 @@ var modulesByPath = /* #__PURE__ */ Object.assign({
 	"./src/diagram/kanban.js": kanban_exports,
 	"./src/diagram/label.js": label_exports,
 	"./src/diagram/layers.js": layers_exports,
+	"./src/diagram/map-label.js": map_label_exports,
 	"./src/diagram/mindmap.js": mindmap_exports$1,
 	"./src/diagram/numeric-composition.js": numeric_composition_exports,
 	"./src/diagram/numeric-model.js": numeric_model_exports,

@@ -1,4 +1,5 @@
 import { test } from 'vitest';
+import corpus from './conformance/mermaid-12.3.0.json';
 import assert from 'node:assert/strict';
 import { createContext } from '../src/core/context.js';
 import { createDiagramApi } from '../src/diagram/registry.js';
@@ -109,4 +110,44 @@ test('renders Wardley maps past the old proposed limit', () => {
   assert.equal(points(scene).length, 41);
   assert.deepEqual(diagnostics.map(d => d.code), ['LARGE_DIAGRAM']);
   assert.deepEqual(checkScene(scene), []);
+});
+
+// The dense map must expose its annotation leaders to the gate without crossing Auth Service or another label.
+test('keeps the Wardley strategy map leaders clear at both widths', () => {
+  const record = corpus.find(({ id }) => id === 'wardley.md:399');
+  for (const width of [800, 360]) {
+    const { scene } = api.diagram(record.source, { width });
+    assert.ok(elements(scene).some(node => node.meta?.kind === 'leader'));
+    assert.deepEqual(checkScene(scene), []);
+  }
+});
+
+// Label normalization leaves reference identities intact; geometry config and SVG accessibility use the shared registry.
+test('normalizes Wardley labels and honors shared config', () => {
+  const body = `---
+config:
+  Wardley: { Width: 1020, height: 650, showGrid: true }
+---
+wardley-beta
+accTitle: Accessible map
+accDescr: Service dependency
+component "fa:fa-envelope <b>Mail &amp; API</b>" [0.7, 0.5]
+component Other [0.2, 0.6]
+"fa:fa-envelope <b>Mail &amp; API</b>" -> Other; fas:fa-no-such-icon Backup
+note "fas:fa-no-such-icon Elsewhere" [0.4, 0.2]`;
+  const { svg, scene, diagnostics } = api.diagram(body, { lang: 'en', width: 800 });
+  assert.ok(scene.width >= 1020);
+  assert.ok(scene.height >= 650);
+  assert.deepEqual(diagnostics.map(d => d.code).sort(), ['IGNORED_ASSET', 'IGNORED_CONFIG']);
+  assert.ok(elements(scene).some(node => node.attrs?.transform?.includes(' scale(')));
+  assert.match(svg, />Mail &amp; API</);
+  assert.match(svg, />Backup</);
+  assert.match(svg, /<title\b[^>]*>Accessible map<\/title>/);
+  assert.match(svg, /<desc>Service dependency<\/desc>/);
+  assert.deepEqual(checkScene(scene), []);
+});
+
+// Neither Mermaid map grammar admits shared click or style statements; never turn on the opt-in accidentally.
+test('does not extend the Wardley grammar with presentation statements', () => {
+  assert.equal(draw('component A [0.5, 0.5]\nstyle A fill:red').svg, null);
 });

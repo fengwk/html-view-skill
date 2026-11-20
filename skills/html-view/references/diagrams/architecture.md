@@ -53,6 +53,11 @@ C4、`architecture-beta`、`block-beta` 共用上限：40 个节点、60 条边�
 
 ## wardley-beta
 
-Wardley 地图：`anchor 名称 [可见度, 演化]` 与 `component 名称 [可见度, 演化]` 放置组件，两个坐标都在 0–1 之间且须写小数点（如 `1.0`）；`A -> B` 表示依赖，可用正文 `title`。横轴为演化阶段，纵轴为价值链可见度；标签自动避让，不改变坐标语义。
+Wardley 地图用 `anchor 名称 [可见度, 演化]` 放置锚点，用 `component 名称 [可见度, 演化]` 放置组件。可见度沿纵轴从下往上增加，演化沿横轴从左往右增加。坐标须带小数点：0–1（含 `1.0`）按比例解释，大于 1 且不超过 100 按百分数解释。复杂名称可用双引号；组件可附 `label [dx, dy]`、`(build)` / `(buy)` / `(outsource)` / `(market)` 和 `inertia`。
+
+- `A -> B` 表示依赖，`A -.-> B` 画虚线；`A +> B`、`A +< B`、`A +<> B` 分别画正向、反向、双向箭头。行尾 `; 标签` 或 `A +'标签'> B` 可标文字。`evolve A 0.8` 表示向目标演化值移动。
+- `evolution 阶段 -> 阶段` 自定义阶段，`阶段@0.5 / 副标题` 可标该阶段的右边界和副标题。边界不齐、未递增或未到 100% 时回退到等宽阶段并提示。`pipeline 父组件 { … }` 内逐行写 `component 名称 [演化]`，子组件继承父组件的可见度。
+- `note "文本" [可见度, 演化]` 添加备注；`annotation 1,[可见度, 演化] "文本"` 画编号标记，`annotations [可见度, 演化]` 指定图例首选位置。`accelerator "名称" [可见度, 演化]` 和 `deaccelerator "名称" [可见度, 演化]` 画方向相反的作用力箭头。
+- 支持正文 `title` 和共享无障碍字段 `accTitle` / `accDescr`。前言区或初始化指令可设 `config.wardley.width`、`config.wardley.height`；正文 `size [宽, 高]` 优先。画布必要时为标签留出额外空间，窄屏横向滚动。标题和显示标签支持常见实体、换行和 `fa:fa-…` 图标；未知图标只提示，不画占位。`showGrid` 不生效；本语法不接受样式、类或点击语句。
 
 所有 Mermaid C4、`architecture`、`block`、`wardley-beta` 示例可在源码中写前言区 `title`；关系图正文 `title` 也受支持。阅读文档须提供图题；应在源码写 `title`，而不是依赖图框外的说明。
