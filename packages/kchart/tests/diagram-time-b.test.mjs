@@ -109,17 +109,20 @@ test('quadrant retains axis endpoints and supports a point-free plot', () => {
   assert.equal(nodes.find(n => n.text === 'First').attrs.y, frame.attrs.y + frame.attrs.height / 4);
 });
 
-// Endpoints remain on the axes and clustered point labels stay distinct even with a clamped radius.
+// Boundary and clustered labels stay distinct; styles applied with theme mapping and size caps aren't ignored.
 test('quadrant lays out endpoint and clustered labels without collisions', () => {
   const close = Array.from({ length: 6 }, (_, i) => `Cluster ${i}: [${.5 + i / 100}, .5]`).join('\n');
-  const body = 'Min: [0,0]\nMax: [1,1] radius:25,color:#ff3300\n' + close;
+  const body = 'Min: [0,0]\nMax: [1,1] radius:25,color:#ff3300,stroke-color:#0000ff,stroke-width:5px\n' + close;
   const { nodes, errors } = render('quadrantChart', body);
   const frame = nodes.find(n => n.meta?.kind === 'frame');
   const dots = nodes.filter(n => n.meta?.kind === 'node');
   assert.equal(dots[0].attrs.cx, frame.attrs.x);
   assert.equal(dots[1].attrs.cy, frame.attrs.y);
   assert.equal(dots[1].attrs.r, 12);
-  assert.equal(errors[0].code, 'IGNORED_STYLE');
+  assert.equal(dots[1].attrs['stroke-width'], 3);
+  assert.notEqual(dots[1].attrs.fill, dots[0].attrs.fill);
+  assert.notEqual(dots[1].attrs.stroke, dots[0].attrs.stroke);
+  assert.ok(errors.every(e => e.code !== 'IGNORED_STYLE'));
   for (let i = 0; i < 6; i++) assert.ok(nodes.some(n => n.text?.startsWith(`Cluster ${i}`)));
   assert.ok(parse('quadrantChart', 'Outside: [1.2, 0.3]').errors.length);
 });
@@ -129,6 +132,15 @@ test('quadrant class styles and local point styles compose', () => {
   const { model, nodes } = render('quadrantChart', 'A:::special: [0.25, 0.25] radius:4\nB:::special: [0.75,0.75]\nclassDef special color:#ff3300,radius:9\nclick B https://example.org');
   assert.deepEqual(model.points.map(p => [p.style.radius, p.style.color]), [[4, 'danger'], [9, 'danger']]);
   assert.ok(nodes.some(n => n.tag === 'a' && n.attrs.href === 'https://example.org'));
+});
+
+// Only an unmappable style is reported, and it does not replace an applied class fill.
+test('quadrant warnings name only unapplied colors', () => {
+  const { model, nodes, errors } = render('quadrantChart', 'A:::special: [0.25,0.25] color:#777,radius:9,stroke-color:#0000ff,stroke-width:2\nclassDef special color:#ff3300');
+  assert.equal(model.points[0].style.color, 'danger');
+  assert.equal(nodes.find(n => n.meta?.kind === 'node').attrs.r, 9);
+  assert.deepEqual(errors.filter(e => e.code === 'IGNORED_STYLE').map(e => [e.line, e.message]),
+    [[2, 'Ignored unmappable point colors: color: #777']]);
 });
 
 // Links and icons use shared graph primitives, and labels are normalized before measuring.
