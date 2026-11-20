@@ -1,5 +1,8 @@
 import { __exportAll } from "../_virtual/_rolldown/runtime.js";
-import { FONT, appearance, error, fallbackMeasure, labelText, warning, wrapText } from "./support.js";
+import { FONT, appearance, error, fallbackMeasure, warning, wrapText } from "./support.js";
+import { normalizeLabel } from "./label.js";
+import { presentation } from "./presentation.js";
+import { labelIcon } from "./tree-family-icon.js";
 // src/diagram/venn.js
 var venn_exports = /* @__PURE__ */ __exportAll({ implementations: () => implementations });
 var MARGIN = 24;
@@ -117,44 +120,16 @@ function readSize(text, at) {
 		at
 	};
 }
-function splitProps(text) {
-	const parts = [];
-	let depth = 0;
-	let quote = false;
-	let start = 0;
-	for (let i = 0; i < text.length; i += 1) {
-		const ch = text[i];
-		if (ch === "\\") {
-			i += 1;
-			continue;
-		}
-		if (quote) {
-			if (ch === "\"") quote = false;
-			continue;
-		}
-		if (ch === "\"") {
-			quote = true;
-			continue;
-		}
-		if (ch === "(") depth += 1;
-		else if (ch === ")") depth = Math.max(0, depth - 1);
-		else if (!depth && (ch === "," || ch === ";")) {
-			parts.push(text.slice(start, i));
-			start = i + 1;
-		}
-	}
-	parts.push(text.slice(start));
-	return parts.map((part) => part.trim()).filter(Boolean);
-}
 function parse(source, info = {}) {
 	const lang = info.lang || "zh";
 	const firstLine = Number.isInteger(info.firstLine) ? info.firstLine : 2;
 	const headerLine = Number.isInteger(info.headerLine) ? info.headerLine : Math.max(1, firstLine - 1);
 	const errors = [];
+	const look = presentation({ lang });
+	const assetWarnings = /* @__PURE__ */ new Set();
 	const sets = [];
 	const unions = [];
 	const texts = [];
-	const styles = [];
 	const known = /* @__PURE__ */ new Map();
 	let title = "";
 	let titleLine = headerLine;
@@ -166,6 +141,23 @@ function parse(source, info = {}) {
 	const params = typeof info.params === "string" ? info.params.trim() : "";
 	if (params) fail(headerLine, `venn-beta 头行不能带内容「${params}」`, `Unexpected text after "venn-beta": ${params}`, "把内容写成 set、union 或 text 行", "Move the text into set, union, or text lines");
 	for (const key of Object.keys(info.options || {})) fail(headerLine, `venn-beta 不支持选项「${key}」`, `Unsupported venn-beta option: ${key}`, "删除这个选项", "Remove this option");
+	const labelOf = (raw, line) => {
+		const normalized = normalizeLabel(raw, {
+			lang,
+			line
+		});
+		for (const diagnostic of normalized.diagnostics) {
+			const key = `${diagnostic.code}:${diagnostic.message}`;
+			if (!assetWarnings.has(key)) {
+				assetWarnings.add(key);
+				errors.push(diagnostic);
+			}
+		}
+		return {
+			text: normalized.text,
+			icon: normalized.icon
+		};
+	};
 	const addSet = (id, label, size, line) => {
 		if (!id) {
 			junk(line);
@@ -175,9 +167,14 @@ function parse(source, info = {}) {
 			fail(line, `集合「${id}」重复定义`, `Duplicate set identifier: ${id}`, "把同一个集合合并成一行 set", "Merge the duplicate into a single set line");
 			return false;
 		}
+		const normalized = label ? labelOf(label, line) : {
+			text: "",
+			icon: null
+		};
 		sets.push({
 			id,
-			label: label ? labelText(label) : "",
+			label: normalized.text,
+			icon: normalized.icon,
 			size: size ?? SIZE_DEFAULT,
 			tone: sets.length % 6 + 1,
 			line
@@ -198,9 +195,14 @@ function parse(source, info = {}) {
 			return false;
 		}
 		const sorted = [...unique].sort();
+		const normalized = label ? labelOf(label, line) : {
+			text: "",
+			icon: null
+		};
 		unions.push({
 			ids: sorted,
-			label: label ? labelText(label) : "",
+			label: normalized.text,
+			icon: normalized.icon,
 			size: size ?? SIZE_DEFAULT / unique.length ** 2,
 			line
 		});
@@ -213,9 +215,11 @@ function parse(source, info = {}) {
 			orphan(line);
 			return;
 		}
+		const normalized = labelOf(label || id, line);
 		texts.push({
 			id,
-			label: label ? labelText(label) : labelText(id),
+			label: normalized.text,
+			icon: normalized.icon,
 			ids: [...unique].sort(),
 			key: [...unique].sort().join("|"),
 			line
@@ -226,6 +230,15 @@ function parse(source, info = {}) {
 		const body = stripComment(raw).trim();
 		if (!body) continue;
 		const indented = /^[ \t]/.test(raw);
+		const style = /^style\s+/i.exec(body);
+		if (style) {
+			const list = readIdents(body, style[0].length);
+			if (list.ids.length > 1) {
+				look.accept(`style ${JSON.stringify([...list.ids].sort().join("|"))} ${body.slice(list.at).trimStart()}`, line);
+				continue;
+			}
+		}
+		if (look.accept(body, line)) continue;
 		const head = keywordOf(body);
 		const rest = body.slice(head.at);
 		if (indentMode && indented && head.word === "text") {
@@ -246,7 +259,7 @@ function parse(source, info = {}) {
 				fail(line, "title 后面缺少标题文字", "title needs a heading after it", "写成 title 标题文字", "Write title followed by the heading");
 				continue;
 			}
-			title = labelText(value.replace(/^"(.*)"$/, "$1").trim());
+			title = labelOf(value.replace(/^"(.*)"$/, "$1").trim(), line).text;
 			titleLine = line;
 			continue;
 		}
@@ -288,33 +301,18 @@ function parse(source, info = {}) {
 			else addText(list.ids[0], label.label, scope ? scope.ids : [], line);
 			continue;
 		}
-		if (head.word === "style") {
-			const list = readIdents(rest, 0);
-			if (!list.ids.length) {
-				junk(line);
-				continue;
-			}
-			const props = [];
-			for (const part of splitProps(rest.slice(list.at))) {
-				const prop = /^([A-Za-z][\w-]*)\s*:\s*([\s\S]+)$/.exec(part);
-				if (prop) props.push([prop[1].toLowerCase(), prop[2].trim()]);
-				else junk(line);
-			}
-			styles.push({
-				targets: list.ids,
-				props,
-				line
-			});
-			continue;
-		}
 		junk(line);
 	}
-	if (styles.length) {
-		const subjects = [];
-		for (const style of styles) for (const target of style.targets) if (!subjects.includes(target)) subjects.push(target);
-		errors.push(warning("IGNORED_STYLE", lang, styles[0].line, `已忽略样式颜色（${subjects.join("、")}）：集合配色由主题决定`, `Style colours were ignored (${subjects.join(", ")}): the theme chooses set colours`, "删除 style 行，颜色交给主题", "Remove the style lines; the theme decides colours"));
-	}
+	errors.push(...look.diagnostics());
 	if (!sets.length) fail(firstLine, "文氏图没有任何 set", "A Venn diagram needs at least one set", "至少写一行 set", "Write at least one set line");
+	const attach = (item, id) => ({
+		...item,
+		status: look.statusOf(id),
+		link: look.linkOf(id)
+	});
+	for (const set of sets) Object.assign(set, attach({}, set.id));
+	for (const union of unions) Object.assign(union, attach({}, union.ids.join("|")));
+	for (const text of texts) Object.assign(text, attach({}, text.id));
 	return {
 		model: {
 			kind: "venn-beta",
@@ -322,8 +320,7 @@ function parse(source, info = {}) {
 			titleLine,
 			sets,
 			unions,
-			texts,
-			styles
+			texts
 		},
 		errors
 	};
@@ -369,7 +366,10 @@ function ringsAt(sets, R, spread) {
 	const rings = sets.map((set, index) => ({
 		id: set.id,
 		label: set.label,
+		icon: set.icon,
 		tone: set.tone,
+		status: set.status,
+		link: set.link,
 		line: set.line,
 		r: radii[index],
 		cx: 0,
@@ -431,7 +431,7 @@ function boundsOf(rings) {
 function planBlock(region, measure) {
 	const slack = region.kind === "set" ? SET_CLEAR : UNION_CLEAR;
 	const pad = region.kind === "set" ? 0 : 14;
-	const texts = [...region.labels.map((label) => label.text), ...region.items];
+	const texts = [...region.labels.map((label) => label.text), ...region.items.map((item) => item.text)];
 	const font = region.kind === "set" ? SET_FONT : ITEM_FONT;
 	const floor = Math.max(0, ...texts.flatMap((text) => String(text).split(/\s+/).filter(Boolean).map((word) => measure(word, font))));
 	const cap = Math.max(48, floor + 2, (region.clear - slack) * 2 - 20 - pad);
@@ -440,14 +440,19 @@ function planBlock(region, measure) {
 	const labels = [];
 	for (const label of region.labels) for (const row of wrap(label.text, labelFont)) labels.push({
 		text: row,
-		font: labelFont
+		font: labelFont,
+		icon: label.icon,
+		link: label.link
 	});
 	const items = [];
-	for (const item of region.items) for (const row of wrap(item, ITEM_FONT)) items.push({
+	for (const item of region.items) for (const row of wrap(item.text, ITEM_FONT)) items.push({
 		text: row,
-		font: ITEM_FONT
+		font: ITEM_FONT,
+		icon: item.icon,
+		link: item.link,
+		status: item.status
 	});
-	const widest = (rows) => rows.length ? Math.max(...rows.map((row) => measure(row.text, row.font))) : 0;
+	const widest = (rows) => rows.length ? Math.max(...rows.map((row) => measure(row.text, row.font) + (row.icon ? 18 : 0))) : 0;
 	const labelW = labels.length ? widest(labels) + pad : 0;
 	const labelH = labels.length * ((region.kind === "set" ? HEAD_LINE : ITEM_LINE) + 4 / labels.length);
 	const itemW = widest(items);
@@ -501,9 +506,16 @@ function regionList(rings, model) {
 		tone: ring.tone,
 		labels: [{
 			text: ring.label || ring.id,
-			line: ring.line
+			icon: ring.icon,
+			line: ring.line,
+			link: ring.link
 		}],
-		items: (groups.get(ring.id) || []).map((text) => text.label),
+		items: (groups.get(ring.id) || []).map((text) => ({
+			text: text.label,
+			icon: text.icon,
+			link: text.link,
+			status: text.status
+		})),
 		texts: groups.get(ring.id) || []
 	});
 	const merged = /* @__PURE__ */ new Map();
@@ -525,9 +537,18 @@ function regionList(rings, model) {
 			tone: rings.find((ring) => ring.id === union.ids[0])?.tone || 1,
 			labels: union.label ? [{
 				text: union.label,
-				line: union.line
+				icon: union.icon,
+				line: union.line,
+				link: union.link
 			}] : [],
-			items: (groups.get(key) || []).map((text) => text.label),
+			items: (groups.get(key) || []).map((text) => ({
+				text: text.label,
+				icon: text.icon,
+				link: text.link,
+				status: text.status
+			})),
+			status: union.status,
+			link: union.link,
 			texts: groups.get(key) || []
 		};
 		merged.set(key, region);
@@ -597,6 +618,9 @@ function layoutBlock(region) {
 		block.labels.forEach((row, index) => region.rows.push({
 			text: row.text,
 			font: row.font,
+			icon: row.icon,
+			link: row.link,
+			status: row.status,
 			x: region.x,
 			y: top + CHIP_Y + (index + .5) * pitch,
 			anchor: "middle"
@@ -606,6 +630,9 @@ function layoutBlock(region) {
 	block.items.forEach((row, index) => region.rows.push({
 		text: row.text,
 		font: row.font,
+		icon: row.icon,
+		link: row.link,
+		status: row.status,
 		x: region.x,
 		anchor: "middle",
 		y: itemTop + (index + .5) * ITEM_LINE
@@ -692,27 +719,34 @@ function planGrid(model, { measure, width, lang }) {
 		kind: "set",
 		key: set.id,
 		tone: set.tone,
+		status: set.status,
+		link: set.link,
 		line: set.line,
-		titles: set.label ? [set.label] : [],
+		titles: [{
+			...set,
+			label: set.label || set.id
+		}],
 		caption: "",
-		items: (groups.get(set.id) || []).map((text) => text.label)
+		items: groups.get(set.id) || []
 	});
 	const merged = /* @__PURE__ */ new Map();
 	for (const union of model.unions) {
 		const key = union.ids.join("|");
 		const existing = merged.get(key);
 		if (existing) {
-			if (union.label) existing.titles.push(union.label);
+			if (union.label) existing.titles.push(union);
 			continue;
 		}
 		const panel = {
 			kind: "union",
 			key,
 			tone: model.sets.find((set) => set.id === union.ids[0])?.tone || 1,
+			status: union.status,
+			link: union.link,
 			line: union.line,
-			titles: union.label ? [union.label] : [],
+			titles: union.label || union.icon ? [union] : [],
 			caption: union.ids.join(" ∩ "),
-			items: (groups.get(key) || []).map((text) => text.label)
+			items: groups.get(key) || []
 		};
 		merged.set(key, panel);
 		panels.push(panel);
@@ -725,20 +759,27 @@ function planGrid(model, { measure, width, lang }) {
 			key: text.key,
 			tone: 1,
 			line: text.line,
-			titles: [text.label],
+			titles: [text],
 			caption: text.ids.join(" ∩ "),
 			items: []
 		});
 	}
 	const wrap = (value, font) => wrapText(value, 140, font, (piece, spec) => measure(piece, spec));
 	for (const panel of panels) {
-		panel.header = panel.titles.flatMap((value) => wrap(labelText(value), SET_FONT));
+		const rows = (entries, font) => entries.flatMap((item) => wrap(item.label, font).map((text, index) => ({
+			text,
+			font,
+			status: item.status,
+			link: item.link,
+			icon: index === 0 ? item.icon : null
+		})));
+		panel.header = rows(panel.titles, SET_FONT);
 		panel.captionLines = panel.caption ? wrap(panel.caption, ITEM_FONT) : [];
-		panel.itemLines = panel.items.flatMap((value) => wrap(value, ITEM_FONT));
+		panel.itemLines = rows(panel.items, ITEM_FONT);
 		const widths = [
-			...panel.header.map((row) => measure(row, SET_FONT)),
+			...panel.header.map((row) => measure(row.text, row.font) + (row.icon ? 18 : 0)),
 			...panel.captionLines.map((row) => measure(row, ITEM_FONT)),
-			...panel.itemLines.map((row) => measure(row, ITEM_FONT))
+			...panel.itemLines.map((row) => measure(row.text, row.font) + (row.icon ? 18 : 0))
 		];
 		panel.w = Math.max(GRID_MIN_W, Math.ceil(Math.max(0, ...widths) + 28));
 		panel.h = 28 + panel.header.length * HEAD_LINE + (panel.captionLines.length ? 4 + panel.captionLines.length * ITEM_LINE : 0) + (panel.itemLines.length ? 6 + panel.itemLines.length * ITEM_LINE : 0);
@@ -768,8 +809,7 @@ function planGrid(model, { measure, width, lang }) {
 		let y = panel.y + GRID_PAD;
 		for (const row of panel.header) {
 			panel.rows.push({
-				text: row,
-				font: SET_FONT,
+				...row,
 				x: panel.x + GRID_PAD,
 				y: y + HEAD_LINE / 2,
 				anchor: "start"
@@ -793,8 +833,7 @@ function planGrid(model, { measure, width, lang }) {
 			y += 6;
 			for (const row of panel.itemLines) {
 				panel.rows.push({
-					text: row,
-					font: ITEM_FONT,
+					...row,
 					x: panel.x + GRID_PAD,
 					y: y + ITEM_LINE / 2,
 					anchor: "start"
@@ -964,22 +1003,30 @@ function scene(plan, ctx) {
 	const look = appearance(ctx);
 	const paper = ctx.color("bg");
 	const tone = (index) => ctx.frameTone(ctx.color(`tone${(index - 1) % 6 + 1}`));
-	const row = (item) => ctx.text(item.x, item.y, item.text, {
-		anchor: item.anchor,
-		size: item.font.size,
-		weight: item.font.weight,
-		"dominant-baseline": "central",
-		fill: item.kind === "caption" ? look.fg3 : item.font === SET_FONT ? look.fg1 : look.fg2
-	});
+	const row = (item) => {
+		const ink = item.status ? ctx.textColor(look[item.status]) : item.kind === "caption" ? look.fg3 : item.font === SET_FONT ? look.fg1 : look.fg2;
+		const children = [ctx.text(item.x + (item.icon ? item.anchor === "middle" ? 9 : 18 : 0), item.y, item.text, {
+			anchor: item.anchor,
+			size: item.font.size,
+			weight: item.font.weight,
+			"dominant-baseline": "central",
+			fill: ink
+		})];
+		if (item.icon) {
+			const x = item.anchor === "middle" ? item.x - ctx.measure(item.text, item.font.size, item.font.weight) / 2 - 3 : item.x + 6;
+			children.unshift(labelIcon(ctx, item.icon, x, item.y, 12, ink));
+		}
+		return item.link ? ctx.link(item.link.href, children, item.link) : ctx.el("g", {}, children);
+	};
 	const children = [];
 	if (plan.mode === "rings") {
 		for (const ring of plan.rings) children.push(ctx.circle(ring.cx, ring.cy, ring.r, {
-			fill: tone(ring.tone),
+			fill: ring.status ? ctx.frameTone(look[ring.status]) : tone(ring.tone),
 			"fill-opacity": .1
 		}));
 		for (const ring of plan.rings) children.push(ctx.circle(ring.cx, ring.cy, ring.r, {
 			fill: "none",
-			stroke: tone(ring.tone),
+			stroke: ring.status ? ctx.frameTone(look[ring.status]) : tone(ring.tone),
 			"stroke-width": RING_STROKE,
 			meta: {
 				kind: "node",
@@ -991,7 +1038,7 @@ function scene(plan, ctx) {
 			if (!region.chip) continue;
 			children.push(ctx.rect(region.chip.x, region.chip.y, region.chip.w, region.chip.h, {
 				rx: look.smallRadius,
-				fill: paper
+				fill: region.status ? ctx.tint(paper, look[region.status], .12) : paper
 			}));
 		}
 		for (const item of plan.rows) children.push(row(item));
@@ -1004,7 +1051,7 @@ function scene(plan, ctx) {
 			for (const line of item.lines) children.push(row(line));
 		}
 	} else for (const panel of plan.panels) {
-		const color = tone(panel.tone);
+		const color = panel.status ? ctx.frameTone(look[panel.status]) : tone(panel.tone);
 		children.push(ctx.rect(panel.x, panel.y, panel.w, panel.h, {
 			rx: look.radius,
 			fill: ctx.tint(paper, color, panel.kind === "set" ? .07 : .04),
@@ -1035,6 +1082,7 @@ function scene(plan, ctx) {
 	};
 }
 var implementations = { "venn-beta": {
+	acceptsPresentation: true,
 	parse,
 	layout,
 	scene

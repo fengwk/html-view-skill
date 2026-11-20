@@ -280,9 +280,12 @@
   "diagram/cynefin": {
     "file": "units/diagram/cynefin.js",
     "deps": [
+      "diagram/tree-family-icon",
+      "diagram/label",
+      "diagram/presentation",
       "diagram/support"
     ],
-    "bytes": 12504
+    "bytes": 13422
   },
   "diagram/er": {
     "file": "units/diagram/er.js",
@@ -312,10 +315,13 @@
   "diagram/gantt": {
     "file": "units/diagram/gantt.js",
     "deps": [
+      "core/icons",
+      "diagram/label",
+      "diagram/presentation",
       "diagram/support",
       "diagram/gantt-date"
     ],
-    "bytes": 11481
+    "bytes": 14260
   },
   "diagram/gitgraph": {
     "file": "units/diagram/gitgraph.js",
@@ -367,16 +373,23 @@
   "diagram/ishikawa": {
     "file": "units/diagram/ishikawa.js",
     "deps": [
+      "diagram/tree-family-icon",
+      "core/icons",
+      "diagram/label",
+      "diagram/presentation",
       "diagram/support"
     ],
-    "bytes": 7520
+    "bytes": 9373
   },
   "diagram/journey": {
     "file": "units/diagram/journey.js",
     "deps": [
-      "diagram/support"
+      "core/icons",
+      "diagram/support",
+      "diagram/label",
+      "diagram/presentation"
     ],
-    "bytes": 10115
+    "bytes": 12470
   },
   "diagram/kanban": {
     "file": "units/diagram/kanban.js",
@@ -561,9 +574,12 @@
   "diagram/sequence": {
     "file": "units/diagram/sequence.js",
     "deps": [
+      "core/icons",
+      "diagram/label",
+      "diagram/presentation",
       "diagram/support"
     ],
-    "bytes": 23800
+    "bytes": 26878
   },
   "diagram/shapes": {
     "file": "units/diagram/shapes.js",
@@ -592,7 +608,7 @@
       "diagram/swimlane",
       "diagram/support"
     ],
-    "bytes": 4035
+    "bytes": 2909
   },
   "diagram/swimlane": {
     "file": "units/diagram/swimlane.js",
@@ -600,7 +616,7 @@
       "diagram/support",
       "diagram/graph-parse"
     ],
-    "bytes": 24681
+    "bytes": 25579
   },
   "diagram/time": {
     "file": "units/diagram/time.js",
@@ -612,32 +628,50 @@
   "diagram/timeline": {
     "file": "units/diagram/timeline.js",
     "deps": [
+      "core/icons",
+      "diagram/label",
+      "diagram/presentation",
       "diagram/support"
     ],
-    "bytes": 5475
+    "bytes": 7844
+  },
+  "diagram/tree-family-icon": {
+    "file": "units/diagram/tree-family-icon.js",
+    "deps": [],
+    "bytes": 520
   },
   "diagram/treeview": {
     "file": "units/diagram/treeview.js",
     "deps": [
-      "diagram/support"
+      "diagram/support",
+      "diagram/label",
+      "diagram/presentation",
+      "core/icons",
+      "diagram/tree-family-icon"
     ],
-    "bytes": 5128
+    "bytes": 6328
   },
   "diagram/usecase": {
     "file": "units/diagram/usecase.js",
     "deps": [
       "core/geometry",
+      "core/icons",
+      "diagram/label",
+      "diagram/presentation",
       "diagram/graph-layout",
       "diagram/support"
     ],
-    "bytes": 14467
+    "bytes": 18256
   },
   "diagram/venn": {
     "file": "units/diagram/venn.js",
     "deps": [
-      "diagram/support"
+      "diagram/support",
+      "diagram/label",
+      "diagram/presentation",
+      "diagram/tree-family-icon"
     ],
-    "bytes": 17937
+    "bytes": 18830
   },
   "diagram/wardley": {
     "file": "units/diagram/wardley.js",

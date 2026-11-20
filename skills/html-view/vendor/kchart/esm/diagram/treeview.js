@@ -1,13 +1,27 @@
 import { __exportAll } from "../_virtual/_rolldown/runtime.js";
-import { FONT, appearance, error, labelText, maxWidthOf, textBlock, warning, wrapText } from "./support.js";
+import { FONT, appearance, error, maxWidthOf, textBlock, warning, wrapText } from "./support.js";
+import { normalizeLabel } from "./label.js";
+import { presentation } from "./presentation.js";
+import { resolveIconRef } from "../core/icons.js";
+import { labelIcon } from "./tree-family-icon.js";
 // src/diagram/treeview.js
 var treeview_exports = /* @__PURE__ */ __exportAll({ implementations: () => implementations });
+var honoredConfig = [
+	"rowIndent",
+	"paddingX",
+	"paddingY",
+	"lineThickness",
+	"showIcons",
+	"filenameIcons",
+	"extensionIcons"
+].map((key) => `treeView.${key}`);
+var clamp = (value, fallback, min, max) => typeof value === "number" && Number.isFinite(value) ? Math.max(min, Math.min(max, value)) : fallback;
 var BRANCH = /^([ \t│┃]*)(?:[├└┣┗])[─━]*[ \t]*/;
 var ANNOTATION = /[ \t]+(?=:::[ \t]*[A-Za-z_]|icon\(|##)/;
 var MARGIN = 24;
 var STEP = 24;
 var columns = (str) => str.replaceAll("	", "    ").length;
-function parse(body, { firstLine = 2, headerLine = 1, lang, params }) {
+function parse(body, { firstLine = 2, headerLine = 1, lang, params, config }) {
 	const errors = [], rows = [{
 		id: "root",
 		label: "/",
@@ -15,13 +29,28 @@ function parse(body, { firstLine = 2, headerLine = 1, lang, params }) {
 		depth: 0,
 		description: ""
 	}];
+	const look = presentation({ lang }), settings = config?.treeView ?? {}, seen = /* @__PURE__ */ new Set();
+	const addIssue = (issue) => {
+		if (!seen.has(issue.message)) {
+			seen.add(issue.message);
+			errors.push(issue);
+		}
+	};
+	const normalize = (value, line) => {
+		const result = normalizeLabel(value, {
+			lang,
+			line
+		});
+		result.diagnostics.forEach(addIssue);
+		return result;
+	};
 	const lines = String(body).split("\n").map((raw, index) => ({
 		raw,
 		line: firstLine + index
-	})).filter(({ raw }) => raw.trim() && !raw.trimStart().startsWith("%%"));
+	})).filter(({ raw, line }) => raw.trim() && !raw.trimStart().startsWith("%%") && !look.accept(raw, line));
 	const unit = lines.map(({ raw }) => raw.match(BRANCH)).find((match) => match && columns(match[1]))?.[1];
 	const box = lines.some(({ raw }) => BRANCH.test(raw));
-	const stack = [], deferred = /* @__PURE__ */ new Map();
+	const stack = [];
 	let title;
 	const fail = (line, zh, en) => errors.push(error(lang, line, zh, en, "检查树节点声明", "Check the tree node declaration"));
 	if (params?.trim()) fail(headerLine, "树视图表头不接受参数", "Tree view header takes no parameters");
@@ -29,7 +58,7 @@ function parse(body, { firstLine = 2, headerLine = 1, lang, params }) {
 		const text = raw.trim();
 		const heading = text.match(/^title(?:\s*:\s*|\s+)(.*)/i);
 		if (heading) {
-			title = labelText(heading[1]);
+			title = normalize(heading[1], line).text;
 			continue;
 		}
 		const prefix = box ? raw.match(BRANCH) : null;
@@ -49,39 +78,35 @@ function parse(body, { firstLine = 2, headerLine = 1, lang, params }) {
 		const label = quoted ? quoted[1] ?? quoted[2] : (boundary < 0 ? value : value.slice(0, boundary)).trimEnd();
 		value = quoted ? value.slice(quoted[0].length).trimStart() : boundary < 0 ? "" : value.slice(boundary).trimStart();
 		let description = "", highlight = false, icon;
+		const name = normalize(label, line);
+		const directory = name.text.endsWith("/");
+		const textLabel = directory && name.text !== "/" ? name.text.slice(0, -1) : name.text;
 		while (value) {
 			const cls = value.match(/^:::[ \t]*([A-Za-z_][\w-]*)/);
 			const ico = value.match(/^icon\(([\w-]*(?::[\w-]+)?)\)/);
 			if (value.startsWith("##")) {
-				description = labelText(value.slice(2).trim());
+				description = normalize(value.slice(2), line).text;
 				break;
 			}
 			if (cls) {
 				if (cls[1] === "highlight") highlight = true;
-				else {
-					if (!deferred.has("IGNORED_STYLE")) deferred.set("IGNORED_STYLE", {
-						line,
-						names: /* @__PURE__ */ new Set()
-					});
-					deferred.get("IGNORED_STYLE").names.add(cls[1]);
-				}
-			} else if (ico) {
-				icon = ico[1] || "none";
-				if (icon !== "none") {
-					if (!deferred.has("IGNORED_ASSET")) deferred.set("IGNORED_ASSET", {
-						line,
-						names: /* @__PURE__ */ new Set()
-					});
-					deferred.get("IGNORED_ASSET").names.add(icon);
-				}
-			} else {
+				else look.addClasses(textLabel, [cls[1]], line);
+			} else if (ico) icon = ico[1] || "none";
+			else {
 				fail(line, "无法识别树节点注解", "Unrecognized tree node annotation");
 				break;
 			}
 			value = value.slice((cls || ico)[0].length).trimStart();
 		}
 		while (stack.length && indent <= stack.at(-1).indent) stack.pop();
-		const directory = label.endsWith("/");
+		const ext = /\.[^.\/]+$/.exec(textLabel)?.[0];
+		const mapped = settings.filenameIcons?.[textLabel] ?? (!directory && ext ? settings.extensionIcons?.[ext] : void 0);
+		const ref = icon ?? (name.icon ? void 0 : typeof mapped === "string" ? mapped : void 0);
+		let glyph = name.icon ?? resolveIconRef(directory ? "tabler:folder" : "tabler:file");
+		if (ref) {
+			glyph = ref === "none" ? null : resolveIconRef(ref);
+			if (ref !== "none" && !glyph) addIssue(warning("IGNORED_ASSET", lang, line, `未知图标 ${ref}`, `Unknown icon ${ref}`, "使用内置或已注册的图标", "Use a built-in or registered icon"));
+		}
 		const row = {
 			id: `row-${line}`,
 			parent: stack.at(-1)?.id ?? "root",
@@ -89,10 +114,11 @@ function parse(body, { firstLine = 2, headerLine = 1, lang, params }) {
 			indent,
 			line,
 			directory,
-			label: labelText(directory && label !== "/" ? label.slice(0, -1) : label),
+			label: textLabel,
 			description,
 			highlight,
-			icon
+			icon,
+			glyph: settings.showIcons === false ? null : glyph
 		};
 		rows.push(row);
 		stack.push(row);
@@ -101,21 +127,28 @@ function parse(body, { firstLine = 2, headerLine = 1, lang, params }) {
 			break;
 		}
 	}
-	for (const [code, { line, names }] of deferred) {
-		const list = [...names].join(", ");
-		errors.push(warning(code, lang, line, `已省略树节点样式或图标：${list}`, `Omitted tree annotations: ${list}`, "移除这些标注", "Remove these annotations"));
-	}
+	rows[0].glyph = settings.showIcons === false ? null : resolveIconRef("tabler:folder");
+	rows.forEach((row, index) => {
+		row.status = look.statusOf(row.label);
+		row.link = look.linkOf(row.label);
+		if (index) row.edgeStatus = look.edgeStatusOf(index - 1);
+	});
 	return {
 		model: {
 			rows,
 			title,
-			headerLine
+			headerLine,
+			settings
 		},
-		errors
+		errors: [...errors, ...look.diagnostics()]
 	};
 }
 function layout(model, { width, measure, lang }) {
 	const available = Math.max(120, width - 48);
+	const { settings } = model;
+	const step = clamp(clamp(settings.rowIndent, 10, 4, 90) + clamp(settings.paddingX, 14, 4, 24), STEP, 12, 96);
+	const inset = clamp(settings.paddingY, 4, 4, 20);
+	const lineThickness = clamp(settings.lineThickness, 1, 1, 3);
 	let rows, end;
 	for (const cap of [
 		220,
@@ -131,14 +164,16 @@ function layout(model, { width, measure, lang }) {
 			};
 			const lines = wrapText(row.label, cap, font, measure);
 			const notes = row.description ? wrapText(row.description, 240, FONT.label, measure) : [];
-			const x = MARGIN + STEP * row.depth;
+			const x = MARGIN + step * row.depth;
+			const textX = x + (row.glyph ? 20 : 0);
 			return {
 				...row,
 				font,
 				lines,
 				notes,
 				x,
-				labelEnd: x + maxWidthOf(lines, font, measure)
+				textX,
+				labelEnd: textX + maxWidthOf(lines, font, measure)
 			};
 		});
 		end = Math.max(...rows.map((row) => row.labelEnd));
@@ -153,9 +188,9 @@ function layout(model, { width, measure, lang }) {
 		const labelH = row.lines.length * 17;
 		const noteH = row.notes.length * 16;
 		row.top = y;
-		row.h = Math.max(24, (inline ? Math.max(labelH, noteH) : labelH + (noteH ? noteH + 4 : 0)) + 8);
-		row.labelY = inline ? y + row.h / 2 : y + 4 + labelH / 2;
-		row.noteY = inline ? row.labelY : y + 8 + labelH + noteH / 2;
+		row.h = Math.max(24, (inline ? Math.max(labelH, noteH) : labelH + (noteH ? noteH + 4 : 0)) + inset * 2);
+		row.labelY = inline ? y + row.h / 2 : y + inset + labelH / 2;
+		row.noteY = inline ? row.labelY : y + inset + 4 + labelH + noteH / 2;
 		row.noteX = inline ? end + 16 : row.x;
 		if (noteH) right = Math.max(right, row.noteX + maxWidthOf(row.notes, FONT.label, measure));
 		y += row.h;
@@ -168,6 +203,7 @@ function layout(model, { width, measure, lang }) {
 		width: naturalWidth,
 		height: y + MARGIN,
 		right,
+		lineThickness,
 		errors
 	};
 }
@@ -182,8 +218,8 @@ function scene(plan, ctx) {
 			const armY = row.labelY;
 			edges.push(ctx.path(`M${x} ${y} V${armY - 2} Q${x} ${armY} ${x + 2} ${armY} H${row.x - 5}`, {
 				fill: "none",
-				stroke: A.fg4,
-				"stroke-width": 1,
+				stroke: row.edgeStatus ? ctx.frameTone(A[row.edgeStatus]) : A.fg4,
+				"stroke-width": plan.lineThickness,
 				meta: {
 					kind: "edge",
 					from: parent.id,
@@ -193,19 +229,21 @@ function scene(plan, ctx) {
 			trunk.set(parent.id, armY);
 		}
 		const x = row.x - 3, y = row.top + 1, h = row.h - 2;
-		labels.push(ctx.rect(x, y, (row.highlight ? right + 8 : row.labelEnd + 3) - x, h, {
-			fill: row.highlight ? ctx.tint(A.bg, A.warn, .12) : "none",
-			...row.highlight ? {
-				stroke: ctx.frameTone(A.warn),
+		const tone = A[row.status] ?? (row.highlight ? A.warn : null);
+		const content = [ctx.rect(x, y, (tone ? right + 8 : row.labelEnd + 3) - x, h, {
+			fill: tone ? ctx.tint(A.bg, tone, .12) : "none",
+			...tone ? {
+				stroke: ctx.frameTone(tone),
 				rx: 3
 			} : {},
 			meta: {
 				kind: "node",
 				id: row.id
 			}
-		}));
-		labels.push(textBlock(ctx, {
-			x: row.x,
+		})];
+		if (row.glyph) content.push(labelIcon(ctx, row.glyph, row.x + 7, row.labelY, 14, A.fg3));
+		content.push(textBlock(ctx, {
+			x: row.textX,
 			y: row.labelY,
 			lines: row.lines,
 			font: row.font,
@@ -213,6 +251,7 @@ function scene(plan, ctx) {
 			lineHeight: 17,
 			fill: row.parent ? A.fg1 : ctx.color("muted")
 		}));
+		labels.push(...row.link ? [ctx.link(row.link.href, content, row.link)] : content);
 		if (row.notes.length) labels.push(textBlock(ctx, {
 			x: row.noteX,
 			y: row.noteY,
@@ -239,6 +278,8 @@ function scene(plan, ctx) {
 }
 var implementations = { "treeView-beta": {
 	optionMode: "raw",
+	acceptsPresentation: true,
+	honoredConfig,
 	parse,
 	layout,
 	scene

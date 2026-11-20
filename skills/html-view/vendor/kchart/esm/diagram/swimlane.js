@@ -340,9 +340,10 @@ function layout(model, { measure, width, lang }) {
 	const stepOf = stepsOf(model.nodes, model.edges, back);
 	if ([...stepOf.values()].some((value) => !Number.isFinite(value))) return fail(model.nodes[0]?.line || 1, "步序无法确定", "Node steps cannot be resolved", "检查节点归属与连线", "Check node ownership and edges");
 	const labelOf = new Map(model.edges.map((edge) => {
-		if (!edge.label) return [edge.id, null];
-		const lines = wrapText(edge.label, 120, FONT.label, measure);
-		const w = snap(maxWidthOf(lines, FONT.label, measure) + 12);
+		const icon = model.mermaid && edge.icon;
+		if (!edge.label && !icon) return [edge.id, null];
+		const lines = wrapText(edge.label ?? "", 120, FONT.label, measure);
+		const w = snap(maxWidthOf(lines, FONT.label, measure) + 12 + (icon ? 18 : 0));
 		const h = snap(lines.length * 16 + 8);
 		return [edge.id, {
 			lines,
@@ -381,7 +382,7 @@ function layout(model, { measure, width, lang }) {
 	for (const node of model.nodes) {
 		const lines = wrapText(node.label, LIMITS.labelWidth, FONT.body, measure).slice(0, LIMITS.lines + 1);
 		if (lines.length > LIMITS.lines) return fail(node.line, `节点「${node.label}」超过 ${LIMITS.lines} 行`, `Node label exceeds ${LIMITS.lines} lines: ${node.label}`, "缩短标签或把说明移到图外", "Shorten the label or move the description outside");
-		const textW = maxWidthOf(lines, FONT.body, measure);
+		const textW = maxWidthOf(lines, FONT.body, measure) + (model.mermaid && node.icon ? 22 : 0);
 		const textH = lines.length * 20;
 		const diamond = node.shape === "diamond";
 		const room = portRoom(node.id);
@@ -927,10 +928,25 @@ function layout(model, { measure, width, lang }) {
 		model
 	};
 }
+function iconAt(ctx, icon, x, y, color) {
+	const [left, top, w, h] = icon.viewBox.split(/\s+/).map(Number), scale = 14 / Math.max(w, h);
+	return ctx.el("g", { transform: `translate(${x - (left + w / 2) * scale} ${y - (top + h / 2) * scale}) scale(${scale})` }, icon.elements.map(({ tag, attrs }) => ctx.shape(tag, {
+		...attrs,
+		...icon.set === "simple" ? { fill: color } : {
+			fill: "none",
+			stroke: color,
+			"stroke-width": 1.6,
+			"stroke-linecap": "round",
+			"stroke-linejoin": "round"
+		}
+	})));
+}
+var linked = (ctx, item, drawing) => item?.link ? ctx.link(item.link.href, [drawing], item.link) : drawing;
 function scene(layout, ctx) {
 	const model = layout.model;
 	const mermaid = model?.mermaid;
 	const flowEdges = new Map(model?.edges.map((edge) => [edge.id, edge]));
+	const flowNodes = new Map(mermaid ? model.nodes.map((node) => [node.id, node]) : []);
 	const appearance$1 = appearance(ctx);
 	const palette = Array.from({ length: 6 }, (_, index) => ctx.frameTone(ctx.color(`tone${index + 1}`)));
 	const marker = "swimlane-arrow";
@@ -945,7 +961,8 @@ function scene(layout, ctx) {
 		orient: mermaid ? "auto-start-reverse" : "auto"
 	}, [ctx.path("M0 0 L8 4 L0 8 Z", { fill: appearance$1.fg4 })])])];
 	for (const [index, lane] of layout.lanes.entries()) {
-		const color = palette[index % palette.length];
+		const authored = mermaid && model.lanes[index];
+		const color = appearance$1[authored?.class] || palette[index % palette.length];
 		const group = ctx.el("g", {}, [ctx.rect(lane.x, lane.y, lane.w, lane.h, {
 			fill: ctx.tint(appearance$1.bg, color, .07),
 			stroke: ctx.tint(appearance$1.bg, color, .45),
@@ -965,7 +982,7 @@ function scene(layout, ctx) {
 				id: lane.id
 			} : {}
 		};
-		children.push(group);
+		children.push(linked(ctx, authored, group));
 	}
 	if (mermaid) {
 		const nodes = new Map(layout.nodes.map((node) => [node.id, node]));
@@ -1000,9 +1017,9 @@ function scene(layout, ctx) {
 	for (const edge of layout.edges) {
 		const flow = flowEdges.get(edge.id);
 		if (mermaid && edge.style === "invisible") continue;
-		children.push(ctx.path(edge.d, {
+		children.push(linked(ctx, flow, ctx.path(edge.d, {
 			fill: "none",
-			stroke: appearance$1.fg4,
+			stroke: mermaid && appearance$1[flow.status] || appearance$1.fg4,
 			"stroke-width": mermaid && edge.style === "bold" ? 2.5 : 1.25,
 			"stroke-linejoin": "round",
 			...edge.style === "dashed" ? { "stroke-dasharray": "5 4" } : {},
@@ -1014,10 +1031,11 @@ function scene(layout, ctx) {
 				...mermaid ? {
 					kind: "edge",
 					from: edge.from,
-					to: edge.to
+					to: edge.to,
+					...flow.status ? { status: flow.status } : {}
 				} : {}
 			}
-		}));
+		})));
 	}
 	for (const node of layout.nodes) {
 		const color = palette[Math.max(0, layout.lanes.findIndex((lane) => lane.id === node.lane)) % palette.length];
@@ -1055,9 +1073,17 @@ function scene(layout, ctx) {
 			id: node.id
 		};
 		const mark = statusMarks[node.class];
-		children.push(ctx.el("g", {}, [
+		const authored = flowNodes.get(node.id), icon = authored?.icon;
+		const glyphs = [];
+		if (icon) {
+			const width = Math.max(0, ...node.lines.map((line) => ctx.measure(line, FONT.body.size, FONT.body.weight)));
+			const x = node.x + node.w / 2 - (width / 2 + 2), y = node.y + node.h / 2;
+			glyphs.push(iconAt(ctx, icon, x, y, stroke));
+		}
+		children.push(linked(ctx, authored, ctx.el("g", {}, [
 			shape,
-			...node.lines.map((line, index) => ctx.text(node.x + node.w / 2, node.y + node.h / 2 + (index - (node.lines.length - 1) / 2) * 20, line, {
+			...glyphs,
+			...node.lines.map((line, index) => ctx.text(node.x + node.w / 2 + (icon ? 11 : 0), node.y + node.h / 2 + (index - (node.lines.length - 1) / 2) * 20, line, {
 				size: FONT.body.size,
 				fill: appearance$1.fg1,
 				anchor: "middle",
@@ -1075,15 +1101,20 @@ function scene(layout, ctx) {
 					status: node.class
 				}
 			})] : []
-		]));
+		])));
 	}
 	for (const edge of layout.edges.filter((item) => item.label)) {
-		const group = ctx.el("g", {}, [ctx.rect(edge.label.x, edge.label.y, edge.label.w, edge.label.h, { fill: appearance$1.surface }), ...edge.label.lines.map((line, index) => ctx.text(edge.label.x + edge.label.w / 2, edge.label.y + edge.label.h / 2 + (index - (edge.label.lines.length - 1) / 2) * 16, line, {
-			size: FONT.label.size,
-			fill: appearance$1.fg2,
-			anchor: "middle",
-			"dominant-baseline": "central"
-		}))]);
+		const authored = mermaid && flowEdges.get(edge.id), icon = authored?.icon;
+		const group = ctx.el("g", {}, [
+			ctx.rect(edge.label.x, edge.label.y, edge.label.w, edge.label.h, { fill: appearance$1.surface }),
+			...icon ? [iconAt(ctx, icon, edge.label.x + 12, edge.label.y + edge.label.h / 2, appearance$1.fg2)] : [],
+			...edge.label.lines.map((line, index) => ctx.text(edge.label.x + edge.label.w / 2 + (icon ? 9 : 0), edge.label.y + edge.label.h / 2 + (index - (edge.label.lines.length - 1) / 2) * 16, line, {
+				size: FONT.label.size,
+				fill: appearance$1.fg2,
+				anchor: "middle",
+				"dominant-baseline": "central"
+			}))
+		]);
 		group.meta = {
 			label: edge.id,
 			...mermaid ? {
@@ -1092,7 +1123,7 @@ function scene(layout, ctx) {
 				to: edge.to
 			} : {}
 		};
-		children.push(group);
+		children.push(linked(ctx, authored, group));
 	}
 	return {
 		width: layout.width,

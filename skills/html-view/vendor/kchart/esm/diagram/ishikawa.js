@@ -1,13 +1,19 @@
 import { __exportAll } from "../_virtual/_rolldown/runtime.js";
-import { FONT, appearance, error, fallbackMeasure, labelText, warning, wrapText } from "./support.js";
+import { labelIcon } from "./tree-family-icon.js";
+import { resolveIconRef } from "../core/icons.js";
+import { normalizeLabel } from "./label.js";
+import { presentation } from "./presentation.js";
+import { FONT, appearance, error, fallbackMeasure, warning, wrapText } from "./support.js";
 // src/diagram/ishikawa.js
 var ishikawa_exports = /* @__PURE__ */ __exportAll({ implementations: () => implementations });
 var LEAN = Math.cos(82 * Math.PI / 180) / Math.sin(82 * Math.PI / 180);
 var BODY = FONT.label.size;
 var LINE = 15;
 var HEAD_LINE = 18;
+var HEAD_PAD_X = 16;
 var HEAD_MIN_W = 96;
 var HEAD_MIN_H = 44;
+var CHIP_PAD_X = 10;
 var CHIP_MIN_W = 72;
 var CHIP_MIN_H = 30;
 var LABEL_GAP = 12;
@@ -38,18 +44,49 @@ function parse(source, info = {}) {
 	const headerLine = Number.isInteger(info.headerLine) ? info.headerLine : Math.max(1, firstLine - 1);
 	const errors = [];
 	const rows = [];
-	if (typeof info.params === "string" && info.params.trim()) rows.push({
+	const look = presentation({ lang }), assets = /* @__PURE__ */ new Set();
+	const asset = (issue) => {
+		if (!assets.has(issue.message)) {
+			assets.add(issue.message);
+			errors.push(issue);
+		}
+	};
+	const normalize = (raw, line) => {
+		const refs = [];
+		raw = raw.replace(/(?<![\w:/.-])(?:logos|mdi|tabler|simple-icons):[a-z\d-]+/gi, (ref) => {
+			refs.push(ref);
+			return "";
+		});
+		const value = normalizeLabel(raw, {
+			lang,
+			line
+		});
+		value.diagnostics.forEach(asset);
+		let icon = value.icon;
+		for (const ref of refs) {
+			const resolved = resolveIconRef(ref);
+			icon ??= resolved;
+			if (!resolved) asset(warning("IGNORED_ASSET", lang, line, `未知图标 ${ref}`, `Unknown icon ${ref}`, "使用内置图标", "Use a supported icon"));
+		}
+		return {
+			label: value.text,
+			icon
+		};
+	};
+	if (typeof info.params === "string" && info.params.trim() && !look.accept(info.params.trim(), headerLine)) rows.push({
 		indent: 0,
 		text: info.params.trim(),
 		line: headerLine
 	});
 	for (const [index, raw] of String(source ?? "").split("\n").entries()) {
 		if (!raw.trim() || /^\s*%%/.test(raw)) continue;
+		const line = firstLine + index;
+		if (look.accept(raw.trim(), line)) continue;
 		const indent = /^[^\S\n]*/.exec(raw)[0].length;
 		rows.push({
 			indent,
 			text: raw.slice(indent).trim(),
-			line: firstLine + index
+			line
 		});
 	}
 	const problem = rows[0];
@@ -73,7 +110,7 @@ function parse(source, info = {}) {
 	const causes = rows.slice(1);
 	const root = {
 		id: "root",
-		label: labelText(problem.text),
+		...normalize(problem.text, problem.line),
 		line: problem.line,
 		children: []
 	};
@@ -92,7 +129,7 @@ function parse(source, info = {}) {
 		while (stack.length > 1 && stack[stack.length - 1].level >= level) stack.pop();
 		const node = {
 			id: `n${count}`,
-			label: labelText(row.text),
+			...normalize(row.text, row.line),
 			line: row.line,
 			children: []
 		};
@@ -103,6 +140,13 @@ function parse(source, info = {}) {
 		});
 		count += 1;
 	}
+	const visit = (node) => {
+		node.status = look.statusOf(node.id);
+		node.link = look.linkOf(node.id);
+		node.children.forEach(visit);
+	};
+	visit(root);
+	errors.push(...look.diagnostics());
 	return {
 		model: {
 			kind: "ishikawa",
@@ -140,32 +184,42 @@ function build(model, { cap, lang, measure, width }) {
 		weight: 600
 	};
 	const headLines = wrap(model.root.label, headFont);
-	const headW = Math.max(HEAD_MIN_W, Math.ceil(Math.max(0, ...headLines.map((line) => ink(line, headFont))) + 32));
+	const iconSpace = (icon) => icon ? 20 : 0;
+	const headW = Math.max(HEAD_MIN_W, Math.ceil(Math.max(0, ...headLines.map((line) => ink(line, headFont))) + 32 + iconSpace(model.root.icon)));
 	const headH = Math.max(HEAD_MIN_H, headLines.length * HEAD_LINE + 28);
 	if (headLines.length > 4) errors.push(warning("DIAGRAM_HINT", lang, model.root.line, `问题换成 ${headLines.length} 行，鱼头会很高`, `The problem label wraps to ${headLines.length} lines and makes a tall head`, "缩短问题描述", "Shorten the problem statement"));
+	const nodeStatus = { root: model.root.status };
 	const subtree = (from, depth) => {
 		const lines = wrap(from.label, bodyFont);
+		nodeStatus[from.id] = from.status;
 		const node = {
 			id: from.id,
 			line: from.line,
 			depth,
+			icon: from.icon,
+			status: from.status,
+			link: from.link,
 			lines,
 			children: []
 		};
 		node.h = lines.length * LINE;
-		node.w = Math.max(0, ...lines.map((line) => ink(line, bodyFont)));
+		node.w = Math.max(0, ...lines.map((line) => ink(line, bodyFont))) + iconSpace(from.icon);
 		node.children = (from.children || []).map((child) => subtree(child, depth + 1));
 		return node;
 	};
 	const categories = model.root.children.map((from, index) => {
+		nodeStatus[from.id] = from.status;
 		const lines = wrap(from.label, chipFont);
 		return {
 			id: from.id,
 			line: from.line,
+			icon: from.icon,
+			status: from.status,
+			link: from.link,
 			index,
 			dir: index % 2 === 0 ? -1 : 1,
 			lines,
-			chipW: Math.max(CHIP_MIN_W, Math.ceil(Math.max(0, ...lines.map((line) => ink(line, chipFont))) + 20)),
+			chipW: Math.max(CHIP_MIN_W, Math.ceil(Math.max(0, ...lines.map((line) => ink(line, chipFont))) + 20 + iconSpace(from.icon))),
 			chipH: Math.max(CHIP_MIN_H, lines.length * LINE + 12),
 			children: (from.children || []).map((child) => subtree(child, 2))
 		};
@@ -235,6 +289,9 @@ function build(model, { cap, lang, measure, width }) {
 			line: category.line,
 			tone: category.index % 6,
 			lines: category.lines,
+			icon: category.icon,
+			status: category.status,
+			link: category.link,
 			x: dx + category.ax - LEAN * category.reach - category.chipW / 2,
 			y: dy + (category.dir < 0 ? -category.reach : category.reach - category.chipH),
 			w: category.chipW,
@@ -252,7 +309,10 @@ function build(model, { cap, lang, measure, width }) {
 				id: node.id,
 				line: node.line,
 				lines: node.lines,
+				icon: node.icon,
 				side: category.dir,
+				status: node.status,
+				link: node.link,
 				x: dx + category.ax + node.x1 - LABEL_GAP,
 				y: dy + category.dir * node.s
 			});
@@ -275,13 +335,16 @@ function build(model, { cap, lang, measure, width }) {
 		width: natural,
 		height: Math.ceil(maxY - minY + 48),
 		cap,
+		nodeStatus,
 		errors,
 		head: {
 			x: dx,
 			y: dy - headH / 2,
 			w: headW,
 			h: headH,
-			lines: headLines
+			lines: headLines,
+			icon: model.root.icon,
+			link: model.root.link
 		},
 		spine: {
 			x1: dx + spineLeft,
@@ -318,7 +381,7 @@ function scene(plan, ctx) {
 	const tones = Array.from({ length: 6 }, (_, index) => ctx.frameTone(ctx.color(`tone${index + 1}`)));
 	const children = plan.bones.map((bone) => ctx.path(`M${bone.points[0][0]} ${bone.points[0][1]} L${bone.points[1][0]} ${bone.points[1][1]}`, {
 		fill: "none",
-		stroke: bone.main ? ink : look.fg4,
+		stroke: bone.main ? ink : plan.nodeStatus?.[bone.to] ? ctx.frameTone(look[plan.nodeStatus[bone.to]]) : look.fg4,
 		"stroke-width": bone.main ? 2 : 1.4,
 		"stroke-linecap": "round",
 		meta: {
@@ -339,37 +402,48 @@ function scene(plan, ctx) {
 	}));
 	for (const chip of plan.chips) {
 		const tone = tones[chip.tone];
-		children.push(ctx.el("g", {}, [ctx.rect(chip.x, chip.y, chip.w, chip.h, {
-			rx: look.radius,
-			fill: ctx.tint(look.bg, tone, .07),
-			stroke: ctx.tint(look.bg, tone, .45),
-			"stroke-width": 1,
-			meta: {
-				kind: "node",
-				id: chip.id,
-				label: chip.id
-			}
-		}), ...chip.lines.map((line, index) => ctx.text(chip.x + chip.w / 2, chip.y + chip.h / 2 + (index - (chip.lines.length - 1) / 2) * LINE, line, {
-			size: BODY,
-			weight: 600,
-			fill: look.fg1,
-			anchor: "middle",
-			"dominant-baseline": "central"
-		}))]));
+		const chipFill = chip.status ? ctx.tint(look.bg, look[chip.status], .12) : ctx.tint(look.bg, tone, .07);
+		const drawing = ctx.el("g", {}, [
+			ctx.rect(chip.x, chip.y, chip.w, chip.h, {
+				rx: look.radius,
+				fill: chipFill,
+				stroke: chip.status ? look[chip.status] : ctx.tint(look.bg, tone, .45),
+				"stroke-width": 1,
+				meta: {
+					kind: "node",
+					id: chip.id,
+					label: chip.id
+				}
+			}),
+			...chip.icon ? [labelIcon(ctx, chip.icon, chip.x + CHIP_PAD_X + 7, chip.y + chip.h / 2, 14, look.fg3)] : [],
+			...chip.lines.map((line, index) => ctx.text(chip.x + chip.w / 2 + (chip.icon ? 10 : 0), chip.y + chip.h / 2 + (index - (chip.lines.length - 1) / 2) * LINE, line, {
+				size: BODY,
+				weight: 600,
+				fill: look.fg1,
+				anchor: "middle",
+				"dominant-baseline": "central"
+			}))
+		]);
+		children.push(chip.link ? ctx.link(chip.link.href, [drawing], chip.link) : drawing);
 	}
-	for (const group of plan.labels) children.push(...group.lines.map((line, index) => ctx.text(group.x, group.y + (index - (group.lines.length - 1) / 2) * LINE, line, {
-		size: BODY,
-		weight: 400,
-		fill: look.fg2,
-		anchor: "end",
-		"dominant-baseline": "central"
-	})));
-	const headFill = ctx.tint(look.bg, strong, .12);
-	children.push(ctx.el("g", {}, [
+	for (const group of plan.labels) {
+		const widest = group.icon ? Math.max(0, ...group.lines.map((line) => ctx.measure(line, BODY, 400))) : 0;
+		const drawing = ctx.el("g", {}, [...group.icon ? [labelIcon(ctx, group.icon, group.x - widest - 12, group.y, 14, look.fg3)] : [], ...group.lines.map((line, index) => ctx.text(group.x, group.y + (index - (group.lines.length - 1) / 2) * LINE, line, {
+			size: BODY,
+			weight: 400,
+			fill: group.status ? ctx.textColor(look[group.status]) : look.fg2,
+			anchor: "end",
+			"dominant-baseline": "central"
+		}))]);
+		children.push(group.link ? ctx.link(group.link.href, [drawing], group.link) : drawing);
+	}
+	const headTone = plan.nodeStatus?.root;
+	const headFill = headTone ? ctx.tint(look.bg, look[headTone], .12) : ctx.tint(look.bg, strong, .12);
+	const headDrawing = ctx.el("g", {}, [
 		ctx.rect(plan.head.x, plan.head.y, plan.head.w, plan.head.h, {
 			rx: Math.min(plan.head.h / 2, look.radius + 10),
 			fill: headFill,
-			stroke: ctx.tint(look.bg, strong, .5),
+			stroke: headTone ? look[headTone] : ctx.tint(look.bg, strong, .5),
 			"stroke-width": 1.5,
 			meta: {
 				kind: "node",
@@ -378,14 +452,16 @@ function scene(plan, ctx) {
 			}
 		}),
 		ctx.circle(plan.spine.x2, plan.spine.y2, 3, { fill: ink }),
-		...plan.head.lines.map((line, index) => ctx.text(plan.head.x + plan.head.w / 2, plan.head.y + plan.head.h / 2 + (index - (plan.head.lines.length - 1) / 2) * HEAD_LINE, line, {
+		...plan.head.icon ? [labelIcon(ctx, plan.head.icon, plan.head.x + HEAD_PAD_X + 7, plan.head.y + plan.head.h / 2, 14, look.fg3)] : [],
+		...plan.head.lines.map((line, index) => ctx.text(plan.head.x + plan.head.w / 2 + (plan.head.icon ? 10 : 0), plan.head.y + plan.head.h / 2 + (index - (plan.head.lines.length - 1) / 2) * HEAD_LINE, line, {
 			size: FONT.title.size,
 			weight: FONT.title.weight,
 			fill: ctx.textOn(headFill),
 			anchor: "middle",
 			"dominant-baseline": "central"
 		}))
-	]));
+	]);
+	children.push(plan.head.link ? ctx.link(plan.head.link.href, [headDrawing], plan.head.link) : headDrawing);
 	return {
 		width: plan.width,
 		height: plan.height,
@@ -401,6 +477,8 @@ var implementations = { ishikawa: {
 	optionMode: "raw",
 	parse,
 	layout,
-	scene
+	scene,
+	acceptsPresentation: true,
+	honoredConfig: []
 } };
 export { implementations, ishikawa_exports };

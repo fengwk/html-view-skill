@@ -72,6 +72,7 @@ import { swimlane_mermaid_exports } from "./diagram/swimlane-mermaid.js";
 import { swimlane_exports } from "./diagram/swimlane.js";
 import { time_exports } from "./diagram/time.js";
 import { timeline_exports } from "./diagram/timeline.js";
+import { tree_family_icon_exports } from "./diagram/tree-family-icon.js";
 import { treeview_exports } from "./diagram/treeview.js";
 import { usecase_exports } from "./diagram/usecase.js";
 import { venn_exports } from "./diagram/venn.js";
@@ -156,6 +157,7 @@ var modulesByPath = /* #__PURE__ */ Object.assign({
 	"./src/diagram/swimlane.js": swimlane_exports,
 	"./src/diagram/time.js": time_exports,
 	"./src/diagram/timeline.js": timeline_exports,
+	"./src/diagram/tree-family-icon.js": tree_family_icon_exports,
 	"./src/diagram/treeview.js": treeview_exports,
 	"./src/diagram/usecase.js": usecase_exports,
 	"./src/diagram/venn.js": venn_exports,

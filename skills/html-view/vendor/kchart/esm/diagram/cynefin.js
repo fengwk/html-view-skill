@@ -1,4 +1,7 @@
 import { __exportAll } from "../_virtual/_rolldown/runtime.js";
+import { labelIcon } from "./tree-family-icon.js";
+import { normalizeLabel } from "./label.js";
+import { presentation } from "./presentation.js";
 import { FONT, appearance, error, fallbackMeasure, labelText, warning, wrapText } from "./support.js";
 // src/diagram/cynefin.js
 var cynefin_exports = /* @__PURE__ */ __exportAll({
@@ -56,6 +59,7 @@ var CORRIDOR = 46;
 var NAME_LINE = 18;
 var SUB_PITCH = 18;
 var ITEM_GAP = 10;
+var CHIP_PAD_X = 10;
 var CHIP_MIN_H = 24;
 var CHIP_LINE = 15;
 var CHIP_GAP = 4;
@@ -107,13 +111,30 @@ function parse(source, info = {}) {
 	const errors = [];
 	const domains = Object.fromEntries(DOMAINS.map((name) => [name, []]));
 	const transitions = [];
+	const look = presentation({ lang });
 	const model = {
 		kind: "cynefin-beta",
 		title: "",
 		accTitle: "",
 		accDescr: "",
 		domains,
-		transitions
+		transitions,
+		showDomainDescriptions: info.config?.cynefin?.showDomainDescriptions !== false
+	};
+	const assets = /* @__PURE__ */ new Set();
+	const normalize = (raw, line) => {
+		const value = normalizeLabel(raw, {
+			lang,
+			line
+		});
+		for (const issue of value.diagnostics) if (!assets.has(issue.message)) {
+			assets.add(issue.message);
+			errors.push(issue);
+		}
+		return {
+			label: value.text,
+			icon: value.icon
+		};
 	};
 	const unknownDomain = (value, line) => error(lang, line, `未知的 Cynefin 域「${value}」`, `Unknown Cynefin domain "${value}"`, `使用 ${DOMAINS.join(" / ")}`, `Use one of ${DOMAINS.join(" / ")}`);
 	const readTitle = (value, line) => {
@@ -121,7 +142,7 @@ function parse(source, info = {}) {
 			errors.push(error(lang, line, "标题重复", "Duplicate title", "只保留一个 title", "Keep only one title"));
 			return;
 		}
-		model.title = labelText(value.trim());
+		model.title = normalize(value.trim(), line).label;
 	};
 	const header = String(info.params ?? "").replace(/^:/, "").trim();
 	if (header) {
@@ -142,6 +163,7 @@ function parse(source, info = {}) {
 			continue;
 		}
 		if (!text) continue;
+		if (look.accept(text, line)) continue;
 		const accTitle = /^accTitle\s*:\s*([\s\S]*)$/i.exec(text);
 		if (accTitle) {
 			model.accTitle = labelText(accTitle[1].trim());
@@ -190,7 +212,7 @@ function parse(source, info = {}) {
 					errors.push(error(lang, line, `转移标签后多出「${read.rest}」`, `Unexpected text after the transition label: "${read.rest}"`, "一个转移只写一个引号标签", "Use one quoted label per transition"));
 					continue;
 				}
-				label = labelText(read.items[0]);
+				label = normalize(read.items[0], line).label;
 			}
 			if (from === to) {
 				errors.push(warning("DIAGRAM_HINT", lang, line, `自环转移「${from}」已省略`, `The self-loop on "${from}" was dropped`, "删除自环；域不能转移到自身", "Remove the self-loop; a domain cannot transition to itself"));
@@ -211,7 +233,7 @@ function parse(source, info = {}) {
 			const read = readStrings(word[2]);
 			if (read.rest) errors.push(error(lang, line, `域「${domain}」之后多出「${read.rest}」`, `Unexpected text after domain "${domain}": "${read.rest}"`, "每个条目写成一行引号字符串", "Put each item on its own line as a quoted string"));
 			for (const item of read.items) domains[domain].push({
-				label: labelText(item),
+				...normalize(item, line),
 				line
 			});
 			continue;
@@ -230,7 +252,7 @@ function parse(source, info = {}) {
 			continue;
 		}
 		for (const item of read.items) domains[current].push({
-			label: labelText(item),
+			...normalize(item, line),
 			line
 		});
 	}
@@ -238,6 +260,15 @@ function parse(source, info = {}) {
 		errors.push(error(lang, firstLine, "accDescr 缺少结束的 }", "accDescr is missing its closing }", "补齐 accDescr 的右花括号", "Close the accDescr block"));
 		model.accDescr = labelText(block.lines.join("\n").trim());
 	}
+	errors.push(...look.diagnostics());
+	transitions.forEach((transition, index) => {
+		transition.status = look.edgeStatusOf(index);
+	});
+	for (const name of DOMAINS) domains[name].forEach((item, index) => {
+		item.id = `${name}-${index}`;
+		item.status = look.statusOf(item.id) ?? look.statusOf(name);
+		item.link = look.linkOf(item.id) ?? look.linkOf(name);
+	});
 	return {
 		model,
 		errors
@@ -335,11 +366,11 @@ function layout(model, options = {}) {
 	const titleHeight = titleLines.length ? titleLines.length * TITLE_LINE + TITLE_GAP : 0;
 	const plotW = clamp(width - 48, MIN_PLOT, MAX_PLOT);
 	const chipCap = Math.max(96, Math.min(CHIP_CAP, plotW / 2 - 44 - 8));
-	const chipOf = (label, cap, minW = 0) => {
+	const chipOf = (label, cap, icon) => {
 		const lines = wrap(label, cap, bodyFont);
 		return {
 			lines,
-			w: Math.max(minW, widest(lines, bodyFont) + 20),
+			w: widest(lines, bodyFont) + 20 + (icon ? 18 : 0),
 			h: Math.max(CHIP_MIN_H, lines.length * CHIP_LINE + 12)
 		};
 	};
@@ -349,12 +380,13 @@ function layout(model, options = {}) {
 		const rows = model.domains[name];
 		count += rows.length;
 		const chips = rows.map((item, index) => ({
+			...item,
 			id: `${name}-${index}`,
 			line: item.line,
-			...chipOf(item.label, chipCap)
+			...chipOf(item.label, chipCap, item.icon)
 		}));
 		if (rows.length > QUADRANT_HINT) errors.push(warning("DIAGRAM_HINT", lang, rows[QUADRANT_HINT].line, `「${TITLES[name]}」有 ${rows.length} 个条目，面板会变高`, `"${TITLES[name]}" holds ${rows.length} items and makes a tall panel`, `每个域保留 ${QUADRANT_HINT} 个条目以内`, `Keep at most ${QUADRANT_HINT} items per domain`));
-		const subs = NOTES[name];
+		const subs = model.showDomainDescriptions ? NOTES[name] : [NOTES[name][1]];
 		const blockW = Math.ceil(Math.max(widest([TITLES[name]], nameFont), widest(subs, bodyFont), ...chips.map((chip) => chip.w), 0));
 		const chipsH = chips.reduce((sum, chip) => sum + chip.h + CHIP_GAP, -4);
 		blocks[name] = {
@@ -372,12 +404,13 @@ function layout(model, options = {}) {
 	count += confusionRows.length;
 	const confCap = Math.max(80, plotW * .15 * 2 - 56);
 	const confusionChips = confusionRows.map((item, index) => ({
+		...item,
 		id: `confusion-${index}`,
 		line: item.line,
-		...chipOf(item.label, confCap)
+		...chipOf(item.label, confCap, item.icon)
 	}));
 	const confusionChipsH = confusionChips.reduce((sum, chip) => sum + chip.h + CHIP_GAP, -4);
-	const confusionBlockH = 42 + (confusionChips.length ? ITEM_GAP + confusionChipsH : 0);
+	const confusionBlockH = 24 + (model.showDomainDescriptions ? SUB_PITCH : 0) + (confusionChips.length ? ITEM_GAP + confusionChipsH : 0);
 	const rx = Math.max(plotW * .15, Math.ceil(Math.max(0, ...confusionChips.map((chip) => chip.w)) / 2) + 18);
 	const requiredRy = confusionBlockH * .68 + 12;
 	const plotH = Math.ceil(Math.max(clamp(plotW * .72, 380, 620), 2 * (PANEL_PAD + maxBlockH + CORRIDOR), 2 * (requiredRy + CORRIDOR)));
@@ -452,14 +485,17 @@ function layout(model, options = {}) {
 			font: nameFont
 		});
 		cursor += 24;
-		confusionTexts.push({
-			kind: "sub",
-			text: NOTES.confusion[1],
-			x: centre.x,
-			y: cursor + SUB_PITCH / 2,
-			font: bodyFont
-		});
-		cursor += 28;
+		if (model.showDomainDescriptions) {
+			confusionTexts.push({
+				kind: "sub",
+				text: NOTES.confusion[1],
+				x: centre.x,
+				y: cursor + SUB_PITCH / 2,
+				font: bodyFont
+			});
+			cursor += SUB_PITCH;
+		}
+		cursor += ITEM_GAP;
 		for (const chip of confusionChips) {
 			chip.x = centre.x - chip.w / 2;
 			chip.y = cursor;
@@ -624,28 +660,30 @@ function scene(plan, ctx) {
 	});
 	for (const panel of plan.quadrants) for (const item of panel.texts) children.push(label(item.text, item.font, item.kind === "name" ? ink.fg1 : ctx.color("muted"), item.x, item.y));
 	for (const item of plan.confusion.texts) children.push(label(item.text, item.font, item.kind === "name" ? ink.fg1 : ctx.color("muted"), item.x, item.y));
-	const chip = (item, extra = {}) => ctx.el("g", {}, [ctx.rect(item.x, item.y, item.w, item.h, {
-		rx: look.smallRadius,
-		fill: extra.fill || ctx.design.surface,
-		stroke: extra.dashed ? ink.line2 : ctx.design.line2,
-		"stroke-width": 1,
-		...extra.dashed ? { "stroke-dasharray": "4 3" } : {},
-		...extra.meta ? { meta: extra.meta } : {}
-	}), ...item.lines.map((line, index) => label(line, {
-		size: FONT.label.size,
-		weight: 400
-	}, extra.dashed ? ctx.color("muted") : ink.fg2, item.x + item.w / 2, item.y + item.h / 2 + (index - (item.lines.length - 1) / 2) * LABEL_LINE))]);
-	for (const panel of plan.quadrants) for (const item of panel.chips) children.push(chip(item, { meta: {
-		kind: "node",
-		id: item.id
-	} }));
-	for (const item of plan.confusion.chips) children.push(chip(item, { meta: {
-		kind: "node",
-		id: item.id
-	} }));
+	const chip = (item, extra = {}) => ctx.el("g", {}, [
+		ctx.rect(item.x, item.y, item.w, item.h, {
+			rx: look.smallRadius,
+			fill: extra.fill || (item.status ? ctx.tint(ctx.design.surface, ink[item.status], .1) : ctx.design.surface),
+			stroke: extra.dashed ? ink.line2 : item.status ? ink[item.status] : ctx.design.line2,
+			"stroke-width": 1,
+			...extra.dashed ? { "stroke-dasharray": "4 3" } : {},
+			...extra.meta ? { meta: extra.meta } : {}
+		}),
+		...item.icon ? [labelIcon(ctx, item.icon, item.x + CHIP_PAD_X + 6, item.y + item.h / 2, 12, ink.fg3)] : [],
+		...item.lines.map((line, index) => label(line, FONT.label, ink.fg2, item.x + item.w / 2 + (item.icon ? 9 : 0), item.y + item.h / 2 + (index - (item.lines.length - 1) / 2) * LABEL_LINE))
+	]);
+	const addChip = (item) => {
+		const drawing = chip(item, { meta: {
+			kind: "node",
+			id: item.id
+		} });
+		children.push(item.link ? ctx.link(item.link.href, [drawing], item.link) : drawing);
+	};
+	for (const panel of plan.quadrants) for (const item of panel.chips) addChip(item);
+	for (const item of plan.confusion.chips) addChip(item);
 	for (const arc of plan.arcs) children.push(path(ctx, `M${arc.a.x} ${arc.a.y} Q${arc.ctrl.x} ${arc.ctrl.y} ${arc.b.x} ${arc.b.y}`, {
 		fill: "none",
-		stroke: ink.fg4,
+		stroke: arc.status ? ctx.frameTone(ink[arc.status]) : ink.fg4,
 		"stroke-width": 1.5,
 		"marker-end": "url(#cynefin-arrow)"
 	}, {
@@ -688,6 +726,8 @@ var implementations = { "cynefin-beta": {
 	optionMode: "raw",
 	parse,
 	layout,
-	scene
+	scene,
+	acceptsPresentation: true,
+	honoredConfig: ["cynefin.showDomainDescriptions"]
 } };
 export { DOMAINS, NOTES, cynefin_exports, implementations };

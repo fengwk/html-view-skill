@@ -1,5 +1,8 @@
 import { __exportAll } from "../_virtual/_rolldown/runtime.js";
-import { FONT, blocking, error, isEn, labelText, maxWidthOf, warning, wrapText } from "./support.js";
+import { resolveIconRef } from "../core/icons.js";
+import { normalizeLabel } from "./label.js";
+import { presentation } from "./presentation.js";
+import { FONT, blocking, error, isEn, maxWidthOf, warning, wrapText } from "./support.js";
 import { DAY, add, axisTokens, compileAxis, compileDate, dateTokens, durationPattern, excludedBy, intervalPattern, shiftEnd, ticks, weekdays } from "./gantt-date.js";
 // src/diagram/gantt.js
 var gantt_exports = /* @__PURE__ */ __exportAll({ implementations: () => implementations });
@@ -11,6 +14,9 @@ var flags = {
 	vert: ["竖线", "vertical marker"]
 };
 var dependency = /^(after|until)\s+(.+)$/i;
+var iconPack = /(?<![\w:/.-])(?:fa[bsrlk]?|logos|mdi|tabler|simple-icons):[a-z\d-]+/gi;
+var separator = /:::[\w-]+|::icon\([^)]+\)|(?<![\w:/.-])(?:fa[bsrlk]?|logos|mdi|tabler|simple-icons):[a-z\d-]+|(:)/gi;
+var iconSlot = (icon) => icon ? 20 : 0;
 var iso = compileDate("YYYY-MM-DD");
 var timeLimit = 864e13;
 var valid = (stamp) => Number.isFinite(stamp) && Math.abs(stamp) <= timeLimit;
@@ -20,9 +26,39 @@ function parse(body, info) {
 		items: []
 	}];
 	const config = info.config?.gantt || {}, configLines = info.configLines || {};
+	const look = presentation({ lang }), assets = /* @__PURE__ */ new Set();
+	const asset = (diagnostic) => {
+		if (!assets.has(diagnostic.message)) {
+			assets.add(diagnostic.message);
+			errors.push(diagnostic);
+		}
+	};
+	const label = (raw, line) => {
+		let icon = null;
+		const resolve = (ref) => {
+			const resolved = resolveIconRef(ref);
+			if (!resolved) asset(warning("IGNORED_ASSET", lang, line, `未知图标 ${ref}`, `Unknown icon ${ref}`));
+			icon ??= resolved;
+			return "";
+		};
+		const source = String(raw ?? "").replace(/::icon\(([^)]+)\)/gi, (_, ref) => resolve(ref.trim())).replace(iconPack, (ref) => /^fa[bsrlk]?:/i.test(ref) ? ref : resolve(ref));
+		const result = normalizeLabel(source, {
+			lang,
+			line
+		});
+		result.diagnostics.forEach(asset);
+		return {
+			name: result.text,
+			icon: result.icon || icon
+		};
+	};
+	let title = {
+		raw: info.title,
+		line: info.configLines?.title ?? info.headerLine ?? firstLine
+	};
 	const model = {
 		type: "gantt",
-		title: labelText(info.title),
+		title: "",
 		items,
 		sections,
 		firstLine,
@@ -42,14 +78,23 @@ function parse(body, info) {
 	let autoId = 0;
 	for (const [i, raw] of body.split("\n").entries()) {
 		const line = firstLine + i;
-		const text = (/^\s*axisFormat\s/i.test(raw) ? raw : raw.split("%%")[0]).trim();
-		if (!text || /^acc(?:Title|Descr)\s*:/i.test(text)) continue;
+		const text = raw.trim();
+		if (!text || text.startsWith("%%")) continue;
+		const both = /^click\s+(\S+)\s+(?:(href\s+"(?:\\.|[^"\\])*")\s+(call\s+[\w.$]+\s*\(.*\))|(call\s+[\w.$]+\s*\(.*\))\s+(href\s+"(?:\\.|[^"\\])*"))\s*;?$/i.exec(text);
+		if (both) {
+			for (const command of both.slice(2).filter(Boolean)) look.accept(`click ${both[1]} ${command.replace(/^\w+/, (word) => word.toLowerCase())}`, line);
+			continue;
+		}
+		if (look.accept(text.replace(/^(click\s+\S+\s+)(HREF|CALL)(?=\s)/i, (_, prefix, command) => prefix + command.toLowerCase()), line)) continue;
 		const statement = /^(dateFormat|axisFormat|tickInterval|weekday|weekend|todayMarker|includes|excludes|title|section)(?:\s+(.*)|$)/i.exec(text);
 		if (statement) {
 			const key = statement[1].toLowerCase(), value = statement[2] || "";
-			if (key === "title") model.title = labelText(value);
+			if (key === "title") title = {
+				raw: value,
+				line
+			};
 			else if (key === "section") sections.push({
-				name: labelText(value),
+				...label(value, line),
 				items: []
 			});
 			else if (key === "includes" || key === "excludes") for (const token of value.toLowerCase().split(/[ ,\t]+/).filter(Boolean)) (key === "includes" ? includes : excludes).add(token);
@@ -66,20 +111,28 @@ function parse(body, info) {
 			});
 			continue;
 		}
-		const task = /^([^:]*):(.*)$/.exec(text);
-		if (!task || /^(?:click|classDef|link|href|style|linkStyle|class|callback)\s/i.test(text)) {
+		const colon = [...text.matchAll(separator)].find((match) => match[1])?.index;
+		if (colon == null) {
 			issue(line, `无法识别甘特图语句：${text.slice(0, 50)}`, `Unrecognized Gantt statement: ${text.slice(0, 50)}`);
 			continue;
 		}
-		const fields = task[2].trim().split(",").map((x) => x.trim()), tags = [];
+		const names = [];
+		const stripClasses = (text) => text.replace(/:::([\w-]+)/g, (_, name) => {
+			names.push(name);
+			return "";
+		});
+		const caption = label(stripClasses(text.slice(0, colon)).trim(), line);
+		const fields = text.slice(colon + 1).replace(/((?:\s*:::[\w-]+)+)\s*$/, stripClasses).trim().split(",").map((x) => x.trim()), tags = [];
 		while (Object.hasOwn(flags, fields[0]?.toLowerCase())) tags.push(fields.shift().toLowerCase());
 		if (fields.length > 3 || fields.some((x) => !x) || !fields.length) {
 			issue(line, "任务需要结束值，可在前面加起点和 ID", "Expected end, start/end, or ID/start/end");
 			continue;
 		}
+		const id = fields.length === 3 ? fields.shift() : `task${++autoId}`;
+		if (names.length) look.addClasses(id, names, line);
 		const record = {
-			id: fields.length === 3 ? fields.shift() : `task${++autoId}`,
-			name: labelText(task[1].trim()),
+			id,
+			...caption,
 			startField: fields.length === 2 ? fields[0] : null,
 			endField: fields.at(-1),
 			flags: tags,
@@ -87,6 +140,14 @@ function parse(body, info) {
 		};
 		sections.at(-1).items.push(record);
 		items.push(record);
+	}
+	const heading = label(title.raw, title.line);
+	model.title = info.title = heading.name;
+	model.titleIcon = heading.icon;
+	errors.push(...look.diagnostics());
+	for (const task of items) {
+		task.status = look.statusOf(task.id);
+		task.link = look.linkOf(task.id);
 	}
 	if (items.length > 2e3) issue(firstLine, `甘特图有 ${items.length} 个任务，超过 2000，请拆分`, `Gantt has ${items.length} tasks (limit 2,000); split the diagram`);
 	const option = (key, fallback) => directives.get(key.toLowerCase()) ?? {
@@ -113,7 +174,10 @@ function parse(body, info) {
 	if (intervalSpec.value && (!interval || !Number.isSafeInteger(+interval[1]))) notice(intervalSpec.line, "无效的 tickInterval，使用自动刻度", "Invalid tickInterval; using automatic ticks");
 	const fixed = config.todayDate != null ? iso.parse(String(config.todayDate)) : NaN;
 	if (config.todayDate != null && !valid(fixed)) issue(configLines["gantt.todaydate"] ?? firstLine, "todayDate 必须是 YYYY-MM-DD 日期", "todayDate must be a YYYY-MM-DD date");
-	const today = String(option("todayMarker", "").value).toLowerCase() === "off" ? NaN : fixed;
+	const marker = option("todayMarker", "");
+	const off = String(marker.value).toLowerCase() === "off";
+	if (!off && marker.value) errors.push(warning("IGNORED_STYLE", lang, marker.line, "Today 标记使用主题样式", "Today marker uses the theme style"));
+	const today = off ? NaN : fixed;
 	Object.assign(model, {
 		axis,
 		interval: interval && Number.isSafeInteger(+interval[1]) ? interval : null,
@@ -132,7 +196,7 @@ function parse(body, info) {
 		excludes,
 		weekend
 	}, date.format) : null;
-	const ids = /* @__PURE__ */ new Map(), unresolved = /* @__PURE__ */ new Set();
+	const ids = /* @__PURE__ */ new Map(), unresolved = /* @__PURE__ */ new Set(), ignoredEnds = /* @__PURE__ */ new Set();
 	for (const task of items) {
 		if (ids.has(task.id)) issue(task.line, `重复的任务 ID：${task.id}`, `Duplicate task ID: ${task.id}`);
 		ids.set(task.id, task);
@@ -175,8 +239,16 @@ function parse(body, info) {
 		const endDependency = /^until\s/i.test(task.endField) && dependency.exec(task.endField);
 		const duration = durationPattern.exec(task.endField);
 		if (valid(task.startTime)) {
-			let end = endDependency ? relative(endDependency, false) : duration ? add(task.startTime, +duration[1], duration[2]) : parseDay(task.endField, task);
-			if (!duration && !endDependency && inclusive && valid(end)) end += DAY;
+			let end = endDependency ? relative(endDependency, false) : duration ? add(task.startTime, +duration[1], duration[2]) : date.parse(task.endField);
+			if (!duration && !endDependency) {
+				if (valid(end)) {
+					if (inclusive) end += DAY;
+				} else {
+					if (!ignoredEnds.has(task.endField)) notice(task.line, `无法解析结束值「${task.endField}」，任务按零时长绘制`, `Unrecognized end value “${task.endField}”; drawing a zero-duration task`);
+					ignoredEnds.add(task.endField);
+					end = task.startTime;
+				}
+			}
 			if (duration && model.excluded && valid(end)) end = shiftEnd(task.startTime, end, model.excluded);
 			if (end < task.startTime || !valid(end) && (duration || Number.isFinite(end))) issue(task.line, "任务结束日期无效或早于起点", "Task end is invalid or before its start");
 			else if (valid(end)) {
@@ -205,11 +277,26 @@ function layout(model, { width, ctx, measure, renderOptions }) {
 	};
 	const texts = (value) => value.split("\n");
 	const states = (item) => item.flags.map((flag) => flags[flag][isEn(lang) ? 1 : 0]).join(" · ");
-	const labelW = Math.max(120, ...items.flatMap((item) => [maxWidthOf(texts(item.name), body, measure), measure(states(item), small)]), ...sections.map((s) => maxWidthOf(texts(s.name), bold, measure)));
-	const addShape = (tag, attrs, meta, kids) => children.push({
-		...ctx.el(tag, attrs, kids),
-		...meta ? { meta } : {}
-	});
+	const labelW = Math.max(120, ...items.flatMap((item) => [maxWidthOf(texts(item.name), body, measure) + iconSlot(item.icon), measure(states(item), small)]), ...sections.map((s) => maxWidthOf(texts(s.name), bold, measure) + iconSlot(s.icon)));
+	const addShape = (tag, attrs, meta, link) => {
+		const mark = {
+			...ctx.el(tag, attrs),
+			...meta ? { meta } : {}
+		};
+		children.push(link ? ctx.link(link.href, [mark], link) : mark);
+	};
+	const drawIcon = (icon, x, y, color = d.fg1) => {
+		if (!icon) return;
+		const [vx, vy, iw, ih] = icon.viewBox.split(/\s+/).map(Number), scale = 14 / Math.max(iw, ih), stroke = icon.set === "tabler";
+		children.push(ctx.el("g", {
+			transform: `translate(${x - vx * scale} ${y - ih * scale / 2 - vy * scale}) scale(${scale})`,
+			fill: stroke ? "none" : color,
+			stroke: stroke ? color : "none",
+			"stroke-width": 1.6,
+			"stroke-linecap": "round",
+			"stroke-linejoin": "round"
+		}, icon.elements.map(({ tag, attrs }) => ctx.shape(tag, attrs))));
+	};
 	const text = (value, x, y, font = body, fill = d.fg1, anchor = "start") => children.push(ctx.text(x, y, value, {
 		...font,
 		fill,
@@ -261,8 +348,9 @@ function layout(model, { width, ctx, measure, renderOptions }) {
 	});
 	const right = Math.max(30, ...tickList.map((t) => t.w / 2 + 14));
 	const w = Math.max(width, Math.ceil(left + plot + right));
-	const titleLines = naked ? wrapText(title, w - 48, FONT.title, measure) : [];
-	titleLines.forEach((value, i) => text(value, 24, 24 + i * 20, FONT.title));
+	const titleLines = naked ? wrapText(title, w - 48 - iconSlot(model.titleIcon), FONT.title, measure) : [];
+	if (titleLines.length) drawIcon(model.titleIcon, 24, 24);
+	titleLines.forEach((value, i) => text(value, 24 + iconSlot(model.titleIcon), 24 + i * 20, FONT.title));
 	let y = titleLines.length ? 24 + titleLines.length * 20 : 24;
 	if (model.topAxis) y += 22;
 	const markers = items.filter((item) => item.flags.includes("vert"));
@@ -275,8 +363,10 @@ function layout(model, { width, ctx, measure, renderOptions }) {
 		today: true
 	}] : []]) {
 		const stamp = marker.today ? today : marker.startTime + (marker.endTime - marker.startTime) / 2;
-		const content = marker.today ? [marker.name] : [...texts(marker.name), model.axis(stamp)];
-		const tw = maxWidthOf(content, small, measure), pitch = 17;
+		const name = marker.name.replace(/\s*\n\s*/g, " ");
+		const caption = marker.today ? name : [name, model.axis(stamp)].filter(Boolean).join(" · ");
+		const content = wrapText(caption, w - 28 - iconSlot(marker.icon), small, measure);
+		const tw = maxWidthOf(content, small, measure) + iconSlot(marker.icon), pitch = 17;
 		const center = Math.max(14 + tw / 2, Math.min(w - 14 - tw / 2, x(stamp)));
 		markerInfo.push({
 			marker,
@@ -290,8 +380,8 @@ function layout(model, { width, ctx, measure, renderOptions }) {
 	const top = y;
 	const bands = [], bars = [];
 	for (const section of sections) {
-		if (!section.name && !section.items.length) continue;
-		const top = y, names = section.name ? texts(section.name) : [];
+		if (!section.name && !section.icon && !section.items.length) continue;
+		const top = y, names = section.name || section.icon ? texts(section.name) : [];
 		if (names.length) y += 14 + 18 * names.length;
 		const rows = [];
 		for (const item of section.items.filter((item) => !item.flags.includes("vert"))) {
@@ -318,6 +408,7 @@ function layout(model, { width, ctx, measure, renderOptions }) {
 		}
 		if (names.length) bands.push({
 			names,
+			icon: section.icon,
 			top,
 			bottom: y
 		});
@@ -364,30 +455,47 @@ function layout(model, { width, ctx, measure, renderOptions }) {
 		last = pos.right;
 	}
 	for (const { marker, stamp, y, center, content } of markerInfo) {
-		const color = marker.today ? d.warn : ctx.color("accent");
-		content.forEach((value, i) => text(value, center, y + 8 + i * 17, small, d.fg1, "middle"));
+		const color = marker.status ? d[marker.status] : marker.today ? d.warn : ctx.color("accent");
+		drawIcon(marker.icon, center - (measure(content[0] || "", small) + iconSlot(marker.icon)) / 2, y + 8, color);
+		const parts = content.map((value, i) => ctx.text(center + iconSlot(marker.icon) / 2, y + 8 + i * 17, value, {
+			...small,
+			fill: d.fg1,
+			anchor: "middle",
+			"dominant-baseline": "central"
+		}));
+		if (marker.link) children.push(ctx.link(marker.link.href, parts, marker.link));
+		else children.push(...parts);
 		line(x(stamp), top, bottom, color, true);
 	}
-	bands.forEach(({ names, top }) => names.forEach((value, i) => text(value, 12, top + 15 + i * 18, bold, d.fg2)));
+	bands.forEach(({ names, icon, top }) => {
+		drawIcon(icon, 12, top + 15);
+		names.forEach((value, i) => text(value, 12 + iconSlot(icon), top + 15 + i * 18, bold, d.fg2));
+	});
 	for (const { row, y, labels } of bars) {
 		let index = 0;
 		for (const task of row) {
 			const names = texts(task.name), labelY = y - (labels.length - 1) * 9 + index * 18, state = states(task);
-			names.forEach((name, i) => text(name, 12, labelY + i * 18));
+			drawIcon(task.icon, 12, labelY);
+			names.forEach((name, i) => text(name, 12 + iconSlot(task.icon), labelY + i * 18));
 			if (state) text(state, 12, labelY + names.length * 18, small, d.fg2);
 			index += names.length + Number(Boolean(state));
 			const x1 = x(task.startTime), x2 = x(task.endTime), meta = {
 				kind: "node",
-				id: task.id
+				id: task.id,
+				...task.status ? { status: task.status } : {}
 			};
 			const barY = row.length === 1 ? labelY : y;
-			const fill = task.flags.includes("crit") ? ctx.color("accent") : task.flags.includes("done") ? ctx.tint(d.bg, ctx.color("tone2"), .55) : ctx.color("tone1");
+			const critical = task.flags.includes("crit"), done = task.flags.includes("done"), active = task.flags.includes("active");
+			const tone = task.status ? d[task.status] : critical ? d.accent : done ? d.ok : active ? d.info : ctx.color("tone1");
+			const stroke = ctx.tint(d.bg, tone, critical || task.status ? .82 : .62);
+			const fill = ctx.tint(d.bg, tone, done ? .3 : critical ? .24 : .17);
 			if (task.flags.includes("milestone")) {
 				const mid = (x1 + x2) / 2;
 				addShape("polygon", {
 					points: `${mid},${barY - 9} ${mid + 9},${barY} ${mid},${barY + 9} ${mid - 9},${barY}`,
-					fill
-				}, meta);
+					fill,
+					stroke
+				}, meta, task.link);
 			} else {
 				const barW = Math.max(4, x2 - x1);
 				addShape("rect", {
@@ -395,16 +503,18 @@ function layout(model, { width, ctx, measure, renderOptions }) {
 					y: barY - 11,
 					width: barW,
 					height: 22,
-					fill: task.flags.includes("active") ? ctx.tint(d.bg, fill, .25) : fill,
-					rx: 4
-				}, meta);
-				if (task.flags.includes("active")) addShape("rect", {
-					x: x1,
-					y: barY - 11,
-					width: barW * .55,
-					height: 22,
 					fill,
+					stroke,
 					rx: 4
+				}, meta, task.link);
+				if (active && barW > 8) addShape("rect", {
+					x: x1 + 2,
+					y: barY - 9,
+					width: (barW - 4) * .55,
+					height: 18,
+					fill: ctx.tint(d.bg, tone, .38),
+					rx: 3,
+					"pointer-events": "none"
 				});
 			}
 		}
@@ -427,14 +537,19 @@ function layout(model, { width, ctx, measure, renderOptions }) {
 var implementations = { gantt: {
 	parse,
 	layout,
+	acceptsPresentation: true,
 	trailingComments: false,
 	honoredConfig: [
+		"gantt.dateFormat",
 		"gantt.axisFormat",
 		"gantt.tickInterval",
 		"gantt.weekday",
+		"gantt.weekend",
 		"gantt.topAxis",
+		"gantt.inclusiveEndDates",
 		"gantt.displayMode",
-		"gantt.todayDate"
+		"gantt.todayDate",
+		"gantt.todayMarker"
 	]
 } };
 export { gantt_exports, implementations };
