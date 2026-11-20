@@ -196,6 +196,10 @@ function layout(model, { width, lang, ctx }, info = {}) {
   const obstacles = [], occupied = [], wires = [], annotations = model.annotations.slice().sort((a, b) => Number(a.number) - Number(b.number));
   const stroke = (color, extra = {}) => ({ stroke: color, 'stroke-width': 1, ...extra });
   const line = (a, b, color, extra) => ctx.line(a.x, a.y, b.x, b.y, stroke(color, extra));
+  const addLeader = (a, b) => {
+    leaders.push(line(a, b, t.fg4, { 'stroke-dasharray': '2 3', meta: { kind: 'leader' } }));
+    wires.push([a, b]);
+  };
   const label = (x, y, rows, font = FONT.label, fill = t.fg1, anchor = 'middle', meta) => textBlock(ctx, { x, y, lines: rows, font, fill, anchor, lineHeight: 16, meta });
   const bold = { ...FONT.label, weight: 650 };
   const pipelineEdges = [];
@@ -222,7 +226,7 @@ function layout(model, { width, lang, ctx }, info = {}) {
     }
     const { x, y } = candidates.find(q => !obstacles.some(b => collides(grow(centerBox(q.x, q.y, radius * 2, radius * 2), 3), b))) || p;
     obstacles.push(centerBox(x, y, radius * 2, radius * 2));
-    if (x !== p.x || y !== p.y) leaders.push(line(p, { x, y }, t.fg4, { 'stroke-dasharray': '2 3' }));
+    if (x !== p.x || y !== p.y) addLeader(p, move({ x, y }, p, radius));
     return { ...item, x, y, radius };
   });
   const forces = model.forces.map(item => {
@@ -243,21 +247,28 @@ function layout(model, { width, lang, ctx }, info = {}) {
       if (options.above) sides.unshift(sides.splice(4, 1)[0]);
       for (const [dx, dy] of sides) candidates.push({ x: p.x + dx, y: p.y + dy });
     }
-    const fits = ({ x, y }) => {
+    const leaderFor = (q) => {
+      if (length(p, q) <= Math.hypot(stepX, stepY) + 10) return null;
+      const scale = Math.min((w / 2 + 1) / Math.abs(q.x - p.x), (h / 2 + 1) / Math.abs(q.y - p.y));
+      return [move(p, q, radius + 2), move(q, p, length(p, q) * scale)];
+    };
+    const fits = (q) => {
+      const { x, y } = q;
+      const leader = leaderFor(q);
+      if (leader && [...obstacles, ...occupied].some(o => crosses(...leader, grow(o, 2)))) return false;
       const b = grow(centerBox(x, y, w, h), 2);
       return b.x > 31 && b.x + b.w < W - 8 && b.y > 28 && b.y + b.h < bottom + 9 &&
         !obstacles.some(o => collides(b, o)) && !occupied.some(o => collides(b, o)) && !wires.some(([a, z]) => crosses(a, z, b));
     };
     let chosen = candidates.find(fits);
+    const leader = chosen && leaderFor(chosen);
+    if (leader) addLeader(...leader);
     if (!chosen) {
       chosen = { x: pad + w / 2, y: footerY + h / 2 + 4 };
       footerY += h + 8;
     }
     const { x, y } = chosen, b = centerBox(x, y, w, h);
     occupied.push(b);
-    if (length(p, chosen) > Math.hypot(stepX, stepY) + 10 && y < bottom + 9) {
-      leaders.push(line(move(p, chosen, radius + 2), move(chosen, p, Math.min(w, h) / 2), t.fg4, { 'stroke-dasharray': '2 3' }));
-    }
     const textNode = label(x, y, rows, font, fill);
     labels.push(plate ? { ...ctx.el('g', {}, [ctx.rect(b.x, b.y, b.w, b.h, { fill: t.bg, stroke: grid, rx: t.smallRadius }), textNode]), ...(meta ? { meta } : {}) } : textNode);
   }
