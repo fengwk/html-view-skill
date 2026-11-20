@@ -26,7 +26,7 @@
 
 ## cynefin-beta
 
-Cynefin 情境框架：`complex`、`complicated`、`clear`、`chaotic`、`confusion` 五个域下逐行写带引号的条目，`complex --> complicated: "说明"` 表示域之间的迁移；可用正文 `title`。域边界为固定几何，不随机抖动。也接受 `cynefin-beta:` 表头。前置 `config.cynefin.showDomainDescriptions: false` 可隐藏域的决策描述；默认显示。条目可使用实体、内置图标、主题状态色和安全链接；样式与链接可按域名或条目 ID（例如 `complex-0` 为该域首项）指定。中心区域保留所有条目，自环迁移省略并提示。
+Cynefin 情境框架：`complex`、`complicated`、`clear`、`chaotic`、`confusion` 五个域下逐行写带引号的条目，`complex --> complicated: "说明"` 表示域之间的迁移；可用正文 `title`。域边界为固定几何，不随机抖动。也接受 `cynefin-beta:` 表头。前置 `config.cynefin.showDomainDescriptions: false` 可隐藏域的决策描述；默认显示。条目支持实体及[通用样式、链接和图标](../diagrams/mermaid.md)；可按域名或条目 ID（例如 `complex-0` 为该域首项）指定样式与链接。中心区域保留所有条目，自环迁移省略并提示；无法识别的域或语句会报错。
 
 ## 可运行示例
 

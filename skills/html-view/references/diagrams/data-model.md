@@ -4,7 +4,7 @@
 
 ## erDiagram
 
-实体可写显示名及属性，键标记限 `PK`、`FK`、`UK`；关系用基数端点和标签表示，支持实线与虚线关系以及方向。最多 30 个实体、50 条关系。实体块必须闭合，端点和基数须合法；解析失败会报告位置，不要省略无法确认的字段或关系。
+实体可写 `ID["显示名"]`，属性块中依次写类型、名称、可选 `PK` / `FK` / `UK` 标记和带引号的注释。关系用基数端点和标签表示，支持实线 `--`、虚线 `..` 及基数词形（如 `only one`）。可用 `direction` 和 `subgraph … end`；跨组连线可能使子图继承外层方向并给出提示。无专用配置键，支持[通用样式、链接和图标](mermaid.md)。无效基数或未闭合的实体块报错。
 
 ```mermaid
 ---
@@ -24,15 +24,15 @@ erDiagram
 
 ## classDiagram
 
-最多 40 个节点、60 条边、240 行。关系运算符限 `<|--`、`<|..`、`..|>`、`*--`、`--*`、`o--`、`--o`、`..>`、`-->`、`--`、`..`；不接受头行选项（如 `direction`）。支持 `class ID`、`class ID as "显示名"`、类体属性与简单类型/方法，以及受控继承、组合、聚合、依赖和关联关系。端点基数可写在两端。受控关系语句以外的声明报错；只保留能明确表达的类成员与关系，不补造方法。
+别名 `classDiagram-v2`。支持 `class ID["显示名"]`、类体属性与方法、`~T~` 泛型、`namespace X { … }`、`note` / `note for` 和 `<<注解>>`。继承、组合、聚合、依赖、关联及 `()--` 棒棒糖接口均可用；关系可带端点基数和标签。支持通用样式（用 `cssClass` 分配类样式）、链接和图标。`class.hideEmptyMembersBox` 隐藏空成员区，`class.hierarchicalNamespaces` 控制命名空间层级。头行选项或未闭合块报错；指向未知类的 `note for` 会提示。
 
 ## requirementDiagram
 
-最多 40 个节点、60 条边、240 行；不接受头行选项（如 `direction`）。支持 `requirement`、`functionalRequirement`、`performanceRequirement`、`interfaceRequirement`、`physicalRequirement`、`designConstraint`、`element` 类型；属性限 `id`、`text`、`risk`、`verifymethod`、`owner`、`docref`。关系限 `satisfies`、`contains`、`derives`、`refines`、`traces`、`copies`、`verifies`。其他字段或关系会报错，应改用受支持属性而非假设兼容 Mermaid 全语法。
+别名 `requirement`。需求块有 `requirement`、`functionalRequirement`、`performanceRequirement`、`interfaceRequirement`、`physicalRequirement`、`designConstraint`，可写 `id`、`text`、`risk`、`verifymethod`；`element` 可写 `type`、`docref`。`A - satisfies -> B` 可换用 `contains`、`derives`、`refines`、`traces`、`copies`、`verifies`，也可写反向关系。方向放在独立 `direction` 行。支持通用样式、链接和标签图标，无专用配置键。非法字段（如 `owner`）、值、关系或头行选项报错；重复声明给出提示。
 
-上述关系图可在前言区或正文写 `title`。阅读文档应为每张图提供图题；未知语句、字段或端点必须按诊断修正。
+三种关系图均可用前言 `title`，需求图还可用正文 `title`。阅读文档应为每张图提供图题。
 
-语法轨道图则用于说明一门语法接受哪些符号、以什么顺序匹配。每条规则占一行；圆角框表示字面量，方框表示规则引用，虚线框表示特殊项，分支、绕行线和返回线分别表示选择、可选和重复。宽图保持原字号，在图框内横向滚动。
+语法轨道图则用于说明一门语法接受哪些符号、以什么顺序匹配。每条规则占一行；圆角框表示字面量，方框表示规则引用，虚线框表示特殊项，分支、绕行线和返回线分别表示选择、可选和重复。宽图保持原字号，在图框内横向滚动。四种轨道图共享 `config.railroad`：`padding`、`verticalSeparation`、`horizontalSeparation`、`arcRadius`、`fontSize`、`showMarkers`、`markerRadius`、`compactMode`。支持通用样式、链接、规则的 `:::` 类和 `::icon(…)` 后缀。规则重复或引用未定义规则会提示；语法错误（包括未闭合的字符串或分组）会阻止渲染。
 
 ## railroad-beta
 
