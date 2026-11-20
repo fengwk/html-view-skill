@@ -140,8 +140,8 @@ test('sequence scene serializes marker refs and expected SVG primitives', () => 
 
 // 意图：固定公开参与者与嵌套限制
 test('sequence parser enforces participant and fragment depth limits', () => {
-  const tooMany = Array.from({length:21},(_,i)=>`participant P${i}`).join('\n');
-  assert.ok(sequence.sequenceDiagram.parse(tooMany,{firstLine:2,options:{}}).errors.some(e=>e.message.includes('20')));
-  const nested = 'alt one\nopt two\npar three\ncritical four\nloop five\nA->>B: x\nend\nend\nend\nend\nend';
+  const tooMany = Array.from({length:301},(_,i)=>`participant P${i}`).join('\n');
+  assert.ok(sequence.sequenceDiagram.parse(tooMany,{firstLine:2,options:{}}).errors.some(e=>e.message.includes('300')));
+  const nested = `${'loop retry\n'.repeat(33)}A->>B: x\n${'end\n'.repeat(33)}`;
   assert.ok(sequence.sequenceDiagram.parse(nested,{firstLine:2,options:{}}).errors.some(e=>e.message.includes('嵌套')));
 });

@@ -8,6 +8,7 @@ import { createContext } from '../src/core/context.js';
 import { renderScene } from '../src/core/svg.js';
 import { diagram } from '../dist/esm/node.js';
 import { readFileSync } from 'node:fs';
+import { checkScene } from './helpers/geometry.mjs';
 
 const corpus = JSON.parse(readFileSync(new URL('./conformance/mermaid-12.3.0.json', import.meta.url)));
 const reviewScene = (id, width) => {
@@ -256,14 +257,14 @@ test('xychart one-axis legend preserves inferred language without axis suffixes'
   }
 });
 
-// XY columns expand a nonzero declared baseline, and the series cap points to the seventh plot.
+// XY columns expand a nonzero declared baseline, and the series cap points to the twenty-fifth plot.
 test('xychart baseline and series cap', () => {
   const cfg = info('xychart');
   const bar = implementations.xychart.parse('y-axis 4000 --> 11000\nbar [5500, 6100]', cfg);
   assert.deepEqual(bar.model.yDomain, [0, 11000]);
   assert.deepEqual(bar.errors.map(e => e.severity), ['warning']);
-  const many = implementations.xychart.parse('line [1,2]\n'.repeat(7), cfg);
-  assert.ok(many.errors.some(e => e.line === cfg.firstLine + 6 && e.severity !== 'warning'));
+  const many = implementations.xychart.parse('line [1,2]\n'.repeat(25), cfg);
+  assert.ok(many.errors.some(e => e.line === cfg.firstLine + 24 && e.severity !== 'warning'));
 });
 
 // Sankey records preserve quoted Unicode/escaped quotes, blank lines, and nonconserving middle nodes.
@@ -276,6 +277,41 @@ test('sankey CSV and nonconserving flow', () => {
   assert.deepEqual(laid.errors, []);
   assert.match(svgFor(laid), />a&quot;b<\/text>/);
   assert.equal(implementations.sankey.parse('A,B,1\nB,C', cfg).errors[0].line, cfg.firstLine + 1);
+});
+
+// Numeric hard caps name their bound and provide split guidance in both diagnostic languages.
+test('xychart and radar safety caps are bilingual and actionable', () => {
+  const xyInfo = { ...info('xychart'), lang: 'en' };
+  const xy = implementations.xychart.parse('line [1,2]\n'.repeat(25), xyInfo);
+  assert.match(xy.errors[0].message, /safety cap is 24/);
+  assert.match(xy.errors[0].fix, /split/i);
+  const radarInfo = { ...info('radar-beta'), lang: 'en' };
+  const radarSource = `axis A,B,C\n${Array.from({ length: 25 }, (_, i) => `curve R${i}{1,2,3}`).join('\n')}`;
+  const radar = implementations['radar-beta'].parse(radarSource, radarInfo);
+  assert.match(radar.errors[0].message, /safety cap is 24/);
+  assert.match(radar.errors[0].fix, /split/i);
+});
+
+// Numeric charts above their comfortable size retain clean geometry and return a localized large-diagram advisory.
+test('xychart and radar large inputs render with one actionable warning', () => {
+  const xyInfo = info('xychart');
+  const points = Array.from({ length: 61 }, (_, i) => i + 1).join(',');
+  const xySource = `line [${points}]`;
+  const xyParsed = implementations.xychart.parse(xySource, xyInfo);
+  assert.deepEqual(xyParsed.errors, []);
+  const xyLayout = layout('xychart', xyParsed, xyInfo, { width: 800 });
+  assert.equal(xyLayout.errors.filter(item => item.code === 'LARGE_DIAGRAM').length, 1);
+  assert.match(xyLayout.errors.find(item => item.code === 'LARGE_DIAGRAM').fix, /拆分/);
+  assert.deepEqual(checkScene(xyLayout.scene, { source: xySource }), []);
+
+  const radarInfo = info('radar-beta');
+  const radarSource = `axis A,B,C\n${Array.from({ length: 13 }, (_, i) => `curve R${i}{1,2,3}`).join('\n')}`;
+  const radarParsed = implementations['radar-beta'].parse(radarSource, radarInfo);
+  assert.deepEqual(radarParsed.errors, []);
+  const radarLayout = layout('radar-beta', radarParsed, radarInfo, { width: 800 });
+  assert.equal(radarLayout.errors.filter(item => item.code === 'LARGE_DIAGRAM').length, 1);
+  assert.match(radarLayout.errors.find(item => item.code === 'LARGE_DIAGRAM').fix, /拆分/);
+  assert.deepEqual(checkScene(radarLayout.scene, { source: radarSource }), []);
 });
 
 // Radar resolves named values to declaration order and keeps valid curves when one has the wrong length.

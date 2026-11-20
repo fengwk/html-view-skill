@@ -88,7 +88,9 @@ function parse(source, info) {
     }
   }
   // Work caps bound both the constraint solver and the obstacle router, not the viewport.
-  if (items.size > 400 || edges.length > 600 || aligns.length > 400) fail(info.firstLine, '架构图过大，请拆分', 'Architecture diagram is too large; split it into smaller diagrams');
+  if (items.size > 400 || edges.length > 600 || aligns.length > 400) fail(info.firstLine,
+    '架构图超过安全上限（400 个元素、600 条边或 400 条对齐），请拆分',
+    'Architecture exceeds its safety cap (400 items, 600 edges, or 400 alignments); split it into smaller diagrams');
   errors.push(...look.diagnostics());
   for (const item of items.values()) { item.status = look.statusOf(item.id); item.link = look.linkOf(item.id); }
   edges.forEach((edge, index) => { edge.status = look.edgeStatusOf(index); });
@@ -139,6 +141,29 @@ function place({ items, nodes, edges, aligns }, preferStraight = true) {
     }
   };
   visit(undefined);
+  // Large unconnected declarations all begin on the same pair of tracks. Their collision
+  // resolution is exactly declaration-order rows; construct that solution directly rather
+  // than repeatedly restarting the constraint solver for each shifted service.
+  if (ids.length > 60 && !edges.length && !aligns.length) {
+    return { xy: [new Map(ids.map(id => [id, 0])), new Map(ids.map((id, index) => [id, index]))] };
+  }
+  // Free-standing services impose no constraints. In a large flat map, give
+  // them their own rows below the connected area rather than shifting and
+  // re-solving one collision at a time. Keep grouped placement unchanged.
+  if (ids.length > 60 && ids.length === items.size) {
+    const pinned = new Set(edges.flatMap(({ from, to }) => [from, to]));
+    for (const { members } of aligns) for (const id of members) pinned.add(id);
+    const free = ids.filter(id => !pinned.has(id));
+    if (free.length) {
+      const active = new Map([...items].filter(([id]) => pinned.has(id)));
+      const placement = place({ items: active, nodes: nodes.filter(node => pinned.has(node.id)), edges, aligns }, preferStraight);
+      if (!placement.xy) return placement;
+      const [columns, rows] = placement.xy;
+      let row = Math.max(-1, ...rows.values()) + 1;
+      for (const id of free) { columns.set(id, 0); rows.set(id, row++); }
+      return placement;
+    }
+  }
   const constraints = [[], []], perpendicular = [[], []];
   const add = (axis, relation) => {
     const rules = constraints[axis];

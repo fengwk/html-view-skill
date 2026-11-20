@@ -14,7 +14,7 @@ const SHAPES = new Map(Object.entries({ task: 'rounded', tool: 'subroutine', inp
 const OUTLINES = new Set(['rounded', 'fr-rect', 'lean-r', 'diam', 'lin-doc', 'hex', 'rect']);
 const UNSAFE_KEYS = new Set(['__proto__', 'prototype', 'constructor']);
 const EDGE_KINDS = new Map([['solid:point', 'sequence'], ['dashed:none', 'reference'], ['solid:cross', 'failure']]);
-const LIMITS = { nodes: 60, edges: 90, frames: 12, depth: 4, connectors: 8, lines: 400, metadataKeys: 24, metadataString: 400 };
+const LIMITS = { nodes: 300, edges: 420, frames: 60, depth: 12, connectors: 60, lines: 2000, metadataKeys: 24, metadataString: 400 };
 const valueText = value => typeof value === 'string' ? value : JSON.stringify(value);
 const ICON_PLACEHOLDER = '\u25cc';
 
@@ -129,8 +129,8 @@ function parse(body, info) {
   const [head, ...inline] = (info.params || '').split(';');
   if (head.trim()) direction = candidate(head.trim(), headerLine) || direction;
   const input = inline.length ? `${inline.join(';')}\n${body}` : body;
-  if (body.split('\n').length > LIMITS.lines || input.length > 200_000) {
-    fail(firstLine, 'Agentflow 源码过长', 'Agentflow source exceeds its work budget');
+  if (body.split('\n').length > LIMITS.lines || input.length > 50_000) {
+    fail(firstLine, `Agentflow 最多 ${LIMITS.lines} 行、50000 个字符，请拆分图表`, `Agentflow supports up to ${LIMITS.lines} lines and 50,000 characters; split the diagram`);
     return { model: null, errors };
   }
   const scanned = statements(input, inline.length ? headerLine : firstLine);
@@ -155,7 +155,7 @@ function parse(body, info) {
       if (frames.has(id)) fail(line, `流程重复：${id}`, `Duplicate flow: ${id}`);
       else frames.set(id, declared);
       stack.push(declared);
-      if (declared.depth > LIMITS.depth) fail(line, '流程嵌套过深', 'Flow nesting is too deep');
+      if (declared.depth > LIMITS.depth) fail(line, `流程最多嵌套 ${LIMITS.depth} 层，请拆分图表`, `Flow nesting is limited to ${LIMITS.depth} levels; split the diagram`);
     } else if (/^global$/i.test(text)) stack.push(null);
     else if (/^end$/i.test(text)) {
       if (stack.length) stack.pop();
@@ -283,7 +283,7 @@ function parse(body, info) {
     edge.status = look.edgeStatusOf(edge.seq);
   }
   for (const [size, key] of [[nodes.size, 'nodes'], [edges.length, 'edges'], [frames.size, 'frames'], [connectors.size, 'connectors']]) {
-    if (size > LIMITS[key]) fail(firstLine, `${key} 超过上限 ${LIMITS[key]}`, `Too many ${key} (limit ${LIMITS[key]})`);
+    if (size > LIMITS[key]) fail(firstLine, `${key} 超过上限 ${LIMITS[key]}，请拆分图表`, `Too many ${key} (limit ${LIMITS[key]}); split the diagram`);
   }
   if (ignored.size) errors.push(ignoredConfigWarning(lang, Math.min(...ignored.values()), [...ignored.keys()].join(', ')));
   const model = { type: 'flowchart', variant: 'agentflow', direction, nodes: [...nodes.values()], edges,
@@ -326,10 +326,7 @@ function layout(model, options, info) {
     if ((edgeIcons && font === FONT.label) || (frameIcons && font.size === 13 && font.weight === 600)) return measured + 20;
     return measured;
   } };
-  const result = layoutGraph({ ...model, nodes, subgraphs, edges }, graphOptions);
-  if (result.width > options.width * 2 || model.nodes.length > 60) (result.errors ??= []).push(warning('LARGE_DIAGRAM', info.lang,
-    info.headerLine, '图较宽，可在框中滚动', 'Large diagram; scroll within the frame', '考虑拆成多个图', 'Consider splitting it'));
-  return result;
+  return layoutGraph({ ...model, nodes, subgraphs, edges }, graphOptions, info);
 }
 
 function drawIcon(ctx, icon, x, y, color) {

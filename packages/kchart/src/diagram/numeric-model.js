@@ -54,9 +54,7 @@ function addVisibleHeader(scene, options) {
   };
 }
 
-function renderWith(spec, options, info, lineFor) {
-  const errors = validateWith(spec, info, lineFor);
-  if (errors.length) return { width: options.width, height: 0, errors };
+function renderWith(spec, options, info, lineFor, layoutSpec = layout) {
   const layoutOptions = {
     ...options.renderOptions,
     width: options.width,
@@ -67,7 +65,7 @@ function renderWith(spec, options, info, lineFor) {
   };
   try {
     // 图表族不画题名，只交给 <title>；frame:false 时由这里补回可见题名（与共享数值图一致）。
-    const scene = addVisibleHeader(layout(spec, layoutOptions), options);
+    const scene = addVisibleHeader(layoutSpec(spec, layoutOptions), options);
     return { width: scene.width, height: scene.height, scene, errors: [] };
   } catch (error) {
     if (!(error instanceof ExpectedDiagnostic)) throw error;

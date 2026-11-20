@@ -108,14 +108,16 @@ test('mindmap rejects invalid decorations and declarations without dropping sour
   assert.ok(badDecoration.errors.some(e => e.line === 11 && /装饰/.test(e.message)));
   assert.ok(badDecoration.errors.some(e => e.path === '/data/children/0' || e.line === 11));
 
-  const many = ['root(root)', ...Array.from({ length: 80 }, (_, i) => `  node${i}`)].join('\n');
+  const many = ['root(root)', ...Array.from({ length: 2000 }, (_, i) => `  node${i}`)].join('\n');
   const tooMany = parse(many, { firstLine: 2 });
-  assert.equal(tooMany.model.data.children.length, 80);
-  assert.ok(tooMany.errors.some(e => e.line === 82 && /80/.test(e.message)));
+  assert.equal(tooMany.model.data.children.length, 2000);
+  assert.ok(tooMany.errors.some(e => e.line === 2002 && /2000/.test(e.message)));
 
-  const deep = parse('a(root)\n  b\n    c\n      d\n        e\n          f', { firstLine: 20 });
-  assert.ok(deep.errors.some(e => e.line === 25 && /层/.test(e.message)));
-  assert.equal(deep.model.data.children[0].children[0].children[0].children[0].children[0].label, 'f');
+  const deep = parse(Array.from({ length: 101 }, (_, i) => `${' '.repeat(i)}Level ${i}`).join('\n'), { firstLine: 20 });
+  assert.ok(deep.errors.some(e => e.line === 120 && /层/.test(e.message)));
+  let deepest = deep.model.data;
+  while (deepest.children.length) deepest = deepest.children[0];
+  assert.equal(deepest.label, 'Level 100');
   assert.ok(parse('one\ntwo').errors.some(e => /根节点/.test(e.message)));
 });
 
