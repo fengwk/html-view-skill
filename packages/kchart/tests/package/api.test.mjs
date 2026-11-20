@@ -4,6 +4,7 @@ import { galleryCases } from '../../../../docs/showcase/gallery-cases.mjs';
 import * as api from '@fengwk/kchart';
 import * as node from '@fengwk/kchart/node';
 import * as mermaid from '@fengwk/kchart/mermaid';
+import mermaidDefault from '@fengwk/kchart/mermaid';
 import { diagramExample } from '../helpers/diagram-examples.mjs';
 
 const families = JSON.parse(readFileSync(new URL('../../src/families.json', import.meta.url), 'utf8'));
@@ -59,6 +60,16 @@ it('implements the Mermaid facade', async () => {
     await expect(mermaid.render('preview', bad)).rejects.toMatchObject({ diagnostics: [expect.objectContaining(diagnostic)] });
     await expect(mermaid.parse(bad)).rejects.toMatchObject({ diagnostics: [expect.objectContaining(diagnostic)] });
     expect(await mermaid.parse(bad, { suppressErrors: true })).toBe(false);
+    // `import mermaid from ...` (Mermaid's own form) reaches the same functions.
+    for (const name of ['initialize', 'render', 'parse', 'detectType']) expect(mermaidDefault[name]).toBe(mermaid[name]);
+    // Mermaid's own theme names are not KChart themes: the default theme draws, with a warning instead of a rejection.
+    mermaid.initialize({ theme: 'dark', startOnLoad: false, securityLevel: 'strict' });
+    const dark = await mermaid.render('preview', source);
+    expect(dark.svg).toBe(node.diagram(source, { prefix: 'preview' }).svg);
+    expect(dark.diagnostics).toEqual([{ code: 'IGNORED_CONFIG', severity: 'warning', line: 1, column: 1, topic: 'flow',
+      message: 'Ignored configuration: theme: dark', fix: 'Remove configuration that does not affect rendering' }]);
+    mermaid.initialize({ theme: 'default' });
+    expect((await mermaid.render('preview', source)).diagnostics).toEqual([]);
   } finally {
     mermaid.initialize();
   }

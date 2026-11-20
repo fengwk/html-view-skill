@@ -42,12 +42,13 @@ The Node entry provides synchronous `render`, `diagram`, `check`, `parse`, `vali
 ## Mermaid-style facade
 
 ```js
-const mermaid = await import('@fengwk/kchart/mermaid');
+import mermaid from '@fengwk/kchart/mermaid';
+
 mermaid.initialize({ theme: 'paper' });
 const { svg, diagramType, diagnostics } = await mermaid.render('preview-1', 'graph LR\nA --> B');
 ```
 
-`initialize(config)` replaces the default KChart render options; the render ID supplies the SVG prefix unless a per-call prefix is provided. `render(id, text, options?)` rejects invalid diagrams with an `Error` carrying `diagnostics`; warnings never reject. `parse(text, { suppressErrors }?)` resolves to `{ diagramType, diagnostics }` (warnings only), or to `false` for invalid input when suppression is enabled; otherwise it rejects with diagnostics. Synchronous `detectType(text)` returns the canonical type for a recognized Mermaid header, without validating the body, and throws for unknown types.
+The default export holds the same functions as the named exports, so code written as `import mermaid from 'mermaid'` only needs its import changed; `await import('@fengwk/kchart/mermaid')` loads it on demand. `initialize(config)` replaces the default KChart render options; Mermaid's own settings such as `startOnLoad` are accepted and have no effect. A Mermaid theme name such as `dark` is not a KChart theme: `render` uses the default theme and reports an `IGNORED_CONFIG` warning (none for Mermaid's `default`), so pass a KChart theme ID such as `paper` or `obsidian` instead; the render ID supplies the SVG prefix unless a per-call prefix is provided. `render(id, text, options?)` rejects invalid diagrams with an `Error` carrying `diagnostics`; warnings never reject. `parse(text, { suppressErrors }?)` resolves to `{ diagramType, diagnostics }` (warnings only), or to `false` for invalid input when suppression is enabled; otherwise it rejects with diagnostics. Synchronous `detectType(text)` returns the canonical type for a recognized Mermaid header, without validating the body, and throws for unknown types.
 
 This is a Mermaid-style facade, not the entire Mermaid API. It does not run callbacks or return DOM binding functions. Successful `parse` does not guarantee that a diagram can be laid out.
 

@@ -4,6 +4,7 @@ import { stripEmphasis } from "./emphasis.js";
 // src/diagram/source.js
 var source_exports = /* @__PURE__ */ __exportAll({
 	ignoredConfigWarning: () => ignoredConfigWarning,
+	inferLang: () => inferLang,
 	parseOptions: () => parseOptions,
 	prepareSource: () => prepareSource
 });
@@ -521,4 +522,10 @@ function prepareSource(source, { syntax = "mermaid", lang, keepsTrailingComments
 function ignoredConfigWarning(lang, line, subjects) {
 	return warning("IGNORED_CONFIG", lang, line, `已忽略配置：${subjects}`, `Ignored configuration: ${subjects}`, "移除不影响绘制的配置", "Remove configuration that does not affect rendering");
 }
-export { ignoredConfigWarning, parseOptions, prepareSource, source_exports };
+function inferLang(source) {
+	const text = String(source ?? "").replace(/^\s*---[^\n]*\n[\s\S]*?\n\s*(?:---|\.\.\.)[ \t]*(?:\n|$)/, "\n").replace(/%%\{[\s\S]*?\}%%/g, " ").replace(/%%.*$/gm, " ").replace(/https?:\/\/\S+/g, " ");
+	const cjk = (text.match(/[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/gu) || []).length;
+	const latin = (text.match(/[A-Za-z]{2,}/g) || []).length;
+	return latin > 0 && latin >= cjk * 2 ? "en" : "zh";
+}
+export { ignoredConfigWarning, inferLang, parseOptions, prepareSource, source_exports };

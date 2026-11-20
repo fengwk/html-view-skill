@@ -1,5 +1,5 @@
 import { __exportAll } from "../_virtual/_rolldown/runtime.js";
-import { ignoredConfigWarning, parseOptions, prepareSource } from "./source.js";
+import { ignoredConfigWarning, inferLang, parseOptions, prepareSource } from "./source.js";
 import { blocking, error, measureOf } from "./support.js";
 import { createContext } from "../core/context.js";
 import { containText, el } from "../core/scene.js";
@@ -29,12 +29,6 @@ var DEFAULT_CONFIG = /* @__PURE__ */ new Map([
 	["layout", "dagre"],
 	["theme", "default"]
 ]);
-function inferLang(source) {
-	const text = String(source ?? "").replace(/^\s*---[^\n]*\n[\s\S]*?\n\s*(?:---|\.\.\.)[ \t]*(?:\n|$)/, "\n").replace(/%%\{[\s\S]*?\}%%/g, " ").replace(/%%.*$/gm, " ").replace(/https?:\/\/\S+/g, " ");
-	const cjk = (text.match(/[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/gu) || []).length;
-	const latin = (text.match(/[A-Za-z]{2,}/g) || []).length;
-	return latin > 0 && latin >= cjk * 2 ? "en" : "zh";
-}
 function configWarning(info, implementation) {
 	const honored = (implementation?.honoredConfig ?? []).map((key) => key.toLowerCase());
 	const ignored = [];

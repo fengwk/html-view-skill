@@ -1,4 +1,4 @@
-import { ignoredConfigWarning, parseOptions, prepareSource } from './source.js';
+import { ignoredConfigWarning, inferLang, parseOptions, prepareSource } from './source.js';
 import { blocking, error, measureOf } from './support.js';
 import { createContext } from '../core/context.js';
 import { containText, el } from '../core/scene.js';
@@ -13,18 +13,7 @@ const SILENT_CONFIG = new Set([
 const DEFAULT_CONFIG = new Map([['look', 'classic'], ['layout', 'dagre'], ['theme', 'default']]);
 
 // Without an explicit lang, the words a figure adds (status names, legends, axis notes) and its diagnostics follow
-// the diagram's own text: English when English words are at least twice the CJK characters, as html-view decides
-// for documents. Front matter, directives, comments and URLs are configuration, not content, so they do not count.
-function inferLang(source) {
-  const text = String(source ?? '')
-    .replace(/^\s*---[^\n]*\n[\s\S]*?\n\s*(?:---|\.\.\.)[ \t]*(?:\n|$)/, '\n')
-    .replace(/%%\{[\s\S]*?\}%%/g, ' ')
-    .replace(/%%.*$/gm, ' ')
-    .replace(/https?:\/\/\S+/g, ' ');
-  const cjk = (text.match(/[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/gu) || []).length;
-  const latin = (text.match(/[A-Za-z]{2,}/g) || []).length;
-  return latin > 0 && latin >= cjk * 2 ? 'en' : 'zh';
-}
+// the diagram's own text (inferLang in source.js).
 
 function configWarning(info, implementation) {
   const honored = (implementation?.honoredConfig ?? []).map(key => key.toLowerCase());

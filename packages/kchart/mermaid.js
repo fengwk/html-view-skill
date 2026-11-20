@@ -1,5 +1,5 @@
-import { check, diagram, diagramTypes } from './index.js';
-import { prepareSource } from './src/diagram/source.js';
+import { check, diagram, diagramTypes, themes } from './index.js';
+import { ignoredConfigWarning, inferLang, prepareSource } from './src/diagram/source.js';
 
 let config = {};
 
@@ -24,9 +24,20 @@ function invalid(diagnostics) {
 }
 
 export async function render(id, text, options = {}) {
-  const { svg, diagnostics } = await diagram(text, { ...config, prefix: id, ...options, syntax: 'mermaid' });
+  const settings = { ...config, prefix: id, ...options, syntax: 'mermaid' };
+  // Mermaid's own theme names (default, dark, forest, neutral, base) are not KChart themes. As with
+  // `%%{init: {theme}}%%` inside a diagram, such a theme is dropped with a warning instead of failing;
+  // Mermaid's default needs no warning.
+  const { theme } = settings;
+  const foreign = typeof theme === 'string' && !Object.hasOwn(themes, theme);
+  if (foreign) delete settings.theme;
+  const { svg, diagnostics } = await diagram(text, settings);
   if (svg === null) throw invalid(diagnostics);
-  return { svg, diagramType: detectType(text), diagnostics };
+  const diagramType = detectType(text);
+  if (!foreign || theme === 'default') return { svg, diagramType, diagnostics };
+  const ignored = ignoredConfigWarning(settings.lang || inferLang(text), 1, `theme: ${theme}`);
+  const { topic } = diagramTypes.find(type => type.kind === diagramType);
+  return { svg, diagramType, diagnostics: [...diagnostics, { ...ignored, column: 1, topic }] };
 }
 
 export async function parse(text, { suppressErrors = false } = {}) {
@@ -37,3 +48,6 @@ export async function parse(text, { suppressErrors = false } = {}) {
   }
   return { diagramType: detectType(text), diagnostics };
 }
+
+// Mermaid itself is used as `import mermaid from 'mermaid'`; the same form works here.
+export default { initialize, render, parse, detectType };

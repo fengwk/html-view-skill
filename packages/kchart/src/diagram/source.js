@@ -421,4 +421,18 @@ function ignoredConfigWarning(lang, line, subjects) {
   return warning('IGNORED_CONFIG', lang, line, `已忽略配置：${subjects}`, `Ignored configuration: ${subjects}`, '移除不影响绘制的配置', 'Remove configuration that does not affect rendering');
 }
 
-export { prepareSource, parseOptions, ignoredConfigWarning };
+// Without an explicit lang, the words a figure adds (status names, legends, axis notes) and its diagnostics follow
+// the diagram's own text: English when English words are at least twice the CJK characters, as html-view decides
+// for documents. Front matter, directives, comments and URLs are configuration, not content, so they do not count.
+function inferLang(source) {
+  const text = String(source ?? '')
+    .replace(/^\s*---[^\n]*\n[\s\S]*?\n\s*(?:---|\.\.\.)[ \t]*(?:\n|$)/, '\n')
+    .replace(/%%\{[\s\S]*?\}%%/g, ' ')
+    .replace(/%%.*$/gm, ' ')
+    .replace(/https?:\/\/\S+/g, ' ');
+  const cjk = (text.match(/[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/gu) || []).length;
+  const latin = (text.match(/[A-Za-z]{2,}/g) || []).length;
+  return latin > 0 && latin >= cjk * 2 ? 'en' : 'zh';
+}
+
+export { prepareSource, parseOptions, ignoredConfigWarning, inferLang };
