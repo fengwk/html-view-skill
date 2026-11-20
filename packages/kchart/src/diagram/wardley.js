@@ -209,16 +209,22 @@ function layout(model, { width, lang, ctx }, info = {}) {
   const t = appearance(ctx), edge = ctx.color('muted'), grid = ctx.color('grid'), axis = t.fg4;
   const config = mapConfig(info.config, 'wardley');
   const pad = 48;
-  const stages = model.stages.map(stage => [{ text: stage.name, icon: stage.icon },
-    ...(stage.secondName !== null ? [{ text: stage.secondName, icon: stage.secondIcon }] : [])]
-    .flatMap(({ text, icon }) => text.split('\n').map((row, i) => ({ text: row, icon: i === 0 ? icon : null }))));
+  const stageParts = model.stages.map(stage => [{ text: stage.name + (stage.secondName !== null ? ' /' : ''), icons: [stage.icon].filter(Boolean) },
+    ...(stage.secondName !== null ? [{ text: stage.secondName, icons: [stage.secondIcon].filter(Boolean) }] : [])]
+    .flatMap(({ text, icons }) => text.split('\n').map((row, i) => ({ text: row, icons: i === 0 ? icons : [] }))));
   const iconGap = (icon) => icon ? 20 : 0;
-  const fractions = model.stages.map((stage, i) => (stage.boundary ?? 100 * (i + 1) / stages.length) / 100);
-  const stageWidth = Math.max(...stages.map((rows, i) => (Math.max(...rows.map(row => ctx.measure(row.text, FONT.label.size, 400) + iconGap(row.icon))) + 22) /
-    (fractions[i] - (fractions[i - 1] || 0))));
+  const stageInkWidth = ({ text, icons }) => ctx.measure(text, FONT.label.size, 400) + icons.length * 20;
+  const fractions = model.stages.map((stage, i) => (stage.boundary ?? 100 * (i + 1) / stageParts.length) / 100);
+  const bandFraction = i => fractions[i] - (fractions[i - 1] || 0);
+  const stageWidth = Math.max(...stageParts.map((rows, i) => (Math.max(...rows.map(stageInkWidth)) + 22) / bandFraction(i)));
   const dimension = (value, fallback) => typeof value === 'number' && Number.isFinite(value) ? Math.max(0, Math.min(16000, value)) : fallback;
   const W = Math.max(2 * pad + stageWidth, 420, dimension(model.size?.width ?? mapConfig(config, 'width'), 900));
   const right = W - pad, plotW = right - pad;
+  const stages = stageParts.map((parts, i) => {
+    if (parts.length !== 2 || model.stages[i].secondName === null || [model.stages[i].name, model.stages[i].secondName].some(text => text.includes('\n'))) return parts;
+    const together = { text: parts.map(part => part.text).join(' '), icons: parts.flatMap(part => part.icons) };
+    return stageInkWidth(together) + 22 <= plotW * bandFraction(i) ? [together] : parts;
+  });
   const titleRows = model.title || model.titleIcon ? ctx.wrap(model.title, plotW - iconGap(model.titleIcon), FONT.title.size, FONT.title.weight) : [];
   const top = 48 + Math.max(0, titleRows.length - 1) * 16;
   const stagesExtra = Math.max(0, ...stages.map(rows => rows.length - 2)) * 16;
@@ -243,7 +249,7 @@ function layout(model, { width, lang, ctx }, info = {}) {
       mapIcon(ctx, icon, x - (anchor === 'middle' ? (textW + shift) / 2 : 0) + 7, y, fill)]);
   };
   const bold = { ...FONT.label, weight: 650 };
-  const pipelineEdges = [];
+  const pipelineEdges = [], pipelineRows = [];
   for (const pipeline of model.pipelines) {
     const parent = nodes.get(pipeline.parent);
     const children = pipeline.children.map(child => nodes.get(child.id)).filter(Boolean).sort((a, b) => a.x - b.x);
@@ -252,6 +258,7 @@ function layout(model, { width, lang, ctx }, info = {}) {
     parent.x = x + w / 2; parent.y -= 25; parent.square = true;
     frames.push(ctx.rect(x, children[0].y - 15, w, 30, { rx: t.smallRadius, fill: ctx.tint(t.bg, ctx.frameTone(ctx.color('tone1')), .07),
       stroke: ctx.tint(t.bg, ctx.frameTone(ctx.color('tone1')), .45), meta: { kind: 'frame', id: pipeline.parent } }));
+    pipelineRows.push({ children, bottom: children[0].y + 15 });
     for (let i = 1; i < children.length; i++) pipelineEdges.push({ from: children[i - 1].id, to: children[i].id, dashed: true });
   }
   for (const node of nodes.values()) {
@@ -282,7 +289,7 @@ function layout(model, { width, lang, ctx }, info = {}) {
   });
   let footerY = H;
   function place(text, p, options = {}) {
-    const { font = FONT.label, fill = t.fg1, radius = 6, preferred, fixed, plate, meta, icon } = options;
+    const { font = FONT.label, fill = t.fg1, radius = 6, preferred, fixed, plate, meta, icon, clearance = 2 } = options;
     const rows = ctx.wrap(text, Math.min(260, plotW / 2) - iconGap(icon), font.size, font.weight);
     const w = Math.max(...rows.map(row => ctx.measure(row, font.size, font.weight))) + iconGap(icon) + (plate ? 14 : 4);
     const h = rows.length * 16 + (plate ? 6 : 2);
@@ -302,7 +309,7 @@ function layout(model, { width, lang, ctx }, info = {}) {
       const { x, y } = q;
       const leader = leaderFor(q);
       if (leader && [...obstacles, ...occupied].some(o => crosses(...leader, grow(o, 2)))) return false;
-      const b = grow(centerBox(x, y, w, h), 2);
+      const b = grow(centerBox(x, y, w, h), clearance);
       return b.x > 31 && b.x + b.w < W - 8 && b.y > top - 20 && b.y + b.h < bottom + 9 &&
         !obstacles.some(o => collides(b, o)) && !occupied.some(o => collides(b, o)) && !wires.some(([a, z]) => crosses(a, z, b));
     };
@@ -366,7 +373,12 @@ function layout(model, { width, lang, ctx }, info = {}) {
   stages.forEach((rows, i) => {
     const x = pad + plotW * (fractions[i - 1] || 0), end = pad + plotW * fractions[i];
     if (i) guides.push(ctx.line(x, top, x, bottom, stroke(grid)));
-    rows.forEach(({ text, icon }, j) => guides.push(caption((x + end) / 2, bottom + 25 + j * 16, [text], icon, FONT.label, t.fg2)));
+    const mid = (x + end) / 2; // @ boundaries are the right edges of bands, not caption anchors.
+    rows.forEach(({ text, icons }, j) => {
+      const y = bottom + 25 + j * 16;
+      guides.push(label(mid + icons.length * 10, y, [text], FONT.label, t.fg2));
+      icons.forEach((icon, k) => guides.push(mapIcon(ctx, icon, mid - stageInkWidth({ text, icons }) / 2 + k * 20 + 7, y, t.fg2)));
+    });
   });
   const placeComponent = node => {
     const fixed = node.labelOffset && { x: node.x + node.labelOffset.dx, y: node.y + node.labelOffset.dy };
@@ -374,6 +386,38 @@ function layout(model, { width, lang, ctx }, info = {}) {
     place(node.label, node, { radius: node.r, fixed, icon: node.icon, above, font: above ? bold : FONT.label });
   };
   for (const node of nodes.values()) if (node.labelOffset) placeComponent(node);
+  const grouped = new Set();
+  for (const row of pipelineRows) {
+    const captions = row.children.filter(node => !node.labelOffset).map(node => {
+      const maxWidth = Math.min(260, plotW / 2) - iconGap(node.icon);
+      const rows = ctx.wrap(node.label, maxWidth, 12);
+      return { node, rows, w: Math.max(...rows.map(text => ctx.measure(text, 12, 400))) + iconGap(node.icon) + 8 };
+    });
+    if (!captions.length) continue;
+    const height = Math.max(...captions.map(item => item.rows.length)) * 16;
+    const total = captions.reduce((sum, item) => sum + item.w, 0);
+    let next = pad, remaining = total;
+    const xs = captions.map(({ node, w }) => {
+      const left = Math.max(next, Math.min(node.x - w / 2, right - remaining));
+      remaining -= w;
+      next = left + w;
+      return left + w / 2;
+    });
+    const firstY = row.bottom + 8 + height / 2;
+    const boxes = y => captions.map(({ w }, i) => centerBox(xs[i], y, w, height));
+    let y = firstY;
+    while (y + height / 2 < bottom && boxes(y).some(b => [...obstacles, ...occupied].some(o => collides(b, o)) ||
+      wires.some(([a, z]) => crosses(a, z, b)))) y += 12;
+    if (y + height / 2 >= bottom || total > plotW) {
+      y = footerY + height / 2 + 4;
+      footerY += height + 8;
+    }
+    occupied.push(...boxes(y));
+    captions.forEach(({ node, rows }, i) => {
+      grouped.add(node.id);
+      labels.push(caption(xs[i], y - (height - rows.length * 16) / 2, rows, node.icon, FONT.label));
+    });
+  }
   const pins = annotations.map(item => placeMarker(item, Math.max(9, ctx.measure(item.number, 12, 650) / 2 + 4)));
   const notes = model.notes.map(item => placeMarker(item, 2));
   for (const { link, point } of pendingLabels) place(link.label, point, { plate: true, above: true, radius: 0, icon: link.icon,
@@ -388,11 +432,11 @@ function layout(model, { width, lang, ctx }, info = {}) {
     else marks.push(ctx.circle(x, y, r, shape));
     if (strategy) marks.push(ctx.titled(label(x, y, [strategyGlyphs[strategy]], bold, ctx.textOn(shape.fill)), strategy));
     if (inertia) marks.push(ctx.rect(x + r + 4.5, y - 10, 3, 20, { rx: 1, fill: edge }));
-    if (!node.labelOffset) placeComponent(node);
+    if (!node.labelOffset && !grouped.has(id)) placeComponent(node);
   }
   for (const note of notes) {
     marks.push(ctx.circle(note.x, note.y, 2, { fill: edge }));
-    place(note.text, note, { plate: true, radius: 2, fill: t.fg2, icon: note.icon });
+    place(note.text, note, { plate: true, radius: 2, clearance: 12, fill: t.fg2, icon: note.icon });
   }
   for (const f of forces) {
     const d = f.kind === 'accelerator' ? 1 : -1;

@@ -134,6 +134,53 @@ test('keeps every Wardley corpus dependency straight at both widths', () => {
   }
 });
 
+// Dual captions keep their slash, wrapping only between the primary and secondary names when needed.
+test('keeps Wardley stage pairs together when their band fits', () => {
+  for (const width of [800, 360]) {
+    const wide = corpus.find(record => record.id === 'wardley.md:274');
+    assert.match(api.diagram(wide.source, { width }).svg, />Genesis \/ Concept</);
+    const split = draw('evolution GenesisLongName@0.2 / SecondaryName -> Product@1.0', width);
+    assert.match(split.svg, />GenesisLongName \/</);
+    assert.match(split.svg, />SecondaryName</);
+    assert.deepEqual(checkScene(split.scene), []);
+  }
+});
+
+// Custom percentages delimit stage bands; their captions sit at the center of each unequal band.
+test('places custom Wardley captions at the Mermaid band centers', () => {
+  const { source } = corpus.find(record => record.id === 'wardley.md:290');
+  const { scene } = api.diagram(source, { width: 800 });
+  const parts = elements(scene);
+  const x = name => parts.find(node => node.tag === 'text' && node.text === name).attrs.x;
+  const axis = parts.find(node => node.tag === 'line' && node.attrs.y1 === node.attrs.y2);
+  const { x1, x2 } = axis.attrs;
+  for (const [name, fraction] of [['Genesis', .1], ['Custom', .3], ['Product', .575], ['Commodity', .875]]) {
+    assert.ok(Math.abs(x(name) - (x1 + (x2 - x1) * fraction)) < 1e-8, name);
+  }
+});
+
+// Pipeline children share a baseline beyond the frame; notes maintain clearance from component outlines.
+test('keeps Wardley pipeline and note captions off adjacent marks', () => {
+  for (const width of [800, 360]) {
+    const get = line => api.diagram(corpus.find(record => record.id === `wardley.md:${line}`).source, { width }).scene;
+    const pipeline = elements(get(243));
+    const frame = pipeline.find(node => node.meta?.kind === 'frame').attrs;
+    const captions = pipeline.filter(node => ['File System', 'SQL DB', 'NoSQL', 'Cloud DB'].includes(node.text));
+    assert.equal(captions.length, 4);
+    assert.equal(new Set(captions.map(node => node.attrs.y)).size, 1);
+    assert.ok(captions[0].attrs.y - 6 >= frame.y + frame.height + 8);
+    const notes = elements(get(314));
+    const plates = notes.filter(node => node.tag === 'rect' && !node.meta);
+    const markers = notes.filter(node => node.meta?.kind === 'node');
+    assert.equal(plates.length, 2);
+    for (const { attrs: b } of plates) for (const { attrs: p } of markers) {
+      const dx = Math.max(b.x - p.cx, p.cx - b.x - b.width, 0);
+      const dy = Math.max(b.y - p.cy, p.cy - b.y - b.height, 0);
+      assert.ok(Math.hypot(dx, dy) - p.r >= 12);
+    }
+  }
+});
+
 // A collision does not move the authored Web App label; the note leaders still participate in geometry checks.
 test('preserves the authored Wardley label offset when it crosses straight links', () => {
   const { source } = corpus.find(({ id }) => id === 'wardley.md:399');

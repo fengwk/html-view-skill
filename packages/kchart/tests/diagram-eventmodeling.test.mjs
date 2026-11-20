@@ -1,4 +1,5 @@
 import { test } from 'vitest';
+import corpus from './conformance/mermaid-12.3.0.json';
 import assert from 'node:assert/strict';
 import { createDiagramApi } from '../src/diagram/registry.js';
 import { implementations } from '../src/diagram/eventmodeling.js';
@@ -10,6 +11,47 @@ const parse = (body) => api.parse(source(body), { lang: 'en' });
 const draw = (body, width = 800) => api.diagram(source(body), { lang: 'en', width });
 const elements = (node) => (node.children || []).flatMap(child => [child, ...elements(child)]);
 const edges = (scene) => elements(scene).filter(n => n.meta?.kind === 'edge').map(n => [n.meta.from, n.meta.to]);
+
+// Check each reference's visible lanes, cards, payload fields and directed links at both review widths.
+test('matches the audited Event Modeling corpus semantics', () => {
+  const standard = ['UI/Automation', 'Command/Read Model', 'Events'];
+  const streams = ['Stream: External', 'Stream: Cart'];
+  const basic = ['CartUI', 'AddItem', 'ItemAdded'];
+  const normalEdges = ['01>02', '02>03'];
+  const shape = ['description: string', 'image: string', 'price: number'];
+  const reference = [...basic, 'AddItem', 'ItemAdded'];
+  const payloads = [[], ["description: 'john'", "image: 'avatar_john'", 'price: 20.4'], shape,
+    ["description: 'jack'", "image: 'avatar_jack'", 'price: 12.5'], shape];
+  const inventory = ['InventoryChanged', 'InventoryProcessor', 'ChangeInventory', 'InventoryChanged'];
+  const expectations = {
+    52: [standard, basic, normalEdges], 232: [standard, basic, normalEdges],
+    82: [standard, basic, normalEdges, [[], [shape[0]], [shape[0]]]],
+    92: [standard, basic, normalEdges, [[], [shape[0]], [shape[0]]]],
+    108: [standard, reference, [...normalEdges, '03>04', '04>05'], payloads],
+    138: [standard, reference, [...normalEdges, '03>04', '04>05'], payloads],
+    174: [[...standard, ...streams], [...basic, ...inventory], [...normalEdges, '04>05', '05>06', '06>07']],
+    189: [[...standard, ...streams], [...basic, ...inventory], [...normalEdges, '04>05', '05>06', '06>07']],
+    204: [standard, ['ItemAdded', 'OtherUI', 'CartItems'], ['01>02', '01>03']],
+    216: [standard.slice(1), ['CartCreated', 'ItemAdded', 'ItemRemoved', 'CartCleared', 'CartUI'], ['02>01', '03>01', '04>01', '05>01']],
+    242: [standard, ['ItemAdded', 'CartItems', 'CartUI'], ['03>02', '02>04']],
+    252: [[...standard.slice(0, 2), ...streams], inventory, ['03>02', '02>04', '04>05']],
+    305: [['Stream: Inventory', 'Stream: External'], ['InventoryChanged', 'InventoryChanged'], []],
+  };
+  const records = corpus.filter(({ id }) => id.startsWith('eventmodeling.md:'));
+  assert.equal(records.length, Object.keys(expectations).length);
+  for (const record of records) for (const width of [800, 360]) {
+    const tag = `${record.id} @ ${width}`;
+    const [lanes, names, links, data = []] = expectations[record.line];
+    const { scene } = api.diagram(record.source, { width });
+    const parts = elements(scene);
+    assert.deepEqual(checkScene(scene), [], tag);
+    assert.deepEqual(parts.filter(node => node.tag === 'g' && node.meta?.kind === 'frame').map(node => node.children.find(child => child.tag === 'text').text), lanes, tag);
+    const cards = parts.filter(node => node.tag === 'g' && node.children?.some(child => child.meta?.kind === 'node'));
+    assert.deepEqual(cards.map(card => card.children.filter(child => child.tag === 'text').slice(1).map(child => child.text)),
+      names.map((name, index) => [name, ...(data[index] || [])]), tag);
+    assert.deepEqual(edges(scene).map(pair => pair.join('>')), links, tag);
+  }
+});
 
 // Compact and relaxed keywords, including reset and each entity type, normalize to the same frames.
 test('normalizes Event Modeling keywords', () => {
