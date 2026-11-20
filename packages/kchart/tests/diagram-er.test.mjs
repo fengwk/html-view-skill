@@ -45,6 +45,9 @@ test('ER parses the cardinality cross product in source order', () => {
       assert.deepEqual([from, to, start, end, stroke, label], ['Left side', '1', startCard, endCard, style, 'has: items'], source);
     }
   }
+  const compact = parseEr('id1||--||id2 : label');
+  assert.deepEqual(compact.errors, []);
+  assert.deepEqual(compact.model.edges.map(({ from, to }) => [from, to]), [['id1', 'id2']]);
   for (const source of ['A |}--{o B : invalid', 'A one tomato many B', 'A ||--|| B :']) {
     assert.equal(parseEr(source, { firstLine: 7 }).errors[0]?.line, 7, source);
   }
@@ -82,15 +85,47 @@ test('ER renders lone and quoted entities, aliases and visible annotated rows', 
   assert.deepEqual(checkScene(scene), []);
 });
 
-// 意图：前向子图引用不会造出假实体；嵌套框保留，未使用的局部方向只产生一条警告。
-test('ER links to nested frames and renders with one local-direction warning', () => {
+// 意图：前向子图引用不会造出假实体，且连到框边界时仍保留封闭子图的局部方向。
+test('ER links to nested frames without disabling closed-frame direction', () => {
   const source = 'erDiagram\nA ||--|| Outer : links\nsubgraph Outer [Outer frame]\n  direction LR\n  subgraph Inner\n    B\n  end\nend';
   const { model } = api.parse(source);
   assert.deepEqual(model.nodes.map(({ id, parent }) => [id, parent]), [['A', null], ['B', 'Inner']]);
   assert.deepEqual(model.subgraphs.map(({ id, parent }) => [id, parent]), [['Outer', null], ['Inner', 'Outer']]);
   assert.equal(model.edges[0].toFrame, true);
   const { svg, scene, diagnostics } = api.diagram(source, { width: 360 });
-  assert.deepEqual(diagnostics.map(({ code, severity }) => [code, severity]), [['DIAGRAM_HINT', 'warning']]);
+  assert.deepEqual(diagnostics, []);
   assert.match(svg, /data-kc-kind="frame"/);
   assert.deepEqual(checkScene(scene), []);
+});
+
+// 意图：共享前言、可访问性、样式、链接与标签正常接线；未知资源不阻止渲染或重复告警。
+test('ER applies shared presentation and normalizes labels and icons', () => {
+  const source = `---
+config:
+  look: handDrawn
+---
+erDiagram
+accTitle: Accessible ER
+accDescr: Entity relationships
+A["fa:fa-user Owner #9829;"]
+A:::warn ||--o{ B:::good : "tabler:mail owns<br>many"
+B { int id PK "fa:fa-does-not-exist note" }
+C["fa:fa-does-not-exist other"]
+classDef good fill:#00aa66
+style A fill:#f00,stroke-width:4px
+linkStyle 0 stroke:#f00
+click A href "https://example.com" "View owner" _blank
+click B href "javascript:alert(1)"`;
+  const { model } = api.parse(source, { lang: 'en' });
+  assert.deepEqual(model.nodes.map(({ status }) => status), ['danger', 'ok', null]);
+  const { svg, scene, diagnostics } = api.diagram(source, { width: 360, lang: 'en' });
+  assert.deepEqual(diagnostics.map(d => d.code).sort(), ['IGNORED_ASSET', 'IGNORED_CONFIG', 'IGNORED_INTERACTION', 'IGNORED_STYLE']);
+  assert.deepEqual(checkScene(scene), []);
+  assert.match(svg, /<title[^>]*>Accessible ER<\/title>/);
+  assert.match(svg, /<desc[^>]*>Entity relationships<\/desc>/);
+  assert.match(svg, /href="https:\/\/example\.com"[^>]*target="_blank"[^>]*rel="noopener noreferrer"/);
+  assert.match(svg, /Owner ♥/);
+  assert.equal([...svg.matchAll(/data-kc-kind="icon"/g)].length, 2);
+  assert.match(svg, /marker-start="url\(#[^"]*er-card-exactly-one-danger\)"/);
+  assert.doesNotMatch(svg, /fa-does-not-exist|javascript:/);
 });
