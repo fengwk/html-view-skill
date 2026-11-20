@@ -199,6 +199,11 @@ function textCrossing(edge, text, covers) {
 // 12px approach in C4. The same flowchart's node clearance is 5.9236px
 // over 18px: allow up to 6px, but require >12px to ignore short corners.
 const edgeClearance = 4, nodeClearance = 6;
+// At 2px the solid route and dashed frame in flowchart.md:1040 have
+// subpixel ink clearance; classDiagram.md:421 actually overprints.
+// Reviewed 4–6px frame offsets are visibly separate. Keep the >12px
+// sustained-run floor and allow numerical noise at exactly 2px.
+const frameClearance = 2 + 1e-7;
 
 function portFan(a, i, b, j, run) {
   // Allow only a short run on the port-adjacent segments, not a later
@@ -223,11 +228,12 @@ const textOf = node => `${node.text ?? ''}${(node.children || []).filter(child =
 
 // Text is checked in every family. Structural checks require roles: an
 // unmarked frame, lifeline, grid line or decoration isn't a node or route.
-export function checkScene(scene, { measure = fallbackMeasure } = {}) {
+export function checkScene(scene, { measure = fallbackMeasure, source } = {}) {
   const issues = [], texts = [], nodes = [], edges = [], labels = [], frames = [], leaders = [], covers = [];
   const issue = (kind, items, coordinates) => issues.push({ kind, elements: items.map(item => item.id), coordinates });
+  const authored = source?.replace(/\s+/g, ' ');
   let ordinal = 0;
-  function visit(node, parent, inherited, group, opaque = true) {
+  function visit(node, parent, inherited, group, opaque, rows) {
     const { tag, attrs: a = {}, meta: m = {} } = node;
     if (nonRendered.has(tag) || Number(a.opacity) === 0) return;
     const map = transform(a.transform, parent);
@@ -250,7 +256,8 @@ export function checkScene(scene, { measure = fallbackMeasure } = {}) {
       const body = shape && outline(shape, shape === node ? map : transform(shape.attrs?.transform, map));
       if (body && nodeKind) nodes.push({ ...body, id: m.label ?? id, endpointId: id, box: bounds(body.polygon) });
       if (body && frameKind && !(shape !== node && shape.meta?.kind === 'frame')) {
-        frames.push({ id: m.group ?? m.name ?? m.lane ?? id, lane: m.lane != null, sides: sidesOf(body.polygon), box: bounds(body.polygon) });
+        frames.push({ id: m.group ?? m.name ?? m.lane ?? id, lane: m.lane != null,
+          sides: sidesOf(body.polygon), borders: shape.attrs?.stroke === 'none' ? [] : body.borders, box: bounds(body.polygon) });
       }
     }
     opaque = opaque && Number(a.opacity ?? 1) === 1 && !a['clip-path'] && !a.mask;
@@ -297,13 +304,31 @@ export function checkScene(scene, { measure = fallbackMeasure } = {}) {
       if (scaled < 12 - 1e-7) issue('small-text', [item], { ...full, size: scaled });
       // Match containText's half-pixel viewport allowance; do not suppress real clipping.
       if (full.x0 < -.5 || full.y0 < -.5 || full.x1 > scene.width + .5 || full.y1 > scene.height + .5) issue('text-outside', [item], full);
+      if (authored) {
+        const ax = number(a.x) + number(a.dx), anchor = map([ax, y]);
+        const style = JSON.stringify([fontKeys.map(key => font[key]), a.fill, m.kind]);
+        const prev = rows.last, value = text.trim().replace(/\s+/g, ' ');
+        // KChart's row primitives share a parent and start/anchor, with a
+        // baseline step near one em (e.g. ER/class: 17px at 13px).
+        if (prev && prev.index + 1 === index && prev.style === style &&
+          Math.abs(anchor[0] - prev.anchor[0]) < .01 && y - prev.y >= .85 * size && y - prev.y <= 1.8 * size &&
+          /[a-z0-9]$/i.test(prev.value) && /^[a-z0-9]/i.test(value) &&
+          authored.includes(prev.value + value) && !authored.includes(`${prev.value} ${value}`)) {
+          // Scene width is not a hard limit: the host can scroll a widened
+          // scene. No exception unless the scene contract exposes a hard cap.
+          issue('split-word', [prev.item, item], [prev.anchor, anchor]);
+        }
+        rows.last = { index, style, anchor, y, value, item };
+      }
       texts.push(item);
       if (!group?.hasPlate && (group || edgeLabel.has(m.kind))) labels.push(item);
       return;
     }
-    for (const child of node.children || []) visit(child, map, font, group, opaque);
+    const childTexts = {};
+    for (const child of node.children || []) visit(child, map, font, group, opaque, childTexts);
   }
-  for (const node of scene.children) visit(node, identity, {}, null);
+  const rootTexts = {};
+  for (const node of scene.children) visit(node, identity, {}, null, true, rootTexts);
 
   const compare = (items, kind) => {
     items.forEach((a, i) => {
@@ -341,7 +366,7 @@ export function checkScene(scene, { measure = fallbackMeasure } = {}) {
     const [firstLane, lastLane] = endpoints.map(laneAt);
     const betweenLanes = firstLane && lastLane && firstLane !== lastLane && bounds([center(firstLane.box), center(lastLane.box)]);
     for (const frame of frames) {
-      if (!near(edge.box, frame.box) || frame.id === edge.from || frame.id === edge.to) continue;
+      if (!nearBoxes(edge.box, frame.box, frameClearance)) continue;
       // In lane-based layouts, a transition between different bands must
       // traverse the bands in between. Nested group boxes are not bands.
       if (isLane(frame) && betweenLanes && within(center(frame.box), betweenLanes)) continue;
@@ -349,7 +374,19 @@ export function checkScene(scene, { measure = fallbackMeasure } = {}) {
       if (edge.marker === 'url(#cynefin-arrow)' && ['complex', 'complicated', 'chaotic', 'clear'].includes(frame.id)) continue;
       // Sequence fragment/participant boxes are crossed by messages by design.
       if (edge.kind === 'message' && String(frame.id).startsWith('sequence-frame-')) continue;
-      if (endpoints.some(p => frameSide(p, frame.sides) >= 0)) continue;
+      // Long parallel runs count on either side. Reject a run through the
+      // border itself unless it actually follows the border (zero offset).
+      hug: for (const segment of edge.segments) for (const side of frame.borders) {
+        const run = along(segment, side, frameClearance, 12);
+        if (!run) continue;
+        const v = sub(side[1], side[0]);
+        const offsets = run.map(p => cross(v, sub(p, side[0])));
+        if (offsets[0] * offsets[1] < -1e-7) continue;
+        issue('edge-hugs-frame', [edge, frame], run);
+        break hug;
+      }
+      if (!near(edge.box, frame.box) || frame.id === edge.from || frame.id === edge.to ||
+        endpoints.some(p => frameSide(p, frame.sides) >= 0)) continue;
       for (const line of edge.lines) {
         const crossing = frameCrossing(line, frame.sides);
         if (crossing) { issue('edge-crosses-frame', [edge, frame], crossing); break; }

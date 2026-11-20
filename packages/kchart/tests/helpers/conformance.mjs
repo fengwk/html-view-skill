@@ -17,7 +17,7 @@ export function inspectDiagram(source, options) {
   return {
     ...(!svg || !scene ? { noRender: true } : {}),
     diagnostics: diagnostics.filter(d => d.severity !== 'warning' && d.severity !== 'info'),
-    geometry: scene ? checkScene(scene, { measure: options.measure }) : [],
+    geometry: scene ? checkScene(scene, { measure: options.measure, source }) : [],
   };
 }
 
