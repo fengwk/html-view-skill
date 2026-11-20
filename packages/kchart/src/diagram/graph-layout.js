@@ -139,7 +139,12 @@ function arrangeGraph(source, options, info, allowCompact = true, hints = null) 
   };
   const all = [...nodes, ...model.subgraphs];
   const occupied = new Set(all.map(item => item.parent));
-  const compact = allowCompact && model.type === 'flowchart' && nodes.length > 0 && nodes.every(item => item.parent != null);
+  // A single frame beside loose nodes can share their ranks. Mixed multi-stage layouts
+  // benefit from projection, unless explicit frame links need the existing rank semantics.
+  const mixedStages = model.variant !== 'agentflow' && model.subgraphs.filter(frame => !frame.parent).length >= 2 &&
+    !edges.some(edge => edge.fromFrame || edge.toFrame);
+  const compact = allowCompact && model.type === 'flowchart' && nodes.length > 0 &&
+    (mixedStages || nodes.every(item => item.parent != null));
   const flowConfig = Object.entries(info.config ?? {}).find(([key]) => key.toLowerCase() === 'flowchart')?.[1];
   const inheritDir = Object.entries(flowConfig ?? {}).some(([key, value]) => key.toLowerCase() === 'inheritdir' && value === true);
   const projected = new Map();
@@ -196,6 +201,49 @@ function arrangeGraph(source, options, info, allowCompact = true, hints = null) 
     subgraphs: model.subgraphs.filter(frame => !hidden.has(frame.id) && !proxy(frame.id)),
     edges: outerEdges,
   }, options);
+  // When the outer DAG is a single spine (possibly with skip links), align its blocks on
+  // one axis. The virtual lanes of skip links must not pull the blocks off that axis.
+  // Only do this when all outer routes will be reattached to their original members.
+  if (compact && mixedStages && outerEdges.length && outerEdges.every(edge => redirects.has(edge.seq))) {
+    const axis = horizontal ? 'y' : 'x', span = horizontal ? 'h' : 'w';
+    const cross = horizontal ? 'x' : 'y', size = horizontal ? 'w' : 'h';
+    const ordered = [...outer.nodes].sort((a, b) => a[axis] - b[axis]);
+    const links = new Map(ordered.map(node => [node.id, new Set()]));
+    for (const edge of outerEdges) links.get(edge.from)?.add(edge.to);
+    const reverse = model.direction === 'BT' || model.direction === 'RL';
+    const spine = ordered.length > 1 && ordered.slice(1).every((node, i) => {
+      const before = ordered[i];
+      return node[axis] >= before[axis] + before[span] &&
+        (reverse ? links.get(node.id).has(before.id) : links.get(before.id).has(node.id));
+    });
+    if (spine) {
+      const middle = (horizontal ? outer.width : outer.height) / 2;
+      for (const [i, node] of ordered.entries()) {
+        let center = middle;
+        // Align a terminal singleton with its actual neighbour, not the proxy frame.
+        if (!blocks.has(node.id) && (i === 0 || i === ordered.length - 1)) {
+          const incident = outerEdges.filter(edge => edge.from === node.id || edge.to === node.id);
+          const block = blocks.get(ordered[i === 0 ? 1 : i - 1].id);
+          if (block && incident.length === 1) {
+            const original = redirects.get(incident[0].seq);
+            const member = block.inner.nodes.find(item => item.id === (original.from === node.id ? original.to : original.from));
+            if (member) {
+              const innerCenter = horizontal ? block.inner.width / 2 : block.h / 2 - block.titleBand;
+              const aligned = middle - innerCenter + member[cross] + member[size] / 2;
+              const limit = MARGIN + node[size] / 2;
+              if (aligned >= limit && aligned <= 2 * middle - limit) center = aligned;
+            }
+          }
+        }
+        const at = center - node[size] / 2, delta = at - node[cross];
+        node[cross] = at;
+        if (!horizontal && !blocks.has(node.id)) {
+          node.titleY += delta;
+          if (node.descY != null) node.descY += delta;
+        }
+      }
+    }
+  }
   const retained = [];
   for (const node of outer.nodes) {
     const block = blocks.get(node.id);
@@ -604,7 +652,10 @@ function layoutCore(model, { measure = fallbackMeasure, lang, ctx, renderOptions
   // 收紧层号：让节点落在相邻边的加权中位数上，最小化 Σ w·span。
   // 带标签的边权重更高，优先缩短标注边；无标签边让位成细长线。
   const LABELLED_RANK_WEIGHT = 2;
-  const edgeRankWeight = (le) => (le.edge.label ? LABELLED_RANK_WEIGHT : 1);
+  // Keep slack inside a frame next to its local neighbours rather than stretching the frame
+  // to meet a remote endpoint. Cross-frame edges still bound the legal rank interval.
+  const edgeRankWeight = (le) => (le.edge.label ? LABELLED_RANK_WEIGHT : 1) *
+    (model.type === 'flowchart' && model.variant !== 'agentflow' && le.fromItem.cluster !== root && le.fromItem.cluster === le.toItem.cluster ? 2 : 1);
   /** 加权中位数；累计权重正好落在中点时取两侧值的平均，等权时即普通中位数；调用方再四舍五入为整数层号。 */
   const weightedRankMedian = (entries) => {
     if (!entries.length) return 0;
