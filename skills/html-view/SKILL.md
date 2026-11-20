@@ -41,6 +41,7 @@ description: 生成、检查和导出离线单文件 HTML 文档、数据报表�
 | 调用先后和参与者是谁？ | `sequenceDiagram`、`usecase-beta`、`zenuml` | [时序](references/diagrams/sequence.md) |
 | 如何排期、分栏或编号？ | `gantt`、`timeline`、`gitGraph`、`kanban`、`packet-beta`、`quadrantChart` | [时间与网格](references/diagrams/time.md) |
 | 实体、类或需求怎样关联？ | `erDiagram`、`classDiagram`、`requirementDiagram` | [数据模型](references/diagrams/data-model.md) |
+| 一条语法规则怎样匹配符号？ | `railroad-beta`、`railroad-ebnf-beta`、`railroad-abnf-beta`、`railroad-peg-beta` | [数据模型](references/diagrams/data-model.md) |
 | 系统如何分层、容器和依赖在哪里？ | `C4Context`、`C4Container`、`C4Component`、`C4Dynamic`、`C4Deployment`、`architecture`、`block`、`wardley-beta`、原生 `layers`、`blocks` | [架构](references/diagrams/architecture.md) |
 | 手头已有受控 Mermaid 数值图？ | `pie`、`xychart`、`sankey`、`radar-beta`、`treemap`、`venn-beta`、`cynefin-beta` | [Mermaid 数值图](references/diagrams/time.md#mermaid-数值图)；新数据图用上方 KChart 图型 |
 

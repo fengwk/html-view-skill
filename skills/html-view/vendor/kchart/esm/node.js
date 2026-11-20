@@ -51,6 +51,8 @@ import { numeric_radar_exports } from "./diagram/numeric-radar.js";
 import { numeric_sankey_exports } from "./diagram/numeric-sankey.js";
 import { numeric_xy_exports } from "./diagram/numeric-xy.js";
 import { presentation_exports } from "./diagram/presentation.js";
+import { railroad_parse_exports } from "./diagram/railroad-parse.js";
+import { railroad_exports } from "./diagram/railroad.js";
 import { registry_exports as registry_exports$1 } from "./diagram/registry.js";
 import { relations_exports as relations_exports$1 } from "./diagram/relations.js";
 import { sequence_exports } from "./diagram/sequence.js";
@@ -124,6 +126,8 @@ var modulesByPath = /* #__PURE__ */ Object.assign({
 	"./src/diagram/numeric-sankey.js": numeric_sankey_exports,
 	"./src/diagram/numeric-xy.js": numeric_xy_exports,
 	"./src/diagram/presentation.js": presentation_exports,
+	"./src/diagram/railroad-parse.js": railroad_parse_exports,
+	"./src/diagram/railroad.js": railroad_exports,
 	"./src/diagram/registry.js": registry_exports$1,
 	"./src/diagram/relations.js": relations_exports$1,
 	"./src/diagram/sequence.js": sequence_exports,

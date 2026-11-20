@@ -429,6 +429,25 @@
     ],
     "bytes": 8694
   },
+  "diagram/railroad-parse": {
+    "file": "units/diagram/railroad-parse.js",
+    "deps": [
+      "core/icons",
+      "diagram/label",
+      "diagram/presentation",
+      "diagram/support"
+    ],
+    "bytes": 9671
+  },
+  "diagram/railroad": {
+    "file": "units/diagram/railroad.js",
+    "deps": [
+      "core/context",
+      "diagram/support",
+      "diagram/railroad-parse"
+    ],
+    "bytes": 6620
+  },
   "diagram/registry": {
     "file": "units/diagram/registry.js",
     "deps": [
