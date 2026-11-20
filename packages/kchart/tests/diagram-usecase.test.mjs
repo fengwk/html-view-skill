@@ -94,6 +94,18 @@ test('reattaches the ordering use-case label to its repaired route', () => {
   }));
 });
 
+// Audit corpus: emphasis is removed, explicit line breaks fit, and only actors retain business strokes.
+test('normalizes use-case labels and preserves authored line breaks', () => {
+  for (const width of [800, 360]) {
+    const svg = id => diagram(corpus.find(row => row.id === `usecase.md:${id}`).source, { width }).svg;
+    assert.match(svg(159), />Analyst<\/text>/);
+    assert.match(svg(159), />Literal markers<\/text>/);
+    assert.doesNotMatch(svg(159), /\*Analyst\*|\*\*Literal markers\*\*/);
+    assert.match(svg(170), />with a physical line break<\/text>/);
+    assert.doesNotMatch(svg(140), /l11 -15/);
+  }
+});
+
 // Invalid kind/shape pairings, nesting, and unresolved metadata still produce blocking diagnostics.
 test('rejects invalid UML declarations and relationship endpoints', () => {
   for (const input of [

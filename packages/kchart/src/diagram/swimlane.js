@@ -300,14 +300,18 @@ export function layout(model, { measure, width, lang }) {
 
   const nodes = [];
   for (const node of model.nodes) {
-    const lines = wrapText(node.label, LIMITS.labelWidth, FONT.body, measure).slice(0, LIMITS.lines + 1);
+    const decision = model.mermaid && node.shape === 'diamond';
+    const cap = decision ? 88 : LIMITS.labelWidth;
+    const wrapped = wrapText(node.label, cap, FONT.body, measure);
+    const lines = (decision && wrapped.length > LIMITS.lines ? wrapText(node.label, LIMITS.labelWidth, FONT.body, measure) : wrapped).slice(0, LIMITS.lines + 1);
     if (lines.length > LIMITS.lines) return fail(node.line, `节点「${node.label}」超过 ${LIMITS.lines} 行`, `Node label exceeds ${LIMITS.lines} lines: ${node.label}`, '缩短标签或把说明移到图外', 'Shorten the label or move the description outside');
     const textW = maxWidthOf(lines, FONT.body, measure) + (model.mermaid && node.icon ? 22 : 0);
     const textH = lines.length * 20;
     const diamond = node.shape === 'diamond';
     const room = portRoom(node.id);
-    if (model.mermaid && node.shape === 'circle') {
-      const diameter = snap(Math.max(room, Math.hypot(textW + 16, textH + 12)));
+    if (decision || (model.mermaid && node.shape === 'circle')) {
+      // A square diamond needs enough diagonal clearance for the text corners.
+      const diameter = snap(Math.max(room, decision ? textW + textH + 16 : Math.hypot(textW + 16, textH + 12)));
       nodes.push({ ...node, lines, diamond, step: stepOf.get(node.id), w: diameter, h: diameter });
       continue;
     }
@@ -395,9 +399,14 @@ export function layout(model, { measure, width, lang }) {
     const items = list.map(({ edge, end }) => ({ plan: planOf.get(edge), end }));
     const heading = (item) => centerOf(item.end === 'out' ? item.plan.to : item.plan.from);
     items.sort((a, b) => heading(a) - heading(b) || a.plan.index - b.plan.index || (a.end === 'out' ? -1 : 1));
-    const pinned = items.findIndex((item) => aligned(item.plan) && !item.plan.isBack) >= 0
+    let pinned = items.findIndex((item) => aligned(item.plan) && !item.plan.isBack) >= 0
       ? items.findIndex((item) => aligned(item.plan) && !item.plan.isBack)
       : items.findIndex((item) => aligned(item.plan));
+    // In a fan-out to separate lanes, keep the adjacent branch centered; other edges still need distinct ports.
+    if (model.mermaid && pinned < 0 && items.length > 1 && items.every(({ plan, end }) => end === 'out' && !plan.label && plan.laneFrom !== plan.laneTo)
+      && new Set(items.map(({ plan }) => plan.laneTo)).size === items.length) {
+      pinned = items.findIndex(({ plan }) => Math.abs(plan.laneTo - plan.laneFrom) === 1);
+    }
     const half = crossOf(node) / 2 - PORT_INSET;
     const reach = pinned >= 0 ? Math.max(pinned, items.length - 1 - pinned) : (items.length - 1) / 2;
     const spacing = items.length < 2 ? 0 : Math.round(Math.max(spacingOf(list), Math.min(PORT_SPREAD, half / reach)));
@@ -406,6 +415,15 @@ export function layout(model, { measure, width, lang }) {
     const hi = node.outset + crossOf(node) - PORT_INSET / 2;
     let start = Math.round(middle(node) - anchor * spacing);
     // 一侧排不下时整组挪回节点内，直连随之放弃，改走横跳。
+    if (model.mermaid && pinned >= 0 && (start < lo || start + (items.length - 1) * spacing > hi)) {
+      // Preserve the direct port; labels have their own corridor space.
+      const room = Math.min(pinned ? (middle(node) - lo) / pinned : Infinity,
+        pinned < items.length - 1 ? (hi - middle(node)) / (items.length - 1 - pinned) : Infinity);
+      items.forEach((item, order) => { item.plan.port[item.end] = Math.round(middle(node) + (order - pinned) * Math.min(spacing, room)); });
+      const group = { items, lo, hi };
+      for (const item of items) groups.set(`${item.plan.index}|${item.end}`, group);
+      continue;
+    }
     start = Math.min(Math.max(start, Math.ceil(lo)), Math.floor(hi - (items.length - 1) * spacing));
     items.forEach((item, order) => { item.plan.port[item.end] = start + order * spacing; });
     const group = { items, lo, hi };
@@ -600,6 +618,10 @@ export function layout(model, { measure, width, lang }) {
       if (fits(base - shift)) { lo = base - shift; break; }
       if (fits(base + shift)) { lo = base + shift; break; }
     }
+    if (model.mermaid) {
+      const beside = [center + LABEL_GAP, center - span - LABEL_GAP].find(fits);
+      if (beside != null) lo = beside;
+    }
     zones.push({ plan, band, top, m, lo, hi: lo + span });
   }
 
@@ -701,6 +723,30 @@ export function layout(model, { measure, width, lang }) {
       label: null,
     };
   });
+  if (model.mermaid) {
+    for (const plan of plans) {
+      if (!plan.from.diamond || plan.to.shape !== 'rect' || plan.isBack || plan.laneFrom === plan.laneTo || plan.kind !== 'jump') continue;
+      const sign = Math.sign(plan.laneTo - plan.laneFrom);
+      const sourceAlong = plan.from.along + alongOf(plan.from) / 2;
+      const targetAlong = plan.to.along;
+      const sourceCross = plan.from.cross + (sign > 0 ? crossOf(plan.from) : 0);
+      const targetCross = plan.to.cross + crossOf(plan.to) / 2;
+      const boundary = Math.max(plan.laneFrom, plan.laneTo);
+      const rail = laneAt[boundary] - gaps[boundary] / 2;
+      if (targetAlong - sourceAlong <= 8 || (rail - sourceCross) * sign < 4 || (targetCross - rail) * sign < 4) continue;
+      const clear = nodes.every(node => node === plan.from || node === plan.to ||
+        node.along + alongOf(node) < sourceAlong - 4 || node.along > targetAlong + 4 ||
+        node.cross + crossOf(node) < Math.min(sourceCross, targetCross) - 4 || node.cross > Math.max(sourceCross, targetCross) + 4);
+      if (!clear) continue;
+      const route = [point(sourceCross, sourceAlong), point(rail, sourceAlong), point(rail, targetAlong - 8),
+        point(targetCross, targetAlong - 8), point(targetCross, targetAlong)];
+      const shared = (a, b) => (a.w === 0 && b.w === 0 && a.x === b.x && Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y) > 4)
+        || (a.h === 0 && b.h === 0 && a.y === b.y && Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x) > 4);
+      if (edges.some((edge, index) => index !== plan.index && segments(edge.points).some(b => segments(route).some(a => shared(a, b))))) continue;
+      edges[plan.index].points = route;
+      plan.sideBranch = { sourceAlong, rail };
+    }
+  }
   const hops = crossingsOf(edges);
   for (const edge of edges) {
     edge.hops = hops.get(edge) || [];
@@ -709,7 +755,9 @@ export function layout(model, { measure, width, lang }) {
   for (const zone of zones) {
     const { label } = zone.plan;
     const along = zone.top ? bandStart(zone.band) + ZONE_PAD : bandStart(zone.band) + bands[zone.band] - ZONE_PAD - label.along;
-    const box = point(zone.lo, along);
+    const box = zone.plan.sideBranch
+      ? point(zone.plan.sideBranch.rail - label.cross / 2, zone.plan.sideBranch.sourceAlong + LABEL_GAP)
+      : point(zone.lo, along);
     edges[zone.plan.index].label = { x: box.x, y: box.y, w: label.w, h: label.h, lines: label.lines };
   }
 

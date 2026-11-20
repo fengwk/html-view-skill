@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import { test } from 'vitest';
 import { diagram } from '../dist/esm/node.js';
 import { implementations } from '../src/diagram/swimlane-mermaid.js';
+import corpus from './conformance/mermaid-12.3.0.json';
 import { checkScene } from './helpers/geometry.mjs';
 
 // Digests captured before sharing the engine pin native SVG bytes in both orientations.
@@ -53,6 +54,29 @@ test('renders Mermaid presentation without changing native swimlanes', () => {
   assert.match(result.svg, /href="\/review"/);
   assert.match(result.svg, /Review &amp; approve/);
   assert.doesNotMatch(result.svg, /fa:fa-user/);
+});
+
+// Direct edges use centered ports, and a cross-lane decision leaves from the facing vertex.
+test('centers audit connectors and keeps the decision diamond square', () => {
+  const items = (id, width) => {
+    const source = corpus.find(row => row.id === `swimlanes.md:${id}`).source;
+    const visit = item => [item, ...(item.children ?? []).flatMap(visit)];
+    return diagram(source, { width }).scene.children.flatMap(visit);
+  };
+  for (const width of [800, 360]) {
+    for (const [id, from, to] of [[28, 'Pay', 'Pick'], [82, 'triage', 'answer']]) {
+      const all = items(id, width);
+      const node = all.find(i => i.meta?.kind === 'node' && i.meta.id === from).attrs;
+      const edge = all.find(i => i.meta?.kind === 'edge' && i.meta.from === from && i.meta.to === to).attrs;
+      assert.equal(Number(edge.d.match(/^M[\d.]+ ([\d.]+)/)[1]), node.y + node.height / 2);
+    }
+    const all = items(360, width);
+    const diamond = all.find(i => i.meta?.kind === 'node' && i.meta.id === 'classify');
+    const [top, right, bottom, left] = diamond.attrs.points.split(' ').map(point => point.split(',').map(Number));
+    assert.equal(right[0] - left[0], bottom[1] - top[1]);
+    const edge = all.find(i => i.meta?.kind === 'edge' && i.meta.from === 'classify' && i.meta.to === 'prioritize');
+    assert.ok(edge.attrs.d.startsWith(`M${bottom.join(' ')} L${bottom[0]} `));
+  }
 });
 
 // Reverse flow mirrors geometry, not the text; bold relations and accessibility survive serialization.
