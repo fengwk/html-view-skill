@@ -22,6 +22,9 @@ const htmlview = (...args) => JSON.parse(execFileSync(process.execPath, [cli, ..
 // Page samples are real documents captured at the wide-tile width and 2× pixels; the bottom margin matches the page's top.
 const PAGE_SCALE = 2, PAGE_MARGIN = 28;
 
+// `info` only prints the renderer version: a supported Mermaid keyword, not a figure to show.
+const showcased = types => types.filter(type => type.kind !== 'info');
+
 // Build every sample for one language and prove that the gallery covers the whole catalog exactly once.
 function samplesFor(lang, catalog, diagramTypes) {
   const cases = galleryCases(lang);
@@ -53,7 +56,7 @@ function samplesFor(lang, catalog, diagramTypes) {
     assert.ok(type, `${lang}: unknown diagram sample ${syntax}:${key}`);
     return type.kind;
   });
-  assert.deepEqual(diagramKinds.sort(), diagramTypes.map(type => type.kind).sort(), `${lang}: one sample per diagram type`);
+  assert.deepEqual(diagramKinds.sort(), showcased(diagramTypes).map(type => type.kind).sort(), `${lang}: one sample per diagram type`);
   return { cases, samples, groups };
 }
 
@@ -64,7 +67,7 @@ const themes = Object.values(renderer.themes);
 const counts = {
   charts: Object.keys(renderer.catalog).length,
   variants: Object.values(renderer.catalog).reduce((sum, entry) => sum + (entry.special.variant?.length || 0), 0),
-  diagrams: renderer.diagramTypes.length,
+  diagrams: showcased(renderer.diagramTypes).length,
   layouts: renderer.catalog.mindmap.special.layout.length,
 };
 
