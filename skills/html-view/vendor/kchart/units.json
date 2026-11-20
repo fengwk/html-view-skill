@@ -244,7 +244,7 @@
       "diagram/presentation",
       "diagram/support"
     ],
-    "bytes": 16065
+    "bytes": 16083
   },
   "diagram/blocks": {
     "file": "units/diagram/blocks.js",
@@ -263,7 +263,7 @@
       "diagram/presentation",
       "diagram/support"
     ],
-    "bytes": 16819
+    "bytes": 16966
   },
   "diagram/class": {
     "file": "units/diagram/class.js",
@@ -275,7 +275,7 @@
       "diagram/graph-layout",
       "core/geometry"
     ],
-    "bytes": 19867
+    "bytes": 21978
   },
   "diagram/cynefin": {
     "file": "units/diagram/cynefin.js",
@@ -297,7 +297,7 @@
       "core/geometry",
       "core/icons"
     ],
-    "bytes": 12144
+    "bytes": 12705
   },
   "diagram/eventmodeling": {
     "file": "units/diagram/eventmodeling.js",
@@ -519,7 +519,7 @@
       "diagram/presentation",
       "diagram/support"
     ],
-    "bytes": 6606
+    "bytes": 6635
   },
   "diagram/railroad-parse": {
     "file": "units/diagram/railroad-parse.js",

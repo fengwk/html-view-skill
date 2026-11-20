@@ -10,6 +10,7 @@ var PAD = 12;
 var MARGIN = 24;
 var ICON = 16;
 var ICON_GAP = 6;
+var NODE_LABEL_MAX = 240;
 var shapes = [
 	[
 		"(((",
@@ -428,7 +429,7 @@ function grid(group, measure, pad) {
 		const inner = node.children ? grid(node, measure, pad) : null;
 		const font = inner ? FONT.title : FONT.body;
 		const label = node.label ?? (inner ? "" : node.id);
-		const lines = label.trim() ? wrapText(label, 176, font, measure) : [];
+		const lines = label.trim() ? wrapText(label, NODE_LABEL_MAX - iconWidth(node.icon, [label]), font, measure) : [];
 		const textW = maxWidthOf(lines, font, measure) + iconWidth(node.icon, lines);
 		const textH = Math.max(lines.length * 18, node.icon ? ICON : 0);
 		const title = inner && textH ? textH + 4 : 0;

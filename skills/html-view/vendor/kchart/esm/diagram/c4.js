@@ -541,18 +541,21 @@ function hits([a, b], box) {
 	}
 	return true;
 }
-function sharesLine([a, b], [c, d]) {
+var TRACK_GAP = 8;
+function sharesChannel([a, b], [c, d]) {
 	const len = distance(a, b);
 	if (!len) return false;
 	const x = (b.x - a.x) / len, y = (b.y - a.y) / len;
-	const cross = (p) => Math.abs(x * (p.y - a.y) - y * (p.x - a.x));
-	if (cross(c) > 1.1 || cross(d) > 1.1) return false;
+	const cross = (p) => x * (p.y - a.y) - y * (p.x - a.x);
 	const project = (p) => x * (p.x - a.x) + y * (p.y - a.y);
-	const p = project(c), q = project(d);
-	return Math.min(len, Math.max(p, q)) - Math.max(0, Math.min(p, q)) > 3;
+	const p = project(c), q = project(d), offset = cross(c), rise = cross(d) - offset;
+	if (Math.abs(rise) > Math.abs(q - p) * .1 || p === q) return false;
+	const lo = Math.max(0, Math.min(p, q)), hi = Math.min(len, Math.max(p, q));
+	const gap = Math.max(...[lo, hi].map((u) => Math.abs(offset + (u - p) * rise / (q - p))));
+	return hi - lo > 3 && gap <= 1.1 || hi - lo > 8 && gap < TRACK_GAP;
 }
 function route(a, b, obstacles, existing, bounds, index) {
-	const clear = (path) => segments(path).every((seg) => !obstacles.some((box) => hits(seg, box)) && !existing.some((other) => sharesLine(seg, other)));
+	const clear = (path) => segments(path).every((seg) => !obstacles.some((box) => hits(seg, box)) && !existing.some((other) => sharesChannel(other, seg) || sharesChannel(seg, other)));
 	const attach = (box, toward) => {
 		const center = point(cx(box), cy(box));
 		return lerp(center, toward, Math.min(box.w / 2 / Math.abs(toward.x - center.x), box.h / 2 / Math.abs(toward.y - center.y)));
@@ -761,7 +764,7 @@ function layout(model, { width, ctx, lang }) {
 	for (const [i, rel] of model.rels.entries()) {
 		const a = byId.get(rel.from), b = byId.get(rel.to);
 		const blockers = frames.filter((frame) => frame !== a && frame !== b && !contains(frame, a) && !contains(frame, b));
-		const obstacles = [...occupied.filter((box) => box !== a && box !== b), ...blockers].map((box) => inflate(box, 4));
+		const obstacles = [...nodes.filter((box) => box !== a && box !== b).map((box) => inflate(box, TRACK_GAP)), ...[...headers, ...blockers].map((box) => inflate(box, 4))];
 		const endpointInsets = [a, b].filter((box) => !box.frame || a === b || !contains(box, box === a ? b : a)).map((box) => inflate(box, -2));
 		const path = route(a, b, [...obstacles, ...endpointInsets], used, {
 			x: 10 + i % 7 * 3,

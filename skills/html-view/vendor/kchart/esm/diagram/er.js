@@ -1,5 +1,5 @@
 import { __exportAll } from "../_virtual/_rolldown/runtime.js";
-import { DIRECTIONS, FONT, appearance, error, warning, wrapText } from "./support.js";
+import { DIRECTIONS, FONT, appearance, error, fallbackMeasure, warning, wrapText } from "./support.js";
 import { layoutGraph } from "./graph-layout.js";
 import { normalizeLabel } from "./label.js";
 import { presentation } from "./presentation.js";
@@ -325,15 +325,95 @@ function parseEr(body, info = {}) {
 		errors
 	};
 }
+function measureEntity(node, measure) {
+	const pad = 12, gap = 12;
+	const headLines = node.label || node.icon ? wrapText(withIconRow(node.label, node.icon), 180, FONT.title, measure) : [];
+	const headerH = headLines.length * 19 + 14;
+	const rows = node.fields.map(() => []);
+	const columns = [
+		[
+			"attribute-type",
+			"fg3",
+			FONT.body,
+			80,
+			(field) => field.type,
+			(field) => field.typeIcon
+		],
+		[
+			"attribute",
+			"fg2",
+			FONT.body,
+			120,
+			(field) => field.name,
+			(field) => field.nameIcon
+		],
+		[
+			"attribute-key",
+			"fg3",
+			FONT.label,
+			48,
+			(field) => field.keys.join(" ")
+		],
+		[
+			"attribute-comment",
+			"fg3",
+			FONT.body,
+			136,
+			(field) => field.comment,
+			(field) => field.commentIcon
+		]
+	];
+	let right = pad;
+	for (const [kind, tone, font, preferred, getText, getIcon] of columns) {
+		const widthOf = (value) => value === iconRow ? 12 : measure(value, font);
+		const cells = node.fields.map((field) => ({
+			paragraphs: (getText(field) ?? "").split("\n").map((line) => line.split(/[ \t]+/).filter(Boolean)),
+			icon: getIcon?.(field)
+		}));
+		let budget = preferred;
+		for (const { paragraphs } of cells) for (const words of paragraphs) for (const word of words) budget = Math.max(budget, widthOf(word));
+		let width = 0;
+		for (const [i, { paragraphs, icon }] of cells.entries()) {
+			const lines = icon ? [iconRow] : [];
+			for (const words of paragraphs) {
+				let line = "";
+				for (const word of words) {
+					const next = line ? `${line} ${word}` : word;
+					if (line && widthOf(next) > budget) {
+						lines.push(line);
+						line = word;
+					} else line = next;
+				}
+				if (line) lines.push(line);
+			}
+			for (const line of lines) width = Math.max(width, widthOf(line));
+			if (lines.length) rows[i].push({
+				x: right,
+				kind,
+				tone,
+				font,
+				lines,
+				icon
+			});
+		}
+		if (width) right += width + gap;
+	}
+	const rowHeights = rows.map((cells) => 8 + Math.max(1, ...cells.map((cell) => cell.lines.length)) * 17);
+	return {
+		w: Math.max(168, right - gap + pad, ...headLines.map((line) => 24 + measure(line, FONT.title))),
+		h: headerH + rowHeights.reduce((sum, height) => sum + height, 0) + 6,
+		rows,
+		rowHeights,
+		headLines,
+		headerH
+	};
+}
 function layout(model, options, info = {}) {
+	const table = new Map(model.nodes.map((node) => [node.id, measureEntity(node, options.measure ?? fallbackMeasure)]));
 	const nodes = model.nodes.map((node) => ({
 		...node,
-		label: withIconRow(node.label, node.icon),
-		fields: node.fields.map((field) => ({
-			...field,
-			type: withIconRow(field.type, field.typeIcon),
-			name: [withIconRow(field.name, field.nameIcon), withIconRow(field.comment, field.commentIcon)].filter((value) => value != null && value !== "").join("\n")
-		}))
+		fields: [],
+		block: table.get(node.id)
 	}));
 	const subgraphs = model.subgraphs.map((frame) => ({
 		...frame,
@@ -359,7 +439,8 @@ function layout(model, options, info = {}) {
 	if (geometry.width > options.width * 2 || nodes.length > 60) geometry.errors = [...geometry.errors ?? [], warning("LARGE_DIAGRAM", info.lang, info.headerLine, "ER 图较大，可横向滚动", "This ER diagram is large and can be scrolled horizontally", "可拆成多个局部图", "Consider splitting it into smaller diagrams")];
 	return {
 		...geometry,
-		model
+		model,
+		table
 	};
 }
 function scene(geometry, ctx) {
@@ -496,8 +577,8 @@ function scene(geometry, ctx) {
 		}
 	}
 	const nodes = new Map(geometry.model.nodes.map((node) => [node.id, node]));
-	for (const { id, x, y, w, h, er } of geometry.nodes) {
-		const node = nodes.get(id);
+	for (const { id, x, y, w, h } of geometry.nodes) {
+		const node = nodes.get(id), er = geometry.table.get(id);
 		const color = a[node.status];
 		const fill = color && node.status !== "ext" ? ctx.mix(a.node, color, a.soft) : a.node;
 		const children = [ctx.rect(x, y, w, h, {
@@ -518,30 +599,23 @@ function scene(geometry, ctx) {
 		}, node.icon)));
 		if (er.rows.length) children.push(line(`M${x + 1} ${y + er.headerH} H${x + w - 1}`));
 		let rowY = y + er.headerH + 2;
-		for (const [i, row] of er.rows.entries()) {
-			const { name, comment, typeIcon, nameIcon, commentIcon } = node.fields[i];
-			const nameWidth = Math.max(60, 240 - er.pad * 2 - er.typeW - 24 - er.keyW);
-			const nameCount = comment || commentIcon ? wrapText(withIconRow(name, nameIcon), nameWidth, FONT.body, (value, font) => ctx.measure(value, font.size, font.weight)).length : row.nameLines.length;
-			const cy = rowY + row.rowH / 2;
-			const cell = (values, px, kind, fill, font, anchor = "start", iconAt = () => null) => values.map((value, j) => text(px, cy + (j - (values.length - 1) / 2) * 17, value, {
-				anchor,
-				...font,
-				fill: typeof fill === "function" ? fill(j) : fill
+		for (const [i, cells] of er.rows.entries()) {
+			const { name } = node.fields[i];
+			const rowH = er.rowHeights[i], cy = rowY + rowH / 2;
+			children.push(group(cells.flatMap((cell) => cell.lines.map((value, j) => text(x + cell.x, cy + (j - (cell.lines.length - 1) / 2) * 17, value, {
+				anchor: "start",
+				...cell.font,
+				fill: a[cell.tone]
 			}, {
-				kind: typeof kind === "function" ? kind(j) : kind,
+				kind: cell.kind,
 				entity: id,
 				attribute: name
-			}, iconAt(j)));
-			children.push(group([
-				...cell(row.typeLines, x + er.pad, "attribute-type", a.fg3, FONT.body, "start", () => typeIcon),
-				...cell(row.nameLines, x + er.pad + er.typeW + 12, (j) => j < nameCount ? "attribute" : "attribute-comment", (j) => j < nameCount ? a.fg2 : a.fg3, FONT.body, "start", (j) => j < nameCount ? nameIcon : commentIcon),
-				...row.keyText ? cell([row.keyText], x + w - er.pad, "attribute-key", a.fg3, FONT.label, "end") : []
-			], {
+			}, cell.icon))), {
 				kind: "attribute-row",
 				entity: id,
 				attribute: name
 			}));
-			rowY += row.rowH;
+			rowY += rowH;
 		}
 		entities.push(linked(node, group(children, {
 			kind: "node",
