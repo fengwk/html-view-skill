@@ -4,8 +4,7 @@ import { galleryCases } from '../../../../docs/showcase/gallery-cases.mjs';
 import * as api from '@fengwk/kchart';
 import * as node from '@fengwk/kchart/node';
 import * as mermaid from '@fengwk/kchart/mermaid';
-
-import { treeFamilyExamples } from '../helpers/tree-family-examples.mjs';
+import { diagramExample } from '../helpers/diagram-examples.mjs';
 
 const families = JSON.parse(readFileSync(new URL('../../src/families.json', import.meta.url), 'utf8'));
 const gallery = galleryCases('en');
@@ -16,8 +15,7 @@ for (const [family, entry] of Object.entries(families)) {
   it(`renders ${family} with byte-identical SVG`, async () => {
     const kind = Object.keys(entry.diagrams ?? {})[0];
     if (kind) {
-      const [syntax, source] = [kind, ...(entry.diagrams[kind].aliases ?? [])]
-        .map(key => gallery.diagrams[key] ?? treeFamilyExamples[key]).find(Boolean);
+      const [syntax, source] = diagramExample([kind, ...(entry.diagrams[kind].aliases ?? [])]);
       const opts = { ...options, syntax };
       const expected = node.diagram(source, opts).svg;
       expect(expected).toMatch(/^<svg\b/);
