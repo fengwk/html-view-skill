@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.1
+
+- Center the title and payload together inside Event Modeling frames, with equal space above and below.
+- Draw Venn labels directly on the set and intersection fills, without label backplates or halos. Keep text clear of ring outlines and move labels below the diagram only when they cannot fit.
+
 ## 0.1.0
 
 - First npm release with an asynchronous browser/Node ESM API, on-demand chart and diagram families, and separately loaded built-in maps.

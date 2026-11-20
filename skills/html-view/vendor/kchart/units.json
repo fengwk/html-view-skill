@@ -311,7 +311,7 @@
       "diagram/support",
       "diagram/map-label"
     ],
-    "bytes": 19776
+    "bytes": 19826
   },
   "diagram/gantt-date": {
     "file": "units/diagram/gantt-date.js",
@@ -680,12 +680,13 @@
   "diagram/venn": {
     "file": "units/diagram/venn.js",
     "deps": [
+      "core/color",
       "diagram/support",
       "diagram/label",
       "diagram/presentation",
       "diagram/tree-family-icon"
     ],
-    "bytes": 18830
+    "bytes": 18478
   },
   "diagram/wardley": {
     "file": "units/diagram/wardley.js",

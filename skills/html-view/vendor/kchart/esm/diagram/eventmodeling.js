@@ -23,6 +23,7 @@ var MIN_BOX_W = 132;
 var MAX_BOX_W = 420;
 var NAME_STEP = 18;
 var DATA_STEP = 16;
+var DATA_GAP = 4;
 var CAPTION_STEP = 18;
 var NAME_FONT = Object.freeze({
 	size: 13,
@@ -482,7 +483,8 @@ function layout(model, options = {}, info = {}) {
 		const data = dataLinesOf(frame, frame.dataRef ? blocks.get(frame.dataRef) : null, measure, maxText, narrow);
 		const inner = Math.max(maxWidthOf(nameLines, NAME_FONT, measure) + glyphW + 6, data ? maxWidthOf(data.lines, DATA_FONT, measure) : 0);
 		const w = Math.min(MAX_BOX_W, Math.max(MIN_BOX_W, snap(inner + 20)));
-		const h = Math.max(MIN_BOX_H, snap(20 + nameLines.length * NAME_STEP + (data ? 4 + data.lines.length * DATA_STEP : 0)));
+		const contentH = nameLines.length * NAME_STEP + (data?.lines.length ? DATA_GAP + data.lines.length * DATA_STEP : 0);
+		const h = Math.max(MIN_BOX_H, snap(20 + contentH));
 		return {
 			frame,
 			index,
@@ -491,6 +493,7 @@ function layout(model, options = {}, info = {}) {
 			glyphW,
 			nameLines,
 			data,
+			contentH,
 			w,
 			h,
 			x: 0,
@@ -865,6 +868,8 @@ function scene(geometry, ctx) {
 		const stroke = tone ? ctx.tint(look.bg, tone, .45) : look.line2;
 		const ink = ctx.textOn(fill);
 		const glyphInk = tone ? ctx.textColor(tone) : look.fg3;
+		const contentY = box.y + (box.h - box.contentH) / 2;
+		const nameY = contentY + NAME_STEP / 2;
 		const parts = [ctx.rect(box.x, box.y, box.w, box.h, {
 			fill,
 			stroke,
@@ -874,21 +879,21 @@ function scene(geometry, ctx) {
 				kind: "node",
 				id: box.frame.id
 			}
-		}), ctx.text(box.x + BOX_PAD, box.y + BOX_PAD + NAME_STEP / 2, box.glyph, {
+		}), ctx.text(box.x + BOX_PAD, nameY, box.glyph, {
 			size: GLYPH_FONT.size,
 			weight: GLYPH_FONT.weight,
 			fill: glyphInk,
 			anchor: "start",
 			"dominant-baseline": "central"
 		})];
-		for (const [index, line] of box.nameLines.entries()) parts.push(ctx.text(box.x + BOX_PAD + box.glyphW + 6, box.y + BOX_PAD + NAME_STEP / 2 + index * NAME_STEP, line, {
+		for (const [index, line] of box.nameLines.entries()) parts.push(ctx.text(box.x + BOX_PAD + box.glyphW + 6, nameY + index * NAME_STEP, line, {
 			size: NAME_FONT.size,
 			weight: NAME_FONT.weight,
 			fill: ink,
 			anchor: "start",
 			"dominant-baseline": "central"
 		}));
-		const dataTop = box.y + BOX_PAD + box.nameLines.length * NAME_STEP + 4;
+		const dataTop = contentY + box.nameLines.length * NAME_STEP + DATA_GAP;
 		for (const [index, line] of (box.data?.lines || []).entries()) parts.push(ctx.text(box.x + BOX_PAD, dataTop + DATA_STEP / 2 + index * DATA_STEP, line, {
 			size: DATA_FONT.size,
 			weight: DATA_FONT.weight,

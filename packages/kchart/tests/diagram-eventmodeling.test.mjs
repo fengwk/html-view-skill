@@ -116,6 +116,24 @@ test('resolves data blocks and preserves inline text', () => {
   ]);
 });
 
+// The minimum height and grid rounding must not put extra whitespace only below the text.
+test('centers one-line titles and title-plus-payload blocks inside Event Modeling cards', () => {
+  const { scene } = draw('tf 01 ui Screen\ntf 02 cmd Send\ntf 03 evt Saved [[Info]]\ndata Info {\n  first: string\n  last: number\n}');
+  const card = id => {
+    const group = elements(scene).find(node => node.children?.some(child => child.meta?.kind === 'node' && child.meta.id === id));
+    const rect = group.children.find(child => child.tag === 'rect').attrs;
+    return { ...rect, rows: group.children.filter(child => child.tag === 'text').map(child => child.attrs.y) };
+  };
+  const screen = card('01');
+  assert.deepEqual(screen.rows, Array(2).fill(screen.y + screen.height / 2));
+  const saved = card('03');
+  assert.equal(saved.rows.length, 4);
+  const top = saved.rows[1] - 18 / 2 - saved.y;
+  const bottom = saved.y + saved.height - (saved.rows.at(-1) + 16 / 2);
+  assert.ok(top >= 10);
+  assert.equal(top, bottom);
+});
+
 // A source-type mismatch is reported without suppressing the explicit edge.
 test('warns about Event Modeling source types without blocking', () => {
   const { scene, diagnostics } = draw('tf 01 ui A\ntf 02 rmo B ->> 01');

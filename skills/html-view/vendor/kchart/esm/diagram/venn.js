@@ -1,4 +1,5 @@
 import { __exportAll } from "../_virtual/_rolldown/runtime.js";
+import { contrast, pushContrast } from "../core/color.js";
 import { FONT, appearance, error, fallbackMeasure, warning, wrapText } from "./support.js";
 import { normalizeLabel } from "./label.js";
 import { presentation } from "./presentation.js";
@@ -14,7 +15,6 @@ var ITEM_GAP = 4;
 var SET_CLEAR = 12;
 var UNION_CLEAR = 10;
 var INK_GAP = 4;
-var CHIP_Y = 2;
 var SHELF_GAP = 26;
 var SHELF_PITCH = 28;
 var LEADER = 8;
@@ -25,6 +25,8 @@ var GRID_COLS = 3;
 var ITEM_CAP = 12;
 var SIZE_DEFAULT = 10;
 var RING_STROKE = 1.5;
+var RING_OPACITY = .1;
+var TEXT_CONTRAST = 4.5;
 var SPREADS = 17;
 var GROW = 1.12;
 var MAX_GROWTH = 6;
@@ -44,6 +46,10 @@ var SET_FONT = {
 var ITEM_FONT = {
 	size: FONT.label.size,
 	weight: FONT.label.weight
+};
+var UNION_FONT = {
+	...ITEM_FONT,
+	weight: 600
 };
 function stripComment(line) {
 	let quote = false;
@@ -430,64 +436,37 @@ function boundsOf(rings) {
 }
 function planBlock(region, measure) {
 	const slack = region.kind === "set" ? SET_CLEAR : UNION_CLEAR;
-	const pad = region.kind === "set" ? 0 : 14;
-	const texts = [...region.labels.map((label) => label.text), ...region.items.map((item) => item.text)];
-	const font = region.kind === "set" ? SET_FONT : ITEM_FONT;
-	const floor = Math.max(0, ...texts.flatMap((text) => String(text).split(/\s+/).filter(Boolean).map((word) => measure(word, font))));
-	const cap = Math.max(48, floor + 2, (region.clear - slack) * 2 - 20 - pad);
-	const wrap = (value, spec) => wrapText(value, cap, spec, (piece, spec2) => measure(piece, spec2));
-	const labelFont = region.kind === "set" ? SET_FONT : ITEM_FONT;
-	const labels = [];
-	for (const label of region.labels) for (const row of wrap(label.text, labelFont)) labels.push({
-		text: row,
-		font: labelFont,
-		icon: label.icon,
-		link: label.link
-	});
-	const items = [];
-	for (const item of region.items) for (const row of wrap(item.text, ITEM_FONT)) items.push({
-		text: row,
-		font: ITEM_FONT,
-		icon: item.icon,
-		link: item.link,
-		status: item.status
-	});
-	const widest = (rows) => rows.length ? Math.max(...rows.map((row) => measure(row.text, row.font) + (row.icon ? 18 : 0))) : 0;
-	const labelW = labels.length ? widest(labels) + pad : 0;
-	const labelH = labels.length * ((region.kind === "set" ? HEAD_LINE : ITEM_LINE) + 4 / labels.length);
-	const itemW = widest(items);
-	const itemH = items.length * ITEM_LINE;
-	const w = Math.max(labelW, itemW);
-	const h = labelH + (items.length ? (labels.length ? ITEM_GAP : 0) + itemH : 0);
-	const block = {
+	const labelFont = region.kind === "set" ? SET_FONT : UNION_FONT;
+	const floorOf = (entries, font) => Math.max(0, ...entries.flatMap(({ text }) => String(text).split(/\s+/).filter(Boolean).map((word) => measure(word, font))));
+	const cap = Math.max(48, floorOf(region.labels, labelFont) + 2, floorOf(region.items, ITEM_FONT) + 2, (region.clear - slack) * 2 - 20);
+	const rows = (entries, font, status) => entries.flatMap((entry) => wrapText(entry.text, cap, font, measure).map((text) => ({
+		text,
+		font,
+		icon: entry.icon,
+		link: entry.link,
+		status: entry.status || status
+	})));
+	const labels = rows(region.labels, labelFont, region.status);
+	const items = rows(region.items, ITEM_FONT, labels.length ? null : region.status);
+	const labelH = labels.length * (region.kind === "set" ? HEAD_LINE : ITEM_LINE);
+	const w = Math.max(0, ...[...labels, ...items].map((row) => rowWidth(row, measure)));
+	const h = labelH + (labels.length && items.length ? ITEM_GAP : 0) + items.length * ITEM_LINE;
+	return {
 		labels,
 		items,
-		slack,
-		pad,
-		labelW,
 		labelH,
-		itemW,
-		itemH,
 		w,
 		h,
-		chip: region.kind !== "set" && labels.length > 0
+		room: h ? blockClearance(region, w, h) - INK_GAP : Infinity
 	};
-	block.room = h ? borderClearance(region, w, h) - INK_GAP : Infinity;
-	block.fits = block.room >= -.5;
-	return block;
 }
-function borderClearance(region, w, h) {
+function rowWidth(row, measure) {
+	return measure(row.text, row.font) + (row.icon ? 18 : 0);
+}
+function blockClearance(region, w, h) {
 	let worst = Infinity;
-	for (const [sx, sy] of [
-		[-1, -1],
-		[1, -1],
-		[1, 1],
-		[-1, 1],
-		[0, -1],
-		[1, 0],
-		[0, 1],
-		[-1, 0]
-	]) worst = Math.min(worst, clearanceAt(region.x + sx * w / 2, region.y + sy * h / 2, region.inside, region.outside));
+	for (const ring of region.inside) worst = Math.min(worst, ring.r - Math.hypot(Math.abs(region.x - ring.cx) + w / 2, Math.abs(region.y - ring.cy) + h / 2));
+	for (const ring of region.outside) worst = Math.min(worst, Math.hypot(Math.max(0, Math.abs(region.x - ring.cx) - w / 2), Math.max(0, Math.abs(region.y - ring.cy) - h / 2)) - ring.r);
 	return worst;
 }
 function regionList(rings, model) {
@@ -522,11 +501,14 @@ function regionList(rings, model) {
 	for (const union of model.unions) {
 		const key = union.ids.join("|");
 		const existing = merged.get(key);
+		const labels = union.label || union.icon ? [{
+			text: union.label,
+			icon: union.icon,
+			line: union.line,
+			link: union.link
+		}] : [];
 		if (existing) {
-			if (union.label) existing.labels.push({
-				text: union.label,
-				line: union.line
-			});
+			existing.labels.push(...labels);
 			continue;
 		}
 		const region = {
@@ -535,12 +517,7 @@ function regionList(rings, model) {
 			ids: union.ids,
 			line: union.line,
 			tone: rings.find((ring) => ring.id === union.ids[0])?.tone || 1,
-			labels: union.label ? [{
-				text: union.label,
-				icon: union.icon,
-				line: union.line,
-				link: union.link
-			}] : [],
+			labels,
 			items: (groups.get(key) || []).map((text) => ({
 				text: text.label,
 				icon: text.icon,
@@ -581,24 +558,23 @@ function chooseSpread(ringsFor, regions, measure, preferred) {
 	order.sort((left, right) => Math.abs(left - preferred) - Math.abs(right - preferred) || right - left);
 	let best = null;
 	for (const spread of order) {
-		bindRegions(regions, ringsFor(spread));
-		const worst = roomOf(regions, measure, true);
+		const rings = ringsFor(spread);
+		bindRegions(regions, rings);
+		const coarse = roomOf(regions, measure, true);
+		const worst = coarse >= 0 ? roomOf(regions, measure, false) : coarse;
+		if (worst >= 0) return {
+			rings,
+			worst
+		};
 		if (!best || worst > best.worst + 1e-9) best = {
 			spread,
 			worst
 		};
-		if (worst >= 0) {
-			bindRegions(regions, ringsFor(spread));
-			roomOf(regions, measure, false);
-			return {
-				rings: ringsFor(spread),
-				worst
-			};
-		}
 	}
-	bindRegions(regions, ringsFor(best.spread));
+	const rings = ringsFor(best.spread);
+	bindRegions(regions, rings);
 	return {
-		rings: ringsFor(best.spread),
+		rings,
 		worst: roomOf(regions, measure, false)
 	};
 }
@@ -606,33 +582,15 @@ function layoutBlock(region) {
 	const block = region.block;
 	const top = region.y - block.h / 2;
 	const pitch = region.kind === "set" ? HEAD_LINE : ITEM_LINE;
-	region.rows = [];
-	region.chip = null;
-	if (block.labels.length) {
-		region.chip = {
-			x: region.x - block.labelW / 2,
-			y: top,
-			w: block.labelW,
-			h: block.labelH
-		};
-		block.labels.forEach((row, index) => region.rows.push({
-			text: row.text,
-			font: row.font,
-			icon: row.icon,
-			link: row.link,
-			status: row.status,
-			x: region.x,
-			y: top + CHIP_Y + (index + .5) * pitch,
-			anchor: "middle"
-		}));
-	}
+	region.rows = block.labels.map((row, index) => ({
+		...row,
+		x: region.x,
+		y: top + (index + .5) * pitch,
+		anchor: "middle"
+	}));
 	const itemTop = top + block.labelH + (block.labels.length && block.items.length ? ITEM_GAP : 0);
 	block.items.forEach((row, index) => region.rows.push({
-		text: row.text,
-		font: row.font,
-		icon: row.icon,
-		link: row.link,
-		status: row.status,
+		...row,
 		x: region.x,
 		anchor: "middle",
 		y: itemTop + (index + .5) * ITEM_LINE
@@ -655,18 +613,11 @@ function planRings(model, { measure, width, lang }) {
 	const rings = chosen.rings;
 	const shelf = [];
 	for (const region of regions) {
-		if (region.block.fits) continue;
+		if (region.block.room >= 0) continue;
 		shelf.push({
 			region,
 			rows: [...region.block.labels, ...region.block.items]
 		});
-		region.block = {
-			...region.block,
-			labels: [],
-			labelW: 0,
-			labelH: 0,
-			chip: false
-		};
 	}
 	const claimed = new Set(regions.map((region) => region.key));
 	for (const text of model.texts) {
@@ -681,7 +632,10 @@ function planRings(model, { measure, width, lang }) {
 			},
 			rows: [{
 				text: text.label,
-				font: ITEM_FONT
+				font: ITEM_FONT,
+				icon: text.icon,
+				link: text.link,
+				status: text.status
 			}]
 		});
 	}
@@ -692,7 +646,7 @@ function planRings(model, { measure, width, lang }) {
 		notes.push(warning("DIAGRAM_HINT", lang, region.texts[ITEM_CAP].line, `「${region.key}」区域有 ${region.texts.length} 个 text，超过 ${ITEM_CAP} 个后很难阅读`, `Region "${region.key}" holds ${region.texts.length} text nodes; more than ${ITEM_CAP} is hard to read`, "把说明移到图外，或拆成多张图", "Move details outside, or split the diagram"));
 		break;
 	}
-	const drawn = regions.filter((region) => region.block.h > 0 || region.block.labels.length);
+	const drawn = regions.filter((region) => region.block.h > 0 && region.block.room >= 0);
 	for (const region of drawn) layoutBlock(region);
 	return finish({
 		mode: "rings",
@@ -876,20 +830,16 @@ function finish(plan, model, { measure, width }) {
 				text: item.region.caption,
 				font: ITEM_FONT,
 				kind: "caption"
-			}] : [], ...item.rows.map((row) => ({
-				...row,
-				kind: row.font === SET_FONT ? "label" : "item"
-			}))];
-			const w = Math.max(0, ...rows.map((row) => measure(row.text, row.font)));
+			}] : [], ...item.rows];
+			const w = Math.max(0, ...rows.map((row) => rowWidth(row, measure)));
 			if (cursor > plan.plot.x && cursor + w > plan.plot.x + limit) {
 				cursor = plan.plot.x;
 				top += rowH + GRID_GAP / 2;
 				rowH = 0;
 			}
 			const lines = rows.map((row, index) => ({
-				text: row.text,
-				font: row.font,
-				kind: row.kind,
+				...row,
+				anchor: "start",
 				x: cursor,
 				y: top + (index + .5) * ITEM_LINE
 			}));
@@ -932,10 +882,6 @@ function finish(plan, model, { measure, width }) {
 	for (const region of plan.regions || []) {
 		region.x += dx;
 		region.y += dy;
-		if (region.chip) {
-			region.chip.x += dx;
-			region.chip.y += dy;
-		}
 	}
 	for (const item of shelf) {
 		for (const line of item.lines) {
@@ -1003,8 +949,13 @@ function scene(plan, ctx) {
 	const look = appearance(ctx);
 	const paper = ctx.color("bg");
 	const tone = (index) => ctx.frameTone(ctx.color(`tone${(index - 1) % 6 + 1}`));
-	const row = (item) => {
-		const ink = item.status ? ctx.textColor(look[item.status]) : item.kind === "caption" ? look.fg3 : item.font === SET_FONT ? look.fg1 : look.fg2;
+	const row = (item, background) => {
+		let ink = item.status ? ctx.textColor(look[item.status]) : item.kind === "caption" ? look.fg3 : item.font === SET_FONT ? look.fg1 : look.fg2;
+		if (background && contrast(ink, background) < TEXT_CONTRAST) {
+			let target = ctx.textOn(background);
+			if (contrast(target, background) < TEXT_CONTRAST) target = contrast("#000000", background) >= TEXT_CONTRAST ? "#000000" : "#ffffff";
+			ink = pushContrast(ink, target, background, TEXT_CONTRAST);
+		}
 		const children = [ctx.text(item.x + (item.icon ? item.anchor === "middle" ? 9 : 18 : 0), item.y, item.text, {
 			anchor: item.anchor,
 			size: item.font.size,
@@ -1020,13 +971,14 @@ function scene(plan, ctx) {
 	};
 	const children = [];
 	if (plan.mode === "rings") {
-		for (const ring of plan.rings) children.push(ctx.circle(ring.cx, ring.cy, ring.r, {
-			fill: ring.status ? ctx.frameTone(look[ring.status]) : tone(ring.tone),
-			"fill-opacity": .1
+		const fills = plan.rings.map((ring) => ring.status ? ctx.frameTone(look[ring.status]) : tone(ring.tone));
+		for (const [index, ring] of plan.rings.entries()) children.push(ctx.circle(ring.cx, ring.cy, ring.r, {
+			fill: fills[index],
+			"fill-opacity": RING_OPACITY
 		}));
-		for (const ring of plan.rings) children.push(ctx.circle(ring.cx, ring.cy, ring.r, {
+		for (const [index, ring] of plan.rings.entries()) children.push(ctx.circle(ring.cx, ring.cy, ring.r, {
 			fill: "none",
-			stroke: ring.status ? ctx.frameTone(look[ring.status]) : tone(ring.tone),
+			stroke: fills[index],
 			"stroke-width": RING_STROKE,
 			meta: {
 				kind: "node",
@@ -1035,20 +987,16 @@ function scene(plan, ctx) {
 			}
 		}));
 		for (const region of plan.regions) {
-			if (!region.chip) continue;
-			children.push(ctx.rect(region.chip.x, region.chip.y, region.chip.w, region.chip.h, {
-				rx: look.smallRadius,
-				fill: region.status ? ctx.tint(paper, look[region.status], .12) : paper
-			}));
+			const background = plan.rings.reduce((under, ring, index) => region.ids.includes(ring.id) ? ctx.mix(under, fills[index], RING_OPACITY) : under, paper);
+			for (const item of region.rows) children.push(row(item, background));
 		}
-		for (const item of plan.rows) children.push(row(item));
 		for (const item of plan.shelf) {
 			if (item.from) children.push(ctx.line(item.from.x, item.from.y, item.to.x, item.to.y, {
 				stroke: ctx.tint(paper, tone(item.tone), .55),
 				"stroke-width": 1,
 				"stroke-dasharray": "3 3"
 			}));
-			for (const line of item.lines) children.push(row(line));
+			for (const line of item.lines) children.push(row(line, paper));
 		}
 	} else for (const panel of plan.panels) {
 		const color = panel.status ? ctx.frameTone(look[panel.status]) : tone(panel.tone);
