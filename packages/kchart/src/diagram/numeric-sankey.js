@@ -6,8 +6,9 @@
    `""` 转义、乱序空行、仅在引号内允许的逗号与非 ASCII 文本。 */
 
 import { error, warning } from './support.js';
-import { renderWith, validateWith } from './numeric-model.js';
-import '../chart/relations.js';
+import { numericLabel, renderWith, validateWith } from './numeric-model.js';
+import { presentation } from './presentation.js';
+import { sankeyPresentation } from '../chart/relations.js';
 
 const MAX_NODES = 60, MAX_EDGES = 120;
 const issue = (info, line, zh, en, fixZh = '修正 Mermaid sankey 语法', fixEn = 'Correct the Mermaid sankey syntax') => error(info.lang, line, zh, en, fixZh, fixEn);
@@ -76,11 +77,12 @@ function configWarnings(info) {
 
 function parseSankey(source, info) {
   const errors = [], rows = [], nodes = [];
+  const look = presentation({ lang: info.lang });
   const header = String(info.params || Object.keys(info.options || {}).join(' ')).replace(/\s*:\s*$/, '').trim();
   if (header) errors.push(issue(info, info.headerLine || info.firstLine, `sankey 不支持头行选项「${header}」`, `sankey does not accept header options: ${header}`, '把配置写在前言区 sankey: 下', 'Put options under front matter sankey:'));
   String(source).split('\n').forEach((raw, index) => {
     const text = raw.trim(), line = info.firstLine + index;
-    if (!text || text.startsWith('%%')) return;
+    if (!text || text.startsWith('%%') || look.accept(text, line)) return;
     const cells = csv(text);
     if (!cells) { errors.push(issue(info, line, 'sankey CSV 引号格式错误', 'Malformed sankey CSV quoting', '用成对的 " 包住含逗号的名称，字段内引号写作 ""', 'Wrap names that contain commas in " and write inner quotes as ""')); return; }
     if (cells.length !== 3) { errors.push(issue(info, line, `sankey 每行必须是 Source,Target,Value 三列，本行 ${cells.length} 列`, `Each sankey row needs exactly 3 columns, got ${cells.length}`, '每行只写来源、目标、数值三列', 'Write source, target and value only')); return; }
@@ -97,12 +99,12 @@ function parseSankey(source, info) {
   return {
     model: {
       chart: 'sankey',
-      nodes: nodes.map(id => ({ id, label: id })),
-      edges: rows,
+      nodes: nodes.map(id => ({ id, label: numericLabel(id, info, rows.find(e => e.source === id || e.target === id)?.line, errors), [sankeyPresentation]: { status: look.statusOf(id), link: look.linkOf(id) } })),
+      edges: rows.map((edge, index) => ({ ...edge, [sankeyPresentation]: look.edgeStatusOf(index) })),
       showValues,
       unit: unitOf(info),
     },
-    errors,
+    errors: [...errors, ...look.diagnostics()],
   };
 }
 
@@ -120,6 +122,7 @@ function toSpec(model) {
   return {
     chart: 'sankey',
     tolerant: true,
+    [sankeyPresentation]: true,
     data: { nodes: model.nodes, edges: model.edges.map(({ line, ...edge }) => edge) },
     layout: 'right',
     showValues: model.showValues,
@@ -146,6 +149,6 @@ const layout = (model, options, info) => renderWith(toSpec(model), options, info
 
 export const honoredConfig = Object.freeze(['sankey.showValues', 'sankey.prefix', 'sankey.suffix']);
 
-const implementation = { parse: parseSankey, validate, layout, optionMode: 'raw', honoredConfig };
+const implementation = { parse: parseSankey, validate, layout, optionMode: 'raw', acceptsPresentation: true, honoredConfig };
 
 export const implementations = { sankey: implementation };

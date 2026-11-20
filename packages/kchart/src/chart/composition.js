@@ -67,6 +67,7 @@ const pieSlices = (spec, ctx) => {
   if (!(total > 0)) ctx.fit('构成图总值必须大于0', '为至少一个类别提供正值');
   return { table, field, rows, values, total };
 };
+export const compositionPresentation = Symbol('composition presentation');
 function pieLayout(spec, ctx, isDonut = false) {
   const { table, field, rows, values, total } = pieSlices(spec, ctx);
   const width = ctx.width;
@@ -79,6 +80,7 @@ function pieLayout(spec, ctx, isDonut = false) {
   const cx = sideLegend ? groupX + chartSpan / 2 : width / 2;
   const r = width <= 360 ? Math.min(112, width * 0.275) : Math.min(sideLegend ? 168 : 112, Math.max(60, chartSpan * 0.32));
   const cy = r + 36, inner = isDonut ? r * 0.58 : 0;
+  const labelRadius = r * (spec[compositionPresentation]?.labelRadius ?? .72);
   const children = [], sectors = [], sliceLabels = [], ticksVariant = isDonut && spec.variant === 'ticks';
   let a = -Math.PI / 2;
   rows.forEach((row, i) => {
@@ -89,8 +91,8 @@ function pieLayout(spec, ctx, isDonut = false) {
       if (isDonut) children.push(ctx.path(arcPath(cx, cy, inner, r, a, next), { fill, stroke: ctx.color('bg'), 'stroke-width': 2, meta }));
       else sectors.push({ r, a0: a, a1: next, fill, meta });
       if (spec.sliceLabels && next - a >= 14 * Math.PI / 180 &&
-          2 * r * .72 * Math.sin(Math.min(Math.PI, next - a) / 2) >= ctx.measure('100%', 12, 600) + 8) {
-        const [x, y] = polar(cx, cy, r * .72, (a + next) / 2);
+          2 * labelRadius * Math.sin(Math.min(Math.PI, next - a) / 2) >= ctx.measure('100%', 12, 600) + 8) {
+        const [x, y] = polar(cx, cy, labelRadius, (a + next) / 2);
         sliceLabels.push(ctx.text(x, y + 4, `${Math.round(100 * values[i] / total)}%`, {
           anchor: 'middle', size: 12, weight: 600, fill: ctx.textOn(fill),
         }));
@@ -327,9 +329,9 @@ const treeNodes = (root) => {
   visit(entry);
   return out;
 };
-function fallbackLegend(children, entries, x, y, width, ctx, kind) {
+function fallbackLegend(children, entries, x, y, width, ctx, kind, format = value => ctx.format(value, 'value')) {
   for (const item of entries) {
-    const lines = ctx.wrap(`${item.index}. ${item.label} · ${ctx.format(item.value, 'value')}`, Math.max(1, width - 28), 12);
+    const lines = ctx.wrap(`${item.index}. ${item.label} · ${format(item.value)}`, Math.max(1, width - 28), 12);
     children.push(ctx.rect(x, y - 10, 12, 12, { fill: item.color }), ctx.textLines(x + 18, y, lines, { size: 12, fill: ctx.color('fg') }));
     const text = children[children.length - 1];
     if (text.children) text.children[0].meta = { kind, path: item.path, label: item.label, value: item.value, index: item.index };
@@ -339,29 +341,38 @@ function fallbackLegend(children, entries, x, y, width, ctx, kind) {
 }
 function treemap(spec, ctx) {
   const root = spec.data, width = Math.min(ctx.width - 48, 752), top = 44, tree = treeNodes(root), leaves = tree.filter((x) => !x.children.length), total = tree[0].value;
+  const diagram = spec[compositionPresentation];
   const tones = new Map(leaves.map((leaf, i) => [leaf, `tone${i % 6 + 1}`])), children = [], fallback = [];
-  const colorOf = (leaf) => ctx.color(tones.get(leaf));
+  const statusOf = (entry) => ctx.design[entry.node[compositionPresentation]?.status];
+  const colorOf = (leaf) => statusOf(leaf) || ctx.color(tones.get(leaf));
+  const showValues = diagram?.showValues !== false;
+  const format = value => `${diagram?.prefix || ''}${ctx.format(value, 'value')}`;
+  const wrapLink = (entry, start) => {
+    const link = entry.node[compositionPresentation]?.link;
+    if (link) children.push(ctx.link(link.href, children.splice(start), link));
+  };
   // hidden 是标题放不进自己区块的祖先分组名。它们的叶子改用编号，并在图例里写出「分组 / 名称」，读者仍能看出归属。
   const place = (entry, x, y, w, h, depth, hidden = []) => {
+    const start = children.length;
     if (depth > 0 && w > 0 && h > 0) {
       children.push(ctx.rect(x, y, w, h, {
-        fill: depth === 1 ? ctx.color('bg') : 'none',
-        stroke: ctx.color('axis'),
+        fill: entry.children.length && statusOf(entry) ? ctx.tint(ctx.palette.bg, statusOf(entry), .14) : depth === 1 ? ctx.color('bg') : 'none',
+        stroke: statusOf(entry) || ctx.color('axis'),
         'stroke-width': 1,
-        meta: { kind: 'treemap-node', label: String(entry.node.label), value: entry.value, path: entry.path },
+        meta: { kind: diagram ? 'frame' : 'treemap-node', ...(diagram ? { id: entry.path } : {}), label: String(entry.node.label), value: entry.value, path: entry.path },
       }));
     }
     if (!entry.children.length) {
       if (entry.value > 0 && w > 0 && h > 0) {
-        const i = leaves.indexOf(entry), inset = 2, label = String(entry.node.label), value = ctx.format(entry.value, 'value');
+        const i = leaves.indexOf(entry), inset = 2, label = String(entry.node.label), value = format(entry.value);
         const listed = [...hidden, label].join(' / ');
         const tileW = Math.max(0, w - inset * 2), tileH = Math.max(0, h - inset * 2);
-        const labelColor = ctx.textOn(tones.get(entry));
+        const labelColor = ctx.textOn(statusOf(entry) || tones.get(entry));
         children.push(ctx.rect(x + inset, y + inset, tileW, tileH, {
           fill: colorOf(entry),
-          meta: { kind: 'treemap-leaf', label, value: entry.value, path: entry.path },
+          meta: { kind: diagram ? 'node' : 'treemap-leaf', ...(diagram ? { id: entry.path } : {}), label, value: entry.value, path: entry.path },
         }));
-        const fullLabel = `${label} · ${value}`;
+        const fullLabel = showValues ? `${label} · ${value}` : label;
         const fullWidth = ctx.measure(fullLabel, 12, 600);
         const index = i + 1;
         if (!hidden.length && tileW >= fullWidth + 12 && tileH >= 34) {
@@ -387,6 +398,7 @@ function treemap(spec, ctx) {
         const i = leaves.indexOf(entry);
         fallback.push({ index: i + 1, label: [...hidden, String(entry.node.label)].join(' / '), value: entry.value, path: entry.path, color: colorOf(entry) });
       }
+      wrapLink(entry, start);
       return;
     }
     const header = depth > 0 && h >= 32 && ctx.measure(String(entry.node.label), 12, 600) + 14 <= w ? 20 : 0;
@@ -398,6 +410,7 @@ function treemap(spec, ctx) {
         meta: { kind: 'treemap-group-label', label: String(entry.node.label), path: entry.path },
       }));
     }
+    wrapLink(entry, start);
     const below = depth > 0 && !header ? [...hidden, String(entry.node.label)] : hidden;
     const contentY = y + header, contentH = Math.max(0, h - header);
     const vertical = depth % 2 === 0;
@@ -414,7 +427,7 @@ function treemap(spec, ctx) {
     });
   };
   place(tree[0], 24, top, width, 242, 0);
-  const listEnd = fallbackLegend(children, fallback, 24, 310, Math.min(width, 360), ctx, 'treemap-name');
+  const listEnd = fallbackLegend(children, fallback, 24, 310, Math.min(width, 360), ctx, 'treemap-name', format);
   const height = fallback.length ? listEnd + 8 : top + 242 + 8;
   return ctx.scene(height, children, spec.title);
 }

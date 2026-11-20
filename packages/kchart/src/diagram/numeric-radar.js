@@ -5,7 +5,7 @@
    curve、按轴名引用取值，以及 showLegend/ticks/max/min/graticule 全部选项。 */
 
 import { error, warning } from './support.js';
-import { renderWith, validateWith } from './numeric-model.js';
+import { numericLabel, renderWith, validateWith } from './numeric-model.js';
 import '../chart/multivariate.js';
 
 const limit = 24;
@@ -75,7 +75,7 @@ function readAxes(info, text, line, axes, errors) {
     if (!match) { errors.push(issue(info, line, `无法识别 radar 维度「${part}」`, `Unrecognized radar axis "${part}"`, '使用 `axis 名称` 或 `axis 名称["显示名"]`', 'Use `axis name` or `axis name["Label"]`')); continue; }
     const id = match[1];
     if (axes.some(axis => axis.id === id)) { errors.push(issue(info, line, `radar 维度「${id}」重复`, `Duplicate radar axis "${id}"`, '每个维度只声明一次', 'Declare each axis once')); continue; }
-    axes.push({ id, label: labelOf(match, id), line });
+    axes.push({ id, label: numericLabel(labelOf(match, id), info, line, errors), line });
   }
 }
 
@@ -92,7 +92,7 @@ function readCurves(info, text, line, curves, errors) {
       if (!pair) { errors.push(issue(info, line, `radar 曲线「${id}」的值「${item}」无效`, `Invalid value "${item}" in radar curve "${id}"`, '曲线值必须是数值，或 `维度名: 数值`', 'Curve values must be numbers or `axis: number` pairs')); broken = true; continue; }
       entries.push({ axis: pair[1], value: Number(pair[2]) });
     }
-    if (!broken) curves.push({ id, label: labelOf(match, id), entries, line });
+    if (!broken) curves.push({ id, label: numericLabel(labelOf(match, id), info, line, errors), entries, line });
   }
 }
 
@@ -162,7 +162,7 @@ function parseRadar(source, info) {
   for (const item of statements(source, info.firstLine)) {
     if (/^title\s+/i.test(item.text)) {
       if (title !== null) { errors.push(issue(info, item.line, 'radar 只能有一个 title')); continue; }
-      title = unquote(item.text.replace(/^title\s+/i, '')); titleLine = item.line; continue;
+      title = numericLabel(unquote(item.text.replace(/^title\s+/i, '')), info, item.line, errors); titleLine = item.line; continue;
     }
     if (/^axis\s+/i.test(item.text)) { axisLine ??= item.line; readAxes(info, item.text, item.line, axes, errors); continue; }
     if (/^curve\s+/i.test(item.text)) { readCurves(info, item.text, item.line, curves, errors); continue; }

@@ -70,10 +70,31 @@ test('mindmap shapes and relative indentation', () => {
   assert.equal((svg.match(/<polygon\b/g) || []).length, 2);
 });
 
+// Widen a compact tree for a long English word; SVG text may never contain only a fragment of it.
+test('mindmap does not break English words mid-word', () => {
+  const word = 'Popularisation';
+  const body = `Root\n  One\n    Two\n      Three\n        ${word} Antidisestablishmentarianism`;
+  const parsed = parse(body, { firstLine: 2 });
+  const { svg } = render(parsed.model, { width: 360 });
+  assert.match(svg, />Popularisation<\/text>/);
+  assert.match(svg, />Antidisestablishmentarianism<\/text>/);
+});
+
+// Styling and icons share the same node without turning presentation statements into children.
+test('mindmap style icon and link decorations', () => {
+  const parsed = parse('root[Root]\n  a[A &amp; B]\n    :::custom other\n    ::icon(fa fa-book)\n  b[B]\n    ::icon(not-real:totally-unknown)\nclassDef custom fill:#f00\nclick a href "https://example.org"', { firstLine: 2 });
+  assert.deepEqual(parsed.errors.map(e => e.code), ['IGNORED_ASSET']);
+  assert.equal(parsed.model.data.children[0].status, 'danger');
+  const { svg } = render(parsed.model, { width: 360 });
+  assert.match(svg, /<a href="https:\/\/example.org"/);
+  assert.match(svg, /scale\(0.5\)/);
+  assert.match(svg, /A &amp; B/);
+});
+
 // Invalid decorations must be diagnosed, and limits/errors preserve every source node and its line.
 test('mindmap rejects invalid decorations and declarations without dropping source nodes', () => {
-  const badDecoration = parse('root(root)\n  :::className', { firstLine: 10 });
-  assert.ok(badDecoration.errors.some(e => e.line === 11 && /状态标记/.test(e.message)));
+  const badDecoration = parse('root(root)\n  :::???', { firstLine: 10 });
+  assert.ok(badDecoration.errors.some(e => e.line === 11 && /装饰/.test(e.message)));
   assert.ok(badDecoration.errors.some(e => e.path === '/data/children/0' || e.line === 11));
 
   const many = ['root(root)', ...Array.from({ length: 80 }, (_, i) => `  node${i}`)].join('\n');

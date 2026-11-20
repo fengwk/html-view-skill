@@ -1,4 +1,7 @@
 import { error, warning } from './support.js';
+import { presentation } from './presentation.js';
+import { numericLabel } from './numeric-model.js';
+import { compositionPresentation } from '../chart/composition.js';
 
 const issue = (info, line, text, en) => error(info.lang, line, text, en, '修正图表语法', 'Correct the chart syntax');
 const unquote = text => text.replace(/^(["'])(.*)\1$/, '$2');
@@ -14,14 +17,14 @@ export function parsePie(source, info) {
   let title = null, titleLine = null;
   const setTitle = (text, line) => {
     if (title !== null) errors.push(issue(info, line, 'pie 只能有一个 title', 'Pie accepts only one title'));
-    else { title = unquote(text); titleLine = line; }
+    else { title = numericLabel(unquote(text), info, line, errors); titleLine = line; }
   };
   if (/^title\s+\S/i.test(rest)) setTitle(rest.replace(/^title\s+/i, ''), header);
   else if (rest) errors.push(issue(info, header, 'pie 只支持 showData 和 title', 'Pie only supports showData and title'));
   for (const { text, line } of linesOf(source, info.firstLine)) {
     if (/^title\s+/i.test(text)) { setTitle(text.replace(/^title\s+/i, ''), line); continue; }
     const m = /^(.+?)\s*:\s*(\S+)$/.exec(text);
-    const label = m && unquote(m[1]);
+    const label = m && numericLabel(unquote(m[1]), info, line, errors);
     if (!label || !numeric(m[2]) || +m[2] < 0) {
       errors.push(issue(info, line, 'pie 数据必须是非负有限数值及非空标签', 'Pie sections require a label and a finite nonnegative value'));
     } else if (labels.has(label)) duplicates.push({ label, line });
@@ -42,17 +45,22 @@ export function parsePie(source, info) {
     rows.push({ category, value, line: overflow[0].line });
     errors.push(warning('DIAGRAM_HINT', info.lang, overflow[0].line, `pie 已将其余条目合并为其他：${names}`, `Pie combines remaining sections as Other: ${names}`, '如需分别展示，请拆分图表', 'Split the chart to show these sections separately'));
   }
-  return { model: { chart: 'pie', title, titleLine, showData, rows }, errors };
+  const position = info.config?.pie?.textPosition;
+  const labelRadius = Number.isFinite(position) ? Math.max(.5, Math.min(.95, position)) : .72;
+  if (position !== undefined && position !== labelRadius) errors.push(warning('IGNORED_CONFIG', info.lang, info.configLines?.['pie.textposition'] || header, `pie.textPosition 调整为 ${labelRadius}`, `pie.textPosition adjusted to ${labelRadius}`, '使用 0.5 至 0.95', 'Use a value from 0.5 to 0.95'));
+  return { model: { chart: 'pie', title, titleLine, showData, rows, labelRadius }, errors };
 }
 
 export function parseTreemap(source, info) {
-  const errors = [], roots = [], stack = [], levels = [];
+  const errors = [], roots = [], stack = [], levels = [], names = new Map();
+  const look = presentation({ lang: info.lang });
   let title = null, titleLine = null;
   for (const key of Object.keys(info.options || {})) errors.push(issue(info, info.headerLine, `treemap 不支持选项 ${key}`, `Unsupported treemap option ${key}`));
   for (const { raw, text, line } of linesOf(source, info.firstLine)) {
+    if (look.accept(text, line)) continue;
     if (/^title\s+/i.test(text)) {
       if (title !== null) errors.push(issue(info, line, 'treemap 只能有一个 title', 'Treemap accepts only one title'));
-      else { title = unquote(text.replace(/^title\s+/i, '')); titleLine = line; }
+      else { title = numericLabel(unquote(text.replace(/^title\s+/i, '')), info, line, errors); titleLine = line; }
       continue;
     }
     const leading = raw.match(/^[ \t]*/)[0];
@@ -60,10 +68,14 @@ export function parseTreemap(source, info) {
       errors.push(error(info.lang, line, 'treemap 缩进不能使用 Tab', 'Treemap indentation cannot use tabs', '用空格缩进', 'Indent with spaces', leading.indexOf('\t') + 1));
       continue;
     }
-    const match = /^("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|[^:,]+?)(?:\s*[:,]\s*(.+))?$/.exec(text);
-    const label = match && unquote(match[1].trim());
-    if (!label || /:::|[{}]/.test(label)) { errors.push(issue(info, line, 'treemap 节点名称无效', 'Invalid treemap node name')); continue; }
-    const node = { label, children: [], line };
+    const suffix = /:::\s*([\w-]+)\s*$/.exec(text);
+    const statement = suffix ? text.slice(0, suffix.index).trimEnd() : text;
+    const match = /^("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|[^:,]+?)(?:\s*[:,]\s*(.+))?$/.exec(statement);
+    const name = match && unquote(match[1].trim());
+    if (!name || /:::|[{}]/.test(name)) { errors.push(issue(info, line, 'treemap 节点名称无效', 'Invalid treemap node name')); continue; }
+    const node = { label: numericLabel(name, info, line, errors), children: [], line };
+    if (suffix) look.addClasses(name, [suffix[1]], line);
+    names.set(node, name);
     if (match[2] !== undefined) {
       const value = match[2].replace(/[_,]/g, '');
       if (!numeric(value) || Number(value) < 0 || match[2].includes(':::')) errors.push(issue(info, line, 'treemap 权重必须是非负有限数', 'Treemap weights must be finite and nonnegative'));
@@ -89,5 +101,15 @@ export function parseTreemap(source, info) {
     delete node.line;
   };
   if (roots.length) clean(data, '/data', 1);
-  return { model: { chart: 'treemap', title, titleLine, treeLines, data }, errors };
+  for (const [node, name] of names) node[compositionPresentation] = { status: look.statusOf(name), link: look.linkOf(name) };
+  errors.push(...look.diagnostics());
+  const pattern = info.config?.treemap?.valueFormat;
+  let valueField;
+  if (pattern !== undefined && pattern !== ',') {
+    const match = /^(\$)?(?:,)?(?:\.([0-6]))?(%|f)?$/.exec(typeof pattern === 'string' ? pattern : '');
+    if (pattern === '$0,0') valueField = { unit: '$', decimals: 0 };
+    else if (match && pattern) valueField = { ...(match[1] && match[3] !== '%' ? { unit: '$' } : {}), ...(match[2] ? { decimals: +match[2] } : {}), ...(match[3] === '%' ? { format: 'percent' } : {}) };
+    else errors.push(warning('IGNORED_CONFIG', info.lang, info.configLines?.['treemap.valueformat'] || info.firstLine, `未识别 treemap.valueFormat ${pattern}`, `Unsupported treemap.valueFormat ${pattern}`, '使用默认数字格式', 'Use the default number format'));
+  }
+  return { model: { chart: 'treemap', title, titleLine, treeLines, data, valueField, prefix: valueField?.format === 'percent' && pattern.startsWith('$') ? '$' : '' }, errors };
 }

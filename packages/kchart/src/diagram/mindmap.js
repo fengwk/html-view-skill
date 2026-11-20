@@ -1,15 +1,17 @@
 /* Controlled Mermaid mindmap parsing into the shared KChart tree contract. */
 // chart/mindmap is a required registration dependency: Mermaid reuses its existing eight layouts.
 
-import { error, labelText, statusMarks, warning } from './support.js';
+import { error, warning } from './support.js';
+import { presentation } from './presentation.js';
+import { normalizeLabel } from './label.js';
+import { resolveIconRef } from '../core/icons.js';
 import { validate } from '../chart/spec.js';
 import { layout as layoutChartModel } from '../chart/registry.js';
-import '../chart/mindmap.js';
+import { mindmapPresentation } from '../chart/mindmap.js';
 
 const LAYOUTS = ['bilateral', 'right', 'left', 'radial', 'org', 'brace', 'fishbone', 'timeline'];
 // Mermaid's layout-algorithm names have no KChart counterpart; both sides fall back the same way.
 const LAYOUT_ALIASES = new Set(['tidy-tree', 'dagre', 'elk', 'cose-bilkent']);
-const STATUSES = new Set(Object.keys(statusMarks));
 // Written form → KChart node shape, longest delimiter first, as Mermaid's getType (mindmapDb.ts:126-144).
 // `))…((` is Mermaid's "bang" outline; `)…(` and the legacy `-)…(-`/`(-…-)` forms are clouds.
 const SHAPE_FORMS = [
@@ -29,7 +31,7 @@ const unquote = value => value.length > 1 && value.startsWith('"') && value.ends
 // `NODE_ID NODE_DSTART NODE_DESCR NODE_DEND`: the description is what the reader sees; a node without
 // delimiters keeps its whole text and has no shape of its own (Mermaid's DEFAULT/no-border).
 function parseNodeText(raw) {
-  const value = labelText(raw).trim();
+  const value = raw.trim();
   const start = value.search(BRACKETS);
   if (start < 0) return { label: unquote(value).trim(), shape: 'none' };
   for (const [open, close, shape] of SHAPE_FORMS) {
@@ -68,21 +70,29 @@ function parse(body, info = {}) {
   const lines = String(body ?? '').split('\n');
 
   // Decorations are consumed first: they always belong to the node line just above them.
+  const look = presentation({ lang }), assets = new Set(), identifiers = new Map();
+  const addAsset = diagnostic => { if (!assets.has(diagnostic.message)) { assets.add(diagnostic.message); errors.push(diagnostic); } };
   const decorationByLine = new Map();
   let previousNodeLine = -1;
   for (let i = 0; i < lines.length; i += 1) {
     const trimmed = lines[i].trim();
     if (!trimmed || trimmed.startsWith('%%')) continue;
-    if (trimmed.startsWith(':::')) {
-      const status = /^:::([\w-]+)$/.exec(trimmed)?.[1];
+    if (look.accept(trimmed, firstLine + i)) { lines[i] = ''; continue; }
+    if (/^(?::::|::icon\b)/i.test(trimmed)) {
       lines[i] = '';
-      if (previousNodeLine < 0) {
-        addError(firstLine + i, '状态标记前缺少节点', 'A status marker must follow a node');
-      } else if (!status || !STATUSES.has(status)) {
-        addError(firstLine + i, `不支持状态标记「${trimmed}」`, `Unsupported status marker: ${trimmed}`, '只使用 :::new、:::info、:::ok、:::warn、:::danger 或 :::ext', 'Use :::new, :::info, :::ok, :::warn, :::danger, or :::ext');
-      } else if (decorationByLine.has(previousNodeLine)) {
-        addError(firstLine + i, '一个节点只能有一个状态标记', 'A node can have only one status marker');
-      } else decorationByLine.set(previousNodeLine, status);
+      const classes = /^:::\s*([\w-]+(?:\s+[\w-]+)*)$/.exec(trimmed)?.[1];
+      const ref = /^::icon\(\s*([^()]+?)\s*\)$/i.exec(trimmed)?.[1];
+      if (previousNodeLine < 0 || (!classes && !ref)) {
+        addError(firstLine + i, '脑图装饰无效或前面缺少节点', 'Malformed mindmap decoration or missing preceding node');
+      } else {
+        const decoration = decorationByLine.get(previousNodeLine) || { classes: [] };
+        if (classes) decoration.classes.push(...classes.split(/\s+/));
+        if (ref) {
+          decoration.icon = resolveIconRef(ref);
+          if (!decoration.icon) addAsset(warning('IGNORED_ASSET', lang, firstLine + i, `未知图标 ${ref}`, `Unknown icon ${ref}`, '改用内置图标', 'Use a supported icon'));
+        }
+        decorationByLine.set(previousNodeLine, decoration);
+      }
       continue;
     }
     previousNodeLine = i;
@@ -95,7 +105,11 @@ function parse(body, info = {}) {
     while (stack.length && record.indent <= stack.at(-1).indent) stack.pop();
     const parent = stack.at(-1)?.node ?? null;
     const depth = stack.length;
-    const { label, shape } = parseNodeText(record.text);
+    const { label: rawLabel, shape } = parseNodeText(record.text);
+    const id = (shape !== 'none' ? record.text.split(BRACKETS, 1)[0].trim() : '') || rawLabel;
+    const normalized = normalizeLabel(rawLabel, { lang, line: record.line });
+    normalized.diagnostics.forEach(addAsset);
+    const label = normalized.text || (normalized.icon ? id || ' ' : '');
     nodeCount += 1;
     if (nodeCount === 81) addError(record.line, '脑图最多 80 个节点', 'A mindmap can contain at most 80 nodes', '拆分脑图，不要删除节点', 'Split the mindmap without dropping nodes');
     if (depth === 5) addError(record.line, '脑图最多 5 层（含根）', 'A mindmap can have at most five levels including the root', '把节点移到更浅层，或拆分脑图', 'Move the node up or split the mindmap');
@@ -105,8 +119,9 @@ function parse(body, info = {}) {
     if (!label) addError(record.line, '节点名称不能为空', 'Node label cannot be empty');
     const node = { label, children: [] };
     if (shape) node.shape = shape;
-    const status = decorationByLine.get(record.line - firstLine);
-    if (status) node.status = status;
+    const decoration = decorationByLine.get(record.line - firstLine);
+    if (decoration?.classes.length) look.addClasses(id, decoration.classes, record.line);
+    identifiers.set(node, { id, icon: decoration?.icon || normalized.icon });
     const sibling = parent ? parent.children.length : roots.length;
     linesByPath.set(parent ? `${stack.at(-1).path}/children/${sibling}` : `/roots/${sibling}`, record.line);
     const path = parent ? `${stack.at(-1).path}/children/${sibling}` : `/roots/${sibling}`;
@@ -121,7 +136,7 @@ function parse(body, info = {}) {
   if (!roots.length) addError(firstLine, '脑图中没有节点', 'Mindmap is empty', '保留一个根节点并将其他节点缩进到它下面', 'Keep one root node and indent all other nodes beneath it');
 
   // Layout names: KChart's own vocabulary, Mermaid's algorithm names, and warn-and-fall-back for anything else.
-  const layoutValue = typeof info.layout === 'string' ? info.layout : info.layout?.config?.layout ?? info.layout?.layout;
+  const layoutValue = info.config?.layout ?? info.config?.mindmap?.layoutAlgorithm ?? (typeof info.layout === 'string' ? info.layout : info.layout?.config?.layout ?? info.layout?.layout);
   let layout = 'bilateral';
   if (layoutValue != null && layoutValue !== '') {
     const candidate = String(layoutValue).toLowerCase();
@@ -140,7 +155,13 @@ function parse(body, info = {}) {
   // The first root becomes /data, so schema paths keep the shape the tree contract expects.
   const data = roots[0] || { label: '' };
   if (linesByPath.has('/roots/0')) linesByPath.set('/data', linesByPath.get('/roots/0'));
-  const spec = { chart: 'mindmap', data, layout };
+  errors.push(...look.diagnostics());
+  for (const [node, { id, icon }] of identifiers) {
+    const status = look.statusOf(id);
+    if (status) node.status = status;
+    node[mindmapPresentation] = { icon, link: look.linkOf(id) };
+  }
+  const spec = { chart: 'mindmap', data, layout, [mindmapPresentation]: true };
   if (info.title) spec.title = info.title;
   const checked = validate(spec);
   for (const issue of checked.errors) {
@@ -160,4 +181,4 @@ function layout(model, options = {}) {
   return { width: scene.width, height: scene.height, scene };
 }
 
-export const implementations = { mindmap: { honoredConfig: ['layout', 'mindmap.colorBy'], parse, layout, scene: geometry => geometry.scene } };
+export const implementations = { mindmap: { acceptsPresentation: true, honoredConfig: ['layout', 'mindmap.layoutAlgorithm'], parse, layout, scene: geometry => geometry.scene } };
