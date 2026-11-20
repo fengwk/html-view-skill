@@ -21,7 +21,9 @@ function parse(body, { lang, title = '', firstLine = 2, config, options = {} }) 
     if (heading) { title = clean(heading[1]); continue; }
     const axis = /^([xy])-axis\s+(.+)/i.exec(s);
     if (axis) {
-      const pieces = axis[2].match(/(?:"[^"]*"|[^"-]|-(?!-+>))+/g) || [];
+      const delimiter = /"[^"]*"|--+>/g;
+      const arrow = [...axis[2].matchAll(delimiter)].find(([part]) => part.startsWith('-'));
+      const pieces = arrow ? [axis[2].slice(0, arrow.index), axis[2].slice(arrow.index + arrow[0].length)] : [axis[2]];
       axes[axis[1].toLowerCase()] = pieces.map(clean);
       if (pieces.length === 1) axes[axis[1].toLowerCase()][0] += ' ⟶';
       continue;
