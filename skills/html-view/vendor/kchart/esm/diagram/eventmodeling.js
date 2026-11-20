@@ -38,41 +38,45 @@ var LANE_FONT = Object.freeze({
 });
 var DATA_FONT = FONT.label;
 var CAPTION_FONT = FONT.label;
+var UI_LANE = Object.freeze({
+	lane: ["界面/自动化", "UI/Automation"],
+	prefix: ["界面：", "UI/A: "]
+});
+var MODEL_LANE = Object.freeze({
+	lane: ["命令/读模型", "Command/Read Model"],
+	prefix: ["命令/读模型：", "C/RM: "]
+});
 var TYPES = Object.freeze({
 	ui: Object.freeze({
 		band: 0,
 		glyph: "UI",
 		role: null,
-		lane: "UI/Automation",
-		prefix: "UI/A: "
+		...UI_LANE
 	}),
 	processor: Object.freeze({
 		band: 0,
 		glyph: "P",
 		role: "tone4",
-		lane: "UI/Automation",
-		prefix: "UI/A: "
+		...UI_LANE
 	}),
 	readmodel: Object.freeze({
 		band: 100,
 		glyph: "R",
 		role: "tone3",
-		lane: "Command/Read Model",
-		prefix: "C/RM: "
+		...MODEL_LANE
 	}),
 	command: Object.freeze({
 		band: 100,
 		glyph: "C",
 		role: "tone1",
-		lane: "Command/Read Model",
-		prefix: "C/RM: "
+		...MODEL_LANE
 	}),
 	event: Object.freeze({
 		band: 200,
 		glyph: "E",
 		role: "tone2",
-		lane: "Events",
-		prefix: "Stream: "
+		lane: ["事件", "Events"],
+		prefix: ["事件流：", "Stream: "]
 	})
 });
 var TYPE_NAMES = Object.freeze({
@@ -461,7 +465,7 @@ function layout(model, options = {}, info = {}) {
 				band: spec.band,
 				index: frame.namespace ? Math.max(spec.band, ...used) + 1 : spec.band,
 				namespace: frame.namespace,
-				label: frame.namespace ? spec.prefix + frame.namespace : spec.lane
+				label: frame.namespace ? message(lang, ...spec.prefix) + frame.namespace : message(lang, ...spec.lane)
 			};
 			lanes.push(lane);
 			laneKeys.set(key, lane);

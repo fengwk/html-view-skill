@@ -69,6 +69,10 @@ test('ABNF separators and dialect diagnostics', () => {
   assert.match(error.fix, /Use \//);
   assert.equal(parse('abnf', 'a = "a"').diagnostics[0].code, 'railroad.rule-expected');
   assert.equal(parse('abnf', 'a = 4*2"a";').diagnostics[0].code, 'railroad.abnf-bad-repeat');
+  // RFC 5234 core rules need no definition (names are case-insensitive) and may still be redefined.
+  assert.deepEqual(parse('abnf', 'code = 3DIGIT *alpha [ SP ] ;').diagnostics, []);
+  assert.deepEqual(parse('abnf', 'code = 3DIGIT ;\nDIGIT = %x30-39 ;').diagnostics, []);
+  assert.deepEqual(parse('ebnf', 'code = DIGIT ;').diagnostics.map(d => d.message), ['Undefined rule DIGIT']);
 });
 
 // PEG lookahead is non-consuming, grouping is transparent, and the order of alternatives survives.

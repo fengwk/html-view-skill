@@ -235,7 +235,7 @@
       "diagram/presentation",
       "diagram/support"
     ],
-    "bytes": 15674
+    "bytes": 15681
   },
   "diagram/block": {
     "file": "units/diagram/block.js",
@@ -264,7 +264,7 @@
       "diagram/presentation",
       "diagram/support"
     ],
-    "bytes": 17092
+    "bytes": 17938
   },
   "diagram/class": {
     "file": "units/diagram/class.js",
@@ -286,7 +286,7 @@
       "diagram/presentation",
       "diagram/support"
     ],
-    "bytes": 13465
+    "bytes": 13863
   },
   "diagram/emphasis": {
     "file": "units/diagram/emphasis.js",
@@ -311,7 +311,7 @@
       "diagram/support",
       "diagram/map-label"
     ],
-    "bytes": 19648
+    "bytes": 19776
   },
   "diagram/gantt-date": {
     "file": "units/diagram/gantt-date.js",
@@ -514,7 +514,7 @@
       "diagram/presentation",
       "diagram/support"
     ],
-    "bytes": 4041
+    "bytes": 4066
   },
   "diagram/presentation": {
     "file": "units/diagram/presentation.js",
@@ -531,7 +531,7 @@
       "diagram/presentation",
       "diagram/support"
     ],
-    "bytes": 6635
+    "bytes": 6874
   },
   "diagram/railroad-parse": {
     "file": "units/diagram/railroad-parse.js",
@@ -541,7 +541,7 @@
       "diagram/presentation",
       "diagram/support"
     ],
-    "bytes": 9671
+    "bytes": 9823
   },
   "diagram/railroad": {
     "file": "units/diagram/railroad.js",
@@ -581,7 +581,7 @@
       "diagram/class",
       "diagram/presentation"
     ],
-    "bytes": 7984
+    "bytes": 8721
   },
   "diagram/sequence": {
     "file": "units/diagram/sequence.js",
@@ -693,7 +693,7 @@
       "diagram/support",
       "diagram/map-label"
     ],
-    "bytes": 17659
+    "bytes": 17995
   },
   "interaction": {
     "file": "units/interaction.js",

@@ -163,3 +163,12 @@ test('honors Event Modeling padding and normalizes the title only', () => {
   assert.deepEqual(checkScene(scene), []);
   assert.equal(draw('tf 01 ui Cart\nclick 01 https://example.test').svg, null);
 });
+
+// Lane names and namespace prefixes follow the diagram language; entity names stay as written.
+test('generated Event Modeling lane names follow the diagram language', () => {
+  const body = 'tf 01 ui Cart\ntf 02 cmd AddItem\ntf 03 evt ItemAdded\ntf 04 evt Inventory.Changed';
+  const zh = api.diagram(source(body), { lang: 'zh-CN', width: 900 }).svg;
+  for (const label of ['界面/自动化', '命令/读模型', '事件', '事件流：Inventory', 'AddItem']) assert.ok(zh.includes(`>${label}<`), label);
+  assert.doesNotMatch(zh, />(?:UI\/Automation|Command\/Read Model|Events|Stream: Inventory)</);
+  assert.match(draw(body, 900).svg, />Stream: Inventory</);
+});

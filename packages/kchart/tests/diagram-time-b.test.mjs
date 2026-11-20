@@ -127,6 +127,14 @@ test('quadrant lays out endpoint and clustered labels without collisions', () =>
   assert.ok(parse('quadrantChart', 'Outside: [1.2, 0.3]').errors.length);
 });
 
+// KChart's older bracket-less point still renders, but Mermaid rejects it, so one hint names the standard form.
+test('quadrant points without brackets render with one hint', () => {
+  const { model, errors } = parse('quadrantChart', 'A: 0.25, 0.75\nB: 0.5, 0.5\nC: [0.75, 0.25]');
+  assert.deepEqual(model.points.map(p => [p.id, p.x, p.y]), [['A', .25, .75], ['B', .5, .5], ['C', .75, .25]]);
+  assert.deepEqual(errors.map(e => [e.code, e.severity, e.line, e.fix]), [['DIAGRAM_HINT', 'warning', 2, 'Write the point as Name: [x, y]']]);
+  assert.deepEqual(parse('quadrantChart', 'C: [0.75, 0.25]').errors, []);
+});
+
 // Quadrant-specific class geometry composes with direct overrides and shared safe links.
 test('quadrant class styles and local point styles compose', () => {
   const { model, nodes } = render('quadrantChart', 'A:::special: [0.25, 0.25] radius:4\nB:::special: [0.75,0.75]\nclassDef special color:#ff3300,radius:9\nclick B https://example.org');

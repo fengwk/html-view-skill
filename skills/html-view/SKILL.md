@@ -42,7 +42,7 @@ description: 生成、检查和导出离线单文件 HTML 文档、数据报表�
 | 如何排期、分栏或编号？ | `gantt`、`timeline`、`gitGraph`、`kanban`、`packet`、`quadrantChart` | [时间与网格](references/diagrams/time.md) |
 | 实体、类或需求怎样关联？ | `erDiagram`、`classDiagram`、`requirementDiagram` | [数据模型](references/diagrams/data-model.md) |
 | 一条语法规则怎样匹配符号？ | `railroad-beta`、`railroad-ebnf-beta`、`railroad-abnf-beta`、`railroad-peg-beta` | [数据模型](references/diagrams/data-model.md) |
-| 系统如何分层、容器和依赖在哪里？ | `C4Context`、`C4Container`、`C4Component`、`C4Dynamic`、`C4Deployment`、`architecture`、`block`、`wardley-beta`、原生 `layers`、`blocks` | [架构](references/diagrams/architecture.md) |
+| 系统如何分层、容器和依赖在哪里？ | `C4Context`、`C4Container`、`C4Component`、`C4Dynamic`、`C4Deployment`、`architecture-beta`、`block`、`wardley-beta`、原生 `layers`、`blocks` | [架构](references/diagrams/architecture.md) |
 | 手头已有 Mermaid 数值图？ | `pie`、`xychart`、`sankey`、`radar-beta`、`treemap` | [Mermaid 数值图](references/diagrams/time.md#mermaid-数值图)；新数据图用上方 KChart 图型 |
 | 集合如何重叠、情境如何分类？ | `venn-beta`、`cynefin-beta` | [集合](references/charts/composition.md#venn-beta)、[情境](references/charts/matrix.md#cynefin-beta) |
 | 旧文档中的简单调用图？ | `zenuml`（仅旧写法，不支持 ZenUML 插件） | [旧版兼容](references/diagrams/sequence.md#zenuml) |

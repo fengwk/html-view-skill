@@ -45,9 +45,9 @@ row
 
 用 `Deployment_Node`、`Node_L` 或 `Node_R` 声明部署节点，可嵌套并包含其他 C4 元素。样式、配置、关系和诊断见 [C4 通用规则](#c4context)。
 
-## architecture
+## architecture-beta
 
-也接受 `architecture-beta`。`group id(icon)[名称]` 声明分组（可嵌套，`in 父组`），`service id(icon)[名称] in 组` 声明服务，`junction id` 声明连线交汇点（画成点，不画成框），`a:R --> L:b` 按端口 `L`/`R`/`T`/`B` 连线，`{group}` 后缀可连到分组边界。内置图标 `cloud`、`database`、`disk`、`internet`、`server`；`logos:…`、`mdi:…` 等图标名按内置图标或宿主注册的图标解析，解析不到时省略图标并告警。`align row` / `align column` 可指定对齐；`architecture.padding`、`iconSize`、`fontSize` 调整间距与尺寸（均在 `config.architecture` 下）。支持通用样式与安全链接。端点未声明或分组端口未跨越所属分组边界时会报错。
+Mermaid 12.3.0 只解析 `architecture-beta`，要在其他 Mermaid 环境中使用时写这个关键字；KChart 也接受 `architecture`。`group id(icon)[名称]` 声明分组（可嵌套，`in 父组`），`service id(icon)[名称] in 组` 声明服务，`junction id` 声明连线交汇点（画成点，不画成框），`a:R --> L:b` 按端口 `L`/`R`/`T`/`B` 连线，`{group}` 后缀可连到分组边界。内置图标 `cloud`、`database`、`disk`、`internet`、`server`；`logos:…`、`mdi:…` 等图标名按内置图标或宿主注册的图标解析，解析不到时省略图标并告警。`align row` / `align column` 可指定对齐；`architecture.padding`、`iconSize`、`fontSize` 调整间距与尺寸（均在 `config.architecture` 下）。支持通用样式与安全链接。端点未声明或分组端口未跨越所属分组边界时会报错。
 
 ## block
 

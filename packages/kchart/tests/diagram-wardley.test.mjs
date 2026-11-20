@@ -223,3 +223,13 @@ note "fas:fa-no-such-icon Elsewhere" [0.4, 0.2]`;
 test('does not extend the Wardley grammar with presentation statements', () => {
   assert.equal(draw('component A [0.5, 0.5]\nstyle A fill:red').svg, null);
 });
+
+// Generated axis, stage and strategy names follow the diagram language like every other family's generated text.
+test('generated Wardley labels follow the diagram language', () => {
+  const body = 'component Kettle [0.5, 0.4] (build)';
+  const zh = api.diagram(source(body), { lang: 'zh-CN', width: 800 }).svg;
+  for (const word of ['可见度', '演化', '起源', '定制', '产品', '商品', 'B · 自建']) assert.ok(zh.includes(`>${word}<`), word);
+  assert.doesNotMatch(zh, />(?:Visibility|Evolution|Genesis|Commodity)</);
+  const en = draw(body).svg;
+  for (const word of ['Visibility', 'Evolution', 'Genesis', 'Custom Built', 'Product', 'Commodity', 'B · build']) assert.ok(en.includes(`>${word}<`), word);
+});

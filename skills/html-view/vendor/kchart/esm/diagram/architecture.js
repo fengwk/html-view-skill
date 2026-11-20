@@ -720,7 +720,7 @@ function layout(model, { width, measure, ctx, lang }, info) {
 		errors
 	};
 }
-var implementations = { architecture: {
+var implementations = { "architecture-beta": {
 	parse,
 	layout,
 	acceptsPresentation: true,

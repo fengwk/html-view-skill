@@ -225,6 +225,9 @@ function irExpression(r, depth = 1) {
   return node.type === 'nonterminal' ? r.decorate(node, node.name, name) : node;
 }
 
+// RFC 5234 core rules (DIGIT, ALPHA, ...) belong to every ABNF grammar; a grammar may still define its own.
+const ABNF_CORE = new Set(['alpha', 'bit', 'char', 'cr', 'crlf', 'ctl', 'digit', 'dquote', 'hexdig', 'htab', 'lf', 'lwsp', 'octet', 'sp', 'vchar', 'wsp']);
+
 function parseRules(body, info, dialect) {
   // The registry normally treats the header suffix as options; here it is grammar text.
   if (info.params) {
@@ -298,7 +301,7 @@ function parseRules(body, info, dialect) {
     while (stack.length) {
       const node = stack.pop();
       if (node.type === 'nonterminal') decorate(node, node.name);
-      if (node.type === 'nonterminal' && !names.has(key(node.name))) {
+      if (node.type === 'nonterminal' && !names.has(key(node.name)) && !(abnf && ABNF_CORE.has(key(node.name)))) {
         node.undefined = true;
         if (!missing.has(key(node.name))) {
           missing.add(key(node.name));

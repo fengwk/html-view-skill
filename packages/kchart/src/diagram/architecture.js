@@ -452,5 +452,6 @@ function layout(model, { width, measure, ctx, lang }, info) {
   return { scene: { width: naturalWidth, height, children, title: model.title, heading: model.title }, errors };
 }
 
-const implementations = { architecture: { parse, layout, acceptsPresentation: true, honoredConfig } };
+// Mermaid 12.3.0 parses only `architecture-beta`, so that is the canonical kind; `architecture` stays an alias.
+const implementations = { 'architecture-beta': { parse, layout, acceptsPresentation: true, honoredConfig } };
 export { implementations };

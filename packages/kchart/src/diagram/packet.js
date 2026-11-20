@@ -52,11 +52,13 @@ function layout(model, { width, ctx, renderOptions }, info = {}) {
   const dimension = (key, fallback, min, max) => Number.isFinite(config[key]) ? Math.min(max, Math.max(min, config[key])) : fallback;
   const gap = dimension('paddingX', 0, 0, 24), rowGap = dimension('paddingY', 12, 6, 60);
   const minimumRow = dimension('rowHeight', 34, 26, 240);
-  const pad = 18, widestBit = ctx.measure(String(fields.at(-1).end), FONT.label.size);
-  // Reserve space for unbroken words, then wrap between words inside each cell.
-  const pitch = Math.ceil(rows.flat().reduce((min, f) => Math.max(min,
+  const pad = 18, range = f => f.start === f.end ? String(f.start) : `${f.start}–${f.end}`;
+  // Each cell reserves room for its longest word and its bit range, then wraps between words. A row that needs
+  // no more than the frame shares it in whole pixels, so the scene never exceeds the requested width.
+  const needed = Math.ceil(rows.flat().reduce((min, f) => Math.max(min,
     ...f.label.split(/\s+/).map(word => (ctx.measure(word, FONT.body.size) + 10 + gap) / f.bits),
-    showBits ? widestBit + 6 : 12), Math.max((width - pad * 2) / perRow, dimension('bitWidth', 12, 12, 96))));
+    showBits ? (ctx.measure(range(f), FONT.label.size) + 6) / f.bits : 0), 12));
+  const pitch = Math.max(needed, Math.floor((width - pad * 2) / perRow), dimension('bitWidth', 12, 12, 96));
   const w = Math.max(width, perRow * pitch + 2 * pad), left = (w - perRow * pitch) / 2;
   const children = [];
   let y = pad;
@@ -74,7 +76,7 @@ function layout(model, { width, ctx, renderOptions }, info = {}) {
       const cell = [ctx.rect(x, y, cellWidth, h, { fill: f.status ? ctx.tint(t.bg, stroke, .1) : f.id % 2 ? t.surface : t.bg, stroke, meta: { kind: 'node', id: `${f.id}:${f.start}` } }),
         textBlock(ctx, { x: cx, y: y + h / 2, lines: f.lines, lineHeight: 17 })];
       children.push(...(f.link ? [ctx.link(f.link.href, cell, f.link)] : cell));
-      if (showBits) children.push(ctx.text(cx, y + h + 12, f.start === f.end ? f.start : `${f.start}–${f.end}`, { ...FONT.label, anchor: 'middle', 'dominant-baseline': 'central' }));
+      if (showBits) children.push(ctx.text(cx, y + h + 12, range(f), { ...FONT.label, anchor: 'middle', 'dominant-baseline': 'central' }));
     }
     y += h + rowGap + (showBits ? 16 : 0);
   }

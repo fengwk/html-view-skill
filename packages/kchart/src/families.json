@@ -298,9 +298,9 @@
   },
   "diagram/architecture": {
     "diagrams": {
-      "architecture": {
+      "architecture-beta": {
         "aliases": [
-          "architecture-beta"
+          "architecture"
         ],
         "topic": "architecture"
       }

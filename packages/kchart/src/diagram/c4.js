@@ -12,6 +12,8 @@ for (const [base, label, zh] of [['Person', 'Person', '人员'], ['System', 'Sof
   }
 }
 const BOUNDARIES = new Map([['Enterprise_Boundary', 'Enterprise'], ['System_Boundary', 'System'], ['Container_Boundary', 'Container'], ['Boundary', 'System']]);
+// Chinese for the default frame types; a type the author writes is shown as written.
+const FRAME_ZH = { Enterprise: '企业', System: '系统', Container: '容器', Node: '节点' };
 const DEPLOYMENT = new Set(['Deployment_Node', 'Node', 'Node_L', 'Node_R']);
 const RELS = new Map([['Rel', ''], ['BiRel', ''], ['Rel_Back', ''], ['RelIndex', ''],
   ...['Up', 'Down', 'Left', 'Right'].flatMap(dir => [[`Rel_${dir}`, dir[0]], [`Rel_${dir[0]}`, dir[0]]])]);
@@ -187,7 +189,7 @@ function parse(source, { kind, lang, firstLine = 2, config: sharedConfig }) {
       const taggedShape = [args.shape, args.sprite, ...(args.tags ?? '').split('+')].map(value => SHAPES.get(value?.toLowerCase())).find(Boolean);
       const item = { id: alias, label: args.label || alias, techn: args.techn, descr: args.descr,
         type: deploy ? args.type || 'Node' : boundary ? args.type || boundary : element.label,
-        zh: element?.zh, external: element?.external, shape: taggedShape || element?.shape || 'box',
+        zh: element?.zh ?? (args.type ? undefined : FRAME_ZH[deploy ? 'Node' : boundary]), external: element?.external, shape: taggedShape || element?.shape || 'box',
         parent: stack.at(-1)?.id, frame: Boolean(opens), align: macro === 'Node_R' ? 'right' : 'left', line };
       look.addClasses(alias, [...classes, ...suffixes.map(part => part.class).filter(Boolean)], line);
       item.icon = suffixes.find(part => part.icon)?.icon;
@@ -230,7 +232,7 @@ function parse(source, { kind, lang, firstLine = 2, config: sharedConfig }) {
   return { model: { kind, title, items: [...items.values()], rels: [...rels.values()], config }, errors };
 }
 
-const PAD = 16, GUTTER = 64, CARD = 216, LINE = 17;
+const PAD = 16, GUTTER = 64, CARD = 216, LINE = 17, LABEL_CLEAR = 10;
 const cx = b => b.x + b.w / 2;
 const cy = b => b.y + b.h / 2;
 const inflate = (b, d) => ({ x: b.x - d, y: b.y - d, w: b.w + 2 * d, h: b.h + 2 * d });
@@ -241,6 +243,14 @@ const distance = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 const lerp = (a, b, t) => point(a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t);
 const segments = path => path.slice(1).map((p, i) => [path[i], p]);
 
+// The plate drawn on a relationship: its text lines, icon room and outer size.
+function relLabel(rel, ctx) {
+  const lines = [rel.label, rel.techn && `[${rel.techn}]`, rel.descr].filter(Boolean).flatMap(value => ctx.wrap(value, 156, FONT.label.size));
+  const iconSpace = rel.icon ? 22 : 0;
+  if (!lines.length && !iconSpace) return null;
+  return { lines, iconSpace, w: Math.max(iconSpace, ...lines.map(line => ctx.measure(line, FONT.label.size, FONT.label.weight))) + 16, h: lines.length * LINE + 8 + iconSpace };
+}
+
 function makeBoxes(model, ctx, lang) {
   const children = new Map();
   for (const item of model.items) {
@@ -248,31 +258,58 @@ function makeBoxes(model, ctx, lang) {
     children.get(item.parent).push(item);
   }
   const rows = (value, font, width = CARD - 40) => value ? ctx.wrap(value, width, font.size, font.weight).map(text => ({ text, font })) : [];
+  const parentOf = new Map(model.items.map(item => [item.id, item.parent]));
+  const lineage = id => {
+    const ids = new Set();
+    for (let at = id; at !== undefined && !ids.has(at); at = parentOf.get(at)) ids.add(at);
+    return ids;
+  };
+  const labelled = model.rels.flatMap(rel => {
+    const label = relLabel(rel, ctx);
+    return label ? [{ from: lineage(rel.from), to: lineage(rel.to), label }] : [];
+  });
+  // A label sits on its relationship. When the relationship crosses the gap between boxes `as` and boxes `bs`, the gap
+  // must hold the label along that axis, or the label covers a neighbour's border.
+  const room = (as, bs, size) => {
+    const a = new Set(as.map(box => box.id)), b = new Set(bs.map(box => box.id));
+    const reaches = (ids, side) => [...ids].some(id => side.has(id));
+    return Math.max(GUTTER, ...labelled
+      .filter(({ from, to }) => (reaches(from, a) && reaches(to, b)) || (reaches(from, b) && reaches(to, a)))
+      .map(({ label }) => label[size] + 2 * LABEL_CLEAR));
+  };
+  const sized = item => {
+    const type = `${item.external ? isEn(lang) ? 'External ' : '外部' : ''}${!isEn(lang) && item.zh ? item.zh : item.type}`;
+    const techn = item.techn ? `${isEn(lang) ? ': ' : '：'}${item.techn}` : '';
+    const lines = [...rows(item.label, FONT.title), ...rows(`[${type}${techn}]`, FONT.label), ...rows(item.descr, FONT.body)];
+    const inner = item.frame ? pack(item.id) : null;
+    const iconSpace = item.icon || item.shape === 'person' && !item.frame ? 25 : 0;
+    const topSpace = iconSpace + (item.shape === 'database' && !item.frame ? 8 : 0);
+    const header = 2 * PAD + lines.length * LINE + topSpace;
+    return { ...item, x: 0, y: 0, lines, topSpace, iconSpace, header, w: Math.max(CARD, (inner?.w ?? 0) + 2 * PAD), h: header + (inner ? inner.h + PAD : 0), children: inner?.boxes ?? [] };
+  };
   function pack(parent) {
     const items = children.get(parent) ?? [];
-    let w = 0, y = 0;
-    const boxes = [];
     // Mermaid lays out the elements first and then the child boundaries, retaining source order within each.
+    const bands = [];
     for (const [frame, limit] of [[false, model.config.c4ShapeInRow], [true, model.config.c4BoundaryInRow]]) {
-      let x = 0, height = 0, count = 0;
-      for (const item of items.filter(item => item.frame === frame)) {
-        if (count === limit) { y += height + GUTTER; x = height = count = 0; }
-        const type = `${item.external ? isEn(lang) ? 'External ' : '外部' : ''}${!isEn(lang) && item.zh ? item.zh : item.type}`;
-        const lines = [...rows(item.label, FONT.title), ...rows(`[${type}${item.techn ? `: ${item.techn}` : ''}]`, FONT.label), ...rows(item.descr, FONT.body)];
-        const inner = frame ? pack(item.id) : null;
-        const iconSpace = item.icon || item.shape === 'person' && !frame ? 25 : 0;
-        const topSpace = iconSpace + (item.shape === 'database' && !frame ? 8 : 0);
-        const header = 2 * PAD + lines.length * LINE + topSpace;
-        const box = { ...item, x, y, lines, topSpace, iconSpace, header, w: Math.max(CARD, (inner?.w ?? 0) + 2 * PAD), h: header + (inner ? inner.h + PAD : 0), children: inner?.boxes ?? [] };
-        boxes.push(box);
-        x += box.w + GUTTER;
-        w = Math.max(w, x - GUTTER);
-        height = Math.max(height, box.h);
-        count++;
-      }
-      if (count) y += height + GUTTER;
+      const list = items.filter(item => item.frame === frame);
+      for (let i = 0; i < list.length; i += limit) bands.push(list.slice(i, i + limit));
     }
-    return { w, h: Math.max(0, y - GUTTER), boxes };
+    const boxes = [];
+    let w = 0, y = 0, above = null;
+    for (const band of bands) {
+      const placed = band.map(sized);
+      if (above) y += Math.max(...above.map(box => box.h)) + room(above, placed, 'h');
+      let x = 0;
+      placed.forEach((box, i) => {
+        if (i) x += placed[i - 1].w + room([placed[i - 1]], [box], 'w');
+        Object.assign(box, { x, y });
+        w = Math.max(w, x + box.w);
+      });
+      boxes.push(...placed);
+      above = placed;
+    }
+    return { w, h: above ? y + Math.max(...above.map(box => box.h)) : 0, boxes };
   }
   return pack(undefined);
 }
@@ -437,11 +474,9 @@ function layout(model, { width, ctx, lang }) {
   children.push(...nodes.flatMap(b => drawBox(ctx, b)));
   const leaders = [];
   for (const { path, rel, meta } of routes) {
-    const lines = [rel.label, rel.techn && `[${rel.techn}]`, rel.descr].filter(Boolean).flatMap(value => ctx.wrap(value, 156, FONT.label.size));
-    if (!lines.length && !rel.icon) continue;
-    const iconSpace = rel.icon ? 22 : 0;
-    const w = Math.max(iconSpace, ...lines.map(line => ctx.measure(line, FONT.label.size, FONT.label.weight))) + 16;
-    const h = lines.length * LINE + 8 + iconSpace;
+    const label = relLabel(rel, ctx);
+    if (!label) continue;
+    const { lines, iconSpace, w, h } = label;
     const parts = segments(path), length = parts.reduce((sum, [a, b]) => sum + distance(a, b), 0);
     const along = fraction => {
       let rest = length * fraction;

@@ -325,6 +325,24 @@ function irExpression(r, depth = 1) {
 	r.expect(")", "ir-arity");
 	return node.type === "nonterminal" ? r.decorate(node, node.name, name) : node;
 }
+var ABNF_CORE = /* @__PURE__ */ new Set([
+	"alpha",
+	"bit",
+	"char",
+	"cr",
+	"crlf",
+	"ctl",
+	"digit",
+	"dquote",
+	"hexdig",
+	"htab",
+	"lf",
+	"lwsp",
+	"octet",
+	"sp",
+	"vchar",
+	"wsp"
+]);
 function parseRules(body, info, dialect) {
 	if (info.params) {
 		body = " ".repeat(info.header.lastIndexOf(info.params)) + info.params + "\n" + body;
@@ -413,7 +431,7 @@ function parseRules(body, info, dialect) {
 		while (stack.length) {
 			const node = stack.pop();
 			if (node.type === "nonterminal") decorate(node, node.name);
-			if (node.type === "nonterminal" && !names.has(key(node.name))) {
+			if (node.type === "nonterminal" && !names.has(key(node.name)) && !(abnf && ABNF_CORE.has(key(node.name)))) {
 				node.undefined = true;
 				if (!missing.has(key(node.name))) {
 					missing.add(key(node.name));

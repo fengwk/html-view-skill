@@ -1,6 +1,6 @@
 /* Mermaid requirementDiagram: requirements and elements as cards, joined by the seven SysML verbs only. */
 
-import { error, warning } from './support.js';
+import { error, isEn, warning } from './support.js';
 import { finishCards, layoutCards } from './class.js';
 import { presentation } from './presentation.js';
 
@@ -26,6 +26,16 @@ const typeWords = Object.freeze({
 const riskLevels = Object.freeze({ low: 'Low', medium: 'Medium', high: 'High' });
 const verificationMethods = Object.freeze({ analysis: 'Analysis', demonstration: 'Demonstration', inspection: 'Inspection', test: 'Test' });
 const relationships = Object.freeze(['contains', 'copies', 'derives', 'satisfies', 'verifies', 'refines', 'traces']);
+// Printed words follow the diagram language; the model keeps Mermaid's English words either way.
+const zhWords = Object.freeze({
+  Requirement: '需求', 'Functional Requirement': '功能需求', 'Interface Requirement': '接口需求', 'Performance Requirement': '性能需求',
+  'Physical Requirement': '物理需求', 'Design Constraint': '设计约束', Element: '元素',
+  Low: '低', Medium: '中', High: '高', Analysis: '分析', Demonstration: '演示', Inspection: '检查', Test: '测试',
+  contains: '包含', copies: '复制', derives: '派生', satisfies: '满足', verifies: '验证', refines: '细化', traces: '追溯',
+});
+const fieldWords = Object.freeze({
+  elementType: ['类型', 'Type'], docRef: ['文档', 'Doc Ref'], reqId: ['编号', 'ID'], text: ['内容', 'Text'], risk: ['风险', 'Risk'], verifyMethod: ['验证', 'Verification'],
+});
 // Fields per block body: a requirement has no type/docref, an element no id/text/risk/verifymethod (jison:151-203).
 const requirementFields = Object.freeze({ id: 'reqId', text: 'text', risk: 'risk', verifymethod: 'verifyMethod' });
 const elementFields = Object.freeze({ type: 'elementType', docref: 'docRef' });
@@ -78,6 +88,8 @@ function stripComment(raw) {
 // language, the first body line and the header options.
 function parse(source, info = {}) {
   const lang = info.lang || 'zh', firstLine = info.firstLine || 2;
+  const say = word => isEn(lang) ? word : zhWords[word] ?? word;
+  const row = (key, value) => ({ text: isEn(lang) ? `${fieldWords[key][1]}: ${value}` : `${fieldWords[key][0]}：${value}` });
   const errors = [], warnings = [];
   for (const key of Object.keys(info.options || {})) {
     errors.push(issue(lang, firstLine - 1,
@@ -198,7 +210,7 @@ function parse(source, info = {}) {
       // `contains` is solid with a circled plus at the source; the other six are dashed with an open arrow
       // at the target and always labelled `<<verb>>` (requirementDb.ts:318-339).
       edges.push({
-        from, to, verb, label: `<<${verb}>>`, dashed: !contains, line,
+        from, to, verb, label: `<<${say(verb)}>>`, dashed: !contains, line,
         ...(contains ? { start: 'contains' } : { end: 'arrow' }),
       });
       continue;
@@ -259,15 +271,15 @@ function parse(source, info = {}) {
     if (!card.declared) return [];
     const rows = [];
     if (card.type === 'element') {
-      if (card.fields.elementType) rows.push({ text: `Type: ${card.fields.elementType}` });
-      if (card.fields.docRef) rows.push({ text: `Doc Ref: ${card.fields.docRef}` });
+      if (card.fields.elementType) rows.push(row('elementType', card.fields.elementType));
+      if (card.fields.docRef) rows.push(row('docRef', card.fields.docRef));
     } else {
-      if (card.fields.reqId) rows.push({ text: `ID: ${card.fields.reqId}` });
-      if (card.fields.text) rows.push({ text: `Text: ${card.fields.text.replace(/(\*\*|\*|__|_)([^*_\n]+)\1/gu, '$2')}` });
-      if (card.fields.risk) rows.push({ text: `Risk: ${card.fields.risk}` });
-      if (card.fields.verifyMethod) rows.push({ text: `Verification: ${card.fields.verifyMethod}` });
+      if (card.fields.reqId) rows.push(row('reqId', card.fields.reqId));
+      if (card.fields.text) rows.push(row('text', card.fields.text.replace(/(\*\*|\*|__|_)([^*_\n]+)\1/gu, '$2')));
+      if (card.fields.risk) rows.push(row('risk', say(card.fields.risk)));
+      if (card.fields.verifyMethod) rows.push(row('verifyMethod', say(card.fields.verifyMethod)));
     }
-    const stereotype = [{ text: `<<${typeWords[card.type]}>>`, fontStyle: 'italic', role: 'stereotype' }];
+    const stereotype = [{ text: `<<${say(typeWords[card.type])}>>`, fontStyle: 'italic', role: 'stereotype' }];
     return rows.length ? [stereotype, rows] : [stereotype];
   };
   const model = {

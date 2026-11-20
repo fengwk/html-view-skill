@@ -104,8 +104,9 @@ function layout(model, { width, ctx, renderOptions }, info = {}) {
 	const dimension = (key, fallback, min, max) => Number.isFinite(config[key]) ? Math.min(max, Math.max(min, config[key])) : fallback;
 	const gap = dimension("paddingX", 0, 0, 24), rowGap = dimension("paddingY", 12, 6, 60);
 	const minimumRow = dimension("rowHeight", 34, 26, 240);
-	const pad = 18, widestBit = ctx.measure(String(fields.at(-1).end), FONT.label.size);
-	const pitch = Math.ceil(rows.flat().reduce((min, f) => Math.max(min, ...f.label.split(/\s+/).map((word) => (ctx.measure(word, FONT.body.size) + 10 + gap) / f.bits), showBits ? widestBit + 6 : 12), Math.max((width - 36) / perRow, dimension("bitWidth", 12, 12, 96))));
+	const pad = 18, range = (f) => f.start === f.end ? String(f.start) : `${f.start}–${f.end}`;
+	const needed = Math.ceil(rows.flat().reduce((min, f) => Math.max(min, ...f.label.split(/\s+/).map((word) => (ctx.measure(word, FONT.body.size) + 10 + gap) / f.bits), showBits ? (ctx.measure(range(f), FONT.label.size) + 6) / f.bits : 0), 12));
+	const pitch = Math.max(needed, Math.floor((width - 36) / perRow), dimension("bitWidth", 12, 12, 96));
 	const w = Math.max(width, perRow * pitch + 36), left = (w - perRow * pitch) / 2;
 	const children = [];
 	let y = pad;
@@ -142,7 +143,7 @@ function layout(model, { width, ctx, renderOptions }, info = {}) {
 				lineHeight: 17
 			})];
 			children.push(...f.link ? [ctx.link(f.link.href, cell, f.link)] : cell);
-			if (showBits) children.push(ctx.text(cx, y + h + 12, f.start === f.end ? f.start : `${f.start}–${f.end}`, {
+			if (showBits) children.push(ctx.text(cx, y + h + 12, range(f), {
 				...FONT.label,
 				anchor: "middle",
 				"dominant-baseline": "central"

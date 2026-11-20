@@ -34,7 +34,7 @@ function parse(body, { lang, title = "", firstLine = 2, config, options = {} }) 
 	};
 	const fail = (line, zh, en) => errors.push(error(lang, line, zh, en, "修正坐标或图表声明", "Fix the coordinates or chart declaration"));
 	if (Object.keys(options).length) fail(firstLine - 1, "象限图不接受标题行选项", "Unexpected quadrantChart header option");
-	let ignoredLine;
+	let ignoredLine, bareLine;
 	const pointStyle = (source, line) => {
 		const style = {};
 		for (const part of source ? source.split(/,(?![^()]*\))/) : []) {
@@ -98,6 +98,7 @@ function parse(body, { lang, title = "", firstLine = 2, config, options = {} }) 
 			fail(line, "点超过 2000 个，请拆分图表", "More than 2000 points; split the diagram");
 			break;
 		}
+		if (!point[3]) bareLine ??= line;
 		const id = point[1].trim().replace(/^"(.*)"$/, "$1"), className = point[2];
 		if (className) look.addClasses(id, [className], line);
 		points.push({
@@ -118,6 +119,7 @@ function parse(body, { lang, title = "", firstLine = 2, config, options = {} }) 
 		point.link = look.linkOf(point.id);
 	}
 	errors.push(...look.diagnostics());
+	if (bareLine) errors.push(warning("DIAGRAM_HINT", lang, bareLine, "点坐标缺少方括号，Mermaid 不接受这种旧写法", "Mermaid rejects point coordinates without brackets", "写成「名称: [x, y]」", "Write the point as Name: [x, y]"));
 	if (ignored.size) {
 		const styles = [...ignored].join(", ");
 		errors.push(warning("IGNORED_STYLE", lang, ignoredLine, `已忽略无法匹配主题的点颜色：${styles}`, `Ignored unmappable point colors: ${styles}`, "使用可映射为主题状态的颜色", "Use colors that map to theme statuses"));

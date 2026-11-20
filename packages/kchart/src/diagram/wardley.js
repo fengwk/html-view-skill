@@ -1,4 +1,4 @@
-import { FONT, appearance, error, textBlock, warning } from './support.js';
+import { FONT, appearance, error, isEn, message, textBlock, warning } from './support.js';
 import { mapConfig, mapIcon, mapLabels } from './map-label.js';
 
 const DEC = String.raw`\d+\.\d+`;
@@ -16,13 +16,17 @@ const evolvePattern = new RegExp(String.raw`^evolve\s+(${NAME})\s+(${DEC})$`);
 const pinPattern = new RegExp(String.raw`^annotation\s+(\d+)\s*,\s*${pair(NUM)}\s+(${QUOTED})$`);
 const boxPattern = new RegExp(String.raw`^annotations\s*${pair(NUM)}$`);
 const linkPattern = new RegExp(String.raw`^(${NAME})\s*(\+<>|\+>|\+<)?\s*(-->|-\.->|->|>|\+'([^']*)'(<>|<|>))?\s*(${NAME})\s*(\+<>|\+>|\+<)?\s*(?:;\s*(.+))?$`);
-const defaults = ['Genesis', 'Custom Built', 'Product', 'Commodity'];
+// Generated text follows the diagram language: [Chinese, English].
+const defaults = [['起源', 'Genesis'], ['定制', 'Custom Built'], ['产品', 'Product'], ['商品', 'Commodity']];
+const words = { visibility: ['可见度', 'Visibility'], evolution: ['演化', 'Evolution'], annotations: ['注释', 'Annotations'],
+  build: ['自建', 'build'], buy: ['采购', 'buy'], outsource: ['外包', 'outsource'], market: ['市场', 'market'] };
+const word = (lang, key) => message(lang, ...words[key]);
 const strategyGlyphs = { build: 'B', buy: 'Y', outsource: 'O', market: 'M' };
 const strategyTones = { build: 'tone1', buy: 'tone2', outsource: 'tone3', market: 'tone4' };
 const readName = (name) => name.startsWith('"') ? name.slice(1, -1).replace(/\\(["\\])/g, '$1') : name;
 
 function parse(body, { lang, firstLine = 2, title = '', headerLine = 1 } = {}) {
-  const model = { type: 'wardley', title, size: null, stages: defaults.map(name => ({ name, secondName: null, boundary: null })),
+  const model = { type: 'wardley', title, size: null, stages: defaults.map(names => ({ name: names[isEn(lang) ? 1 : 0], secondName: null, boundary: null })),
     nodes: [], pipelines: [], links: [], trends: [], notes: [], annotations: [], annotationBox: null, forces: [] };
   const errors = [], hints = new Set(), nodes = new Map();
   const normalize = mapLabels(lang, item => errors.push(item));
@@ -368,8 +372,8 @@ function layout(model, { width, lang, ctx }, info = {}) {
   if (titleRows.length) guides.push(caption(W / 2, 23 + (titleRows.length - 1) * 8, titleRows, model.titleIcon, FONT.title));
   guides.push(ctx.line(pad, top, pad, bottom, stroke(axis)), ctx.line(pad, bottom, right, bottom, stroke(axis)));
   const axisMiddle = (top + bottom) / 2;
-  guides.push(ctx.el('g', { transform: `rotate(-90 18 ${axisMiddle})` }, [label(18, axisMiddle, ['Visibility'], bold, t.fg2)]));
-  guides.push(label((pad + right) / 2, bottom + 64 + stagesExtra, ['Evolution'], bold, t.fg2));
+  guides.push(ctx.el('g', { transform: `rotate(-90 18 ${axisMiddle})` }, [label(18, axisMiddle, [word(lang, 'visibility')], bold, t.fg2)]));
+  guides.push(label((pad + right) / 2, bottom + 64 + stagesExtra, [word(lang, 'evolution')], bold, t.fg2));
   stages.forEach((rows, i) => {
     const x = pad + plotW * (fractions[i - 1] || 0), end = pad + plotW * fractions[i];
     if (i) guides.push(ctx.line(x, top, x, bottom, stroke(grid)));
@@ -459,12 +463,12 @@ function layout(model, { width, lang, ctx }, info = {}) {
     const r = floating ? desired : box(pad, footerY, w, h);
     if (!floating) footerY += h + 8;
     labels.push(ctx.rect(r.x, r.y, r.w, r.h, { rx: t.radius, fill: t.node, stroke: grid, meta: { kind: 'frame', id: 'annotations' } }),
-      label(r.x + 14, r.y + 14, ['Annotations'], bold, t.fg1, 'start'),
+      label(r.x + 14, r.y + 14, [word(lang, 'annotations')], bold, t.fg1, 'start'),
       ...rows.map(({ row, icon }, i) => caption(r.x + 14, r.y + 35 + i * 16, [row], icon, FONT.label, t.fg2, 'start')));
   }
   const strategies = Object.keys(strategyGlyphs).filter(strategy => model.nodes.some(node => node.strategy === strategy));
   if (strategies.length) {
-    const rows = ctx.wrap(strategies.map(strategy => `${strategyGlyphs[strategy]} · ${strategy}`).join('     /     '), plotW, 12);
+    const rows = ctx.wrap(strategies.map(strategy => `${strategyGlyphs[strategy]} · ${word(lang, strategy)}`).join('     /     '), plotW, 12);
     labels.push(label(pad, footerY + rows.length * 8, rows, FONT.label, t.fg2, 'start'));
     footerY += rows.length * 16 + 8;
   }

@@ -5,7 +5,7 @@ import { implementations } from '../src/diagram/architecture.js';
 import { checkScene } from './helpers/geometry.mjs';
 
 const header = 'architecture\n';
-const parse = body => implementations.architecture.parse(body, { lang: 'en', firstLine: 2 });
+const parse = body => implementations['architecture-beta'].parse(body, { lang: 'en', firstLine: 2 });
 const flatten = ({ children = [] }) => children.flatMap(node => [node, ...flatten(node)]);
 const endsOf = edge => edge.attrs.points.split(' ').filter((_, i, points) => !i || i === points.length - 1);
 const render = (body, width = 360) => {
@@ -15,9 +15,9 @@ const render = (body, width = 360) => {
   return flatten(scene);
 };
 
-// Both public keywords dispatch to the same family.
-test('architecture is canonical and architecture-beta is an alias', () => {
-  assert.ok(diagramTypes.some(type => type.kind === 'architecture' && type.aliases.includes('architecture-beta')));
+// Both public keywords dispatch to the same family; the canonical one is the keyword Mermaid 12.3.0 parses.
+test('architecture-beta is canonical and architecture is an alias', () => {
+  assert.ok(diagramTypes.some(type => type.kind === 'architecture-beta' && type.aliases.includes('architecture')));
   const body = '\nservice a(server)[A]';
   assert.equal(diagram('architecture' + body).svg, diagram('architecture-beta' + body).svg);
 });

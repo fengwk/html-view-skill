@@ -35,7 +35,7 @@ test('all seven Mermaid time and grid subsets render scenes', () => {
     ['gitGraph\ncommit id: "first"\nbranch feature\ncommit id: "feature-1"\ncheckout main\ncommit tag: "v1"\nmerge feature id: "merge-1"', 'gitGraph'],
     ['kanban\ntodo[待办]\n  task1[任务]\ndone[完成]\n  task2[发布]', 'kanban'],
     ['packet-beta\n0-7: "Source"\n8-15: "Type"', 'packet'],
-    ['quadrantChart\ntitle Priorities\nx-axis Low --> High\ny-axis Weak --> Strong\nquadrant-1 Urgent\nquadrant-2 Plan\nquadrant-3 Later\nquadrant-4 Delegate\nAlpha: 0.8, 0.7', 'quadrantChart'],
+    ['quadrantChart\ntitle Priorities\nx-axis Low --> High\ny-axis Weak --> Strong\nquadrant-1 Urgent\nquadrant-2 Plan\nquadrant-3 Later\nquadrant-4 Delegate\nAlpha: [0.8, 0.7]', 'quadrantChart'],
   ];
   for (const [source, kind] of examples) {
     const { parsed, laid } = render(source, kind);
@@ -46,7 +46,7 @@ test('all seven Mermaid time and grid subsets render scenes', () => {
 
 // 接受 Mermaid 的四象限编号，而不是把相邻象限的意思互换。
 test('quadrant captions are ordered TR, TL, BL, BR and points retain the axis direction', () => {
-  const input = 'quadrantChart\nx-axis Low --> High\ny-axis Weak --> Strong\nquadrant-1 A\nquadrant-2 B\nquadrant-3 C\nquadrant-4 D\nPoint: 0.8, 0.7';
+  const input = 'quadrantChart\nx-axis Low --> High\ny-axis Weak --> Strong\nquadrant-1 A\nquadrant-2 B\nquadrant-3 C\nquadrant-4 D\nPoint: [0.8, 0.7]';
   const { laid } = render(input, 'quadrantChart', { width: 502 });
   const [grid] = laid.scene.children.filter(node => node.tag === 'rect');
   const caption = (name) => laid.scene.children.find(node => node.tag === 'text' && node.text === name).attrs;

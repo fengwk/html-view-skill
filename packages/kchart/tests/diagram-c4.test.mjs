@@ -165,11 +165,33 @@ click b href "javascript:alert(1)"`);
 test('C4 element types follow the inferred diagram language', () => {
   for (const [labels, expected] of [
     [['Customer', 'Banking System', 'Payments API'], ['[Person]', '[Software System]', '[Container: HTTP]']],
-    [['客户', '银行系统', '支付接口'], ['[人员]', '[软件系统]', '[容器: HTTP]']],
+    [['客户', '银行系统', '支付接口'], ['[人员]', '[软件系统]', '[容器：HTTP]']],
   ]) {
     const { scene, diagnostics } = diagram(`C4Container\nPerson(p, "${labels[0]}")\nSystem(s, "${labels[1]}")\nContainer(c, "${labels[2]}", HTTP)`, { width: 800 });
     assert.ok(scene, JSON.stringify(diagnostics));
     const stereotypes = walk(scene).filter(node => node.tag === 'text' && node.text.startsWith('[')).map(node => node.text);
     assert.deepEqual(stereotypes, expected);
   }
+});
+
+// Default frame types follow the diagram language like element types; a type the author writes is kept.
+test('default boundary and node types follow the diagram language', () => {
+  const source = 'C4Deployment\nDeployment_Node(edge, "Edge") {\n  System_Boundary(sys, "Shop") {\n    Container(app, "App", "Web")\n  }\n}\nDeployment_Node(cloud, "Cloud", "Kubernetes") {\n  Container(api, "API", "Node.js")\n}';
+  const stereotypes = lang => walk(diagram(source, { width: 900, frame: false, lang }).scene)
+    .filter(node => node.tag === 'text' && node.text.startsWith('[')).map(node => node.text);
+  // Frames are drawn before the cards inside them.
+  assert.deepEqual(stereotypes('zh-CN'), ['[节点]', '[系统]', '[Kubernetes]', '[容器：Web]', '[容器：Node.js]']);
+  assert.deepEqual(stereotypes('en'), ['[Node]', '[System]', '[Kubernetes]', '[Container: Web]', '[Container: Node.js]']);
+});
+
+// A label wider than the default gutter used to sit across both deployment-node borders; the gap now grows to hold it.
+test('a relationship label between side-by-side frames fits in the gap between them', () => {
+  const source = 'C4Deployment\nDeployment_Node(cloud, "Cloud", "Kubernetes") {\n  Container(api, "API", "Node.js")\n}\nDeployment_Node(shop, "Shop", "Tablet") {\n  Container(screen, "Screen", "Web")\n}\nRel(api, screen, "Pushes tickets over", "WebSocket")';
+  const nodes = walk(render(source, 800).scene);
+  const frames = nodes.filter(node => node.meta?.kind === 'frame').map(node => node.attrs);
+  const plate = nodes.find(node => node.meta?.kind === 'edge-label-group').children[0].attrs;
+  assert.equal(frames.length, 2);
+  const [left, right] = frames.sort((a, b) => a.x - b.x);
+  assert.ok(plate.x >= left.x + left.width && plate.x + plate.width <= right.x, JSON.stringify({ left, right, plate }));
+  assert.equal(nodes.filter(node => node.meta?.kind === 'leader').length, 0);
 });

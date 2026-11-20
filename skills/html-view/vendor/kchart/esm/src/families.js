@@ -167,8 +167,8 @@ var families_default = {
 		"aliases": ["requirement"]
 	} } },
 	"diagram/relations": { "diagrams": { "zenuml": { "topic": "sequence" } } },
-	"diagram/architecture": { "diagrams": { "architecture": {
-		"aliases": ["architecture-beta"],
+	"diagram/architecture": { "diagrams": { "architecture-beta": {
+		"aliases": ["architecture"],
 		"topic": "architecture"
 	} } },
 	"diagram/block": { "diagrams": { "block": {

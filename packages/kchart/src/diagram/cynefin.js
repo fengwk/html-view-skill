@@ -5,7 +5,7 @@
 import { labelIcon } from './tree-family-icon.js';
 import { normalizeLabel } from './label.js';
 import { presentation } from './presentation.js';
-import { FONT, appearance as appearanceOf, error as issueAt, fallbackMeasure, labelText, warning, wrapText } from './support.js';
+import { FONT, appearance as appearanceOf, error as issueAt, fallbackMeasure, isEn, labelText, warning, wrapText } from './support.js';
 
 const DOMAINS = ['complex', 'complicated', 'clear', 'chaotic', 'confusion'];
 // Fixed cells: Complex top-left, Complicated top-right, Chaotic bottom-left, Clear bottom-right, Confusion centre.
@@ -19,6 +19,15 @@ const NOTES = {
   clear: ['Sense → Categorise → Respond', 'Best Practices'],
   chaotic: ['Act → Sense → Respond', 'Novel Practices'],
   confusion: ['', 'Disorder'],
+};
+// The same decision model in Chinese: generated text follows the diagram language like every other family.
+const TITLES_ZH = { complex: '复杂', complicated: '繁杂', chaotic: '混乱', clear: '清晰', confusion: '困惑' };
+const NOTES_ZH = {
+  complex: ['探测 → 感知 → 响应', '涌现实践'],
+  complicated: ['感知 → 分析 → 响应', '良好实践'],
+  clear: ['感知 → 分类 → 响应', '最佳实践'],
+  chaotic: ['行动 → 感知 → 响应', '新颖实践'],
+  confusion: ['', '失序'],
 };
 const TONES = { complex: 'tone1', complicated: 'tone2', chaotic: 'tone3', clear: 'tone4', confusion: 'tone5' };
 
@@ -273,6 +282,7 @@ function layout(model, options = {}) {
   const measure = options.measure || fallbackMeasure;
   const width = Math.max(1, Number(options.width) || 800);
   const lang = options.lang || 'zh';
+  const titles = isEn(lang) ? TITLES : TITLES_ZH, notes = isEn(lang) ? NOTES : NOTES_ZH;
   const errors = [];
   const ink = (value, font) => Math.max(0, measure(value, font.size, font.weight));
   const wrap = (value, maxWidth, font) => wrapText(value, maxWidth, font, (piece, spec) => measure(piece, spec));
@@ -302,11 +312,11 @@ function layout(model, options = {}) {
     const chips = rows.map((item, index) => ({ ...item, id: `${name}-${index}`, line: item.line, ...chipOf(item.label, chipCap, item.icon) }));
     if (rows.length > QUADRANT_HINT) {
       errors.push(warning('DIAGRAM_HINT', lang, rows[QUADRANT_HINT].line,
-        `「${TITLES[name]}」有 ${rows.length} 个条目，面板会变高`, `"${TITLES[name]}" holds ${rows.length} items and makes a tall panel`,
+        `「${titles[name]}」有 ${rows.length} 个条目，面板会变高`, `"${titles[name]}" holds ${rows.length} items and makes a tall panel`,
         `每个域保留 ${QUADRANT_HINT} 个条目以内`, `Keep at most ${QUADRANT_HINT} items per domain`));
     }
-    const subs = model.showDomainDescriptions ? NOTES[name] : [NOTES[name][1]];
-    const blockW = Math.ceil(Math.max(widest([TITLES[name]], nameFont), widest(subs, bodyFont), ...chips.map(chip => chip.w), 0));
+    const subs = model.showDomainDescriptions ? notes[name] : [notes[name][1]];
+    const blockW = Math.ceil(Math.max(widest([titles[name]], nameFont), widest(subs, bodyFont), ...chips.map(chip => chip.w), 0));
     const chipsH = chips.reduce((sum, chip) => sum + chip.h + CHIP_GAP, -CHIP_GAP);
     const blockH = NAME_LINE + NAME_GAP + subs.length * SUB_PITCH + (chips.length ? ITEM_GAP + chipsH : 0);
     blocks[name] = { id: name, subs, chips, w: blockW, h: blockH, tone: TONES[name], count: rows.length };
@@ -337,7 +347,7 @@ function layout(model, options = {}) {
     const blockY = row === 0 ? panel.y + PANEL_PAD : panel.y + panel.h - PANEL_PAD - bottomBlockH;
     const texts = [];
     let cursor = blockY;
-    texts.push({ kind: 'name', text: TITLES[name], x: blockX + block.w / 2, y: cursor + NAME_LINE / 2, font: nameFont });
+    texts.push({ kind: 'name', text: titles[name], x: blockX + block.w / 2, y: cursor + NAME_LINE / 2, font: nameFont });
     cursor += NAME_LINE + NAME_GAP;
     for (const line of block.subs) {
       texts.push({ kind: 'sub', text: line, x: blockX + block.w / 2, y: cursor + SUB_PITCH / 2, font: bodyFont });
@@ -359,10 +369,10 @@ function layout(model, options = {}) {
   const confusionTexts = [];
   {
     let cursor = centre.y - confusionBlockH / 2;
-    confusionTexts.push({ kind: 'name', text: TITLES.confusion, x: centre.x, y: cursor + NAME_LINE / 2, font: nameFont });
+    confusionTexts.push({ kind: 'name', text: titles.confusion, x: centre.x, y: cursor + NAME_LINE / 2, font: nameFont });
     cursor += NAME_LINE + NAME_GAP;
     if (model.showDomainDescriptions) {
-      confusionTexts.push({ kind: 'sub', text: NOTES.confusion[1], x: centre.x, y: cursor + SUB_PITCH / 2, font: bodyFont });
+      confusionTexts.push({ kind: 'sub', text: notes.confusion[1], x: centre.x, y: cursor + SUB_PITCH / 2, font: bodyFont });
       cursor += SUB_PITCH;
     }
     cursor += ITEM_GAP;

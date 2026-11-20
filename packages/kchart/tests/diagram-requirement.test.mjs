@@ -123,6 +123,15 @@ test('card sections list the stereotype first, then the field rows with Mermaid 
   assert.equal(card(model, 'r').tone, undefined);
 });
 
+// Intent: printed labels, values and verbs follow the diagram language; the model keeps Mermaid's words.
+test('Chinese diagrams print requirement labels, values and verbs in Chinese', () => {
+  const { model } = parseBody('performanceRequirement r {\nid: "REQ-1"\ntext: t\nrisk: medium\nverifymethod: test\n}\nelement e {\ntype: doc\ndocref: x\n}\ne - satisfies -> r', { lang: 'zh-CN' });
+  assert.deepEqual(linesOf(model, 'r'), [['<<性能需求>>'], ['编号：REQ-1', '内容：t', '风险：中', '验证：测试']]);
+  assert.deepEqual(linesOf(model, 'e'), [['<<元素>>'], ['类型：doc', '文档：x']]);
+  assert.deepEqual(model.edges.map(edge => [edge.verb, edge.label]), [['satisfies', '<<满足>>']]);
+  assert.deepEqual([card(model, 'r').stereotype, card(model, 'r').fields.risk], ['Performance Requirement', 'Medium']);
+});
+
 // Intent: risk and verification are closed enums, so an out-of-range value is an error instead of free text.
 test('out-of-range risk and verification values are rejected at their line', () => {
   const risk = parseBody('requirement r {\nrisk: critical\n}');
