@@ -8,7 +8,7 @@
 
 日期按 UTC 解析，`dateFormat` 默认 `YYYY-MM-DD`，也可指定如 `HH:mm`、Unix 秒 `X` 或毫秒 `x`。`axisFormat` 使用 `%Y-%m`、`%H:%M` 一类的刻度格式；不支持的格式标记会报错。无法解析的结束值会提示并画成零时长。使用 `tickInterval 1week`、`weekday monday`、`topAxis` 调整刻度；无效间隔回退为自动刻度。`excludes` 可列日期、英文星期名或 `weekends`，`includes` 覆盖排除项；`weekend friday` 可把周末改为周五和周六。排除日会延长按时长定义的任务，不改显式结束日；`inclusiveEndDates` 将显式结束日期纳入任务。
 
-任务条采用主题浅色填充及描边；`done`、`active`、`crit` 有不同的状态样式，`milestone` 用菱形，`vert` 用全高虚线并把名称和日期放在同一标签。前言 `displayMode: compact` 可将不重叠的任务排在同一行。Today 标记默认不画；仅在前言配置 `config.gantt.todayDate`（`YYYY-MM-DD`）且该日在排期范围内时显示；`todayMarker off` 可关闭，自定义标记样式不生效。任务可用 `:::状态类`、`class` 或 `style` 映射到主题色；`click ID href "URL"` 只生成安全链接，`call` 回调忽略并提示。任务上限为 2,000 个。
+任务条采用主题浅色填充及描边；`done`、`active`、`crit` 有不同的状态样式，`milestone` 用菱形，`vert` 用全高虚线并把名称和日期放在同一标签。前言 `displayMode: compact` 在条形与标签都有空间时合并任务行。任务名优先写在自己的条形内，其次写在右侧或左侧；状态文字跟随任务，左栏只留分组名。Today 标记默认不画；仅在前言配置 `config.gantt.todayDate`（`YYYY-MM-DD`）且该日在排期范围内时显示；`todayMarker off` 可关闭，自定义标记样式不生效。任务可用 `:::状态类`、`class` 或 `style` 映射到主题色；`click ID href "URL"` 只生成安全链接，`call` 回调忽略并提示。任务上限为 2,000 个。
 
 ## timeline
 

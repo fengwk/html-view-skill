@@ -181,13 +181,52 @@ function parse(body, info) {
   return { model, errors };
 }
 
+// Compact lanes reserve task marks AND captions. Try the bar interior, then its right and left.
+function compactRows(items, { bounds, caption, markerXs, left, width }) {
+  const rows = [], gap = 7;
+  for (const item of items) {
+    const [start, end] = bounds(item), label = caption(item);
+    const { w } = label;
+    const candidates = [];
+    if (!item.flags.includes('milestone') && label.names.length === 1 && end - start >= w + 2 * gap) {
+      // An interior caption may move off-centre to leave a vertical marker visible.
+      let lo = start + gap;
+      const middle = (start + end - w) / 2;
+      for (const edge of [...markerXs.filter(x => x > start && x < end), end]) {
+        if (edge - gap - lo >= w) candidates.push({ x: Math.max(lo, Math.min(middle, edge - gap - w)), inside: true });
+        lo = edge + gap;
+      }
+      candidates.sort((a, b) => Math.abs(a.x - middle) - Math.abs(b.x - middle));
+    }
+    candidates.push({ x: end + gap }, { x: start - gap - w });
+    const free = candidates.filter(({ x }) => x >= left && x + w <= width - 14 &&
+      markerXs.every(marker => marker <= x - gap || marker >= x + w + gap));
+    const available = (row, candidate) => row.every(other =>
+      (item.endTime <= other.item.startTime || item.startTime >= other.item.endTime) &&
+      (Math.max(end, candidate.x + w) + gap <= other.lo || Math.min(start, candidate.x) >= other.hi + gap));
+    let lane, position;
+    for (const row of rows) {
+      const place = free.find(candidate => available(row, candidate));
+      if (place) { lane = row; position = place; break; }
+    }
+    if (!lane) {
+      lane = []; rows.push(lane);
+      // A dedicated lane can grow the scene. If tightly spaced markers block both sides,
+      // give the caption priority and break those marker strokes around the caption.
+      position = free[0] || candidates.at(-2);
+    }
+    lane.push({ item, label, ...position, lo: Math.min(start, position.x), hi: Math.max(end, position.x + w) });
+  }
+  return rows;
+}
+
 function layout(model, { width, ctx, measure, renderOptions }) {
   const { design: d, lang } = ctx, { items, sections, today } = model;
   const errors = [], children = [], title = model.title, naked = !renderOptions?.frame && title;
   const body = FONT.body, small = FONT.label, bold = { ...body, weight: 600 };
   const texts = value => value.split('\n');
   const states = item => item.flags.map(flag => flags[flag][isEn(lang) ? 1 : 0]).join(' · ');
-  const labelW = Math.max(120, ...items.flatMap(item => [maxWidthOf(texts(item.name), body, measure) + iconSlot(item.icon), measure(states(item), small)]),
+  const labelW = Math.max(model.compact ? 32 : 120, ...(model.compact ? [] : items.flatMap(item => [maxWidthOf(texts(item.name), body, measure) + iconSlot(item.icon), measure(states(item), small)])),
     ...sections.map(s => maxWidthOf(texts(s.name), bold, measure) + iconSlot(s.icon)));
   const addShape = (tag, attrs, meta, link) => {
     const mark = { ...ctx.el(tag, attrs), ...(meta ? { meta } : {}) };
@@ -200,7 +239,7 @@ function layout(model, { width, ctx, measure, renderOptions }) {
       fill: stroke ? 'none' : color, stroke: stroke ? color : 'none', 'stroke-width': 1.6, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' },
     icon.elements.map(({ tag, attrs }) => ctx.shape(tag, attrs))));
   };
-  const text = (value, x, y, font = body, fill = d.fg1, anchor = 'start') => children.push(ctx.text(x, y, value, { ...font, fill, anchor, 'dominant-baseline': 'central' }));
+  const text = (value, x, y, font = body, fill = d.fg1, anchor = 'start', meta) => children.push(ctx.text(x, y, value, { ...font, fill, anchor, 'dominant-baseline': 'central', meta }));
   const line = (x, y1, y2, stroke, dash) => addShape('line', { x1: x, x2: x, y1, y2, stroke, ...(dash ? { 'stroke-width': 2, 'stroke-dasharray': '4 4' } : {}) });
   const left = labelW + 52, min = items.length ? Math.min(...items.map(item => item.startTime)) : 0;
   const end = items.length ? Math.max(...items.map(item => item.endTime)) : min;
@@ -225,20 +264,34 @@ function layout(model, { width, ctx, measure, renderOptions }) {
   const x = stamp => left + ratio(stamp) * plot;
   const range = (w, stamp) => ({ x: x(stamp), left: x(stamp) - w / 2, right: x(stamp) + w / 2 });
   const right = Math.max(30, ...tickList.map(t => t.w / 2 + 14));
-  const w = Math.max(width, Math.ceil(left + plot + right));
+  let w = Math.max(width, Math.ceil(left + plot + right));
+  const markers = items.filter(item => item.flags.includes('vert'));
+  const showToday = valid(today) && items.length && today >= min && today <= end;
+  const markerStamp = marker => marker.today ? today : marker.startTime + (marker.endTime - marker.startTime) / 2;
+  const markerXs = [...markers.map(marker => x(markerStamp(marker))), ...(showToday ? [x(today)] : [])].sort((a, b) => a - b);
+  const markBounds = item => item.flags.includes('milestone') ?
+    [x(markerStamp(item)) - 9, x(markerStamp(item)) + 9] :
+    [x(item.startTime), Math.max(x(item.startTime) + 4, x(item.endTime))];
+  const compact = new Map();
+  if (model.compact) for (const section of sections) {
+    const rows = compactRows(section.items.filter(item => !item.flags.includes('vert')), {
+      bounds: markBounds, markerXs, left: left - 10, width: w,
+      caption: item => {
+        const names = texts(item.name), state = states(item);
+        return { names, state, w: Math.max(maxWidthOf(names, body, measure) + iconSlot(item.icon), measure(state, small)) };
+      },
+    });
+    compact.set(section, rows);
+    for (const row of rows) for (const entry of row) w = Math.max(w, Math.ceil(entry.hi + 14));
+  }
   const titleLines = naked ? wrapText(title, w - 48 - iconSlot(model.titleIcon), FONT.title, measure) : [];
   if (titleLines.length) drawIcon(model.titleIcon, 24, 24);
   titleLines.forEach((value, i) => text(value, 24 + iconSlot(model.titleIcon), 24 + i * 20, FONT.title));
   let y = titleLines.length ? 24 + titleLines.length * 20 : 24;
   if (model.topAxis) y += 22;
-  const markers = items.filter(item => item.flags.includes('vert'));
-  const markBounds = item => item.flags.includes('milestone') ?
-    [(x(item.startTime) + x(item.endTime)) / 2 - 9, (x(item.startTime) + x(item.endTime)) / 2 + 9] :
-    [x(item.startTime), Math.max(x(item.startTime) + 4, x(item.endTime))];
-  const showToday = valid(today) && items.length && today >= min && today <= end;
   const markerY = y, markerInfo = [];
   for (const marker of [...markers, ...(showToday ? [{ startTime: today, name: isEn(lang) ? 'Today' : '今天', today: true }] : [])]) {
-    const stamp = marker.today ? today : marker.startTime + (marker.endTime - marker.startTime) / 2;
+    const stamp = markerStamp(marker);
     const name = marker.name.replace(/\s*\n\s*/g, ' ');
     const caption = marker.today ? name : [name, model.axis(stamp)].filter(Boolean).join(' · ');
     const content = wrapText(caption, w - 28 - iconSlot(marker.icon), small, measure);
@@ -253,21 +306,20 @@ function layout(model, { width, ctx, measure, renderOptions }) {
     if (!section.name && !section.icon && !section.items.length) continue;
     const top = y, names = section.name || section.icon ? texts(section.name) : [];
     if (names.length) y += 14 + 18 * names.length;
-    const rows = [];
-    // Allow room for the minimum-width bars and diamonds, not just the date extents.
-    for (const item of section.items.filter(item => !item.flags.includes('vert'))) {
-      const [left, right] = markBounds(item);
-      let row = model.compact && rows.find(row => row.every(other => {
-        const [a, b] = markBounds(other);
-        return (item.endTime <= other.startTime && right + 4 <= a) || (item.startTime >= other.endTime && left >= b + 4);
-      }));
-      if (!row) { row = []; rows.push(row); }
-      row.push(item);
-    }
-    for (const row of rows) {
-      const labels = row.flatMap(item => [...texts(item.name), ...(states(item) ? [states(item)] : [])]);
-      const rowH = Math.max(48, labels.length * 18 + 20);
-      bars.push({ row, y: y + rowH / 2, labels }); y += rowH;
+    if (model.compact) {
+      for (const row of compact.get(section)) {
+        const rowH = Math.max(48, ...row.map(({ label, inside }) => inside && label.state ? 58 : (label.names.length + Number(Boolean(label.state))) * 18 + 20));
+        for (const entry of row) {
+          const middle = y + rowH / 2;
+          const lines = entry.label.names.length + Number(Boolean(entry.label.state));
+          bars.push({ task: entry.item, barY: middle, caption: entry, labelY: middle - (entry.inside ? 0 : (lines - 1) * 9) });
+        }
+        y += rowH;
+      }
+    } else for (const task of section.items.filter(item => !item.flags.includes('vert'))) {
+      const lines = texts(task.name).length + Number(Boolean(states(task)));
+      const rowH = Math.max(48, lines * 18 + 20), labelY = y + rowH / 2 - (lines - 1) * 9;
+      bars.push({ task, barY: labelY, labelY }); y += rowH;
     }
     if (names.length) bands.push({ names, icon: section.icon, top, bottom: y });
   }
@@ -301,34 +353,54 @@ function layout(model, { width, ctx, measure, renderOptions }) {
       { ...small, fill: d.fg1, anchor: 'middle', 'dominant-baseline': 'central' }));
     if (marker.link) children.push(ctx.link(marker.link.href, parts, marker.link));
     else children.push(...parts);
-    line(x(stamp), top, bottom, color, true);
+    const markerX = x(stamp);
+    if (!model.compact) line(markerX, top, bottom, color, true);
+    else {
+      const gaps = bars.filter(({ caption }) => markerX > caption.x - 3 && markerX < caption.x + caption.label.w + 3);
+      let from = top;
+      const segment = to => {
+        if (to > from) addShape('line', { x1: markerX, x2: markerX, y1: from, y2: to, stroke: color,
+          'stroke-width': 2, 'stroke-dasharray': '4 4' }, { kind: 'leader', id: marker.id || 'today' });
+      };
+      for (const { caption, labelY } of gaps) {
+        segment(labelY - 10);
+        from = labelY + (caption.label.names.length - 1 + Number(Boolean(caption.label.state))) * 18 + 10;
+      }
+      segment(bottom);
+    }
   }
   bands.forEach(({ names, icon, top }) => {
     drawIcon(icon, 12, top + 15);
     names.forEach((value, i) => text(value, 12 + iconSlot(icon), top + 15 + i * 18, bold, d.fg2));
   });
-  for (const { row, y, labels } of bars) {
-    let index = 0;
-    for (const task of row) {
-      const names = texts(task.name), labelY = y - (labels.length - 1) * 9 + index * 18, state = states(task);
-      drawIcon(task.icon, 12, labelY);
-      names.forEach((name, i) => text(name, 12 + iconSlot(task.icon), labelY + i * 18));
-      if (state) text(state, 12, labelY + names.length * 18, small, d.fg2);
-      index += names.length + Number(Boolean(state));
-      const x1 = x(task.startTime), x2 = x(task.endTime), meta = { kind: 'node', id: task.id, ...(task.status ? { status: task.status } : {}) };
-      const barY = row.length === 1 ? labelY : y;
-      const critical = task.flags.includes('crit'), done = task.flags.includes('done'), active = task.flags.includes('active');
-      const tone = task.status ? d[task.status] : critical ? d.accent : done ? d.ok : active ? d.info : ctx.color('tone1');
-      const stroke = ctx.tint(d.bg, tone, critical || task.status ? .82 : .62);
-      const fill = ctx.tint(d.bg, tone, done ? .30 : critical ? .24 : .17);
-      if (task.flags.includes('milestone')) {
-        const mid = (x1 + x2) / 2;
-        addShape('polygon', { points: `${mid},${barY - 9} ${mid + 9},${barY} ${mid},${barY + 9} ${mid - 9},${barY}`, fill, stroke }, meta, task.link);
-      } else {
-        const barW = Math.max(4, x2 - x1);
-        addShape('rect', { x: x1, y: barY - 11, width: barW, height: 22, fill, stroke, rx: 4 }, meta, task.link);
-        if (active && barW > 8) addShape('rect', { x: x1 + 2, y: barY - 9, width: (barW - 4) * .55, height: 18, fill: ctx.tint(d.bg, tone, .38), rx: 3, 'pointer-events': 'none' });
-      }
+  for (const { task, barY, labelY, caption } of bars) {
+    const { names, state } = caption?.label ?? { names: texts(task.name), state: states(task) };
+    const labelX = caption?.x ?? 12;
+    if (!caption) {
+      drawIcon(task.icon, labelX, labelY);
+      names.forEach((name, i) => text(name, labelX + iconSlot(task.icon), labelY + i * 18));
+      if (state) text(state, labelX, labelY + names.length * 18, small, d.fg2);
+    }
+    const x1 = x(task.startTime), x2 = x(task.endTime), meta = { kind: 'node', id: task.id, ...(task.status ? { status: task.status } : {}) };
+    const critical = task.flags.includes('crit'), done = task.flags.includes('done'), active = task.flags.includes('active');
+    const tone = task.status ? d[task.status] : critical ? d.accent : done ? d.ok : active ? d.info : ctx.color('tone1');
+    const stroke = ctx.tint(d.bg, tone, critical || task.status ? .82 : .62);
+    const fill = ctx.tint(d.bg, tone, done ? .30 : critical ? .24 : .17);
+    if (task.flags.includes('milestone')) {
+      const mid = (x1 + x2) / 2;
+      addShape('polygon', { points: `${mid},${barY - 9} ${mid + 9},${barY} ${mid},${barY + 9} ${mid - 9},${barY}`, fill, stroke }, meta, task.link);
+    } else {
+      const barW = Math.max(4, x2 - x1);
+      addShape('rect', { x: x1, y: barY - 11, width: barW, height: 22, fill, stroke, rx: 4 }, meta, task.link);
+      if (active && barW > 8) addShape('rect', { x: x1 + 2, y: barY - 9, width: (barW - 4) * .55, height: 18, fill: ctx.tint(d.bg, tone, .38), rx: 3, 'pointer-events': 'none' });
+    }
+    if (caption) {
+      drawIcon(task.icon, labelX, labelY);
+      // An interior caption intentionally overlaps its own outline; the gate still checks its text
+      // and marker clearance. Exterior captions also get the label-vs-node check.
+      const labelMeta = { kind: caption.inside ? 'node-label' : 'edge-label', node: task.id };
+      names.forEach((name, i) => text(name, labelX + iconSlot(task.icon), labelY + i * 18, body, d.fg1, 'start', labelMeta));
+      if (state) text(state, labelX, labelY + names.length * 18, small, d.fg2, 'start', { kind: 'edge-label', node: task.id });
     }
   }
   if (items.length === 0) text(isEn(lang) ? 'No scheduled tasks' : '暂无排期任务', w / 2, top + 36, body, d.fg2, 'middle');
