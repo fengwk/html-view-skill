@@ -50,7 +50,7 @@ test('non-rectangular node outline', () => {
 test('sustained border contact vs. a normal port', () => {
   expect(kinds(box(), edge('M20 40 H65', 'route', 'card'))).toEqual(['edge-along-border']);
   expect(kinds(box(), edge('M50 20 V40', 'route', 'card'))).toEqual([]);
-  expect(kinds(box(), edge('M20 38 H65'))).toEqual([]);
+  expect(kinds(box(), edge('M20 38 H65'))).toEqual(['edge-hugs-node']);
 });
 
 // Reversed, shared straight runs fail, while a transverse intersection is allowed.
@@ -59,6 +59,35 @@ test('overlapping edge routes', () => {
   expect(kinds(horizontal, edge('M95 20 H55', 'other'))).toEqual(['collinear-edges']);
   expect(kinds(horizontal, edge('M55 5 V50', 'other'))).toEqual([]);
   expect(kinds(horizontal, edge('M80 20 H95', 'other'))).toEqual([]);
+});
+
+// An offset parallel run is ambiguous; a short or well-separated run is not.
+test('near-parallel routes', () => {
+  const route = edge('M10 20 H70');
+  expect(inspect(route, edge('M75 22 H30', 'other', 'different'))).toEqual([
+    { kind: 'near-parallel-overlap', elements: ['route', 'other'], coordinates: [[30, 20], [70, 20]] },
+  ]);
+  expect(kinds(route, edge('M75 25 H30', 'other'))).toEqual([]);
+  expect(kinds(route, edge('M75 22 H62', 'other'))).toEqual([]);
+});
+
+// Same-port departures may be briefly close, but sharing a source does not excuse a long run or rejoin.
+test('bounded port fan-out', () => {
+  const route = edge('M10 20 H75');
+  expect(kinds(route, edge('M10 22 H30 V50', 'other'))).toEqual([]);
+  expect(kinds(route, edge('M10 22 H65 V50', 'other'))).toEqual(['near-parallel-overlap']);
+  expect(kinds(route, edge('M10 22 V40 H50 V22 H75', 'other'))).toEqual(['near-parallel-overlap']);
+});
+
+// Only a sustained pass within 6px of an unrelated border counts as hugging.
+test('nearby node border clearance', () => {
+  const d = 'M34.1 20 V80';
+  expect(inspect(box(), edge(d))).toEqual([
+    { kind: 'edge-hugs-node', elements: ['route', 'card'], coordinates: [[34.1, 40], [34.1, 70]] },
+  ]);
+  expect(kinds(box(), edge(d, 'route', 'card'))).toEqual([]);
+  expect(kinds(box(), edge('M33.9 20 V80'))).toEqual([]);
+  expect(kinds(box(), edge('M34.1 20 V52'))).toEqual([]);
 });
 
 // A mindmap's common trunk is intentional; a coincident rejoin after branching is not.
