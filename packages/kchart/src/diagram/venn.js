@@ -1,6 +1,9 @@
 /* venn-beta: Mermaid's sets, unions and text nodes as tinted overlapping rings; four or more sets become a region grid. */
 
-import { FONT, appearance as appearanceOf, error as issueAt, fallbackMeasure, labelText, warning, wrapText } from './support.js';
+import { FONT, appearance as appearanceOf, error as issueAt, fallbackMeasure, warning, wrapText } from './support.js';
+import { normalizeLabel } from './label.js';
+import { presentation } from './presentation.js';
+import { labelIcon } from './tree-family-icon.js';
 
 const MARGIN = 24;
 const TITLE_LINE = 20;
@@ -100,34 +103,16 @@ function readSize(text, at) {
   return match ? { size: Number(match[1]), at: at + match[0].length } : { size: null, at };
 }
 
-// Split `fill:#fff, stroke:rgb(1, 2, 3)` at commas outside a function call or a quoted value.
-function splitProps(text) {
-  const parts = [];
-  let depth = 0;
-  let quote = false;
-  let start = 0;
-  for (let i = 0; i < text.length; i += 1) {
-    const ch = text[i];
-    if (ch === '\\') { i += 1; continue; }
-    if (quote) { if (ch === '"') quote = false; continue; }
-    if (ch === '"') { quote = true; continue; }
-    if (ch === '(') depth += 1;
-    else if (ch === ')') depth = Math.max(0, depth - 1);
-    else if (!depth && (ch === ',' || ch === ';')) { parts.push(text.slice(start, i)); start = i + 1; }
-  }
-  parts.push(text.slice(start));
-  return parts.map((part) => part.trim()).filter(Boolean);
-}
-
 function parse(source, info = {}) {
   const lang = info.lang || 'zh';
   const firstLine = Number.isInteger(info.firstLine) ? info.firstLine : 2;
   const headerLine = Number.isInteger(info.headerLine) ? info.headerLine : Math.max(1, firstLine - 1);
   const errors = [];
+  const look = presentation({ lang });
+  const assetWarnings = new Set();
   const sets = [];
   const unions = [];
   const texts = [];
-  const styles = [];
   const known = new Map();
   let title = '';
   let titleLine = headerLine;
@@ -151,6 +136,15 @@ function parse(source, info = {}) {
       '删除这个选项', 'Remove this option');
   }
 
+  const labelOf = (raw, line) => {
+    const normalized = normalizeLabel(raw, { lang, line });
+    for (const diagnostic of normalized.diagnostics) {
+      const key = `${diagnostic.code}:${diagnostic.message}`;
+      if (!assetWarnings.has(key)) { assetWarnings.add(key); errors.push(diagnostic); }
+    }
+    return { text: normalized.text, icon: normalized.icon };
+  };
+
   const addSet = (id, label, size, line) => {
     if (!id) { junk(line); return false; }
     if (known.has(id)) {
@@ -158,7 +152,8 @@ function parse(source, info = {}) {
         '把同一个集合合并成一行 set', 'Merge the duplicate into a single set line');
       return false;
     }
-    sets.push({ id, label: label ? labelText(label) : '', size: size ?? SIZE_DEFAULT, tone: (sets.length % 6) + 1, line });
+    const normalized = label ? labelOf(label, line) : { text: '', icon: null };
+    sets.push({ id, label: normalized.text, icon: normalized.icon, size: size ?? SIZE_DEFAULT, tone: (sets.length % 6) + 1, line });
     known.set(id, sets.at(-1));
     scope = { ids: [id] };
     return true;
@@ -178,7 +173,8 @@ function parse(source, info = {}) {
       return false;
     }
     const sorted = [...unique].sort();
-    unions.push({ ids: sorted, label: label ? labelText(label) : '', size: size ?? SIZE_DEFAULT / (unique.length ** 2), line });
+    const normalized = label ? labelOf(label, line) : { text: '', icon: null };
+    unions.push({ ids: sorted, label: normalized.text, icon: normalized.icon, size: size ?? SIZE_DEFAULT / (unique.length ** 2), line });
     scope = { ids: sorted };
     return true;
   };
@@ -186,7 +182,8 @@ function parse(source, info = {}) {
   const addText = (id, label, ids, line) => {
     const unique = ids.filter((value, index) => ids.indexOf(value) === index);
     if (!unique.length) { orphan(line); return; }
-    texts.push({ id, label: label ? labelText(label) : labelText(id), ids: [...unique].sort(), key: [...unique].sort().join('|'), line });
+    const normalized = labelOf(label || id, line);
+    texts.push({ id, label: normalized.text, icon: normalized.icon, ids: [...unique].sort(), key: [...unique].sort().join('|'), line });
   };
 
   for (const [index, raw] of String(source ?? '').split('\n').entries()) {
@@ -194,6 +191,17 @@ function parse(source, info = {}) {
     const body = stripComment(raw).trim();
     if (!body) continue;
     const indented = /^[ \t]/.test(raw);
+    // Venn additionally allows style on a comma-separated region (for example style A,B).
+    // The shared collector handles all other Mermaid presentation statements.
+    const style = /^style\s+/i.exec(body);
+    if (style) {
+      const list = readIdents(body, style[0].length);
+      if (list.ids.length > 1) {
+        look.accept(`style ${JSON.stringify([...list.ids].sort().join('|'))} ${body.slice(list.at).trimStart()}`, line);
+        continue;
+      }
+    }
+    if (look.accept(body, line)) continue;
     const head = keywordOf(body);
     const rest = body.slice(head.at);
 
@@ -217,7 +225,7 @@ function parse(source, info = {}) {
         continue;
       }
       // Mermaid keeps the raw remainder (quotes included); KChart strips one pair of quotes.
-      title = labelText(value.replace(/^"(.*)"$/, '$1').trim());
+      title = labelOf(value.replace(/^"(.*)"$/, '$1').trim(), line).text;
       titleLine = line;
       continue;
     }
@@ -248,35 +256,19 @@ function parse(source, info = {}) {
       else addText(list.ids[0], label.label, scope ? scope.ids : [], line);
       continue;
     }
-    if (head.word === 'style') {
-      const list = readIdents(rest, 0);
-      if (!list.ids.length) { junk(line); continue; }
-      const props = [];
-      for (const part of splitProps(rest.slice(list.at))) {
-        const prop = /^([A-Za-z][\w-]*)\s*:\s*([\s\S]+)$/.exec(part);
-        if (prop) props.push([prop[1].toLowerCase(), prop[2].trim()]);
-        else junk(line);
-      }
-      styles.push({ targets: list.ids, props, line });
-      continue;
-    }
     junk(line);
   }
 
-  if (styles.length) {
-    // Colours are the theme's job: one warning per diagram, listing every styled target once.
-    const subjects = [];
-    for (const style of styles) for (const target of style.targets) if (!subjects.includes(target)) subjects.push(target);
-    errors.push(warning('IGNORED_STYLE', lang, styles[0].line,
-      `已忽略样式颜色（${subjects.join('、')}）：集合配色由主题决定`,
-      `Style colours were ignored (${subjects.join(', ')}): the theme chooses set colours`,
-      '删除 style 行，颜色交给主题', 'Remove the style lines; the theme decides colours'));
-  }
+  errors.push(...look.diagnostics());
   if (!sets.length) {
     fail(firstLine, '文氏图没有任何 set', 'A Venn diagram needs at least one set',
       '至少写一行 set', 'Write at least one set line');
   }
-  return { model: { kind: 'venn-beta', title, titleLine, sets, unions, texts, styles }, errors };
+  const attach = (item, id) => ({ ...item, status: look.statusOf(id), link: look.linkOf(id) });
+  for (const set of sets) Object.assign(set, attach({}, set.id));
+  for (const union of unions) Object.assign(union, attach({}, union.ids.join('|')));
+  for (const text of texts) Object.assign(text, attach({}, text.id));
+  return { model: { kind: 'venn-beta', title, titleLine, sets, unions, texts }, errors };
 }
 
 // --- ring geometry ------------------------------------------------------------------------------
@@ -324,7 +316,7 @@ function radiiOf(sets, R) {
 // search below picks the value that gives every label the most room around its canonical look.
 function ringsAt(sets, R, spread) {
   const radii = radiiOf(sets, R);
-  const rings = sets.map((set, index) => ({ id: set.id, label: set.label, tone: set.tone, line: set.line, r: radii[index], cx: 0, cy: 0 }));
+  const rings = sets.map((set, index) => ({ id: set.id, label: set.label, icon: set.icon, tone: set.tone, status: set.status, link: set.link, line: set.line, r: radii[index], cx: 0, cy: 0 }));
   if (rings.length === 1) return rings;
   if (rings.length === 2) {
     const small = Math.min(radii[0], radii[1]);
@@ -379,7 +371,7 @@ function boundsOf(rings) {
 function planBlock(region, measure) {
   const slack = region.kind === 'set' ? SET_CLEAR : UNION_CLEAR;
   const pad = region.kind === 'set' ? 0 : CHIP_X * 2;
-  const texts = [...region.labels.map((label) => label.text), ...region.items];
+  const texts = [...region.labels.map((label) => label.text), ...region.items.map((item) => item.text)];
   const font = region.kind === 'set' ? SET_FONT : ITEM_FONT;
   const floor = Math.max(0, ...texts.flatMap((text) => String(text).split(/\s+/).filter(Boolean)
     .map((word) => measure(word, font))));
@@ -387,10 +379,10 @@ function planBlock(region, measure) {
   const wrap = (value, spec) => wrapText(value, cap, spec, (piece, spec2) => measure(piece, spec2));
   const labelFont = region.kind === 'set' ? SET_FONT : ITEM_FONT;
   const labels = [];
-  for (const label of region.labels) for (const row of wrap(label.text, labelFont)) labels.push({ text: row, font: labelFont });
+  for (const label of region.labels) for (const row of wrap(label.text, labelFont)) labels.push({ text: row, font: labelFont, icon: label.icon, link: label.link });
   const items = [];
-  for (const item of region.items) for (const row of wrap(item, ITEM_FONT)) items.push({ text: row, font: ITEM_FONT });
-  const widest = (rows) => (rows.length ? Math.max(...rows.map((row) => measure(row.text, row.font))) : 0);
+  for (const item of region.items) for (const row of wrap(item.text, ITEM_FONT)) items.push({ text: row, font: ITEM_FONT, icon: item.icon, link: item.link, status: item.status });
+  const widest = (rows) => (rows.length ? Math.max(...rows.map((row) => measure(row.text, row.font) + (row.icon ? 18 : 0))) : 0);
   const labelW = labels.length ? widest(labels) + pad : 0;
   const labelH = labels.length * ((region.kind === 'set' ? HEAD_LINE : ITEM_LINE) + CHIP_Y * 2 / labels.length);
   const itemW = widest(items);
@@ -429,8 +421,8 @@ function regionList(rings, model) {
     regions.push({
       key: ring.id, kind: 'set', ids: [ring.id], line: ring.line, tone: ring.tone,
       // Mermaid draws the set identifier when no bracket label is given (the reference PNGs show exactly that).
-      labels: [{ text: ring.label || ring.id, line: ring.line }],
-      items: (groups.get(ring.id) || []).map((text) => text.label),
+      labels: [{ text: ring.label || ring.id, icon: ring.icon, line: ring.line, link: ring.link }],
+      items: (groups.get(ring.id) || []).map((text) => ({ text: text.label, icon: text.icon, link: text.link, status: text.status })),
       texts: groups.get(ring.id) || [],
     });
   }
@@ -442,8 +434,9 @@ function regionList(rings, model) {
     const region = {
       key, kind: 'union', ids: union.ids, line: union.line,
       tone: rings.find((ring) => ring.id === union.ids[0])?.tone || 1,
-      labels: union.label ? [{ text: union.label, line: union.line }] : [],
-      items: (groups.get(key) || []).map((text) => text.label),
+      labels: union.label ? [{ text: union.label, icon: union.icon, line: union.line, link: union.link }] : [],
+      items: (groups.get(key) || []).map((text) => ({ text: text.label, icon: text.icon, link: text.link, status: text.status })),
+      status: union.status, link: union.link,
       texts: groups.get(key) || [],
     };
     merged.set(key, region);
@@ -511,12 +504,14 @@ function layoutBlock(region) {
   if (block.labels.length) {
     region.chip = { x: region.x - block.labelW / 2, y: top, w: block.labelW, h: block.labelH };
     block.labels.forEach((row, index) => region.rows.push({
-      text: row.text, font: row.font, x: region.x, y: top + CHIP_Y + (index + 0.5) * pitch, anchor: 'middle',
+      text: row.text, font: row.font, icon: row.icon, link: row.link, status: row.status,
+      x: region.x, y: top + CHIP_Y + (index + 0.5) * pitch, anchor: 'middle',
     }));
   }
   const itemTop = top + block.labelH + (block.labels.length && block.items.length ? ITEM_GAP : 0);
   block.items.forEach((row, index) => region.rows.push({
-    text: row.text, font: row.font, x: region.x, anchor: 'middle', y: itemTop + (index + 0.5) * ITEM_LINE,
+    text: row.text, font: row.font, icon: row.icon, link: row.link, status: row.status,
+    x: region.x, anchor: 'middle', y: itemTop + (index + 0.5) * ITEM_LINE,
   }));
 }
 
@@ -583,20 +578,21 @@ function planGrid(model, { measure, width, lang }) {
   const panels = [];
   for (const set of model.sets) {
     panels.push({
-      kind: 'set', key: set.id, tone: set.tone, line: set.line,
-      titles: set.label ? [set.label] : [], caption: '',
-      items: (groups.get(set.id) || []).map((text) => text.label),
+      kind: 'set', key: set.id, tone: set.tone, status: set.status, link: set.link, line: set.line,
+      titles: [{ ...set, label: set.label || set.id }], caption: '',
+      items: groups.get(set.id) || [],
     });
   }
   const merged = new Map();
   for (const union of model.unions) {
     const key = union.ids.join('|');
     const existing = merged.get(key);
-    if (existing) { if (union.label) existing.titles.push(union.label); continue; }
+    if (existing) { if (union.label) existing.titles.push(union); continue; }
     const panel = {
-      kind: 'union', key, tone: model.sets.find((set) => set.id === union.ids[0])?.tone || 1, line: union.line,
-      titles: union.label ? [union.label] : [], caption: union.ids.join(' ∩ '),
-      items: (groups.get(key) || []).map((text) => text.label),
+      kind: 'union', key, tone: model.sets.find((set) => set.id === union.ids[0])?.tone || 1,
+      status: union.status, link: union.link, line: union.line,
+      titles: union.label || union.icon ? [union] : [], caption: union.ids.join(' ∩ '),
+      items: groups.get(key) || [],
     };
     merged.set(key, panel);
     panels.push(panel);
@@ -604,18 +600,19 @@ function planGrid(model, { measure, width, lang }) {
   const claimed = new Set(panels.map((panel) => panel.key));
   for (const text of model.texts) {
     if (claimed.has(text.key)) continue;
-    panels.push({ kind: 'loose', key: text.key, tone: 1, line: text.line, titles: [text.label], caption: text.ids.join(' ∩ '), items: [] });
+    panels.push({ kind: 'loose', key: text.key, tone: 1, line: text.line, titles: [text], caption: text.ids.join(' ∩ '), items: [] });
   }
 
   const wrap = (value, font) => wrapText(value, GRID_MIN_W - GRID_PAD * 2, font, (piece, spec) => measure(piece, spec));
   for (const panel of panels) {
-    panel.header = panel.titles.flatMap((value) => wrap(labelText(value), SET_FONT));
+    const rows = (entries, font) => entries.flatMap(item => wrap(item.label, font).map((text, index) => ({ text, font, status: item.status, link: item.link, icon: index === 0 ? item.icon : null })));
+    panel.header = rows(panel.titles, SET_FONT);
     panel.captionLines = panel.caption ? wrap(panel.caption, ITEM_FONT) : [];
-    panel.itemLines = panel.items.flatMap((value) => wrap(value, ITEM_FONT));
+    panel.itemLines = rows(panel.items, ITEM_FONT);
     const widths = [
-      ...panel.header.map((row) => measure(row, SET_FONT)),
+      ...panel.header.map(row => measure(row.text, row.font) + (row.icon ? 18 : 0)),
       ...panel.captionLines.map((row) => measure(row, ITEM_FONT)),
-      ...panel.itemLines.map((row) => measure(row, ITEM_FONT)),
+      ...panel.itemLines.map(row => measure(row.text, row.font) + (row.icon ? 18 : 0)),
     ];
     panel.w = Math.max(GRID_MIN_W, Math.ceil(Math.max(0, ...widths) + GRID_PAD * 2));
     panel.h = GRID_PAD * 2 + panel.header.length * HEAD_LINE
@@ -643,14 +640,14 @@ function planGrid(model, { measure, width, lang }) {
     panel.y = tops[panel.row];
     panel.rows = [];
     let y = panel.y + GRID_PAD;
-    for (const row of panel.header) { panel.rows.push({ text: row, font: SET_FONT, x: panel.x + GRID_PAD, y: y + HEAD_LINE / 2, anchor: 'start' }); y += HEAD_LINE; }
+    for (const row of panel.header) { panel.rows.push({ ...row, x: panel.x + GRID_PAD, y: y + HEAD_LINE / 2, anchor: 'start' }); y += HEAD_LINE; }
     if (panel.captionLines.length) {
       y += 4;
       for (const row of panel.captionLines) { panel.rows.push({ text: row, font: ITEM_FONT, x: panel.x + GRID_PAD, y: y + ITEM_LINE / 2, anchor: 'start' }); y += ITEM_LINE; }
     }
     if (panel.itemLines.length) {
       y += 6;
-      for (const row of panel.itemLines) { panel.rows.push({ text: row, font: ITEM_FONT, x: panel.x + GRID_PAD, y: y + ITEM_LINE / 2, anchor: 'start' }); y += ITEM_LINE; }
+      for (const row of panel.itemLines) { panel.rows.push({ ...row, x: panel.x + GRID_PAD, y: y + ITEM_LINE / 2, anchor: 'start' }); y += ITEM_LINE; }
     }
   });
   const notes = [warning('DIAGRAM_HINT', lang, model.sets[0].line,
@@ -758,25 +755,32 @@ function scene(plan, ctx) {
   const look = appearanceOf(ctx);
   const paper = ctx.color('bg');
   const tone = (index) => ctx.frameTone(ctx.color(`tone${((index - 1) % 6) + 1}`));
-  const row = (item) => ctx.text(item.x, item.y, item.text, {
-    anchor: item.anchor, size: item.font.size, weight: item.font.weight, 'dominant-baseline': 'central',
-    fill: item.kind === 'caption' ? look.fg3 : item.font === SET_FONT ? look.fg1 : look.fg2,
-  });
+  const row = (item) => {
+    const ink = item.status ? ctx.textColor(look[item.status]) : item.kind === 'caption' ? look.fg3 : item.font === SET_FONT ? look.fg1 : look.fg2;
+    const children = [ctx.text(item.x + (item.icon ? (item.anchor === 'middle' ? 9 : 18) : 0), item.y, item.text, {
+      anchor: item.anchor, size: item.font.size, weight: item.font.weight, 'dominant-baseline': 'central', fill: ink,
+    })];
+    if (item.icon) {
+      const x = item.anchor === 'middle' ? item.x - ctx.measure(item.text, item.font.size, item.font.weight) / 2 - 3 : item.x + 6;
+      children.unshift(labelIcon(ctx, item.icon, x, item.y, 12, ink));
+    }
+    return item.link ? ctx.link(item.link.href, children, item.link) : ctx.el('g', {}, children);
+  };
   const children = [];
   if (plan.mode === 'rings') {
     for (const ring of plan.rings) {
-      children.push(ctx.circle(ring.cx, ring.cy, ring.r, { fill: tone(ring.tone), 'fill-opacity': 0.10 }));
+      children.push(ctx.circle(ring.cx, ring.cy, ring.r, { fill: (ring.status ? ctx.frameTone(look[ring.status]) : tone(ring.tone)), 'fill-opacity': 0.10 }));
     }
     for (const ring of plan.rings) {
       children.push(ctx.circle(ring.cx, ring.cy, ring.r, {
-        fill: 'none', stroke: tone(ring.tone), 'stroke-width': RING_STROKE,
+        fill: 'none', stroke: (ring.status ? ctx.frameTone(look[ring.status]) : tone(ring.tone)), 'stroke-width': RING_STROKE,
         meta: { kind: 'node', id: ring.id, label: ring.id },
       }));
     }
     // A paper chip is drawn over the arcs so a union label still reads where rings cross.
     for (const region of plan.regions) {
       if (!region.chip) continue;
-      children.push(ctx.rect(region.chip.x, region.chip.y, region.chip.w, region.chip.h, { rx: look.smallRadius, fill: paper }));
+      children.push(ctx.rect(region.chip.x, region.chip.y, region.chip.w, region.chip.h, { rx: look.smallRadius, fill: region.status ? ctx.tint(paper, look[region.status], .12) : paper }));
     }
     for (const item of plan.rows) children.push(row(item));
     for (const item of plan.shelf) {
@@ -789,7 +793,7 @@ function scene(plan, ctx) {
     }
   } else {
     for (const panel of plan.panels) {
-      const color = tone(panel.tone);
+      const color = panel.status ? ctx.frameTone(look[panel.status]) : tone(panel.tone);
       children.push(ctx.rect(panel.x, panel.y, panel.w, panel.h, {
         rx: look.radius,
         fill: ctx.tint(paper, color, panel.kind === 'set' ? 0.07 : 0.04),
@@ -815,4 +819,4 @@ function scene(plan, ctx) {
   };
 }
 
-export const implementations = { 'venn-beta': { parse, layout, scene } };
+export const implementations = { 'venn-beta': { acceptsPresentation: true, parse, layout, scene } };
