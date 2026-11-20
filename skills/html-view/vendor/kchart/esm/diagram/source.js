@@ -6,7 +6,8 @@ var source_exports = /* @__PURE__ */ __exportAll({
 	ignoredConfigWarning: () => ignoredConfigWarning,
 	inferLang: () => inferLang,
 	parseOptions: () => parseOptions,
-	prepareSource: () => prepareSource
+	prepareSource: () => prepareSource,
+	siteConfig: () => siteConfig
 });
 var quoteValue = (value) => {
 	const v = value.trim();
@@ -67,6 +68,11 @@ function parseOptions(params, { lang, line = 1 } = {}) {
 	};
 }
 var isMap = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
+var siteConfig = Symbol.for("kchart.mermaidSiteConfig");
+var plainCopy = (value, depth = 0) => Object.fromEntries(Object.entries(value).map(([key, entry]) => {
+	if (!isMap(entry)) return [key, entry];
+	return [key, [Object.prototype, null].includes(Object.getPrototypeOf(entry)) && depth < 8 ? plainCopy(entry, depth + 1) : Object.prototype.toString.call(entry)];
+}));
 var set = (obj, key, value) => Object.defineProperty(obj, key, {
 	value,
 	writable: true,
@@ -350,7 +356,7 @@ function normalizeMarkdown(source) {
 	}
 	return result + source.slice(cursor);
 }
-function prepareSource(source, { syntax = "mermaid", lang, keepsTrailingComments = () => false } = {}) {
+function prepareSource(source, { syntax = "mermaid", lang, keepsTrailingComments = () => false, site } = {}) {
 	const lines = String(source ?? "").replace(/^\uFEFF/, "").replace(/\r\n?/g, "\n").split("\n");
 	const errors = [], config = {}, configLines = /* @__PURE__ */ new Map(), ignored = /* @__PURE__ */ new Map();
 	let start = 0, title, accTitle, accDescr;
@@ -358,6 +364,7 @@ function prepareSource(source, { syntax = "mermaid", lang, keepsTrailingComments
 		if (!ignored.has(subject)) ignored.set(subject, line);
 	};
 	const apply = (value, positions) => mergeConfig(config, value, positions, configLines);
+	if (isMap(site)) apply(plainCopy(site), /* @__PURE__ */ new Map());
 	while (start < lines.length && !lines[start].trim()) start++;
 	if (lines[start]?.trim() === "---") {
 		const opener = start;
@@ -528,4 +535,4 @@ function inferLang(source) {
 	const latin = (text.match(/[A-Za-z]{2,}/g) || []).length;
 	return latin > 0 && latin >= cjk * 2 ? "en" : "zh";
 }
-export { ignoredConfigWarning, inferLang, parseOptions, prepareSource, source_exports };
+export { ignoredConfigWarning, inferLang, parseOptions, prepareSource, siteConfig, source_exports };

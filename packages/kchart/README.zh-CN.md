@@ -48,7 +48,7 @@ mermaid.initialize({ theme: 'paper' });
 const { svg, diagramType, diagnostics } = await mermaid.render('preview-1', 'graph LR\nA --> B');
 ```
 
-默认导出与具名导出是同一组函数，原来写成 `import mermaid from 'mermaid'` 的代码只需改导入路径；也可以用 `await import('@fengwk/kchart/mermaid')` 按需加载。`initialize(config)` 替换 KChart 的默认渲染选项；`startOnLoad` 等 Mermaid 自己的设置可以传入，但不起作用。`dark` 等 Mermaid 主题名不是 KChart 主题：`render` 改用默认主题并报一条 `IGNORED_CONFIG` 警告（Mermaid 的 `default` 不报），应改传 `paper`、`obsidian` 等 KChart 主题 ID。`render(id, text, options?)` 默认用 `id` 作为 SVG 前缀，可通过单次调用的 `prefix` 覆盖；遇到无效图时以带 `diagnostics` 的 `Error` 拒绝，警告不会导致拒绝。`parse(text, { suppressErrors }?)` 成功时返回 `{ diagramType, diagnostics }`（只含警告），无效输入在启用抑制时返回 `false`，否则以带诊断的错误拒绝。同步的 `detectType(text)` 根据首行图型声明返回标准图型名，不校验正文；图型未知时抛出异常。
+默认导出与具名导出是同一组函数，原来写成 `import mermaid from 'mermaid'` 的代码只需改导入路径；也可以用 `await import('@fengwk/kchart/mermaid')` 按需加载。`initialize(config)` 设置之后各次调用的默认值，单次调用的选项优先。KChart 自己的选项直接控制渲染：`width`、`lang`、`media`、`frame`、`prefix`、`measure`，以及取 KChart 主题 ID（如 `paper`）或主题对象的 `theme`。其余设置都按图内前言的 `config` 检查，图内配置优先：图型支持的设置（如 `c4: { c4ShapeInRow: 1 }`）生效；`startOnLoad`、`securityLevel` 等运行设置静默接受，`fontFamily`、`fontSize` 也静默接受，字体由 KChart 主题决定；其他设置，包括 `themeVariables` 和 `dark` 等 Mermaid 主题名（此时改用 KChart 默认主题），合并报一条 `IGNORED_CONFIG` 警告；Mermaid 的 `default` 主题不报。`render(id, text, options?)` 默认用 `id` 作为 SVG 前缀，可通过单次调用的 `prefix` 覆盖；遇到无效图时以带 `diagnostics` 的 `Error` 拒绝，警告不会导致拒绝。`parse(text, { suppressErrors }?)` 成功时返回 `{ diagramType, diagnostics }`（只含警告），无效输入在启用抑制时返回 `false`，否则以带诊断的错误拒绝。同步的 `detectType(text)` 根据首行图型声明返回标准图型名，不校验正文；图型未知时抛出异常。
 
 这是 Mermaid 风格的适配器，不是完整的 Mermaid API；不执行回调，也不返回 DOM 绑定函数。`parse` 成功不保证图可以完成布局。
 

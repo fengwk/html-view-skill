@@ -1,8 +1,10 @@
 import type { DiagramDiagnostic, RenderOptions } from './index.js';
 
 /**
- * KChart render options. Mermaid's own settings (`startOnLoad`, `securityLevel`, `flowchart`, ...) are accepted
- * and have no effect; a Mermaid theme name such as `dark` is replaced by the KChart default with a warning.
+ * KChart render options, plus Mermaid settings. A Mermaid setting is checked like a `config` in the diagram's front
+ * matter, which overrides it: supported settings such as `c4.c4ShapeInRow` apply, runtime settings such as
+ * `startOnLoad` pass silently, and the rest, such as `themeVariables` or the theme name `dark`, produce one
+ * `IGNORED_CONFIG` warning.
  */
 export type MermaidOptions = Omit<RenderOptions, 'assets'> & { [setting: string]: unknown };
 export interface MermaidError extends Error { diagnostics: DiagramDiagnostic[] }

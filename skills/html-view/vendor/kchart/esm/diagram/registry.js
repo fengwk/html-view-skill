@@ -1,5 +1,5 @@
 import { __exportAll } from "../_virtual/_rolldown/runtime.js";
-import { ignoredConfigWarning, inferLang, parseOptions, prepareSource } from "./source.js";
+import { ignoredConfigWarning, inferLang, parseOptions, prepareSource, siteConfig } from "./source.js";
 import { blocking, error, measureOf } from "./support.js";
 import { createContext } from "../core/context.js";
 import { containText, el } from "../core/scene.js";
@@ -127,7 +127,8 @@ function createDiagramApi(implementations, types) {
 		const prepared = prepareSource(input, {
 			syntax,
 			lang: options.lang,
-			keepsTrailingComments
+			keepsTrailingComments,
+			site: options[siteConfig]
 		});
 		const rawKind = String(prepared.kind || "").toLowerCase();
 		const type = byAlias.get(rawKind) || byKind.get(rawKind);

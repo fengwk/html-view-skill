@@ -1,4 +1,4 @@
-import { ignoredConfigWarning, inferLang, parseOptions, prepareSource } from './source.js';
+import { ignoredConfigWarning, inferLang, parseOptions, prepareSource, siteConfig } from './source.js';
 import { blocking, error, measureOf } from './support.js';
 import { createContext } from '../core/context.js';
 import { containText, el } from '../core/scene.js';
@@ -104,7 +104,7 @@ function createDiagramApi(implementations, types) {
       const known = byAlias.get(kind.toLowerCase());
       return implementations[known?.kind]?.trailingComments === false;
     };
-    const prepared = prepareSource(input, { syntax, lang: options.lang, keepsTrailingComments });
+    const prepared = prepareSource(input, { syntax, lang: options.lang, keepsTrailingComments, site: options[siteConfig] });
     const rawKind = String(prepared.kind || '').toLowerCase();
     const type = byAlias.get(rawKind) || byKind.get(rawKind);
     const implementation = type && implementations[type.kind];

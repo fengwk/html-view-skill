@@ -1,7 +1,24 @@
 import { check, diagram, diagramTypes, themes } from './index.js';
-import { ignoredConfigWarning, inferLang, prepareSource } from './src/diagram/source.js';
+import { prepareSource, siteConfig } from './src/diagram/source.js';
 
 let config = {};
+
+// KChart's own render options, plus `theme` when it names a KChart theme or is a theme object.
+const RENDER_OPTIONS = new Set(['width', 'lang', 'media', 'frame', 'prefix', 'measure']);
+
+// Every other setting is Mermaid site configuration, checked exactly like a `config` in the diagram's front matter,
+// which overrides it: settings the diagram type honors (such as `c4.c4ShapeInRow`) apply, runtime settings such as
+// `startOnLoad` pass silently, and the rest, including `themeVariables` and Mermaid's own theme names other than
+// `default`, are reported in one IGNORED_CONFIG warning.
+function optionsOf(settings) {
+  const options = { syntax: 'mermaid' }, site = {};
+  for (const [key, value] of Object.entries(settings)) {
+    const kchartTheme = key === 'theme' && (typeof value !== 'string' || Object.hasOwn(themes, value));
+    if (RENDER_OPTIONS.has(key) || kchartTheme) options[key] = value;
+    else site[key] = value;
+  }
+  return { ...options, [siteConfig]: site };
+}
 
 export function initialize(options = {}) {
   config = { ...options };
@@ -24,24 +41,13 @@ function invalid(diagnostics) {
 }
 
 export async function render(id, text, options = {}) {
-  const settings = { ...config, prefix: id, ...options, syntax: 'mermaid' };
-  // Mermaid's own theme names (default, dark, forest, neutral, base) are not KChart themes. As with
-  // `%%{init: {theme}}%%` inside a diagram, such a theme is dropped with a warning instead of failing;
-  // Mermaid's default needs no warning.
-  const { theme } = settings;
-  const foreign = typeof theme === 'string' && !Object.hasOwn(themes, theme);
-  if (foreign) delete settings.theme;
-  const { svg, diagnostics } = await diagram(text, settings);
+  const { svg, diagnostics } = await diagram(text, optionsOf({ ...config, prefix: id, ...options }));
   if (svg === null) throw invalid(diagnostics);
-  const diagramType = detectType(text);
-  if (!foreign || theme === 'default') return { svg, diagramType, diagnostics };
-  const ignored = ignoredConfigWarning(settings.lang || inferLang(text), 1, `theme: ${theme}`);
-  const { topic } = diagramTypes.find(type => type.kind === diagramType);
-  return { svg, diagramType, diagnostics: [...diagnostics, { ...ignored, column: 1, topic }] };
+  return { svg, diagramType: detectType(text), diagnostics };
 }
 
 export async function parse(text, { suppressErrors = false } = {}) {
-  const diagnostics = await check(text, { lang: config.lang, syntax: 'mermaid' });
+  const diagnostics = await check(text, optionsOf(config));
   if (diagnostics.some(isError)) {
     if (suppressErrors) return false;
     throw invalid(diagnostics);

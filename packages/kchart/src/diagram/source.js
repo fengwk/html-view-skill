@@ -43,6 +43,16 @@ function parseOptions(params, { lang, line = 1 } = {}) {
 }
 
 const isMap = value => value !== null && typeof value === 'object' && !Array.isArray(value);
+// Mermaid site settings, as the Mermaid facade's initialize() and render() receive them. The diagram's own front matter
+// and directives override them, as in Mermaid. The key is a Symbol, so JSON input can never carry it.
+const siteConfig = Symbol.for('kchart.mermaidSiteConfig');
+// Mermaid settings are JSON-like. Copy plain objects to a fixed depth and turn any other object into a string leaf, so a
+// cyclic or exotic value cannot make the config merge recurse forever.
+const plainCopy = (value, depth = 0) => Object.fromEntries(Object.entries(value).map(([key, entry]) => {
+  if (!isMap(entry)) return [key, entry];
+  const plain = [Object.prototype, null].includes(Object.getPrototypeOf(entry));
+  return [key, plain && depth < 8 ? plainCopy(entry, depth + 1) : Object.prototype.toString.call(entry)];
+}));
 const set = (obj, key, value) => Object.defineProperty(obj, key, { value, writable: true, enumerable: true, configurable: true });
 const keyOf = (obj, key) => Object.hasOwn(obj, key) ? key : Object.keys(obj).find(name => name.toLowerCase() === key.toLowerCase()) ?? key;
 const pathOf = (path, key) => path ? `${path}.${key.toLowerCase()}` : key.toLowerCase();
@@ -272,13 +282,15 @@ function normalizeMarkdown(source) {
 }
 
 // keepsTrailingComments(kind): some Mermaid grammars (gantt) lex `%%` after statement text as part of the value.
-function prepareSource(source, { syntax = 'mermaid', lang, keepsTrailingComments = () => false } = {}) {
+function prepareSource(source, { syntax = 'mermaid', lang, keepsTrailingComments = () => false, site } = {}) {
   const original = String(source ?? '').replace(/^\uFEFF/, '').replace(/\r\n?/g, '\n');
   const lines = original.split('\n');
   const errors = [], config = {}, configLines = new Map(), ignored = new Map();
   let start = 0, title, accTitle, accDescr;
   const ignore = (subject, line) => { if (!ignored.has(subject)) ignored.set(subject, line); };
   const apply = (value, positions) => mergeConfig(config, value, positions, configLines);
+  // Site settings have no source line; a warning about them points at line 1.
+  if (isMap(site)) apply(plainCopy(site), new Map());
 
   while (start < lines.length && !lines[start].trim()) start++;
   if (lines[start]?.trim() === '---') {
@@ -435,4 +447,4 @@ function inferLang(source) {
   return latin > 0 && latin >= cjk * 2 ? 'en' : 'zh';
 }
 
-export { prepareSource, parseOptions, ignoredConfigWarning, inferLang };
+export { prepareSource, parseOptions, ignoredConfigWarning, inferLang, siteConfig };
