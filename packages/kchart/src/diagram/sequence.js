@@ -317,6 +317,8 @@ function parse(source, info) {
 }
 
 const ICON_SPACE = 20;
+const MESSAGE_PADDING = 36;
+const MESSAGE_END_GAP = 12;
 const iconSpace = item => item.icon ? ICON_SPACE : 0;
 
 function layout(model, { measure, width, lang }, info = {}) {
@@ -346,6 +348,16 @@ function layout(model, { measure, width, lang }, info = {}) {
   const open = [];
   const push = (event) => { events.push(event); };
   let number = config?.showSequenceNumbers === true ? 1 : null, step = 1;
+  const sizeMessage = (event, limit) => {
+    const lines = event.text || event.icon ? wrapText(event.text, Math.max(1, limit - iconSpace(event)), FONT.label, measure) : [];
+    const labelH = lines.length ? lines.length * 16 + 8 : 0;
+    const above = labelH + (event.ordinal ? 16 : 0);
+    const createdHeight = event.create ? actorAt(event.create).head.h / 2 : 0;
+    const selfReserve = event.from === event.to ? (event.ordinal ? 12 : !lines.length ? 8 : 0) : 0;
+    const lineOffset = Math.max(above + (lines.length ? 2 : 10) + selfReserve, createdHeight + 8);
+    const h = snap(Math.max(above + 20, lineOffset + createdHeight + 12));
+    Object.assign(event, { lines, h, lineOffset, textW: Math.max(maxWidthOf(lines, FONT.label, measure) + iconSpace(event), measure(event.ordinal, FONT.label)) });
+  };
   for (const item of model.statements) {
     if (item.type === 'box' || item.type === 'rect' || item.type === 'fragment') {
       const h = item.type === 'box' ? 8 : item.type === 'rect' && !item.text && !item.icon ? 8 : 28;
@@ -373,22 +385,13 @@ function layout(model, { measure, width, lang }, info = {}) {
       number = item.start;
       step = item.step;
     } else if (item.type === 'message') {
-      const font = FONT.label;
-      const span = Math.abs(actorAt(item.from).index - actorAt(item.to).index);
-      // 相邻消息按列预算折行；跨列消息随跨越的列数放宽，宽图再回到 200px。
-      const limit = item.from === item.to ? Math.min(168, labelLimit) : Math.max(labelLimit, Math.min(200, span * 132));
-      const wrapped = wrapText(item.text, limit, font, measure);
-      if (item.text && wrapped.length > LIMITS.lines) errors.push(issue(lang, item.line, `消息「${item.text}」超过 ${LIMITS.lines} 行`, `Message "${item.text}" exceeds ${LIMITS.lines} lines`, '缩短消息，说明移到图外', 'Shorten the message and move details outside'));
-      const lines = item.text || item.icon ? wrapped.slice(0, LIMITS.lines) : [];
       const ordinal = number == null ? '' : String(Number(number.toPrecision(15)));
       if (number != null) number += step;
-      const labelH = lines.length ? lines.length * 16 + 8 : 0;
-      const above = labelH + (ordinal ? 16 : 0);
-      const createdHeight = item.create ? actorAt(item.create).head.h / 2 : 0;
-      const selfReserve = item.from === item.to ? (ordinal ? 12 : !lines.length ? 8 : 0) : 0;
-      const lineOffset = Math.max(above + (lines.length ? 2 : 10) + selfReserve, createdHeight + 8);
-      const h = snap(Math.max(above + 20, lineOffset + createdHeight + 12));
-      push({ ...item, kind: 'message', lines, h, lineOffset, ordinal, textW: Math.max(maxWidthOf(lines, font, measure) + iconSpace(item), measure(ordinal, font)) });
+      const event = { ...item, kind: 'message', ordinal };
+      // Seed column spacing with a bounded preferred label width. Reflow against the actual span below.
+      const span = Math.abs(actorAt(item.from).index - actorAt(item.to).index);
+      sizeMessage(event, span ? Math.max(labelLimit, Math.min(200, span * 132)) : Math.min(168, labelLimit));
+      push(event);
     }
   }
   if (errors.length) return { width, height: 0, errors };
@@ -459,11 +462,16 @@ function layout(model, { measure, width, lang }, info = {}) {
         if (lo === hi) bump(hi + 1, event.textW + 44);
         else shared(lo, hi, event.textW + 28);
       }
-    } else if (event.kind === 'message') {
-      const a = actorAt(event.from).index, b = actorAt(event.to).index;
-      // 自调用向右折出 40px 后写说明；跨列消息按标签居中，所需宽度平均计入跨过的列间距。
-      if (a === b) bump(a + 1, event.textW + 60);
-      else shared(Math.min(a, b), Math.max(a, b), event.textW + 36 + (event.create ? actorAt(event.create).head.w : 0));
+    }
+  }
+  const messagePadding = event => MESSAGE_PADDING + (event.create ? actorAt(event.create).head.w / 2 : 0);
+  for (const event of events) if (event.kind === 'message') {
+    const [lo, hi] = rangeOf([event.from, event.to]);
+    if (lo === hi) bump(lo + 1, event.textW + 60);
+    else {
+      const span = base.slice(lo + 1, hi + 1).reduce((sum, gap) => sum + gap, 0);
+      const deficit = event.textW + messagePadding(event) - span;
+      if (deficit > 0) for (let i = lo + 1; i <= hi; i++) base[i] += deficit / (hi - lo);
     }
   }
   const gaps = base.map((value, i) => Math.max(value, floor[i]));
@@ -552,6 +560,13 @@ function layout(model, { measure, width, lang }, info = {}) {
     xs = xsOf();
     geometry = geometryOf(xs);
   }
+  for (const event of events) if (event.kind === 'message') {
+    const [lo, hi] = rangeOf([event.from, event.to]);
+    if (lo !== hi) sizeMessage(event, xs[hi] - xs[lo] - messagePadding(event) + 1e-6);
+    if (event.lines.length > LIMITS.lines) errors.push(issue(lang, event.line, `消息「${event.text}」超过 ${LIMITS.lines} 行`, `Message "${event.text}" exceeds ${LIMITS.lines} lines`, '缩短消息，说明移到图外', 'Shorten the message and move details outside'));
+  }
+  if (errors.length) return { width, height: 0, errors };
+  geometry = geometryOf(xs);
   // 整体左移，让最左侧内容从 8px 开始；右边界由实际内容决定。
   const shift = 8 - geometry.left;
   xs = xs.map((value) => value + shift);
@@ -746,6 +761,7 @@ function scene(layout, ctx) {
   }));
 
   const actorAt = id => layout.actors.find(item => item.id === id);
+  const creationRoutes = [];
   const boxes = layout.events.filter(event => event.kind === 'open' && event.type === 'box').map(event => event.box);
   for (const event of layout.events) {
     if (event.kind === 'section') {
@@ -775,18 +791,21 @@ function scene(layout, ctx) {
       ...(head === 'none' ? {} : { 'marker-end': `url(#${markerId(head, event.status)})` }),
     };
     const startX = event.centralStart ? from.x : event.fromBar ? event.fromBar.x + (dir > 0 ? 10 : 0) : from.x + dir * (self ? 6 : 8);
-    const endX = event.create ? to.x - dir * to.head.w / 2
-      : event.centralEnd || (head === 'cross' && event.destroy === to.id) ? to.x
-        : event.toBar ? event.toBar.x + (self || dir < 0 ? 10 : 0) : to.x - (self ? -12 : dir * 12);
     const startY = self ? y - 14 : y, endY = self ? y + 4 : y;
+    const hitsHead = event.create && endY >= to.head.y && endY <= to.head.y + to.head.h;
+    const centralEnd = event.centralEnd && !event.create;
+    const endX = hitsHead ? (dir > 0 ? to.head.x : to.head.x + to.head.w)
+      : centralEnd || (head === 'cross' && event.destroy === to.id) ? to.x
+        : !event.create && event.toBar ? event.toBar.x + (self || dir < 0 ? 10 : 0) : to.x - (self ? -1 : dir) * MESSAGE_END_GAP;
     const tipStart = startX + (event.centralStart && start ? dir * 7 : 0);
-    const tipEnd = endX - (event.centralEnd && head !== 'none' ? (self ? -1 : dir) * 7 : 0);
+    const tipEnd = endX - (centralEnd && head !== 'none' ? (self ? -1 : dir) * 7 : 0);
     const route = self ? ctx.path(`M${tipStart} ${startY} h${40 + startX - tipStart} v18 H${tipEnd}`, { fill: 'none', ...lineAttrs })
       : line(tipStart, y, tipEnd, y, lineAttrs);
-    children.push({ ...route, meta: { kind: 'message', from: from.id, to: to.id } });
+    // Paint attached arrows above the card outline so the tip stays visible at the join.
+    (hitsHead ? creationRoutes : children).push({ ...route, meta: { kind: 'message', from: from.id, to: to.id } });
     const dot = (x, cy) => children.push(ctx.el('circle', { cx: x, cy, r: 3.5, fill: color }));
     if (event.centralStart) dot(startX, startY);
-    if (event.centralEnd) dot(endX, endY);
+    if (centralEnd) dot(endX, endY);
     const x = self ? from.x + 52 : event.create ? (startX + endX) / 2 : (from.x + to.x) / 2;
     const labelY = self ? y - 20 - (event.lines.length - 1) * 8 : y - event.lines.length * 8 - 10;
     const ordinalY = y - (event.lines.length * 16 + (self ? 28 : 18));
@@ -820,6 +839,7 @@ function scene(layout, ctx) {
     const card = { ...ctx.el('g', {}, group), meta: { kind: 'participant', id: actor.id } };
     children.push(actor.link ? ctx.link(actor.link.href, [card], actor.link) : card);
   }
+  children.push(...creationRoutes);
   return { width: layout.width, height: layout.height, children, title: layout.title, heading: layout.title };
 }
 

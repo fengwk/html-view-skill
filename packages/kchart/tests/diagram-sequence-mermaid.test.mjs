@@ -79,6 +79,31 @@ D-->>-A: finished`, width);
   assert.match(parse('create actor D\nA->>B: wrong').errors[0].message, /must target/);
 });
 
+// Creation arrows meet the facing card edge on-row and use ordinary lifeline clearance off-row.
+test('create message attachment follows the receiving head geometry', () => {
+  for (const width of [800, 360]) {
+    const { layout, scene } = render('participant A\ncreate participant B\nA->>B: create', width);
+    const target = layout.actors[1];
+    const routeOf = result => result.children.find(node => node.meta?.kind === 'message');
+    const attached = routeOf(scene);
+    assert.equal(attached.attrs.x2, target.head.x);
+    assert.ok(attached.attrs.y2 > target.head.y && attached.attrs.y2 < target.head.y + target.head.h);
+    assert.ok(scene.children.indexOf(attached) > scene.children.findIndex(node => node.meta?.id === 'B'));
+    // Move the box to an earlier row, leaving the lifeline as the only attachment.
+    target.head.y = attached.attrs.y2 - target.head.h - 24;
+    const offRow = engine.scene(layout, createContext({ width, theme: 'paper' }));
+    assert.equal(routeOf(offRow).attrs.x2, target.x - 12);
+  }
+});
+
+// A wide pair keeps a short message on one line; a truly narrow pair wraps and preserves explicit breaks.
+test('message wrapping uses the final lifeline span', () => {
+  const source = 'participant A\nparticipant B\nparticipant C\nparticipant D\nA->>B: Fine, thank you. And you?\nC->>D: Hello John, how are you?<br>Next';
+  const rows = width => render(source, width).layout.events.filter(e => e.kind === 'message').map(e => e.lines);
+  assert.deepEqual(rows(800), [['Fine, thank you. And you?'], ['Hello John, how are you?', 'Next']]);
+  assert.ok(rows(360)[0].length > 1);
+});
+
 // Only messages consume numbering; an off event leaves subsequent rows unnumbered.
 test('autonumber honors start, step and off without covering labels', () => {
   const { layout } = render('autonumber 10 5\nA->>B: first\nNote over B: no number\nA->>A: second\nautonumber off\nB->>A: third');
