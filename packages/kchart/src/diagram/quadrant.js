@@ -4,7 +4,7 @@ import { FONT, appearance, error, warning } from './support.js';
 const honoredConfig = ['chartWidth', 'chartHeight', 'pointRadius', 'pointLabelFontSize', 'xAxisPosition', 'yAxisPosition', 'quadrantPadding', 'xAxisLabelPadding', 'yAxisLabelPadding', 'quadrantTextTopPadding', 'pointTextPadding'].map(key => `quadrantChart.${key}`);
 
 function parse(body, { lang, title = '', firstLine = 2, config, options = {} }) {
-  const points = [], captions = [], axes = {}, errors = [], adapted = new Set(), classes = new Map(), assets = new Set();
+  const points = [], captions = [], axes = {}, errors = [], ignored = new Set(), classes = new Map(), assets = new Set();
   const look = presentation({ lang });
   const clean = (s, line) => {
     const { text, icon, diagnostics } = normalizeLabel(s.trim().replace(/^"(.*)"$/, '$1'), { lang, line });
@@ -14,22 +14,25 @@ function parse(body, { lang, title = '', firstLine = 2, config, options = {} }) 
   };
   const fail = (line, zh, en) => errors.push(error(lang, line, zh, en, '修正坐标或图表声明', 'Fix the coordinates or chart declaration'));
   if (Object.keys(options).length) fail(firstLine - 1, '象限图不接受标题行选项', 'Unexpected quadrantChart header option');
-  let styleLine;
+  let ignoredLine;
   const pointStyle = (source, line) => {
     const style = {};
     for (const part of source ? source.split(/,(?![^()]*\))/) : []) {
       const m = /^(radius|color|stroke-color|stroke-width)\s*:\s*(.+)$/i.exec(part.trim());
       if (!m) { fail(line, '无效的点样式', 'Invalid point style'); continue; }
       const key = m[1].toLowerCase(), val = m[2];
-      if (key.endsWith('color')) style[key] = roleOfColor(val);
-      else {
+      if (key.endsWith('color')) {
+        const role = roleOfColor(val);
+        if (role) style[key] = role;
+        else {
+          ignoredLine ??= line;
+          ignored.add(`${key}: ${val}`);
+        }
+      } else {
         const n = Number(val.replace(/px$/i, ''));
         if (!Number.isFinite(n)) { fail(line, '点样式需要数值', 'Expected a numeric point style'); continue; }
         style[key] = key === 'radius' ? Math.min(12, Math.max(3, n)) : Math.min(3, Math.max(0, n));
-        if (style[key] === n) continue;
       }
-      styleLine ??= line;
-      adapted.add(key);
     }
     return style;
   };
@@ -66,8 +69,11 @@ function parse(body, { lang, title = '', firstLine = 2, config, options = {} }) 
     point.link = look.linkOf(point.id);
   }
   errors.push(...look.diagnostics());
-  if (adapted.size) errors.push(warning('IGNORED_STYLE', lang, styleLine,
-    `已调整点样式：${[...adapted].join(', ')}`, `Adapted point styles: ${[...adapted].join(', ')}`, '颜色随主题，尺寸有上限', 'Colors follow the theme and sizes are capped'));
+  if (ignored.size) {
+    const styles = [...ignored].join(', ');
+    errors.push(warning('IGNORED_STYLE', lang, ignoredLine, `已忽略无法匹配主题的点颜色：${styles}`,
+      `Ignored unmappable point colors: ${styles}`, '使用可映射为主题状态的颜色', 'Use colors that map to theme statuses'));
+  }
   return { model: { type: 'quadrantChart', title, axes, captions, points, config: config?.quadrantChart || {} }, errors };
 }
 
