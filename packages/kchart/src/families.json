@@ -228,14 +228,19 @@
       "C4Deployment": {
         "topic": "architecture"
       },
-      "architecture-beta": {
-        "topic": "architecture"
-      },
       "block-beta": {
         "topic": "architecture"
       },
       "zenuml": {
         "topic": "sequence"
+      }
+    }
+  },
+  "diagram/architecture": {
+    "diagrams": {
+      "architecture": {
+        "topic": "architecture",
+        "aliases": ["architecture-beta"]
       }
     }
   },

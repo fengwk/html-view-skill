@@ -14,7 +14,6 @@ const samples = {
   C4Component: 'C4Component\nSystem_Boundary(sys, "System") {\nComponent(ui, "UI")\n}\nComponent(api, "API")\nRel(ui, api, "calls")',
   C4Dynamic: 'C4Dynamic\nPerson(user, "Customer")\nSystem(app, "Shop")\nRel(user, app, "browses")',
   C4Deployment: 'C4Deployment\nDeployment_Node(host, "Server", "Linux")\nContainer(app, "API")\nRel(host, app, "hosts")',
-  'architecture-beta': 'architecture-beta\ngroup cloud(cloud)[Cloud]\nservice api(server)[API] in cloud\nservice db(database)[Database] in cloud\napi:R --> L:db',
   'block-beta': 'block-beta\ncolumns 2\nui["UI"]\napi["API"]\nui --> api : request',
   zenuml: 'zenuml\nClient\nAPI\nClient->API: request\nClient.call()',
 };
@@ -24,7 +23,7 @@ const plain = value => JSON.parse(JSON.stringify(value));
 const elements = ({ children }) => children.flatMap(node => [node, ...(node.children ? elements(node) : [])]);
 
 // Intent: every migrated kind must retain representative syntax and reject unknown statements rather than silently producing partial success.
-test('ten relation and architecture parsers preserve model identity and report unsupported syntax', () => {
+test('remaining relation parsers preserve model identity and report unsupported syntax', () => {
   assert.deepEqual(Object.keys(implementations), Object.keys(samples));
   for (const [kind, source] of Object.entries(samples)) {
     const { model, errors } = parse(kind, source.slice(source.indexOf('\n') + 1));
@@ -56,9 +55,6 @@ test('ten relation and architecture parsers preserve model identity and report u
   assert.equal(c4.edges[0].description, 'HTTPS');
   const dynamic = parse('C4Dynamic', 'Person(a, "A")\nPerson(b, "B")\nRel(a, b, "request")\nRel(b, a, "response")').model;
   assert.deepEqual(dynamic.edges.map(edge => edge.label), ['1. request', '2. response']);
-  const architecture = parse('architecture-beta', samples['architecture-beta'].slice(samples['architecture-beta'].indexOf('\n') + 1)).model;
-  assert.equal(architecture.edges[0].startPort, 'R');
-  assert.equal(architecture.edges[0].endPort, 'L');
   const sequence = parse('zenuml', samples.zenuml.slice(samples.zenuml.indexOf('\n') + 1)).model;
   assert.deepEqual(sequence.sequence.map(event => event.kind), ['message', 'call']);
   // A deployment node or container boundary may enclose elements, one level deep, as documented.
@@ -71,20 +67,8 @@ test('ten relation and architecture parsers preserve model identity and report u
   assert.ok(parse('C4Container', 'System_Boundary(s, "S", "extra") {\n}').errors.length, 'only deployment nodes take a technology argument');
 });
 
-// Intent: architecture edge operators and endpoint ports are a closed supported subset; count checks detect silently omitted relations.
-test('seven architecture edge cases retain direction and port identity', () => {
-  const body = 'service a(server)[A]\nservice b(database)[B]\na:R --> L:b\na:T -- B:b\na:L <-- R:b\na:B <--> T:b\na --> b\na -- b\na <-- b';
-  const parsed = parse('architecture-beta', body);
-  assert.equal(parsed.errors.length, 0, JSON.stringify(parsed.errors));
-  assert.equal(parsed.model.edges.length, 7, 'all seven supported connector forms must survive parsing');
-  assert.deepEqual(parsed.model.edges.map(edge => edge.direction), ['right', 'none', 'left', 'both', 'right', 'none', 'left']);
-  assert.deepEqual(parsed.model.edges.slice(0, 4).map(edge => [edge.startPort, edge.endPort]), [['R', 'L'], ['T', 'B'], ['L', 'R'], ['B', 'T']]);
-  assert.ok(parse('architecture-beta', 'service a(unlisted-icon)[A]').errors.length, 'unrenderable declarations must be diagnosed');
-  assert.ok(parse('architecture-beta', 'service a(server)[A]\na <-> a').errors.length, 'unsupported relation syntax must not be silently discarded');
-});
-
-// Intent: scene metadata and visible text preserve UML markers, cardinalities, group boundaries, ports and sequence lifelines across the layout seam.
-test('relation layouts render semantically identified markers, groups, architecture ports and lifelines', () => {
+// Intent: scene metadata and visible text preserve UML markers, cardinalities, group boundaries and sequence lifelines across the layout seam.
+test('relation layouts render semantically identified markers, groups and lifelines', () => {
   const classModel = parse('classDiagram', samples.classDiagram.slice(samples.classDiagram.indexOf('\n') + 1)).model;
   const classLayout = implementations.classDiagram.layout(classModel, { width: 800, measure: (s, f) => context.measure(s, f.size, f.weight), ctx: context });
   assert.ok(classLayout.geometry?.nodes?.length, 'layoutGeometry remains available to downstream diagnostics');
@@ -136,36 +120,6 @@ test('relation layouts render semantically identified markers, groups, architect
     const details = scene.children.filter(item => item.meta?.kind === 'node-detail').map(item => item.text);
     assert.deepEqual(details.sort(), words.slice().sort(), `${lang}: ${details}`);
   }
-
-  const arch = parse('architecture-beta', samples['architecture-beta'].slice(samples['architecture-beta'].indexOf('\n') + 1)).model;
-  const archScene = plain(implementations['architecture-beta'].layout(arch, { width: 800, measure: (s, f) => context.measure(s, f.size, f.weight), ctx: context }).scene);
-  const archEdge = elements(archScene).find(item => item.meta?.kind === 'edge');
-  assert.equal(archEdge.meta.startPort, 'R');
-  assert.equal(archEdge.meta.endPort, 'L');
-  assert.ok(elements(archScene).some(item => item.meta?.kind === 'icon' && item.meta.icon === 'server'));
-  // 分组只画成外框，不另画节点卡；左右端口按横排布局，连线一路向右、不折回；卡片不重复写 service。
-  const row = parse('architecture-beta', 'group cloud(cloud)[Cloud]\nservice api(server)[API] in cloud\nservice db(database)[DB] in cloud\nservice app(browser)[App]\napp:R --> L:api\napi:R --> L:db').model;
-  const rowScene = plain(implementations['architecture-beta'].layout(row, { width: 800, measure: (s, f) => context.measure(s, f.size, f.weight), ctx: context }).scene);
-  const rowNodes = elements(rowScene).filter(item => item.meta?.kind === 'node');
-  assert.deepEqual(rowNodes.map(item => item.meta.node).sort(), ['api', 'app', 'db']);
-  assert.ok(elements(rowScene).some(item => item.meta?.kind === 'group' && item.meta.group === 'cloud'));
-  assert.ok(!elements(rowScene).some(item => item.meta?.kind === 'node-detail' && item.text === 'service'));
-  for (const node of rowNodes) {
-    const icon = elements(rowScene).find(item => item.meta?.kind === 'icon' && item.meta.node === node.meta.node);
-    const label = elements(rowScene).find(item => item.meta?.kind === 'node-label' && item.meta.node === node.meta.node);
-    const iconRight = Number(/translate\(([\d.]+)/.exec(icon.attrs.transform)[1]) + 24 * .72;
-    const labelLeft = label.attrs.x - context.measure(label.text, 14, 600) / 2;
-    assert.ok(labelLeft >= iconRight + 6, `${node.meta.node}: icon and title keep apart`);
-    assert.ok(labelLeft + context.measure(label.text, 14, 600) <= node.attrs.x + node.attrs.width - 8, `${node.meta.node}: title stays inside its card`);
-    // 只有标题的卡片不画表头色带，标题垂直居中。
-    assert.ok(!elements(rowScene).some(item => item.meta?.kind === 'node-header' && item.meta.node === node.meta.node), `${node.meta.node}: no header band without details`);
-    assert.ok(Math.abs(label.attrs.y - 5 - (node.attrs.y + node.attrs.height / 2)) <= 1, `${node.meta.node}: title is vertically centred`);
-  }
-  for (const edge of elements(rowScene).filter(item => item.meta?.kind === 'edge')) {
-    const xs = [...edge.attrs.d.matchAll(/[ML](-?[\d.]+) /g)].map(match => Number(match[1]));
-    assert.ok(xs.every((x, i) => !i || x >= xs[i - 1]), `edge ${edge.meta.edge} never doubles back: ${edge.attrs.d}`);
-  }
-  assert.ok(parse('architecture-beta', 'group g(cloud)[G]\nservice a(server)[A]\na:R --> L:g').errors.length, 'edges into a group are rejected instead of drawn');
 
   const seq = parse('zenuml', samples.zenuml.slice(samples.zenuml.indexOf('\n') + 1)).model;
   const seqScene = plain(implementations.zenuml.layout(seq, { width: 800, measure: (s, f) => context.measure(s, f.size, f.weight), ctx: context }).scene);
