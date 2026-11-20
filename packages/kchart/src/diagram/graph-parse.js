@@ -293,7 +293,10 @@ function parseFlowchartBody(statements, errors, direction = 'TB', lang, look) {
       if (label !== undefined) token.label = cleanLabel(label);
       if (look && 'icon' in other) {
         token.iconRef = other.icon;
+        if (!token.shape) token.shape = 'icon';
         token.iconPosition = other.pos;
+        token.iconHeight = Number(other.h) > 0 ? Math.min(256, Number(other.h)) : 48;
+        token.iconForm = other.form;
       }
       const asset = 'img' in other || (!look && 'icon' in other);
       if (asset && !warned.has('asset')) {
@@ -343,6 +346,8 @@ function parseFlowchartBody(statements, errors, direction = 'TB', lang, look) {
     if (token.iconRef) {
       node.iconRef = token.iconRef;
       node.iconPosition = token.iconPosition;
+      node.iconHeight = token.iconHeight;
+      node.iconForm = token.iconForm;
       if (token.label == null && !node.explicitLabel) node.label = '';
     }
     if (token.label != null) {
@@ -818,7 +823,8 @@ function parseState(statements, errors, lang, look) {
         }
         const placeholder = nodes.get(decl.id);
         const meta = metaFor(decl.id);
-        let title = decl.label || meta.label;
+        const display = decl.label || meta.label;
+        let title = display || meta.desc[0];
         if (!title && placeholder && placeholder.label !== placeholder.id) title = placeholder.label;
         if (placeholder) {
           nodes.delete(decl.id);
@@ -833,7 +839,7 @@ function parseState(statements, errors, lang, look) {
           seq: seq++,
           line,
           kind: 'composite',
-          desc: [...(decl.desc == null ? [] : [decl.desc]), ...meta.desc],
+          desc: [...(decl.desc == null ? [] : [decl.desc]), ...meta.desc.slice(display ? 0 : 1)],
           class: meta.class,
         };
         subgraphs.set(sg.id, sg);
@@ -847,7 +853,10 @@ function parseState(statements, errors, lang, look) {
         continue;
       }
       if (knownComposite.has(decl.id)) {
-        if (decl.label) metaFor(decl.id).label = decl.label;
+        if (decl.label) {
+          metaFor(decl.id).label = decl.label;
+          if (subgraphs.has(decl.id)) subgraphs.get(decl.id).title = decl.label;
+        }
         continue;
       }
       const node = ensureState(decl.id, line, { label: decl.label, kind: decl.kind });
@@ -1155,6 +1164,7 @@ function parseGraph(body, info = {}) {
   else if (kind === 'erdiagram') model = parseEr(statements, errors);
   else errors.push({ line: statements[0].line, column: 1, message: '不支持的图类型：' + first.split(/\s+/)[0], fix: '使用 flowchart、stateDiagram-v2 或 erDiagram 图型' });
   if (model && look) {
+    model.mermaid = true;
     const seen = new Set();
     const warn = diagnostic => {
       const key = `${diagnostic.code}:${diagnostic.message}`;
