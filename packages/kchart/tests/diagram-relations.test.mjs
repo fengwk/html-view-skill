@@ -9,11 +9,6 @@ import { diagram } from '../dist/esm/node.js';
 const samples = {
   classDiagram: 'classDiagram\nclass Animal {\n+name: string\n+eat()\n}\nAnimal <|-- Dog\nDog "1" *-- "*" Paw : owns',
   requirementDiagram: 'requirementDiagram\nfunctionalRequirement checkout {\nid: REQ-1\ntext: Finish checkout\n}\nAPI - satisfies -> checkout',
-  C4Context: 'C4Context\nPerson(user, "Customer", "Uses app")\nSystem(app, "Shop", "Online shop")\nRel(user, app, "browses")',
-  C4Container: 'C4Container\nPerson(user, "Customer")\nContainer(api, "API", "Node", "HTTP API")\nRel(user, api, "calls")',
-  C4Component: 'C4Component\nSystem_Boundary(sys, "System") {\nComponent(ui, "UI")\n}\nComponent(api, "API")\nRel(ui, api, "calls")',
-  C4Dynamic: 'C4Dynamic\nPerson(user, "Customer")\nSystem(app, "Shop")\nRel(user, app, "browses")',
-  C4Deployment: 'C4Deployment\nDeployment_Node(host, "Server", "Linux")\nContainer(app, "API")\nRel(host, app, "hosts")',
   'architecture-beta': 'architecture-beta\ngroup cloud(cloud)[Cloud]\nservice api(server)[API] in cloud\nservice db(database)[Database] in cloud\napi:R --> L:db',
   'block-beta': 'block-beta\ncolumns 2\nui["UI"]\napi["API"]\nui --> api : request',
   zenuml: 'zenuml\nClient\nAPI\nClient->API: request\nClient.call()',
@@ -24,7 +19,7 @@ const plain = value => JSON.parse(JSON.stringify(value));
 const elements = ({ children }) => children.flatMap(node => [node, ...(node.children ? elements(node) : [])]);
 
 // Intent: every migrated kind must retain representative syntax and reject unknown statements rather than silently producing partial success.
-test('ten relation and architecture parsers preserve model identity and report unsupported syntax', () => {
+test('remaining relation and architecture parsers preserve model identity and report unsupported syntax', () => {
   assert.deepEqual(Object.keys(implementations), Object.keys(samples));
   for (const [kind, source] of Object.entries(samples)) {
     const { model, errors } = parse(kind, source.slice(source.indexOf('\n') + 1));
@@ -38,7 +33,6 @@ test('ten relation and architecture parsers preserve model identity and report u
   assert.ok(optionError.errors.some(error => error.line === 1), 'unsupported relation-family options are diagnosed on the source header');
   assert.ok(parse('classDiagram', 'class A\nclass A').errors.length, 'duplicate class declarations are rejected');
   assert.ok(parse('classDiagram', 'class A {\n+field: string').errors.length, 'unclosed declaration blocks are diagnosed');
-  assert.ok(parse('C4Context', 'Person(a, "A")\nRel(a, missing, "calls")').errors.length, 'relations cannot fabricate undeclared C4 endpoints');
   assert.ok(parse('requirementDiagram', 'requirement r {\nunknown: value\n}').errors.length, 'unsupported declaration fields are reported');
   const block = parse('block-beta', 'block:store\ncache[Cache]\nspace\ncache --> disk : connects\nend').model;
   assert.equal(block.nodes.find(node => node.id === 'cache').parent, 'store');
@@ -49,26 +43,11 @@ test('ten relation and architecture parsers preserve model identity and report u
   assert.deepEqual(cls.nodes.find(n => n.id === 'Animal').attrs, ['+name: string']);
   assert.equal(cls.edges[1].startCard, '1');
   assert.equal(cls.edges[1].endCard, '*');
-  const c4 = parse('C4Context', 'Person(user, "Customer", "Uses app")\nSystem(app, "Shop", "Online shop")\nRel(user, app, "browses", "HTTPS")').model;
-  assert.equal(c4.nodes.find(n => n.id === 'user').type, 'Person');
-  assert.deepEqual(c4.nodes.find(n => n.id === 'user').attrs, ['Uses app']);
-  assert.equal(c4.edges[0].label, 'browses');
-  assert.equal(c4.edges[0].description, 'HTTPS');
-  const dynamic = parse('C4Dynamic', 'Person(a, "A")\nPerson(b, "B")\nRel(a, b, "request")\nRel(b, a, "response")').model;
-  assert.deepEqual(dynamic.edges.map(edge => edge.label), ['1. request', '2. response']);
   const architecture = parse('architecture-beta', samples['architecture-beta'].slice(samples['architecture-beta'].indexOf('\n') + 1)).model;
   assert.equal(architecture.edges[0].startPort, 'R');
   assert.equal(architecture.edges[0].endPort, 'L');
   const sequence = parse('zenuml', samples.zenuml.slice(samples.zenuml.indexOf('\n') + 1)).model;
   assert.deepEqual(sequence.sequence.map(event => event.kind), ['message', 'call']);
-  // A deployment node or container boundary may enclose elements, one level deep, as documented.
-  const deployed = parse('C4Deployment', 'Deployment_Node(cloud, "Cloud", "Kubernetes") {\nContainer(api, "API", "Node")\n}\nPerson(user, "User")\nRel(user, api, "uses")');
-  assert.equal(deployed.errors.length, 0, JSON.stringify(deployed.errors));
-  assert.deepEqual(deployed.model.groups.map(group => group.label), ['Cloud [Kubernetes]']);
-  assert.equal(deployed.model.nodes.find(node => node.id === 'api').parent, 'cloud');
-  assert.equal(parse('C4Component', 'Container_Boundary(api, "API") {\nComponent(a, "A")\n}').model.nodes[0].parent, 'api');
-  assert.ok(parse('C4Deployment', 'Deployment_Node(a, "A") {\nDeployment_Node(b, "B") {\n}\n}').errors.length, 'nested deployment nodes stay unsupported');
-  assert.ok(parse('C4Container', 'System_Boundary(s, "S", "extra") {\n}').errors.length, 'only deployment nodes take a technology argument');
 });
 
 // Intent: architecture edge operators and endpoint ports are a closed supported subset; count checks detect silently omitted relations.
@@ -121,21 +100,6 @@ test('relation layouts render semantically identified markers, groups, architect
   const allRelationScene = plain(implementations.classDiagram.layout(allRelations, { width: 800, measure: (s, f) => context.measure(s, f.size, f.weight), ctx: context }).scene);
   assert.equal(allRelationScene.children.filter(child => child.meta?.kind === 'relation-marker').length, 9, 'all inherited, composition, aggregation and directed associations keep their distinct marker counts');
   assert.equal(allRelationScene.children.filter(child => child.meta?.kind === 'edge').length, 11, 'no UML edge disappears during graph routing');
-
-  const grouped = parse('C4Component', samples.C4Component.slice(samples.C4Component.indexOf('\n') + 1)).model;
-  const groupedScene = plain(implementations.C4Component.layout(grouped, { width: 800, measure: (s, f) => context.measure(s, f.size, f.weight), ctx: context }).scene);
-  assert.ok(elements(groupedScene).some(item => item.meta?.kind === 'group' && item.meta.group === 'sys'));
-  const c4WithTech = parse('C4Context', 'Person(user, "Customer", "Uses app")\nSystem(app, "Shop")\nRel(user, app, "browses", "HTTPS")').model;
-  const c4Layout = plain(implementations.C4Context.layout(c4WithTech, { width: 800, measure: (s, f) => context.measure(s, f.size, f.weight), ctx: context }).scene);
-  assert.ok(c4Layout.children.some(item => item.meta?.kind === 'edge-description' && item.text === 'HTTPS'), 'C4 relationship technology is visibly retained');
-  assert.ok(c4Layout.children.some(item => item.meta?.kind === 'node-detail' && item.text === '人员'), 'C4 element type remains visible');
-  // 卡片写读者读得懂的类型名，不写声明它的宏名（System_Ext、ContainerDb……）。
-  const external = parse('C4Context', 'Person(user, "Customer")\nSystem_Ext(pay, "Payments")\nRel(user, pay, "pays")').model;
-  for (const [lang, words] of [['en', ['Person', 'External system']], ['zh', ['人员', '外部系统']]]) {
-    const scene = plain(implementations.C4Context.layout(external, { width: 800, lang, measure: (s, f) => context.measure(s, f.size, f.weight), ctx: context }).scene);
-    const details = scene.children.filter(item => item.meta?.kind === 'node-detail').map(item => item.text);
-    assert.deepEqual(details.sort(), words.slice().sort(), `${lang}: ${details}`);
-  }
 
   const arch = parse('architecture-beta', samples['architecture-beta'].slice(samples['architecture-beta'].indexOf('\n') + 1)).model;
   const archScene = plain(implementations['architecture-beta'].layout(arch, { width: 800, measure: (s, f) => context.measure(s, f.size, f.weight), ctx: context }).scene);
@@ -201,45 +165,4 @@ test('ZenUML fits its participant boxes inside the SVG', () => {
     assert.equal(routes.length, 4);
     assert.ok(routes.every(({ attrs }) => contrast(attrs.stroke, design.surface) >= 3), theme);
   }
-});
-
-// 意图：分组按子图参与布局，相邻两个部署节点之间留出边与标签的位置；边标签底板不跨任何分组边框。
-test('relation groups reserve room so an edge label never straddles a boundary', () => {
-  const source = 'C4Deployment\n  Deployment_Node(cloud, "Cloud region", "Kubernetes") {\n    Container(api, "Order API", "Node.js")\n  }\n  Deployment_Node(shop, "Store", "Tablet") {\n    Container(bar, "Bar screen", "Web")\n  }\n  Rel(api, bar, "WebSocket")';
-  for (const width of [338, 760]) {
-    const scene = plain(diagram(source, { width, frame: false, lang: 'en' }).scene);
-    const groups = elements(scene).filter(item => item.meta?.kind === 'group');
-    const label = elements(scene).find(item => item.meta?.kind === 'edge-label');
-    assert.equal(groups.length, 2);
-    const plate = { x0: label.attrs.x - 40, x1: label.attrs.x + 40, y0: label.attrs.y - 15, y1: label.attrs.y + 5 };
-    for (const group of groups) {
-      const box = { x0: group.attrs.x, x1: group.attrs.x + group.attrs.width, y0: group.attrs.y, y1: group.attrs.y + group.attrs.height };
-      const inside = plate.x0 >= box.x0 && plate.x1 <= box.x1 && plate.y0 >= box.y0 && plate.y1 <= box.y1;
-      const outside = plate.y1 <= box.y0 || plate.y0 >= box.y1 || plate.x1 <= box.x0 || plate.x0 >= box.x1;
-      assert.ok(inside || outside, `${width}: label plate crosses the ${group.meta.group} border`);
-    }
-    const [a, b] = groups.map(group => group.attrs).sort((p, q) => p.y - q.y);
-    assert.ok(b.y - (a.y + a.height) >= 24, `${width}: boundaries keep a gap for the edge (${b.y - (a.y + a.height)})`);
-  }
-});
-
-// 意图：连线纵向进入窄分组时会穿过左对齐的分组标题；标题所在矩形必须从连线的裁剪区里挖掉，线不压字。
-test('edges are cut where they cross a group title', () => {
-  const source = 'C4Deployment\n  Deployment_Node(cloud, "Cloud region", "Kubernetes") {\n    Container(api, "Order API", "Node.js")\n  }\n  Deployment_Node(shop, "Store", "Tablet") {\n    Container(bar, "Bar screen", "Web")\n  }\n  Rel(api, bar, "WebSocket")';
-  const scene = plain(diagram(source, { width: 760, frame: false, lang: 'en' }).scene);
-  const all = elements(scene);
-  const clip = all.find(item => item.tag === 'clipPath');
-  const [outer, ...holes] = clip.children[0].attrs.d.split('M').filter(Boolean).map(part => part.match(/-?[\d.]+/g).map(Number));
-  assert.equal(clip.children[0].attrs['clip-rule'], 'evenodd');
-  assert.ok(outer.length && holes.length === 2);
-  const edge = all.find(item => item.meta?.kind === 'edge');
-  assert.equal(edge.attrs['clip-path'], `url(#${clip.attrs.id})`);
-  const title = all.find(item => item.meta?.kind === 'group-label' && item.meta.group === 'shop');
-  const width = context.measure(title.text, 12, 600);
-  // 每个孔是 M x y H x1 V y1 H x Z；标题字形（基线上 10px、下 3px）必须落在某个孔内。
-  const covered = holes.some(([x, y, x1, y1]) => x <= title.attrs.x && x1 >= title.attrs.x + width && y <= title.attrs.y - 10 && y1 >= title.attrs.y + 3);
-  assert.ok(covered, 'the Store [Tablet] title sits inside a clip hole');
-  const vertical = edge.attrs.d.match(/-?[\d.]+/g).map(Number);
-  const xs = vertical.filter((_, i) => i % 2 === 0);
-  assert.ok(xs.some(x => x > title.attrs.x && x < title.attrs.x + width), 'the sample edge does cross the title column, so the clip is exercised');
 });

@@ -96,3 +96,20 @@ Rel(a, c, skips B)`;
     assert.equal(svg, render(source, width).svg);
   }
 });
+
+// Intent: sibling deployment frames leave a clear in-row gutter for a visible relationship caption.
+test('deployment frame labels and relationship technology remain visible', () => {
+  const source = `C4Deployment
+Deployment_Node(cloud, Cloud, Kubernetes) { Container(api, API, Node.js) }
+Deployment_Node(shop, Store, Tablet) { Container(bar, Screen, Web) }
+Rel(api, bar, uses, HTTPS)`;
+  for (const width of [360, 800]) {
+    const all = walk(render(source, width).scene);
+    const [a, b] = all.filter(node => node.meta?.kind === 'frame').map(node => node.attrs);
+    const plate = all.find(node => node.meta?.kind === 'edge-label-group').children[0].attrs;
+    assert.ok(b.x - a.x - a.width >= 24);
+    assert.ok(plate.x >= a.x + a.width && plate.x + plate.width <= b.x);
+    assert.ok(all.some(node => node.text === '[HTTPS]'));
+    assert.ok(all.some(node => node.text === '[Kubernetes]'));
+  }
+});
