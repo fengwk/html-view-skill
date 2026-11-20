@@ -4,13 +4,17 @@
 
 ## gantt
 
-以 `dateFormat YYYY-MM-DD` 指定日期格式，可用 `axisFormat %Y-%m`、`section` 和带状态/ID/日期/依赖的任务。只接受 YYYY-MM-DD；不支持排除日期、刻度间隔、today marker 或非 `Nd` 依赖时长。重复、未知、歧义 ID 及依赖循环均报错。最多 80 项、240 行；不可用格式应按诊断修正，不会静默绘制。
+用 `section 名称` 分组；任务可写 `任务: [状态,] [ID,] 起点, 结束值`，也可只写结束值（从上一任务结束时开始）。结束值是日期、时长（`ms`、`s`、`m`、`h`、`d`、`w`、`M`、`y`）或 `until ID…`（取最早的起点）；`after ID…` 取最晚的结束时间。重复 ID 或依赖循环会报错；未知引用会提示，并使用可解析的引用或固定基准日。
 
-每个 `section` 名在左侧单独占一行，任务名写在其下。时间轴从首个任务所在月的 1 日开始。`crit` 的条形用强调色，`milestone` 画成菱形；`done`、`active`、`crit`、`milestone` 按图的语言写在任务名下，如「已完成」「进行中」。
+日期按 UTC 解析，`dateFormat` 默认 `YYYY-MM-DD`，也可指定如 `HH:mm`、Unix 秒 `X` 或毫秒 `x`。`axisFormat` 使用 `%Y-%m`、`%H:%M` 一类的刻度格式；不支持的格式标记会报错。无法解析的结束值会提示并画成零时长。使用 `tickInterval 1week`、`weekday monday`、`topAxis` 调整刻度；无效间隔回退为自动刻度。`excludes` 可列日期、英文星期名或 `weekends`，`includes` 覆盖排除项；`weekend friday` 可把周末改为周五和周六。排除日会延长按时长定义的任务，不改显式结束日；`inclusiveEndDates` 将显式结束日期纳入任务。
+
+任务条采用主题浅色填充及描边；`done`、`active`、`crit` 有不同的状态样式，`milestone` 用菱形，`vert` 用全高虚线并把名称和日期放在同一标签。前言 `displayMode: compact` 可将不重叠的任务排在同一行。Today 标记默认不画；仅在前言配置 `config.gantt.todayDate`（`YYYY-MM-DD`）且该日在排期范围内时显示；`todayMarker off` 可关闭，自定义标记样式不生效。任务可用 `:::状态类`、`class` 或 `style` 映射到主题色；`click ID href "URL"` 只生成安全链接，`call` 回调忽略并提示。任务上限为 2,000 个。
 
 ## timeline
 
-使用 `section 名称` 分组，以 `时点 : 事件[: 事件…]` 声明事件，续行可用 `: 事件`。最多 80 项、240 行；日期和事件按实际材料书写，不补造时间点。
+`timeline` 或 `timeline LR` 将时段从左往右排，事件逐条列在各时段下方；`timeline TD` 按竖轴从上往下排，事件卡片在右侧。使用 `section 名称` 分组，以 `时段 : 事件 : 事件…` 声明，续行可用 `: 事件`。时段是原样标签，不解析也不补造日期。长标签会换行，窄视口下可在图框内滚动。
+
+在前言 `config.timeline` 可设置 `disableMulticolor`、`leftMargin`、`taskFontSize` 和 `padding`。时段及事件支持 `:::状态类`；样式和安全链接可分别引用从零开始的 `period:N`、`period:N:event:M`。标签支持换行、实体和可解析的本地图标；未知图标会提示。时段和事件合计最多 2,000 个。
 
 ## gitGraph
 
@@ -43,7 +47,7 @@ quadrantChart
   交付B: 0.3, 0.6
 ```
 
-所有时间族类型最多 80 项、240 行；空行和 `%%` 注释忽略。`accTitle`、`accDescr`、头行选项及未实现语句报错。可用前言区 `title`；时间族也支持正文 `title`，正文 title 优先于前言。阅读文档必须提供标题，不支持的语句按诊断移除或改写。
+空行和独立一行的 `%%` 注释会忽略；Gantt 的行尾 `%%` 可属于语句值（例如轴格式中的字面百分号），注释请另起一行。可写 `accTitle: …`、`accDescr: …` 或 `accDescr {…}` 设置无障碍文本。阅读文档必须提供图题，可用前言 `title`；Gantt、Timeline 的正文 `title` 优先。方向、条目与大小限制按图型而异，不支持的语句请按诊断处理。
 
 ## Mermaid 数值图
 
