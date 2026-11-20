@@ -294,7 +294,10 @@ function layout(model, options = {}) {
   const titleLines = model.title ? wrap(model.title, Math.max(160, Math.min(640, width - MARGIN * 2)), nameFont) : [];
   const titleHeight = titleLines.length ? titleLines.length * TITLE_LINE + TITLE_GAP : 0;
   const itemCount = DOMAINS.reduce((sum, name) => sum + model.domains[name].length, 0);
-  const plotW = compact ? Math.min(MAX_PLOT, Math.max(480, 440 + itemCount * 14)) : clamp(width - MARGIN * 2, MIN_PLOT, MAX_PLOT);
+  // Transition captions need a clear corridor between the two domain description blocks.
+  const transitionRoom = model.transitions.some(transition => transition.label) ? 104 : 0;
+  const plotW = compact ? Math.min(MAX_PLOT, Math.max(480, 440 + itemCount * 14) + transitionRoom)
+    : clamp(width - MARGIN * 2, MIN_PLOT, MAX_PLOT);
   const chipCap = Math.max(96, Math.min(CHIP_CAP, plotW / 2 - PANEL_PAD * 2 - 8));
 
   const chipOf = (label, cap, icon) => {
@@ -330,7 +333,9 @@ function layout(model, options = {}) {
   const confusionChips = confusionRows.map((item, index) => ({ ...item, id: `confusion-${index}`, line: item.line, ...chipOf(item.label, confCap, item.icon) }));
   const confusionChipsH = confusionChips.reduce((sum, chip) => sum + chip.h + CHIP_GAP, -CHIP_GAP);
   const confusionBlockH = NAME_LINE + NAME_GAP + (model.showDomainDescriptions ? SUB_PITCH : 0) + (confusionChips.length ? ITEM_GAP + confusionChipsH : 0);
-  const rx = Math.max(plotW * 0.15, Math.ceil(Math.max(0, ...confusionChips.map(chip => chip.w)) / 2) + 18);
+  const chipHalfWidth = Math.max(0, ...confusionChips.map(chip => chip.w)) / 2;
+  // Reserve the corners of the chip stack, not only its width at the ellipse centre.
+  const rx = Math.max(plotW * 0.15, Math.ceil(chipHalfWidth * (compact ? 1.5 : 1)) + 18);
   const requiredRy = confusionBlockH * .68 + 12;
   const plotH = Math.ceil(Math.max(clamp(plotW * .72, 380, 620), 2 * (PANEL_PAD + maxBlockH + CORRIDOR), 2 * (requiredRy + CORRIDOR)));
   const ry = Math.max(plotH * .15, requiredRy);
@@ -344,7 +349,7 @@ function layout(model, options = {}) {
     const [col, row] = CELLS[name];
     const panel = { x: plotX + col * panelW, y: plotY + row * panelH, w: panelW, h: panelH };
     const block = blocks[name];
-    const blockX = panel.x + (panel.w - block.w) / 2;
+    const blockX = panel.x + (panel.w - block.w) / 2 + (compact && confusionChips.length ? (col === 0 ? -12 : 12) : 0);
     // Content rests on the panel's outer edge so the seam-facing corridor stays free for the arcs.
     const blockY = row === 0 ? panel.y + PANEL_PAD : panel.y + panel.h - PANEL_PAD - bottomBlockH;
     const texts = [];
@@ -402,6 +407,24 @@ function layout(model, options = {}) {
       const x = clamp(arc.apex.x + arc.nx * arc.away * 16 - w / 2, plotX + 6, plotX + plotW - 6 - w);
       const y = clamp(arc.apex.y + arc.ny * arc.away * 16 - h / 2, plotY + 6, plotY + plotH - 6 - h);
       label = { lines, x, y, w, h };
+      if (compact) {
+        const blockers = [...QUADRANTS.map(name => quadrants[name].content), ...arcs.map(item => item.label).filter(Boolean)];
+        const clear = (px, py) => {
+          const dx = Math.max(px - centre.x, centre.x - px - w, 0);
+          const dy = Math.max(py - centre.y, centre.y - py - h, 0);
+          return (dx / rx) ** 2 + (dy / ry) ** 2 > 1 && !blockers.some(b =>
+            px < b.x + b.w + 4 && px + w + 4 > b.x && py < b.y + b.h + 4 && py + h + 4 > b.y);
+        };
+        if (!clear(x, y)) {
+          outer: for (const step of [12, 24, 36, 48]) {
+            for (const [dx, dy] of [[0, 1], [0, -1], [1, 0], [-1, 0], [1, 1], [-1, 1], [1, -1], [-1, -1]]) {
+              const px = clamp(x + dx * step, plotX + 6, plotX + plotW - 6 - w);
+              const py = clamp(y + dy * step, plotY + 6, plotY + plotH - 6 - h);
+              if (clear(px, py)) { label = { ...label, x: px, y: py }; break outer; }
+            }
+          }
+        }
+      }
     }
     arcs.push({ ...transition, ...arc, label });
   }

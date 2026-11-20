@@ -289,9 +289,11 @@ test('sankey CSV and nonconserving flow', () => {
   const laid = layout('sankey', parsed, cfg);
   assert.deepEqual(laid.errors, []);
   assert.match(svgFor(laid), />a&quot;b<\/text>/);
+  // Check the actual Mermaid node labels so removing labels cannot pass the halo regression.
   const walk = parts => parts.flatMap(part => [part, ...walk(part.children || [])]);
-  assert.ok(walk(laid.scene.children).filter(part => ['label', 'node-total'].includes(part.meta?.kind))
-    .every(part => part.attrs.stroke === undefined), 'Mermaid node text has no background halo');
+  const labels = walk(laid.scene.children).filter(part => part.meta?.kind === 'label');
+  assert.equal(labels.length, 4);
+  assert.ok(labels.every(part => part.attrs.stroke === undefined), 'Mermaid node text has no background halo');
   assert.equal(implementations.sankey.parse('A,B,1\nB,C', cfg).errors[0].line, cfg.firstLine + 1);
 });
 

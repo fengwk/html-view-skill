@@ -72,14 +72,14 @@ function pieLayout(spec, ctx, isDonut = false) {
   const { table, field, rows, values, total } = pieSlices(spec, ctx);
   const width = ctx.width;
   const items = rows.map((row, i) => ({ label: `${row[table.categoryField]}　${ctx.format(values[i], field)} (${ctx.percent(values[i] / total)})`, color: ctx.color(`tone${i % 6 + 1}`), meta: pointMeta(row, String(row[table.categoryField]), values[i], spec.chart) }));
-  const sideLegend = width > 560;
-  const legendWidth = sideLegend ? Math.min(320, Math.max(180, width * 0.34)) : Math.min(width - 32, 270);
+  const compact = spec[compositionPresentation]?.compact === true;
+  const sideLegend = width > 560 || (compact && rows.length >= 4);
+  const legendWidth = sideLegend ? (compact ? Math.max(154, width * .42) : Math.min(320, Math.max(180, width * 0.34))) : Math.min(width - 32, 270);
   const chartSpan = sideLegend ? Math.min(width - legendWidth - 36, 460) : width;
   const groupWidth = sideLegend ? chartSpan + 28 + legendWidth : width;
   const groupX = sideLegend ? (width - groupWidth) / 2 : 0;
   const cx = sideLegend ? groupX + chartSpan / 2 : width / 2;
-  const compact = spec[compositionPresentation]?.compact === true;
-  const r = compact ? Math.min(92, Math.max(60, chartSpan * 0.26))
+  const r = compact ? Math.min(92, Math.max(60, chartSpan * (sideLegend ? .44 : .26)))
     : width <= 360 ? Math.min(112, width * 0.275) : Math.min(sideLegend ? 168 : 112, Math.max(60, chartSpan * 0.32));
   const cy = r + 36, inner = isDonut ? r * 0.58 : 0;
   const labelRadius = r * (spec[compositionPresentation]?.labelRadius ?? .72);

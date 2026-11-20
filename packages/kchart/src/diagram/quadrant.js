@@ -103,7 +103,9 @@ function layout(model, { ctx, width, renderOptions, compact = false }, info = {}
   const compactSpan = Math.min(440, 360 + Math.min(80, points.length * 2));
   const span = Math.max(compact ? compactSpan : Math.min(520, width - left - right), compact ? 0 : 360,
     dimension('chartWidth', 0, 0, 4000), spanOf(axes.x), ...captions.map(s => 2 * W(s, FONT.title) + 44).filter(Number.isFinite));
-  const h = Math.max(340, spanOf(axes.y), dimension('chartHeight', 0, 0, 4000));
+  const upright = text => /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/u.test(text);
+  const ySpan = (axes.y || []).reduce((sum, text) => sum + (upright(text) ? Array.from(text).length * 14 : W(text)), 36);
+  const h = Math.max(340, ySpan, dimension('chartHeight', 0, 0, 4000));
   const w = left + span + right, bottom = top + h;
   const children = [], occupied = [];
   const pushText = (x, y, value, font = FONT.label, fill = t.fg1, attrs = {}) => {
@@ -136,9 +138,10 @@ function layout(model, { ctx, width, renderOptions, compact = false }, info = {}
   if (axes.y) {
     const x = yRight ? left + span + yGap : left - yGap;
     [[axes.y[0], bottom, 'start'], [axes.y[1], top, 'end']].forEach(([text, y, anchor]) => {
-      if (/[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/u.test(text)) {
+      if (upright(text)) {
         const lines = Array.from(text);
-        children.push(...ctx.textLines(x, y - (lines.length - 1) * 7, lines, { ...FONT.label, ...centered, leading: 14, fill: t.fg2 }).children ?? []);
+        const firstY = anchor === 'end' ? y + 7 : y - lines.length * 14 + 7;
+        lines.forEach((line, i) => pushText(x, firstY + i * 14, line, FONT.label, t.fg2));
       } else {
         pushText(x, y, text, FONT.label, t.fg2, { anchor, transform: `rotate(-90 ${x} ${y})` });
       }
