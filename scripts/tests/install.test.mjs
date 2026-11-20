@@ -45,11 +45,13 @@ function fixture(t, shell) {
   const agents = join(home, '.agents/skills');
   const claude = join(home, '.claude/skills');
   const install = () => run(shell.bin, shell.args(script), { cwd: scripts, env });
+  // `curl … | bash` runs the script from standard input, possibly cut short by a dropped connection.
+  const pipe = (text = readFileSync(script, 'utf8')) => run(shell.bin, [], { cwd: scripts, env, input: text });
   const clone = () => {
     mkdirSync(join(home, '.agents/skill-lib'), { recursive: true });
     git(home, 'clone', '--', upstream, repo);
   };
-  return { path, home, repo, skill, remote, agents, claude, git, install, clone };
+  return { path, home, repo, skill, remote, agents, claude, git, install, pipe, script, clone };
 }
 
 function assertLink(directory, skill) {
@@ -104,6 +106,19 @@ for (const shell of selectedShells) {
     assert.match(ok(f.install()), /Skipped existing entry \(unchanged\)/);
     assert.equal(f.git(f.repo, 'rev-parse', 'HEAD'), head);
     assert.equal(readFileSync(file, 'utf8'), edited);
+    assertLink(f.agents, f.skill);
+    assertLink(f.claude, f.skill);
+  });
+
+  // The README installs with `curl -fsSL <raw URL> | bash`.
+  test(`${shell.name}: install from a pipe, and change nothing when the download is cut short`, { skip: needsTools.skip || shell.name !== 'Bash' }, t => {
+    const f = fixture(t, shell);
+    const text = readFileSync(f.script, 'utf8');
+    // Cut right after the complete clone step: the partial text must still change nothing.
+    const cut = f.pipe(text.slice(0, text.indexOf('[[ -d $repo')));
+    assert.notEqual(cut.status, null, output(cut));
+    assert.ok(!existsSync(join(f.home, '.agents')) && !existsSync(join(f.home, '.claude')), output(cut));
+    assert.match(ok(f.pipe()), /Using checkout:/);
     assertLink(f.agents, f.skill);
     assertLink(f.claude, f.skill);
   });

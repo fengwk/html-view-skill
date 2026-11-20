@@ -18,16 +18,15 @@
 
 ## 快速开始
 
-**1. 安装。** 需要 Git 和 Node.js 22+。先下载脚本，看过再执行：
+**1. 安装。** 需要 Git 和 Node.js 22+。在 macOS、Linux 或 WSL 的终端里执行：
 
 ```bash
-# macOS / Linux / WSL
-curl -fsSL --proto '=https' -o install-html-view.sh https://raw.githubusercontent.com/fengwk/html-view-skill/main/scripts/install.sh
-bash ./install-html-view.sh
+curl -fsSL https://raw.githubusercontent.com/fengwk/html-view-skill/main/scripts/install.sh | bash
 ```
 
+Windows PowerShell 先下载脚本再执行：
+
 ```powershell
-# Windows PowerShell
 Invoke-WebRequest -UseBasicParsing -Uri 'https://raw.githubusercontent.com/fengwk/html-view-skill/main/scripts/install.ps1' -OutFile '.\install-html-view.ps1'
 .\install-html-view.ps1
 ```
@@ -647,7 +646,7 @@ HTML View 的图表由自带的 KChart 库绘制。图谱展示 **45 种数据�
 
 ## 安装说明
 
-安装脚本把仓库克隆到 `~/.agents/skill-lib/html-view-skill`，再从其中的 `skills/html-view` 建两个链接：
+安装脚本（[`scripts/install.sh`](scripts/install.sh)、[`scripts/install.ps1`](scripts/install.ps1)）把仓库克隆到 `~/.agents/skill-lib/html-view-skill`，再从其中的 `skills/html-view` 建两个链接：
 
 | 链接 | 读取它的 Agent |
 |---|---|
@@ -657,6 +656,7 @@ HTML View 的图表由自带的 KChart 库绘制。图谱展示 **45 种数据�
 这两个目录是各工具自己的约定，Agent Skills 规范没有规定统一位置。其他 Agent 请把 `skills/html-view` 链接或复制到它读取技能的目录。
 
 - **可以重复运行。** 已有有效检出就直接复用，不自动拉取；检出损坏或来源不对就报错，不会覆盖。两个链接分别检查，同名文件、目录或断链都原样保留。
+- **下载中断不会装一半。** 脚本下载完整后才开始执行；网络在中途断开时什么都不改。
 - **也可以手动克隆。** 克隆到上面的位置后运行脚本，它会补齐链接。
 - **原生 Windows** 用目录联接（junction）代替符号链接，各 Agent 能否识别联接还没有在原生 Windows 上实测。WSL 使用其 Linux 环境中的 `$HOME`。
 - **PowerShell 拦截脚本时：** 如果 `RemoteSigned` 只因文件来自互联网而拦截，核对内容后运行 `Unblock-File -LiteralPath '.\install-html-view.ps1'` 再执行，不必修改系统策略。

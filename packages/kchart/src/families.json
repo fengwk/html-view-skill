@@ -169,7 +169,7 @@
     "diagrams": {
       "info": {
         "syntax": "mermaid",
-        "topic": "diagram",
+        "topic": "mermaid",
         "aliases": []
       }
     }
