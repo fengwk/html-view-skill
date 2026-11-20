@@ -114,9 +114,59 @@ test('legacy beta input uses the same nested grid renderer', () => {
   assert.ok(result.elements.some(node => node.text === 'connects'));
 });
 
-// Empty diagrams, malformed composite statements and deferred presentation syntax report source lines.
-test('invalid or deferred statements are not interpreted as nodes', () => {
-  for (const [body, line] of [['', 1], ['end', 2], ['block:g\na', 2], ['block:g\na\nend\nstyle g fill:#669', 5], ['a<["x"]>(down)\nstyle a fill:#669', 3]]) {
+// Empty diagrams, unclosed groups and invalid styles still report the relevant source lines.
+test('invalid statements are not interpreted as nodes', () => {
+  for (const [body, line] of [['', 1], ['end', 2], ['block:g\na', 2], ['a\nstyle a foo', 3]]) {
     assert.ok(check(`block\n${body}`).some(d => d.severity === 'error' && d.line === line));
   }
+});
+
+// Styles apply in cascade order to blocks and named frames, never to an arrow glyph.
+test('presentation styles use theme roles without consuming grid slots', () => {
+  const body = 'block:g\nA:::warn space B C D\nend\narrow<["Next"]>(right)';
+  const result = render(`${body}\nclassDef default fill:red\nclassDef healthy fill:lime\nclass B,C healthy\nstyle g,B fill:blue\nstyle arrow fill:blue`);
+  const statuses = Object.fromEntries(result.elements.filter(node => node.meta?.status).map(node => [node.meta.id, node.meta.status]));
+  assert.deepEqual(statuses, { g: 'info', A: 'warn', B: 'info', C: 'ok', D: 'danger' });
+  assert.notEqual(rects(result, 'frame').g.stroke, rects(render(body), 'frame').g.stroke);
+  assert.equal(byKind(result, 'node').length, 5);
+  assert.ok(result.diagnostics.some(d => d.code === 'IGNORED_STYLE' && d.line === 10 && d.severity === 'warning'));
+});
+
+// Mermaid accepts the missing-colon CSS in 490 but it has no visual effect.
+test('colonless hex style warns without changing the scene', () => {
+  const result = render('A\nstyle A fill#969;');
+  assert.equal(result.svg, render('A').svg);
+  assert.equal(result.diagnostics[0].code, 'IGNORED_STYLE');
+});
+
+// Links, icon geometry and normalized text belong to the corresponding marked scene parts.
+test('links, labels, icons and linkStyle use the shared contracts', () => {
+  const result = render('A["<b>Save</b> #9829;<br>fa:fa-house done"] space:2 B::icon(tabler:missing-block-icon)\nA--"<i>Go</i> #35;1"-->B\nclick A "https://example.com" "Docs" _blank\nclick B href "javascript:alert(1)"\nlinkStyle 0 stroke:red');
+  const anchor = result.elements.find(node => node.tag === 'a');
+  assert.equal(anchor.attrs.href, 'https://example.com');
+  assert.equal(anchor.attrs.rel, 'noopener noreferrer');
+  assert.equal(anchor.children.find(node => node.meta?.kind === 'node').meta.id, 'A');
+  assert.ok(result.elements.some(node => node.text === 'Save ♥'));
+  assert.ok(result.elements.some(node => node.text === 'Go #1'));
+  assert.ok(walk(anchor.children).some(node => node.tag === 'path'), 'resolved icon has vector geometry');
+  assert.equal(result.elements.filter(node => node.tag === 'a').length, 1);
+  assert.equal(byKind(result, 'edge')[0].attrs['marker-end'], 'url(#block-point-danger)');
+  assert.ok(result.diagnostics.some(d => d.code === 'IGNORED_ASSET'));
+  assert.ok(result.diagnostics.some(d => d.code === 'IGNORED_INTERACTION'));
+});
+
+// YAML and directives merge via the registry; block.padding changes the frame inset only, not its column semantics.
+test('block padding honors merged configuration', () => {
+  const source = '---\nconfig:\n  block:\n    padding: 20\n---\n%%{init: {"block": {"padding": 30}}}%%\nblock\nblock:g\ncolumns 2\nA B\nend';
+  const result = diagram(source, { width: 360 });
+  assert.deepEqual(result.diagnostics, []);
+  assert.deepEqual(checkScene(result.scene), []);
+  const shapes = { elements: walk(result.scene.children) };
+  const { A, B } = rects(shapes), { g } = rects(shapes, 'frame');
+  assert.equal(A.y - g.y, 30);
+  assert.equal(A.x - g.x, 30);
+  assert.equal(B.y, A.y);
+  const invalid = diagram(source.replace('"padding": 30', '"padding": 3000'), { width: 360 });
+  assert.ok(invalid.svg);
+  assert.deepEqual(invalid.diagnostics.map(({ code, severity }) => [code, severity]), [['IGNORED_CONFIG', 'warning']]);
 });
