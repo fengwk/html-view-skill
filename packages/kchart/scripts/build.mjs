@@ -21,6 +21,7 @@ const nodeBuiltins = new Set(builtinModules);
 const posix = (path) => path.split(sep).join('/');
 const isNodeBuiltin = (id) => id.startsWith('node:') || nodeBuiltins.has(id);
 const read = (path) => readFileSync(path, 'utf8');
+const define = { __KCHART_VERSION__: JSON.stringify(JSON.parse(read(join(root, 'package.json'))).version) };
 
 function listFiles(dir, filter, acc = []) {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -94,6 +95,7 @@ rmSync(distRoot, { recursive: true, force: true });
 await build({
   configFile: false,
   root,
+  define,
   logLevel: 'warn',
   plugins: [familyPlugin],
   build: {
@@ -122,6 +124,7 @@ for (const unit of units) {
   const chunk = chunkOf(await build({
     configFile: false,
     root,
+    define,
     logLevel: 'warn',
     build: {
       write: false,

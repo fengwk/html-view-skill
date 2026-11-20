@@ -38,6 +38,8 @@ function parse(body, info) {
   const model = { type: 'gantt', title: '', items, sections, firstLine, compact: config.displayMode === 'compact' };
   const directives = new Map(), excludes = new Set(), includes = new Set();
   const issue = (line, zh, en, fixZh = '修正甘特图语句', fixEn = 'Correct the Gantt statement') => errors.push(error(lang, line, zh, en, fixZh, fixEn));
+  const gluedTasks = line => issue(line, '此行看起来写了两个任务', 'This looks like two tasks on one line',
+    '每个任务各写一行', 'Put each task on its own line');
   const notice = (line, zh, en) => errors.push(warning('DIAGRAM_HINT', lang, line, zh, en));
   if (info.params || Object.keys(info.options || {}).length) issue(info.headerLine, 'gantt 标题行不接受选项', 'The gantt header takes no options');
   if (body.length > 200000) {
@@ -78,7 +80,8 @@ function parse(body, info) {
     const caption = label(stripClasses(text.slice(0, colon)).trim(), line);
     const fields = text.slice(colon + 1).replace(/((?:\s*:::[\w-]+)+)\s*$/, stripClasses).trim().split(',').map(x => x.trim()), tags = [];
     while (Object.hasOwn(flags, fields[0]?.toLowerCase())) tags.push(fields.shift().toLowerCase());
-    if (fields.length > 3 || fields.some(x => !x) || !fields.length) {
+    if (fields.length > 3) { gluedTasks(line); continue; }
+    if (fields.some(x => !x) || !fields.length) {
       issue(line, '任务需要结束值，可在前面加起点和 ID', 'Expected end, start/end, or ID/start/end'); continue;
     }
     const id = fields.length === 3 ? fields.shift() : `task${++autoId}`;
@@ -113,6 +116,15 @@ function parse(body, info) {
   const today = off ? NaN : fixed;
   Object.assign(model, { axis, interval: interval && Number.isSafeInteger(+interval[1]) ? interval : null, intervalLine: intervalSpec.line,
     weekStart, monthLabels: axisSpec.value === '%Y-%m', topAxis: option('topAxis', false).value, today });
+  if (errors.some(blocking)) return { model, errors };
+
+  // A second separator is not task data, except for colons inside a date (e.g. HH:mm).
+  for (const task of items) {
+    if ([task.id, task.startField, task.endField].some((field, i) => {
+      const value = field?.split('%%', 1)[0].trim();
+      return value?.includes(':') && (i === 0 || !valid(date.parse(value)));
+    })) gluedTasks(task.line);
+  }
   if (errors.some(blocking)) return { model, errors };
 
   model.excluded = excludes.size ? excludedBy({ includes, excludes, weekend }, date.format) : null;

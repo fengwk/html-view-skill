@@ -120,8 +120,12 @@ function createDiagramApi(implementations, types) {
       if (preparedDiagnostics.some(blocking)) return { info, type: null, model: null, diagnostics: preparedDiagnostics };
       // An unrecognized first line (for example `pie:`) has no kind; name its first word instead of the syntax.
       const shown = prepared.kind || prepared.body.trim().split(/\s+/)[0].slice(0, 40) || syntax;
+      const near = rawKind.endsWith('-beta') ? rawKind.slice(0, -5) : `${rawKind}-beta`;
+      const candidate = syntax === 'mermaid' && rawKind && byAlias.get(near);
+      const keyword = candidate?.syntax === 'mermaid' && [candidate.kind, ...candidate.aliases].find(alias => alias.toLowerCase() === near);
       const unknown = error(options.lang, headerLineOf(prepared), `未知结构图类型「${shown}」`, `Unknown diagram type "${shown}"`,
-        '使用已声明的结构图类型', 'Use a supported diagram type');
+        keyword ? `将头行关键字改为「${keyword}」` : '使用已声明的结构图类型',
+        keyword ? `Use "${keyword}" as the header keyword` : 'Use a supported diagram type');
       return { info, type: null, model: null, diagnostics: [...preparedDiagnostics, diagnostic(unknown)] };
     }
     if (String(type.syntax).toLowerCase() !== String(syntax).toLowerCase()) {
