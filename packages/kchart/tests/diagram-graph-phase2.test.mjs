@@ -9,6 +9,16 @@ import { layoutGraph } from '../src/diagram/graph-layout.js';
 const fixtures = JSON.parse(readFileSync(new URL('./conformance/mermaid-12.3.0.json', import.meta.url)));
 const render = (source, width = 800) => diagram(source, { syntax: 'mermaid', width, lang: 'en' });
 
+function assertSeparated(route, other, gap) {
+  for (const a of route) for (const b of other) for (const [along, across] of [['x', 'y'], ['y', 'x']]) {
+    if (Math.abs(a.p0[across] - a.p1[across]) > .001 || Math.abs(b.p0[across] - b.p1[across]) > .001) continue;
+    const [a0, a1] = [a.p0[along], a.p1[along]].sort((x, y) => x - y);
+    const [b0, b1] = [b.p0[along], b.p1[along]].sort((x, y) => x - y);
+    if (Math.min(a1, b1) - Math.max(a0, b0) <= 8) continue;
+    assert.ok(Math.abs(a.p0[across] - b.p0[across]) >= gap - .001, `parallel ${along} runs need ${gap}px clearance`);
+  }
+}
+
 // Linked LR groups follow a common band and the original labeled backlink remains attached.
 test('keeps interdependent flow frames compact without replacing member edges', () => {
   const source = fixtures.find(({ id }) => id === 'flowchart.md:117').source;
@@ -21,6 +31,11 @@ test('keeps interdependent flow frames compact without replacing member edges', 
   const token = g.edges.find(edge => edge.label === 'token');
   assert.deepEqual([token.from, token.to], ['Auth', 'UI']);
   assert.ok(token.segments.length <= 4);
+  for (const edge of g.edges.filter(edge => edge !== token)) assertSeparated(token.segments, edge.segments, 12);
+  for (const { x, y, w, h } of g.nodes.filter(n => n.id !== 'Auth' && n.id !== 'UI')) {
+    const corners = [{ x, y }, { x: x + w, y }, { x: x + w, y: y + h }, { x, y: y + h }];
+    assertSeparated(token.segments, corners.map((p0, i) => ({ p0, p1: corners[(i + 1) % 4] })), 8);
+  }
 });
 
 // Frame avoidance keeps actual node-to-node edges and clears unrelated group boundaries.

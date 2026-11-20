@@ -1,5 +1,5 @@
 import { DIRECTIONS, FONT as BASE_FONT, fallbackMeasure, maxWidthOf, wrapText, warning } from './support.js';
-import { repairRoutes } from './graph-route.js';
+import { repairRoutes, TRACK_GAP, TRACK_CLEAR } from './graph-route.js';
 import { flowOutlineName, shapeSize, shapeOutline, shapeGlyphBox, outlinePort } from './shapes.js';
 
 const FONT = { ...BASE_FONT, frame: { size: 13, weight: 600 }, erHead: { size: 14, weight: 600 }, erAttr: { size: 13, weight: 400 }, erKey: { size: 12, weight: 400 } };
@@ -1540,8 +1540,6 @@ function layoutCore(model, { measure = fallbackMeasure, lang, ctx, renderOptions
     const R_CORNER = 6;
     const HOP_R = 5;
     const PORT_GAP = 16;
-    const TRACK_GAP = 12;
-    const TRACK_CLEAR = 8;
     const SIDE_STUB = 10;
     // 侧顶点短头缩短后的下限：再短就看不出是从侧顶点水平出线。
     const MIN_STUB = 4;
@@ -3652,6 +3650,7 @@ function layoutCore(model, { measure = fallbackMeasure, lang, ctx, renderOptions
       fromFrame: le.fromFrame,
       toFrame: le.toFrame,
       label: le.edge.label,
+      reversed: le.reversed,
       style: le.edge.style,
       startArrow: le.edge.startArrow,
       endArrow: le.edge.endArrow,
