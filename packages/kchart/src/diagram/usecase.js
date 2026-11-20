@@ -1,5 +1,6 @@
 import { cubicPath } from '../core/geometry.js';
 import { resolveIconRef } from '../core/icons.js';
+import { stripEmphasis } from './emphasis.js';
 import { normalizeLabel } from './label.js';
 import { presentation } from './presentation.js';
 import { layoutGraph } from './graph-layout.js';
@@ -58,7 +59,7 @@ function entity(text) {
   const name = bare.test(m[1]) ? undefined : label(m[1]);
   const fields = m[4] == null ? {} : metadata(m[4]);
   if (!fields) return null;
-  return { id: name == null ? m[1] : normalizeLabel(name).text.replace(/\W/g, '_'),
+  return { id: name == null ? m[1] : normalizeLabel(stripEmphasis(name)).text.replace(/\W/g, '_'),
     label: m[2] != null || m[3] != null ? label(m[2] ?? m[3]) : name,
     shape: m[3] != null ? 'rect' : m[2] != null ? 'ellipse' : undefined, stereotype: m[5]?.trim(), fields, classes: suffix?.[1].split(/\s*,\s*/) };
 }
@@ -133,7 +134,7 @@ function parse(body, info) {
     seenAssets.add(diagnostic.message);
   };
   const clean = (text, line) => {
-    const result = normalizeLabel(text, { lang: info.lang, line });
+    const result = normalizeLabel(stripEmphasis(text ?? ''), { lang: info.lang, line });
     result.diagnostics.forEach(reportAsset);
     return result;
   };
@@ -280,7 +281,10 @@ function measureNode(node, measure, cap, fonts) {
   const font = isSmall ? FONT.label : { ...FONT.body, size: fonts[node.kind] ?? FONT.body.size };
   const pitch = Math.max(17, font.size + 4);
   const iconWidth = node.kind !== 'actor' && node.icon ? 20 : 0;
-  const lines = wrapText(node.label, cap, font, measure);
+  const authored = node.label.split('\n');
+  const fitted = node.kind === 'usecase' && node.shape !== 'rect' && authored.length > 1;
+  // Preserve authored lines that fit the largest ellipse footprint the shared layout can reserve.
+  const lines = wrapText(node.label, fitted ? Math.max(cap, 200 - iconWidth) : cap, font, measure);
   const stereo = node.stereotype ? wrapText(`«${node.stereotype}»`, cap, FONT.label, measure) : [];
   const rows = node.rows?.map(row => row.map(value => wrapText(value, cap / 2, font, measure)));
   const columns = rows ? [0, 1].map(index => Math.max(26, ...rows.map(row => maxWidthOf(row[index], font, measure))) + 16) : [];
@@ -432,7 +436,7 @@ function drawNode(ctx, box, node, a) {
   }
   const outline = node.shape === 'rect' ? ctx.rect(x, y, w, h, { ...shape, rx: a.radius })
     : ctx.shape('ellipse', { cx, cy, rx: w / 2, ry: h / 2, fill, stroke, 'stroke-width': 1.25 }, meta);
-  return ctx.el('g', {}, [outline, ...text(cy), ...(node.business ? [ctx.path(`M${x+14} ${cy+8} l11 -15`, { stroke: a.fg2, 'stroke-width': 1.6 })] : [])]);
+  return ctx.el('g', {}, [outline, ...text(cy)]);
 }
 
 function attachEllipse(point, box) {
