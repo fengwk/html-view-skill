@@ -25,31 +25,33 @@ row
 
 ## C4Context
 
-C4、`architecture-beta`、`block-beta` 共用上限：40 个节点、60 条边、240 行。本型表达人员和系统的上下文关系；受控元素包括 `Person`、`Person_Ext`、`System`、`System_Ext`，可在一层边界块中分组。C4 类型共用 `Rel` / `Rel_L` / `Rel_R` / `Rel_U` / `Rel_D` 关系语法；边端点须存在。未知或不支持的语句报错，不会静默忽略。
+用 `Person`、`Person_Ext`、`System`、`System_Ext` 表达人员与系统，用 `Enterprise_Boundary` 等边界宏分组。
+
+五种 C4 图共用 `Rel`、`BiRel`、`Rel_Back`、`RelIndex` 及方向关系宏（如 `Rel_L` / `Rel_Left`）。支持[通用样式、链接和标签图标](mermaid.md)；宏自带的 `sprite`、`tags`、`link` 等外观属性不应用并告警。`c4.c4ShapeInRow` / `c4.c4BoundaryInRow` 调整每行元素或边界数。未知语句、未声明的端点或未闭合的边界报错。
 
 ## C4Container
 
-表达系统内部容器及其静态依赖；受控元素包括 `Container`、`ContainerDb`、`ContainerQueue` 和 `System_Boundary`。关系语法与 `C4Context` 相同。该类型不自动补造系统、容器或依赖信息。
+用 `Container`、`ContainerDb`、`ContainerQueue` 和 `System_Boundary` 表达容器及依赖。样式、配置、关系和诊断见 [C4 通用规则](#c4context)。
 
 ## C4Component
 
-表达单个容器内部的组件边界和依赖，受控元素包括 `Component` 与适用的系统/容器边界。关系语法与 `C4Context` 相同；不要用它描述执行时间顺序，未知语句和无效端点报错。
+用 `Component` 与 `System_Boundary` / `Container_Boundary` 表达组件及边界，不表达执行顺序。样式、配置、关系和诊断见 [C4 通用规则](#c4context)。
 
 ## C4Dynamic
 
-表达 C4 元素间有方向的交互关系；未编号关系会按声明顺序自动编号。关系语法与 C4 共用，但不支持任意 C4/Mermaid 扩展；最多 40 个节点、60 条边、240 行。
+表达元素间有方向的交互。按声明顺序编号，不采用 `RelIndex` 给出的编号。样式、配置、关系和诊断见 [C4 通用规则](#c4context)。
 
 ## C4Deployment
 
-使用 `Deployment_Node` 表达部署节点与其所含 C4 元素；边界仅支持一层。最多 40 个节点、60 条边、240 行；不支持的语句报错。
+用 `Deployment_Node`、`Node_L` 或 `Node_R` 声明部署节点，可嵌套并包含其他 C4 元素。样式、配置、关系和诊断见 [C4 通用规则](#c4context)。
 
 ## architecture
 
-也接受 `architecture-beta`。`group id(icon)[名称]` 声明分组（可嵌套，`in 父组`），`service id(icon)[名称] in 组` 声明服务，`junction id` 声明连线交汇点（画成点，不画成框），`a:R --> L:b` 按端口 `L`/`R`/`T`/`B` 连线，`{group}` 后缀可连到分组边界。内置图标 `cloud`、`database`、`disk`、`internet`、`server`；`logos:…`、`mdi:…` 等图标名按内置图标或宿主注册的图标解析，解析不到时画中性服务卡片并给出警告。
+也接受 `architecture-beta`。`group id(icon)[名称]` 声明分组（可嵌套，`in 父组`），`service id(icon)[名称] in 组` 声明服务，`junction id` 声明连线交汇点（画成点，不画成框），`a:R --> L:b` 按端口 `L`/`R`/`T`/`B` 连线，`{group}` 后缀可连到分组边界。内置图标 `cloud`、`database`、`disk`、`internet`、`server`；`logos:…`、`mdi:…` 等图标名按内置图标或宿主注册的图标解析，解析不到时省略图标并告警。`align row` / `align column` 可指定对齐；`architecture.padding`、`iconSize`、`fontSize` 调整间距与尺寸（均在 `config.architecture` 下）。支持通用样式与安全链接。端点未声明或分组端口未跨越所属分组边界时会报错。
 
 ## block
 
-也接受 `block-beta`。块图按作者给定的网格排布：`columns N` 设列数，`id["名称"]` 等方括号写法声明块及形状，`id:2` 跨列，`space` / `space:N` 留空位，`block:id … end` 嵌套分组，`id<["标签"]>(right)` 画块状箭头，`A --> B` / `A -- 标签 --> B` 画连线。列数、顺序和跨列严格按源码落位；窄屏时扩宽画面并在图框内横向滚动，不重排网格。
+也接受 `block-beta`。块图按作者给定的网格排布：`columns N` 或 `columns auto` 设列数，`id["名称"]` 等方括号写法声明块及形状，`id:2` 跨列，`space` / `space:N` 留空位，`block:id … end` 嵌套分组，`id<["标签"]>(right)` 画块状箭头，`A --> B` / `A -- 标签 --> B` 画连线。列数、顺序和跨列按源码落位；窄屏时滚动，不重排网格。`block.padding` 调整嵌套块内边距。支持通用样式、链接和标签图标；网格无法容纳关系走线时会报错。
 
 ## wardley-beta
 
@@ -58,6 +60,6 @@ Wardley 地图用 `anchor 名称 [可见度, 演化]` 放置锚点，用 `compon
 - `A -> B` 表示依赖，`A -.-> B` 画虚线；`A +> B`、`A +< B`、`A +<> B` 分别画正向、反向、双向箭头。行尾 `; 标签` 或 `A +'标签'> B` 可标文字。`evolve A 0.8` 表示向目标演化值移动。依赖保持在两端的直线上；经过其他组件时留空，重合部分共用一段线。显式 `label [dx, dy]` 不自动移位，压线时加底色保证文字可读。
 - `evolution 阶段 -> 阶段` 自定义阶段，`阶段@0.5 / 副标题` 可标该阶段的右边界和副标题。边界不齐、未递增或未到 100% 时回退到等宽阶段并提示。`pipeline 父组件 { … }` 内逐行写 `component 名称 [演化]`，子组件继承父组件的可见度。
 - `note "文本" [可见度, 演化]` 添加备注；`annotation 1,[可见度, 演化] "文本"` 画编号标记，`annotations [可见度, 演化]` 指定图例首选位置。`accelerator "名称" [可见度, 演化]` 和 `deaccelerator "名称" [可见度, 演化]` 画方向相反的作用力箭头。
-- 支持正文 `title` 和共享无障碍字段 `accTitle` / `accDescr`。前言区或初始化指令可设 `config.wardley.width`、`config.wardley.height`；正文 `size [宽, 高]` 优先。画布必要时为标签留出额外空间，窄屏横向滚动。标题和显示标签支持常见实体、换行和 `fa:fa-…` 图标；未知图标只提示，不画占位。`showGrid` 不生效；本语法不接受样式、类或点击语句。
+- 支持正文 `title` 和共享无障碍字段 `accTitle` / `accDescr`。前言区或初始化指令可设 `config.wardley.width`、`config.wardley.height`；正文 `size [宽, 高]` 优先。画布必要时为标签留出额外空间，窄屏横向滚动。标题和显示标签支持常见实体、换行和 `fa:fa-…` 图标；未知图标只提示，不画占位。`showGrid` 不生效并给出配置警告。无效坐标、未闭合的管道或无效引用会报错；不接受通用样式或点击语句。
 
-所有 Mermaid C4、`architecture`、`block`、`wardley-beta` 示例可在源码中写前言区 `title`；关系图正文 `title` 也受支持。阅读文档须提供图题；应在源码写 `title`，而不是依赖图框外的说明。
+阅读文档须提供图题；优先使用前言 `title`，不依赖图框外的说明。

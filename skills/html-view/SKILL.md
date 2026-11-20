@@ -25,7 +25,7 @@ description: 生成、检查和导出离线单文件 HTML 文档、数据报表�
 
 ## 按读者要看什么选图
 
-默认使用静态图。数据图用 KChart JSON；结构关系用下表的受控 Mermaid 子集或原生声明，不假定其他 Mermaid 写法可用。仅填写数据、语义和阅读意图，不写坐标、字号、颜色或绘图脚本。图内放不下可滚动，页面本身不应横向溢出。
+默认使用静态图。数据图用 KChart JSON；结构关系用 Mermaid 或原生声明。先查[配置、样式、链接和诊断通则](references/diagrams/mermaid.md)，再查对应图型；KChart 不照搬 Mermaid 的外观。仅填写数据、语义和阅读意图，不写坐标、字号、颜色或绘图脚本。图内放不下可滚动，页面本身不应横向溢出。
 
 | 读者问题 | 图型入口 | 按需阅读 |
 |---|---|---|
@@ -38,12 +38,14 @@ description: 生成、检查和导出离线单文件 HTML 文档、数据报表�
 | 分布在哪里？ | `choropleth`、`geo-scatter` | [地图](references/charts/maps.md) |
 | 如何分类、怎么从主题展开？ | KChart `tree`、`mindmap`；Mermaid `mindmap`、`ishikawa`、`treeView-beta` | [层级与脑图](references/diagrams/hierarchy.md) |
 | 流程从谁到谁、状态如何转移？ | `flowchart`、`stateDiagram-v2`、`journey`、`swimlane-beta`、`eventmodeling`、`agentflow-beta`、原生 `swimlane` | [流程](references/diagrams/flow.md) |
-| 调用先后和参与者是谁？ | `sequenceDiagram`、`usecase-beta`、`zenuml` | [时序](references/diagrams/sequence.md) |
+| 调用先后和参与者是谁？ | `sequenceDiagram`、`usecase-beta` | [时序](references/diagrams/sequence.md) |
 | 如何排期、分栏或编号？ | `gantt`、`timeline`、`gitGraph`、`kanban`、`packet`、`quadrantChart` | [时间与网格](references/diagrams/time.md) |
 | 实体、类或需求怎样关联？ | `erDiagram`、`classDiagram`、`requirementDiagram` | [数据模型](references/diagrams/data-model.md) |
 | 一条语法规则怎样匹配符号？ | `railroad-beta`、`railroad-ebnf-beta`、`railroad-abnf-beta`、`railroad-peg-beta` | [数据模型](references/diagrams/data-model.md) |
 | 系统如何分层、容器和依赖在哪里？ | `C4Context`、`C4Container`、`C4Component`、`C4Dynamic`、`C4Deployment`、`architecture`、`block`、`wardley-beta`、原生 `layers`、`blocks` | [架构](references/diagrams/architecture.md) |
-| 手头已有受控 Mermaid 数值图？ | `pie`、`xychart`、`sankey`、`radar-beta`、`treemap`、`venn-beta`、`cynefin-beta` | [Mermaid 数值图](references/diagrams/time.md#mermaid-数值图)；新数据图用上方 KChart 图型 |
+| 手头已有 Mermaid 数值图？ | `pie`、`xychart`、`sankey`、`radar-beta`、`treemap` | [Mermaid 数值图](references/diagrams/time.md#mermaid-数值图)；新数据图用上方 KChart 图型 |
+| 集合如何重叠、情境如何分类？ | `venn-beta`、`cynefin-beta` | [集合](references/charts/composition.md#venn-beta)、[情境](references/charts/matrix.md#cynefin-beta) |
+| 旧文档中的简单调用图？ | `zenuml`（仅旧写法，不支持 ZenUML 插件） | [旧版兼容](references/diagrams/sequence.md#zenuml) |
 
 Markdown 用 `kchart`、`mermaid`、`layers`、`blocks`、`swimlane` 围栏；手写 HTML 用 `<pre data-viz="语法">`，转义其中的 HTML 特殊字符。文档图题写在声明中：KChart `title`，结构图前言 `title:` 或该语法支持的标题语句。图题和图中文字与正文用同一种语言。内置图族放不下或表达不了时，如嵌套过深、关系过多或机制示意，先拆成总图和分图；仍需手画时读[手写 SVG](references/guides/custom-svg.md)。
 
