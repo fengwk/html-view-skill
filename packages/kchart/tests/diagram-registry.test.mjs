@@ -134,13 +134,17 @@ test('centering adjusts anchor without inventing a visible heading', () => {
 // 意图：不混淆未知类型、错用 syntax 与未装入类型，且无效输入不产 placeholder SVG。
 test('diagram distinguishes unknown type, syntax misuse, and unloaded implementation', () => {
   const api = createDiagramApi({}, types);
-  const missing = api.diagram('flowchart\nbody');
+  const missing = api.diagram('flowchart\nbody', { lang: 'zh' });
   assert.equal(missing.svg, null);
   assert.equal(missing.diagnostics[0].message, '已知图类型「flowchart」尚未装入');
   assert.equal(missing.diagnostics[0].topic, 'flow');
-  assert.match(api.check('mindmap\nbody')[0].message, /不支持语法/);
-  assert.match(api.check('nonsense\nbody')[0].message, /未知结构图类型/);
-  assert.match(api.check('pie:\n"A": 1')[0].message, /「pie:」/, 'an unrecognized header names its own word');
+  assert.match(api.check('mindmap\nbody', { lang: 'zh' })[0].message, /不支持语法/);
+  assert.match(api.check('nonsense\nbody', { lang: 'zh' })[0].message, /未知结构图类型/);
+  assert.match(api.check('pie:\n"A": 1', { lang: 'zh' })[0].message, /「pie:」/, 'an unrecognized header names its own word');
+  // The registry's own diagnostics follow the language too: given, or inferred from an English diagram.
+  assert.equal(api.check('nonsense\nbody')[0].message, 'Unknown diagram type "nonsense"');
+  assert.equal(api.check('flowchart\nbody', { lang: 'en' })[0].message, 'Diagram type "flowchart" is not loaded');
+  assert.match(api.check('mindmap\nbody', { lang: 'en' })[0].message, /does not use mermaid syntax/);
   assert.match(api.check('flowchart ???', { lang: 'zh' })[0].message, /无效的图选项「\?\?\?」/);
 });
 

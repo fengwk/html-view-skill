@@ -126,15 +126,20 @@ function createDiagramApi(implementations, types) {
       if (preparedDiagnostics.some(blocking)) return { info, type: null, model: null, diagnostics: preparedDiagnostics };
       // An unrecognized first line (for example `pie:`) has no kind; name its first word instead of the syntax.
       const shown = prepared.kind || prepared.body.trim().split(/\s+/)[0].slice(0, 40) || syntax;
-      return { info, type: null, model: null, diagnostics: [...preparedDiagnostics, diagnostic({ line: headerLineOf(prepared), message: `未知结构图类型「${shown}」`, fix: '使用已声明的结构图类型' })] };
+      const unknown = error(options.lang, headerLineOf(prepared), `未知结构图类型「${shown}」`, `Unknown diagram type "${shown}"`,
+        '使用已声明的结构图类型', 'Use a supported diagram type');
+      return { info, type: null, model: null, diagnostics: [...preparedDiagnostics, diagnostic(unknown)] };
     }
     if (String(type.syntax).toLowerCase() !== String(syntax).toLowerCase()) {
-      const syntaxError = diagnostic({ line: headerLineOf(prepared), message: `图类型「${prepared.kind}」不支持语法「${syntax}」`, fix: `使用 ${type.syntax} 语法` }, type);
+      const syntaxError = diagnostic(error(options.lang, headerLineOf(prepared), `图类型「${prepared.kind}」不支持语法「${syntax}」`,
+        `Diagram type "${prepared.kind}" does not use ${syntax} syntax`, `使用 ${type.syntax} 语法`, `Use ${type.syntax} syntax`), type);
       return { info, type, model: null, diagnostics: merge(preparedDiagnostics, [syntaxError]) };
     }
     if (preparedDiagnostics.some(blocking)) return { info, type, model: null, diagnostics: preparedDiagnostics };
     if (!implementation) {
-      return { info, type, model: null, diagnostics: [...preparedDiagnostics, diagnostic({ line: headerLineOf(prepared), message: `已知图类型「${type.kind}」尚未装入`, fix: '重新组装并装入该图类型' }, type)] };
+      const unloaded = error(options.lang, headerLineOf(prepared), `已知图类型「${type.kind}」尚未装入`, `Diagram type "${type.kind}" is not loaded`,
+        '重新组装并装入该图类型', 'Load this diagram type before rendering');
+      return { info, type, model: null, diagnostics: [...preparedDiagnostics, diagnostic(unloaded, type)] };
     }
     if (typeof implementation.parse !== 'function') throw new TypeError(`Missing parser for diagram: ${type.kind}`);
     const parsed = implementation.parse(prepared.body, info);

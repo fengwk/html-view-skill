@@ -112,6 +112,6 @@ test('共用入口保留 Markdown 换行并定位未支持的写法', () => {
   }
   assert.ok(check('sankey-beta\nA,B,5\nB,A,5').length > 0);
   const selected = createRenderer({ sources: ['mindmap\n  root'] });
-  assert.match(selected.check('\n\nflowchart TD\nA --> B')[0].message, /未装入/);
+  assert.match(selected.check('\n\nflowchart TD\nA --> B', { lang: 'zh' })[0].message, /未装入/);
   assert.equal(selected.check('\n\nflowchart TD\nA --> B')[0].line, 3);
 });

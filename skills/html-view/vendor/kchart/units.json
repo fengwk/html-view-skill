@@ -556,7 +556,7 @@
       "core/svg",
       "core/diagnostics"
     ],
-    "bytes": 7206
+    "bytes": 7443
   },
   "diagram/relations": {
     "file": "units/diagram/relations.js",
