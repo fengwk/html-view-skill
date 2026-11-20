@@ -55,7 +55,7 @@
       "chart/registry",
       "core/theme"
     ],
-    "bytes": 11633
+    "bytes": 11672
   },
   "chart/multivariate": {
     "file": "units/chart/multivariate.js",
@@ -63,7 +63,7 @@
       "chart/registry",
       "core/geometry"
     ],
-    "bytes": 27980
+    "bytes": 28062
   },
   "chart/registry": {
     "file": "units/chart/registry.js",
@@ -234,7 +234,7 @@
       "diagram/presentation",
       "diagram/support"
     ],
-    "bytes": 14987
+    "bytes": 15073
   },
   "diagram/block": {
     "file": "units/diagram/block.js",
@@ -321,7 +321,7 @@
       "diagram/support",
       "diagram/gantt-date"
     ],
-    "bytes": 14260
+    "bytes": 16035
   },
   "diagram/gitgraph": {
     "file": "units/diagram/gitgraph.js",
@@ -339,7 +339,7 @@
       "diagram/graph-route",
       "diagram/shapes"
     ],
-    "bytes": 63786
+    "bytes": 63806
   },
   "diagram/graph-parse": {
     "file": "units/diagram/graph-parse.js",
@@ -357,7 +357,7 @@
     "deps": [
       "diagram/shapes"
     ],
-    "bytes": 5035
+    "bytes": 5744
   },
   "diagram/graph": {
     "file": "units/diagram/graph.js",
@@ -493,7 +493,7 @@
       "chart/basic",
       "chart/multivariate"
     ],
-    "bytes": 11776
+    "bytes": 11832
   },
   "diagram/packet": {
     "file": "units/diagram/packet.js",

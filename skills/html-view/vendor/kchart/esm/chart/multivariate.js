@@ -2,7 +2,11 @@ import { __exportAll } from "../_virtual/_rolldown/runtime.js";
 import { register } from "./registry.js";
 import { columnHeaders } from "../core/geometry.js";
 // src/chart/multivariate.js
-var multivariate_exports = /* @__PURE__ */ __exportAll({ install: () => install });
+var multivariate_exports = /* @__PURE__ */ __exportAll({
+	diagramCombo: () => diagramCombo,
+	install: () => install
+});
+var diagramCombo = Symbol("diagram combo");
 var finite = Number.isFinite;
 var number = (ctx, field, values, zero = false) => {
 	const result = ctx.ticks(values.filter(finite), field, { zero });
@@ -386,6 +390,7 @@ var chart = (spec, ctx) => {
 			}));
 		});
 		catLabels(cats, p);
+		const showAxisInLegend = !spec[diagramCombo] || leftFields.length > 0 && rightFields.length > 0;
 		const lh = legend(layers.map((l, i) => {
 			const meta = ctx.field(l.field), unit = meta.unit || (meta.format === "percent" ? "%" : "");
 			const axis = l.axis === "right" ? msg("右轴", "right axis") : msg("左轴", "left axis");
@@ -393,7 +398,7 @@ var chart = (spec, ctx) => {
 				label: [
 					meta.label,
 					unit,
-					axis
+					showAxisInLegend ? axis : null
 				].filter(Boolean).join(" · "),
 				color: ctx.color(`tone${i % 6 + 1}`)
 			};
@@ -1206,4 +1211,4 @@ function install({ register }) {
 	], chart);
 }
 install({ register });
-export { install, multivariate_exports };
+export { diagramCombo, install, multivariate_exports };

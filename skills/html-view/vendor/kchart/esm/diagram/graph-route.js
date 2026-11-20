@@ -1,7 +1,13 @@
 import { __exportAll } from "../_virtual/_rolldown/runtime.js";
 import { flowOutlineName, outlinePort, shapeOutline } from "./shapes.js";
 // src/diagram/graph-route.js
-var graph_route_exports = /* @__PURE__ */ __exportAll({ repairRoutes: () => repairRoutes });
+var graph_route_exports = /* @__PURE__ */ __exportAll({
+	TRACK_CLEAR: () => 8,
+	TRACK_GAP: () => 12,
+	repairRoutes: () => repairRoutes
+});
+var TRACK_GAP = 12;
+var TRACK_CLEAR = 8;
 var sides = [
 	"top",
 	"right",
@@ -68,19 +74,21 @@ function straight(a, b) {
 		p1: b
 	};
 }
-function sharesRun(a, b, p, q) {
+function sharesRun(a, b, p, q, gap = 1, span = 4) {
 	const same = (a, b) => Math.abs(a - b) < .01;
-	const axis = same(a.x, b.x) && same(p.x, q.x) && Math.abs(a.x - p.x) <= 1 ? "y" : same(a.y, b.y) && same(p.y, q.y) && Math.abs(a.y - p.y) <= 1 ? "x" : null;
-	return axis && Math.min(Math.max(a[axis], b[axis]), Math.max(p[axis], q[axis])) - Math.max(Math.min(a[axis], b[axis]), Math.min(p[axis], q[axis])) > 4;
+	const axis = same(a.x, b.x) && same(p.x, q.x) && Math.abs(a.x - p.x) < gap - .001 ? "y" : same(a.y, b.y) && same(p.y, q.y) && Math.abs(a.y - p.y) < gap - .001 ? "x" : null;
+	return axis && Math.min(Math.max(a[axis], b[axis]), Math.max(p[axis], q[axis])) - Math.max(Math.min(a[axis], b[axis]), Math.min(p[axis], q[axis])) > span;
 }
-function shortest(from, to, obstacles, occupied, type, bounds, label, original) {
+function shortest(from, to, obstacles, occupied, type, bounds, label, original, back) {
 	let best = null, score = Infinity;
 	const candidates = (a, b, key, span) => {
 		const midpoint = (a[key] + b[key]) / 2;
+		const tracks = back ? occupied.filter(({ p0, p1 }) => Math.abs(p0[key] - p1[key]) < .01).flatMap(({ p0 }) => [p0[key] - 12, p0[key] + 12]) : [];
 		return [.../* @__PURE__ */ new Set([
 			midpoint,
 			6,
 			bounds[span] - 6,
+			...tracks,
 			...obstacles.flatMap((r) => [r[key] - 1, r[key] + r[span] + 1])
 		])].filter((x) => x >= 4 && x <= bounds[span] - 4).sort((x, y) => Math.abs(x - midpoint) - Math.abs(y - midpoint) || x - y).slice(0, 28);
 	};
@@ -100,14 +108,17 @@ function shortest(from, to, obstacles, occupied, type, bounds, label, original) 
 			].filter((p, i, all) => !i || distance(p, all[i - 1]) > .001);
 			let length = 0;
 			for (let i = 1; i < points.length; i++) {
-				length += distance(points[i - 1], points[i]);
-				if (occupied.some((seg) => sharesRun(points[i - 1], points[i], seg.p0, seg.p1))) return;
+				const prev = points[i - 2], a = points[i - 1], b = points[i];
+				if (prev && (prev.x === a.x && a.x === b.x || prev.y === a.y && a.y === b.y) && distance(prev, a) + distance(a, b) > distance(prev, b) + .001) return;
+				length += distance(a, b);
 				if (i > 1 && i < points.length - 1 && (hits(points[i - 1], points[i], expand(from, 4)) || hits(points[i - 1], points[i], expand(to, 4)))) return;
 				if (i > 1 && i < points.length - 1 && !clear(points[i - 1], points[i])) return;
 			}
 			const compact = points.filter((p, i) => !i || i === points.length - 1 || Math.abs(distance(points[i - 1], p) + distance(p, points[i + 1]) - distance(points[i - 1], points[i + 1])) > .001 || points[i - 1].x !== points[i + 1].x && points[i - 1].y !== points[i + 1].y);
 			const cost = length + (compact.length - 2) * 16;
 			if (cost >= score) return;
+			const segments = compact.slice(1).map((p, i) => straight(compact[i], p));
+			if (segments.some(({ p0, p1 }) => occupied.some((seg) => sharesRun(p0, p1, seg.p0, seg.p1, back ? 12 : 1, back ? 8 : 4)))) return;
 			let labelRect = label;
 			if (label) {
 				const box = (p) => ({
@@ -146,7 +157,7 @@ function shortest(from, to, obstacles, occupied, type, bounds, label, original) 
 				start: fromPort,
 				end: toPort,
 				labelRect,
-				segments: compact.slice(1).map((p, i) => straight(compact[i], p))
+				segments
 			};
 			score = cost;
 		};
@@ -283,17 +294,26 @@ function repairRoutes(geometry, redirects = /* @__PURE__ */ new Map()) {
 	const checkTracks = nodes.size > 30;
 	const pending = new Set(redirects.keys());
 	const settled = [];
-	for (const edge of geometry.edges) {
+	const direction = geometry.direction;
+	const coordinate = (p) => direction === "LR" ? p.x : direction === "RL" ? -p.x : direction === "BT" ? -p.y : p.y;
+	const back = (e) => e.reversed || e.start && e.end && coordinate(e.start) > coordinate(e.end) + 1;
+	const ordered = [...geometry.edges].sort((a, b) => Number(!!back(a)) - Number(!!back(b)));
+	const nodeBorders = new Map([...nodes.values()].map((node) => [node.id, borders(node)]));
+	for (const edge of ordered) {
 		if (edge.style === "invisible" || edge.self || !edge.segments?.length) continue;
 		const redirect = redirects.get(edge.id);
 		const from = endpoint(redirect?.from ?? edge.from), to = endpoint(redirect?.to ?? edge.to);
 		if (!from || !to || from === to) continue;
 		const exempt = /* @__PURE__ */ new Set([...ancestors(from), ...ancestors(to)]);
 		const boxes = [...nodes.values(), ...frames.values()].filter((box) => !exempt.has(box.id));
-		const obstacles = boxes.map((box) => expand(box, 5));
+		const isBack = !!back(edge);
+		const obstacles = boxes.map((box) => expand(box, box.frame ? 5 : 8));
 		const titles = [...frames.values()].flatMap((f) => f.titleRect && f.titleRect.w && f.titleRect.h ? [expand(f.titleRect, 5)] : []);
 		const tight = [...boxes.map((r) => expand(r, 1.5)), ...titles];
-		let collision = !!redirect;
+		const occupiedOf = () => geometry.edges.filter((other) => other !== edge && other.style !== "invisible" && !pending.has(other.id)).flatMap((other) => other.segments);
+		const occupied = isBack ? occupiedOf() : null;
+		const hugs = (seg, box) => nodeBorders.get(box.id)?.some((side) => sharesRun(seg.p0, seg.p1, side.p0, side.p1, 8, 8));
+		let collision = !!redirect || edge.segments.some((seg) => boxes.some((box) => !box.frame && hugs(seg, box)) || occupied?.some((other) => sharesRun(seg.p0, seg.p1, other.p0, other.p1, 12, 8)));
 		if (!collision) for (const seg of edge.segments) {
 			let prev = seg.p0;
 			for (let i = 1; i <= 5; i++) {
@@ -319,15 +339,14 @@ function repairRoutes(geometry, redirects = /* @__PURE__ */ new Map()) {
 			continue;
 		}
 		const labelObstacles = geometry.edges.filter((other) => other !== edge && other.labelRect).map((other) => expand(other.labelRect, 2));
-		const occupied = geometry.edges.filter((other) => other !== edge && other.style !== "invisible" && !pending.has(other.id)).flatMap((other) => other.segments);
 		const replacement = shortest(from, to, [
 			...obstacles,
 			...titles,
 			...labelObstacles
-		], occupied, geometry.type, {
+		], occupied ?? occupiedOf(), geometry.type, {
 			w: geometry.width,
 			h: geometry.height
-		}, edge.labelRect, !redirect);
+		}, edge.labelRect, !redirect, isBack);
 		if (replacement) {
 			pending.delete(edge.id);
 			Object.assign(edge, replacement, {
@@ -341,4 +360,4 @@ function repairRoutes(geometry, redirects = /* @__PURE__ */ new Map()) {
 	}
 	return geometry;
 }
-export { graph_route_exports, repairRoutes };
+export { TRACK_CLEAR, TRACK_GAP, graph_route_exports, repairRoutes };

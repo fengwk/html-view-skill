@@ -435,10 +435,13 @@ function layout(model, { width, measure, ctx, lang }, info) {
 	const withLink = (item, children) => item.link ? [ctx.link(item.link.href, children, item.link)] : children;
 	const sizes = [[], []], cards = /* @__PURE__ */ new Map(), frames = /* @__PURE__ */ new Map();
 	for (const node of nodes) {
-		const labels = rows(node.label), contents = rows(node.iconText);
-		const w = node.kind === "junction" ? 0 : Math.ceil(Math.max(76, iconSize + 24, maxWidthOf([...labels, ...contents], font, measure) + 20));
-		const contentHeight = Math.max(58, 20 + contents.length * leading + (node.icon ? iconSize + (contents.length ? 8 : 0) : 0));
-		const h = w ? contentHeight + (labels.length ? 6 + labels.length * leading : 0) : 0;
+		const text = rows(node.iconText);
+		const contents = node.icon ? text : [];
+		const labels = [...node.icon ? [] : text, ...rows(node.label)];
+		const textWidth = maxWidthOf([...labels, ...contents], font, measure) + 20;
+		const w = node.kind === "junction" ? 0 : Math.ceil(Math.max(node.icon ? Math.max(76, iconSize + 24) : 40, textWidth));
+		const contentHeight = node.icon ? Math.max(58, 20 + contents.length * leading + iconSize + (contents.length ? 8 : 0)) : 0;
+		const h = !w ? 0 : node.icon ? contentHeight + (labels.length ? 6 + labels.length * leading : 0) : Math.max(36, labels.length * leading + 16);
 		const card = {
 			labels,
 			contents,
@@ -523,14 +526,14 @@ function layout(model, { width, measure, ctx, lang }, info) {
 		}), ...iconShape(ctx, node.icon, x, iconY, iconSize, style[node.status] ?? edgeInk)];
 		if (contents.length) shapes.push(textBlock(ctx, {
 			x,
-			y: node.icon ? t + contentHeight - 10 - contents.length * leading / 2 : t + contentHeight / 2,
+			y: t + contentHeight - 10 - contents.length * leading / 2,
 			lines: contents,
 			lineHeight: leading,
 			font
 		}));
 		if (labels.length) shapes.push(textBlock(ctx, {
 			x,
-			y: t + h - 8 - labels.length * leading / 2,
+			y: node.icon ? t + h - 8 - labels.length * leading / 2 : y,
 			lines: labels,
 			lineHeight: leading,
 			font

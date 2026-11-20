@@ -22,6 +22,10 @@ var PLANS = [GAP_X, COMPACT_GAP].flatMap((gap) => [
 	gap,
 	cap
 })));
+var DIAGRAM_PLANS = [GAP_X, COMPACT_GAP].map((gap) => ({
+	gap,
+	cap: TEXT_WIDTH
+}));
 var mindLayouts = [
 	"bilateral",
 	"right",
@@ -401,7 +405,7 @@ function build(spec, ctx, isMindmap) {
 	if (!(isMindmap ? mindLayouts : treeLayouts).includes(mode)) ctx.fit(`不支持布局 ${mode}`, "选择该图型的受控 layout");
 	if (!["editorial", "cards"].includes(variant)) ctx.fit(`不支持变体 ${variant}`, "选择该图型的受控 variant");
 	let plan;
-	for (const option of PLANS) {
+	for (const option of spec[mindmapPresentation] ? DIAGRAM_PLANS : PLANS) {
 		plan = arrange(spec, ctx, mode, option);
 		if (plan.width <= ctx.width) break;
 	}

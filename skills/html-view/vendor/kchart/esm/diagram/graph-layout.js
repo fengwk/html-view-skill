@@ -3678,6 +3678,7 @@ function layoutCore(model, { measure = fallbackMeasure, lang, ctx, renderOptions
 			fromFrame: le.fromFrame,
 			toFrame: le.toFrame,
 			label: le.edge.label,
+			reversed: le.reversed,
 			style: le.edge.style,
 			startArrow: le.edge.startArrow,
 			endArrow: le.edge.endArrow,

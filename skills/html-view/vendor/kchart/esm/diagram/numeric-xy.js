@@ -2,7 +2,7 @@ import { __exportAll } from "../_virtual/_rolldown/runtime.js";
 import { error, warning } from "./support.js";
 import { numericLabel, renderWith, validateWith } from "./numeric-model.js";
 import "../chart/basic.js";
-import "../chart/multivariate.js";
+import { diagramCombo } from "../chart/multivariate.js";
 // src/diagram/numeric-xy.js
 var numeric_xy_exports = /* @__PURE__ */ __exportAll({ implementations: () => implementations });
 var NUMBER = "[+-]?(?:\\d+(?:\\.\\d+)?|\\.\\d+)";
@@ -301,6 +301,7 @@ function specOf(model, info) {
 		const data = model.categories.map((category, index) => Object.fromEntries([["category", category], ...model.datasets.map((dataset, series) => [`v${series}`, dataset.values[index]])]));
 		return {
 			chart: "combo",
+			[diagramCombo]: true,
 			...model.title ? { title: model.title } : {},
 			...subtitle ? { subtitle } : {},
 			data,
