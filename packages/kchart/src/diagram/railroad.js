@@ -2,13 +2,29 @@ import { structureRoles } from '../core/context.js';
 import { FONT, snap, textBlock, warning } from './support.js';
 import { childrenOf, parseAbnf, parseEbnf, parseIr, parsePeg } from './railroad-parse.js';
 
-const pad = 16, rail = 12, radius = 9, marker = 4;
+const metricKeys = ['padding', 'verticalSeparation', 'horizontalSeparation', 'arcRadius', 'fontSize', 'showMarkers', 'markerRadius', 'compactMode'];
+const honoredConfig = metricKeys.map(key => `railroad.${key}`);
+function metrics(config) {
+  const section = Object.entries(config ?? {}).find(([key]) => key.toLowerCase() === 'railroad')?.[1];
+  const options = new Map(Object.entries(section ?? {}).map(([key, value]) => [key.toLowerCase(), value]));
+  const value = (key, fallback, low, high) => {
+    const n = options.get(key.toLowerCase());
+    return typeof n === 'number' && Number.isFinite(n) ? Math.max(low, Math.min(high, n)) : fallback;
+  };
+  const compact = options.get('compactmode') === true;
+  return {
+    pad: value('padding', 16, 8, 80), rail: compact ? 6 : value('horizontalSeparation', 12, 6, 80),
+    gap: compact ? 6 : value('verticalSeparation', 10, 6, 80), radius: value('arcRadius', 9, 6, 16),
+    marker: options.get('showmarkers') === false ? 0 : value('markerRadius', 4, 2, 7),
+    font: { ...FONT.body, size: value('fontSize', FONT.body.size, 12, 32) },
+  };
+}
 const nameFont = { ...FONT.body, weight: 600 };
 const caption = ({ min, max }) => max === Infinity ? `${min}+` : min === max ? `×${min}` : `${min}…${max}`;
 const literal = value => value.replace(/[\n\r\t]/g, ch => ({ '\n': '\\n', '\r': '\\r', '\t': '\\t' })[ch]);
 
 // Bottom-up measurement creates the same port-and-baseline model for every dialect.
-function measureTrack(root, measure, prefix) {
+function measureTrack(root, measure, prefix, { rail, gap, radius, font }) {
   const sizes = new Map(), stack = [[root, false]];
   while (stack.length) {
     const [node, visited] = stack.pop(), descendants = childrenOf(node);
@@ -19,9 +35,11 @@ function measureTrack(root, measure, prefix) {
     const id = `${prefix}-${sizes.size}`, parts = descendants.map(child => sizes.get(child));
     const track = { id, entry: `${id}-in`, exit: `${id}-out`, node, parts };
     if (!parts.length) {
-      track.label = node.type === 'special' ? `? ${literal(node.text)} ?` : literal(node.value ?? node.name);
-      track.w = Math.max(24, Math.ceil(measure(track.label, FONT.body)) + 16);
-      track.up = track.down = snap(FONT.body.size + 12) / 2;
+      const label = literal(node.label ?? node.text ?? node.value ?? node.name);
+      track.label = node.type === 'special' ? `? ${label} ?` : label;
+      track.labelWidth = Math.ceil(measure(track.label, font));
+      track.w = Math.max(24, track.labelWidth + 16 + (node.icon ? (track.label ? 20 : 14) : 0));
+      track.up = track.down = snap(font.size + 12) / 2;
       track.entry = track.exit = id;
     } else if (node.type === 'sequence') {
       track.w = parts.reduce((sum, child) => sum + child.w, (parts.length - 1) * rail);
@@ -30,7 +48,7 @@ function measureTrack(root, measure, prefix) {
       track.entry = parts[0].entry;
       track.exit = parts.at(-1).exit;
     } else if (node.type === 'choice') {
-      const spacing = Math.min(24, Math.max(10, 8 + 2 * (parts.length - 2)));
+      const spacing = gap + Math.min(14, Math.max(0, 2 * (parts.length - 3)));
       let cursor = 0;
       const lanes = parts.map(child => {
         const baseline = cursor + child.up;
@@ -55,7 +73,7 @@ function measureTrack(root, measure, prefix) {
   return sizes.get(root);
 }
 
-function paintTrack(track, left, baseline, draw) {
+function paintTrack(track, left, baseline, draw, { rail, radius }) {
   const stack = [[track, left, baseline]];
   const { edge, chip, count } = draw;
   while (stack.length) {
@@ -110,50 +128,68 @@ function paintTrack(track, left, baseline, draw) {
 
 function layout(model, { width, ctx, measure, lang, renderOptions }, info) {
   const colors = structureRoles(renderOptions).colors;
+  const style = metrics(info.config), { pad, gap, marker, font } = style;
   const edges = [], chips = [], text = [];
   const edgeInk = colors['edge-strong'];
-  const edge = (d, from, to) => edges.push(ctx.path(d, { fill: 'none', stroke: edgeInk, 'stroke-width': 1.5, 'stroke-linecap': 'round', meta: { kind: 'edge', from, to } }));
-  const label = (value, x, y, font, anchor, fill) => text.push(textBlock(ctx, { lines: [value], x, y, font, anchor, fill }));
+  const edge = (d, from, to) => edges.push(ctx.path(d, { fill: 'none', stroke: ctx.design[model.edgeStatusOf(edges.length)] ?? edgeInk,
+    'stroke-width': 1.5, 'stroke-linecap': 'round', meta: { kind: 'edge', from, to } }));
+  const label = (value, x, y, font, anchor, fill) => textBlock(ctx, { lines: [value], x, y, font, anchor, fill });
+  const linked = (link, children) => link ? ctx.link(link.href, children, link) : ctx.el('g', {}, children);
+  function iconAt(icon, x, y) {
+    const [left, top, w, h] = icon.viewBox.split(/\s+/).map(Number), scale = 14 / Math.max(w, h);
+    const fill = ctx.design.fg1;
+    return ctx.el('g', { transform: `translate(${x - (left + w / 2) * scale} ${y - (top + h / 2) * scale}) scale(${scale})` },
+      icon.elements.map(({ tag, attrs }) => ctx.shape(tag, { ...attrs,
+        ...(icon.set === 'simple' ? { fill } : { fill: 'none', stroke: fill, 'stroke-width': 1.6, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }) })));
+  }
   const chip = (t, x, y) => {
     const special = t.node.type === 'special';
-    const stroke = t.node.undefined || t.node.exception ? ctx.design.warn : special ? colors['em-line'] : colors['node-line'];
-    chips.push(ctx.rect(x, y - t.up, t.w, t.up + t.down, {
+    const { icon, status, link } = t.node;
+    const stroke = ctx.design[status] ?? (t.node.undefined || t.node.exception ? ctx.design.warn : special ? colors['em-line'] : colors['node-line']);
+    const center = x + t.w / 2;
+    const outline = ctx.rect(x, y - t.up, t.w, t.up + t.down, {
       rx: t.node.type === 'terminal' ? t.up : 2, fill: special ? colors['em-fill'] : colors.node,
       stroke, ...(special ? { 'stroke-dasharray': '4 3' } : {}), meta: { kind: 'node', id: t.id },
-    }));
-    label(t.label, x + t.w / 2, y, FONT.body, 'middle', ctx.design.fg1);
+    });
+    const content = [outline];
+    if (icon) content.push(iconAt(icon, center - (t.label ? t.labelWidth / 2 + 3 : 0), y));
+    if (t.label) content.push(label(t.label, center + (icon ? 10 : 0), y, font, 'middle', ctx.design.fg1));
+    chips.push(linked(link, content));
   };
   const count = (value, x, y) => {
     text.push(ctx.text(x, y, value, { ...FONT.label, anchor: 'middle', fill: edgeInk,
       'dominant-baseline': 'central', meta: { kind: 'edge-label' } }));
     return Math.ceil(measure(value, FONT.label)) / 2 + 5;
   };
-  const nameWidth = Math.ceil(Math.max(0, ...model.rules.map(rule => measure(`${rule.name} =`, nameFont))));
+  const nameWidth = Math.ceil(Math.max(0, ...model.rules.map(rule => measure(`${rule.name} =`, nameFont) + (rule.icon ? 20 : 0))));
   const start = pad + nameWidth + 16, left = start + 16;
   let y = pad, natural = 200;
   for (const [index, rule] of model.rules.entries()) {
-    const id = `rule-${index}`, t = measureTrack(rule.definition, measure, id), baseline = y + t.up;
+    const id = `rule-${index}`, t = measureTrack(rule.definition, measure, id, style), baseline = y + t.up;
     const end = left + t.w + 16;
-    label(`${rule.name} =`, pad, baseline, nameFont, 'start', ctx.design.fg1);
-    for (const [x, suffix] of [[start, 'start'], [end, 'end']]) {
-      chips.push(ctx.circle(x, baseline, marker, { fill: edgeInk, meta: { kind: 'node', id: `${id}-${suffix}` } }));
+    const markerInk = ctx.design[rule.status] ?? edgeInk;
+    const heading = label(`${rule.name} =`, pad + (rule.icon ? 20 : 0), baseline, nameFont, 'start', ctx.textColor(ctx.design[rule.status] ?? ctx.design.fg1));
+    text.push(linked(rule.link, rule.icon ? [iconAt(rule.icon, pad + 7, baseline), heading] : [heading]));
+    if (marker) for (const [x, suffix] of [[start, 'start'], [end, 'end']]) {
+      chips.push(ctx.circle(x, baseline, marker, { fill: markerInk, meta: { kind: 'node', id: `${id}-${suffix}` } }));
     }
     edge(`M ${start + marker} ${baseline} H ${left}`, `${id}-start`, t.entry);
+    paintTrack(t, left, baseline, { chip, count, edge }, style);
     edge(`M ${left + t.w} ${baseline} H ${end - marker}`, t.exit, `${id}-end`);
-    paintTrack(t, left, baseline, { chip, count, edge });
     natural = Math.max(natural, end + marker + pad);
-    y = baseline + t.down + 24;
+    y = baseline + t.down + gap + 14;
   }
   const errors = natural > 2 * width || model.count > 60 ? [warning('LARGE_DIAGRAM', lang, info.headerLine,
     '语法图较大，可在图框中滚动', 'Large grammar; scroll inside the frame', '考虑拆分规则', 'Consider splitting the rules')] : [];
-  return { scene: { width: natural, height: model.rules.length ? y - 24 + pad : 100,
+  return { scene: { width: natural, height: model.rules.length ? y - gap - 14 + pad : 100,
     children: [...edges, ...chips, ...text], title: info.accTitle || model.accTitle || model.title, heading: model.title,
     description: info.accDescr || model.accDescr }, errors };
 }
 
+const implementation = parse => ({ optionMode: 'raw', parse, layout, acceptsPresentation: true, honoredConfig });
 export const implementations = {
-  'railroad-beta': { optionMode: 'raw', parse: parseIr, layout },
-  'railroad-ebnf-beta': { optionMode: 'raw', parse: parseEbnf, layout },
-  'railroad-abnf-beta': { optionMode: 'raw', parse: parseAbnf, layout },
-  'railroad-peg-beta': { optionMode: 'raw', parse: parsePeg, layout },
+  'railroad-beta': implementation(parseIr),
+  'railroad-ebnf-beta': implementation(parseEbnf),
+  'railroad-abnf-beta': implementation(parseAbnf),
+  'railroad-peg-beta': implementation(parsePeg),
 };

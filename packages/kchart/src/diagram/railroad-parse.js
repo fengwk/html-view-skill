@@ -1,3 +1,6 @@
+import { resolveIconRef } from '../core/icons.js';
+import { normalizeLabel } from './label.js';
+import { presentation } from './presentation.js';
 import { error, warning } from './support.js';
 
 const terminal = value => ({ type: 'terminal', value });
@@ -16,7 +19,7 @@ class RailroadSyntax extends Error {
   constructor(diagnostic) { super(diagnostic.message); this.diagnostic = diagnostic; }
 }
 
-function reader(body, info, dialect) {
+function reader(body, info, dialect, look, assets) {
   const abnf = dialect === 'abnf';
   const patterns = [
     ['hidden', /\s+|%%[^\n]*/y],
@@ -28,6 +31,8 @@ function reader(body, info, dialect) {
     ['string', abnf ? /"[^"]*"/y : /"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'/y],
     ...(abnf ? [['numeric', /%[xXdDbB][0-9A-Fa-f]+(?:-[0-9A-Fa-f]+|\.[0-9A-Fa-f]+)*/y], ['repeat', /[0-9]*\*[0-9]*|[0-9]+/y]] : []),
     ['id', abnf ? /[A-Za-z][A-Za-z0-9-]*/y : /[A-Za-z_][\w-]*/y],
+    ['icon', /::icon\(\s*[\w:-]+\s*\)/y],
+    ['classes', /:::[\w-]+(?:,[\w-]+)*/y],
     ['punctuation', /::=|<-|[\s\S]/y],
   ];
   let offset = 0, line = info.firstLine ?? 2, column = 1, token;
@@ -76,7 +81,48 @@ function reader(body, info, dialect) {
     // After a rule terminator another assignment can start on the same line.
     if (!/^[\t ]*[A-Za-z][A-Za-z0-9-]*[\t ]*=/.test(body.slice(offset))) advance(/^[^\n]*/.exec(body.slice(offset))[0]);
   }
-  return { peek, take, expect, fail, checkDepth, commentTail };
+  function presentationLine() {
+    const next = peek();
+    if (next.kind !== 'id' || !/^(class|classdef|style|linkstyle|click|href|link|callback)$/i.test(next.value)) return false;
+    const rest = /^[^\n]*/.exec(body.slice(offset))[0];
+    if (/^\s*(?:=|::=|<-|:::|::icon\()/.test(rest) || !look.accept(next.value + rest, next.line)) return false;
+    token = undefined;
+    advance(rest);
+    return true;
+  }
+  function asset(issue) {
+    if (!assets.has(issue.message)) assets.set(issue.message, issue);
+  }
+  function iconOf(ref, at) {
+    const icon = resolveIconRef(ref);
+    if (!icon) asset(warning('IGNORED_ASSET', info.lang, at.line, `未知图标 ${ref}`, `Unknown icon ${ref}`, '改用内置图标', 'Use a supported icon', at.column));
+    return icon;
+  }
+  function label(node, raw, at) {
+    if (!/[<&#$`]|(?:fa[bsrlk]?|logos|mdi|tabler|simple-icons):|::icon\(/i.test(raw)) return node;
+    let explicit;
+    const source = raw.replace(/::icon\(\s*([\w:-]+)\s*\)|(?<![\w:-])((?:logos|mdi|tabler|simple-icons):[\w-]+)/gi, (_, call, token) => {
+      const icon = iconOf(call ?? token, at);
+      explicit ??= icon;
+      return '';
+    });
+    const normalized = normalizeLabel(source, { lang: info.lang, line: at.line });
+    normalized.diagnostics.forEach(asset);
+    // Grammar literals can be pure whitespace, or distinguish boundary spaces.
+    if (normalized.text !== raw.trim()) node.label = normalized.text;
+    const icon = normalized.icon ?? explicit;
+    if (icon) node.icon = icon;
+    return node;
+  }
+  function decorate(node, id, at) {
+    let suffix;
+    while ((suffix = take('classes') || take('icon'))) {
+      if (suffix.kind === 'classes') look.addClasses(id, suffix.value.slice(3).split(','), suffix.line);
+      else node.icon = iconOf(suffix.value.slice(7, -1).trim(), at) ?? node.icon;
+    }
+    return node;
+  }
+  return { peek, take, expect, fail, checkDepth, commentTail, presentationLine, label, decorate };
 }
 
 function expression(r, dialect, hints) {
@@ -86,9 +132,12 @@ function expression(r, dialect, hints) {
   const choiceOp = ebnf ? '|' : '/';
   function primary(depth) {
     const token = r.peek();
-    if (r.take('string') || (abnf && r.take('numeric'))) return terminal(token.value);
-    if (r.take('id')) return reference(token.value, token);
-    if (ebnf && r.take('special')) return special(token.value.slice(1, -1).trim());
+    if (r.take('string') || (abnf && r.take('numeric'))) return r.label(terminal(token.value), token.value, token);
+    if (r.take('id')) return r.decorate(reference(token.value, token), token.value, token);
+    if (ebnf && r.take('special')) {
+      const text = token.value.slice(1, -1).trim();
+      return r.label(special(text), text, token);
+    }
     if (peg && r.take('.')) return special('.');
     if (groups.includes(token.kind)) {
       r.take(token.kind);
@@ -166,14 +215,14 @@ function irExpression(r, depth = 1) {
   let node;
   if (['terminal', 'nonterminal', 'special'].includes(name.value)) {
     const token = r.expect('string');
-    node = build(token.value, token);
+    node = r.label(build(token.value, token), token.value, token);
   } else if (['sequence', 'choice'].includes(name.value)) {
     const args = [];
     do { args.push(irExpression(r, depth + 1)); } while (r.take(','));
     node = build(args);
   } else node = build(irExpression(r, depth + 1));
   r.expect(')', 'ir-arity');
-  return node;
+  return node.type === 'nonterminal' ? r.decorate(node, node.name, name) : node;
 }
 
 function parseRules(body, info, dialect) {
@@ -184,17 +233,20 @@ function parseRules(body, info, dialect) {
   }
   const rules = [], errors = [], hints = [];
   let title, accTitle, accDescr, count = 0;
-  const r = reader(body, info, dialect);
+  const look = presentation(info), assets = new Map();
+  const r = reader(body, info, dialect, look, assets);
   const abnf = dialect === 'abnf';
   const key = name => abnf ? name.toLowerCase() : name;
   try {
     if (body.length > 200000) r.fail('source-limit', '语法文本过长', 'Railroad source is too large', '拆分语法图', 'Split the grammar into diagrams');
     while (r.peek().kind !== 'end') {
+      if (r.presentationLine()) continue;
       if (abnf && r.take(';')) { r.commentTail(); continue; }
       const heading = r.take('title');
       if (heading) {
         const raw = heading.value.slice(5).trim();
-        title = /^["']/.test(raw) && raw.at(-1) === raw[0] ? unescape(raw.slice(1, -1)) : raw;
+        const text = /^["']/.test(raw) && raw.at(-1) === raw[0] ? unescape(raw.slice(1, -1)) : raw;
+        title = r.label({}, text, heading).label ?? text;
         continue;
       }
       const accessibility = r.take('accessibility');
@@ -206,6 +258,7 @@ function parseRules(body, info, dialect) {
         continue;
       }
       const name = r.expect('id');
+      const rule = r.decorate({ name: name.value, line: name.line, column: name.column }, name.value, name);
       if (dialect === 'peg') r.expect('<-', 'peg-bad-operator');
       else if (!(dialect === 'ebnf' && r.take('::='))) r.expect('=');
       const definition = dialect === 'ir' ? irExpression(r) : expression(r, dialect, hints);
@@ -218,7 +271,7 @@ function parseRules(body, info, dialect) {
         if (depth > DEPTH) r.fail('depth-limit', '语法轨道嵌套过深', 'Railroad nesting is too deep', '将嵌套部分提取为规则', 'Extract nested expressions into rules', name);
         for (const child of childrenOf(node)) stack.push([child, depth + 1]);
       }
-      rules.push({ name: name.value, line: name.line, column: name.column, definition });
+      rules.push({ ...rule, definition });
     }
   } catch (cause) {
     if (!(cause instanceof RailroadSyntax)) throw cause;
@@ -234,10 +287,17 @@ function parseRules(body, info, dialect) {
     }
     names.add(name);
   }
+  const decorate = (subject, id) => {
+    const status = look.statusOf(id), link = look.linkOf(id);
+    if (status) subject.status = status;
+    if (link) subject.link = link;
+  };
   for (const rule of rules) {
+    decorate(rule, rule.name);
     const stack = [rule.definition];
     while (stack.length) {
       const node = stack.pop();
+      if (node.type === 'nonterminal') decorate(node, node.name);
       if (node.type === 'nonterminal' && !names.has(key(node.name))) {
         node.undefined = true;
         if (!missing.has(key(node.name))) {
@@ -248,8 +308,8 @@ function parseRules(body, info, dialect) {
       stack.push(...childrenOf(node).slice().reverse());
     }
   }
-  if (hints.length) hint(hints[0], '复合前瞻显示为 (…)','Compound lookahead is shown as (...)', '用命名规则显示前瞻目标', 'Use a named rule to show the lookahead target');
-  return { model: { rules, title, accTitle, accDescr, count }, errors };
+  if (hints.length) hint(hints[0], '复合前瞻显示为 (…)', 'Compound lookahead is shown as (...)', '用命名规则显示前瞻目标', 'Use a named rule to show the lookahead target');
+  return { model: { rules, title, accTitle, accDescr, count, edgeStatusOf: look.edgeStatusOf }, errors: [...errors, ...assets.values(), ...look.diagnostics()] };
 }
 
 const parseEbnf = (body, info) => parseRules(body, info, 'ebnf');

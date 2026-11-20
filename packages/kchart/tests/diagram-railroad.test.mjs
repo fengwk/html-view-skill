@@ -136,6 +136,34 @@ test('nested and ten-lane corpus layouts pass geometry', () => {
   }
 });
 
+// One fixture crosses the shared config, decoration and safe SVG contracts without changing grammar values.
+test('shared railroad config, labels, status and links', () => {
+  const input = [
+    '---', 'config:', '  railroad:', '    fontSize: 8', '    terminalFill: red', '---',
+    '%%{init: {"railroad": {"showMarkers": false, "compactMode": true, "arcRadius": 16}}}%%',
+    'railroad-ebnf-beta',
+    'phrase = word:::active::icon(plug) ["<b>hello</b> &amp; logos:github"] {"again" | "more"};',
+    'word = "fa:fa-kchart-does-not-exist word";',
+    'classDef active fill:#0a0,stroke-width:2;',
+    'linkStyle default stroke:#00f;',
+    'click word href "https://example.com" "Word reference" _blank;',
+    'click phrase href "javascript:alert(1)";',
+  ].join('\n');
+  const parsed = api.parse(input, { lang: 'en' });
+  const [ref, opt] = parsed.model.rules[0].definition.elements;
+  assert.equal(ref.status, 'ok');
+  assert.ok(ref.icon);
+  assert.ok(opt.element.icon);
+  assert.equal(opt.element.value, '<b>hello</b> &amp; logos:github');
+  assert.equal(opt.element.label, 'hello &');
+  const { scene, svg, diagnostics } = api.diagram(input, { width: 360, lang: 'en' });
+  assert.deepEqual(diagnostics.map(item => item.code).sort(), ['IGNORED_ASSET', 'IGNORED_CONFIG', 'IGNORED_INTERACTION', 'IGNORED_STYLE']);
+  assert.match(svg, /href="https:\/\/example.com"[^>]*rel="noopener noreferrer"/);
+  assert.match(svg, /font-size="12"[^>]*>hello &amp;</);
+  assert.doesNotMatch(svg, /<circle[^>]* r="4"|javascript:|kchart-does-not-exist/);
+  assert.deepEqual(checkScene(scene), []);
+});
+
 // A literal that cannot fit is not wrapped or shrunk; width does not alter the natural rail composition.
 test('wide tracks scroll and over-deep expressions are bounded', () => {
   const input = source('ebnf', `a = "${'wide'.repeat(55)}";`);

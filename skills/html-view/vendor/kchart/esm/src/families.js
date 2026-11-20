@@ -124,6 +124,28 @@ var families_default = {
 		"syntax": "swimlane",
 		"topic": "flow"
 	} } },
+	"diagram/railroad": { "diagrams": {
+		"railroad-beta": {
+			"syntax": "mermaid",
+			"topic": "data-model",
+			"aliases": []
+		},
+		"railroad-ebnf-beta": {
+			"syntax": "mermaid",
+			"topic": "data-model",
+			"aliases": []
+		},
+		"railroad-abnf-beta": {
+			"syntax": "mermaid",
+			"topic": "data-model",
+			"aliases": []
+		},
+		"railroad-peg-beta": {
+			"syntax": "mermaid",
+			"topic": "data-model",
+			"aliases": []
+		}
+	} },
 	"diagram/sequence": { "diagrams": { "sequenceDiagram": { "topic": "sequence" } } },
 	"diagram/mindmap": { "diagrams": { "mindmap": { "topic": "hierarchy" } } },
 	"diagram/gantt": { "diagrams": { "gantt": { "topic": "time" } } },
