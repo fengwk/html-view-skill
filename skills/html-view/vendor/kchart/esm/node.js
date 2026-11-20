@@ -27,9 +27,12 @@ import { scene_exports } from "./core/scene.js";
 import { svg_exports } from "./core/svg.js";
 import { text_exports } from "./core/text.js";
 import { DEFAULT_THEME, FONT_FAMILY, defaultStyle, resolveThemeConfig, theme, theme_exports, themes, validateThemeSnapshot } from "./core/theme.js";
+import { agentflow_exports } from "./diagram/agentflow.js";
+import { architecture_exports } from "./diagram/architecture.js";
 import { block_exports } from "./diagram/block.js";
 import { blocks_exports } from "./diagram/blocks.js";
 import { cynefin_exports } from "./diagram/cynefin.js";
+import { er_exports } from "./diagram/er.js";
 import { eventmodeling_exports } from "./diagram/eventmodeling.js";
 import { gantt_date_exports } from "./diagram/gantt-date.js";
 import { gantt_exports } from "./diagram/gantt.js";
@@ -97,9 +100,12 @@ var modulesByPath = /* #__PURE__ */ Object.assign({
 	"./src/core/svg.js": svg_exports,
 	"./src/core/text.js": text_exports,
 	"./src/core/theme.js": theme_exports,
+	"./src/diagram/agentflow.js": agentflow_exports,
+	"./src/diagram/architecture.js": architecture_exports,
 	"./src/diagram/block.js": block_exports,
 	"./src/diagram/blocks.js": blocks_exports,
 	"./src/diagram/cynefin.js": cynefin_exports,
+	"./src/diagram/er.js": er_exports,
 	"./src/diagram/eventmodeling.js": eventmodeling_exports,
 	"./src/diagram/gantt-date.js": gantt_date_exports,
 	"./src/diagram/gantt.js": gantt_exports,

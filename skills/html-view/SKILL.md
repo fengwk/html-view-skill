@@ -41,7 +41,7 @@ description: 生成、检查和导出离线单文件 HTML 文档、数据报表�
 | 调用先后和参与者是谁？ | `sequenceDiagram`、`usecase-beta`、`zenuml` | [时序](references/diagrams/sequence.md) |
 | 如何排期、分栏或编号？ | `gantt`、`timeline`、`gitGraph`、`kanban`、`packet-beta`、`quadrantChart` | [时间与网格](references/diagrams/time.md) |
 | 实体、类或需求怎样关联？ | `erDiagram`、`classDiagram`、`requirementDiagram` | [数据模型](references/diagrams/data-model.md) |
-| 系统如何分层、容器和依赖在哪里？ | `C4Context`、`C4Container`、`C4Component`、`C4Dynamic`、`C4Deployment`、`architecture-beta`、`block`、`wardley-beta`、原生 `layers`、`blocks` | [架构](references/diagrams/architecture.md) |
+| 系统如何分层、容器和依赖在哪里？ | `C4Context`、`C4Container`、`C4Component`、`C4Dynamic`、`C4Deployment`、`architecture`、`block`、`wardley-beta`、原生 `layers`、`blocks` | [架构](references/diagrams/architecture.md) |
 | 手头已有受控 Mermaid 数值图？ | `pie`、`xychart`、`sankey`、`radar-beta`、`treemap`、`venn-beta`、`cynefin-beta` | [Mermaid 数值图](references/diagrams/time.md#mermaid-数值图)；新数据图用上方 KChart 图型 |
 
 Markdown 用 `kchart`、`mermaid`、`layers`、`blocks`、`swimlane` 围栏；手写 HTML 用 `<pre data-viz="语法">`，转义其中的 HTML 特殊字符。文档图题写在声明中：KChart `title`，结构图前言 `title:` 或该语法支持的标题语句。图题和图中文字与正文用同一种语言。内置图族放不下或表达不了时，如嵌套过深、关系过多或机制示意，先拆成总图和分图；仍需手画时读[手写 SVG](references/guides/custom-svg.md)。

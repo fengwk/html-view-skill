@@ -1,6 +1,6 @@
 import { __exportAll } from "../_virtual/_rolldown/runtime.js";
 import { error, warning } from "./support.js";
-import { renderWith, validateWith } from "./numeric-model.js";
+import { numericLabel, renderWith, validateWith } from "./numeric-model.js";
 import "../chart/multivariate.js";
 // src/diagram/numeric-radar.js
 var numeric_radar_exports = /* @__PURE__ */ __exportAll({
@@ -103,7 +103,7 @@ function readAxes(info, text, line, axes, errors) {
 		}
 		axes.push({
 			id,
-			label: labelOf(match, id),
+			label: numericLabel(labelOf(match, id), info, line, errors),
 			line
 		});
 	}
@@ -139,7 +139,7 @@ function readCurves(info, text, line, curves, errors) {
 		}
 		if (!broken) curves.push({
 			id,
-			label: labelOf(match, id),
+			label: numericLabel(labelOf(match, id), info, line, errors),
 			entries,
 			line
 		});
@@ -232,7 +232,7 @@ function parseRadar(source, info) {
 				errors.push(issue(info, item.line, "radar 只能有一个 title"));
 				continue;
 			}
-			title = unquote(item.text.replace(/^title\s+/i, ""));
+			title = numericLabel(unquote(item.text.replace(/^title\s+/i, "")), info, item.line, errors);
 			titleLine = item.line;
 			continue;
 		}

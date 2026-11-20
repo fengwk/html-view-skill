@@ -494,11 +494,7 @@ function scene(geometry, ctx, info = {}) {
 		...info.title ? { title: info.title } : {}
 	};
 }
-var implementations = Object.fromEntries([
-	"flowchart",
-	"stateDiagram-v2",
-	"erDiagram"
-].map((kind) => [kind, {
+var implementations = Object.fromEntries(["flowchart", "stateDiagram-v2"].map((kind) => [kind, {
 	optionMode: "raw",
 	parse: (body, info) => parseGraph(body, info),
 	layout: (model, options, info) => layoutGraph(model, options, info),

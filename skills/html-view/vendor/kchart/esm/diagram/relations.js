@@ -13,7 +13,6 @@ var TYPES = [
 	"C4Component",
 	"C4Dynamic",
 	"C4Deployment",
-	"architecture-beta",
 	"zenuml"
 ];
 var MAX = {

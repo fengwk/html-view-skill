@@ -1,9 +1,11 @@
 import { __exportAll } from "../_virtual/_rolldown/runtime.js";
-import { error, labelText, warning } from "./support.js";
-import { statusMarks } from "../core/theme.js";
+import { error, warning } from "./support.js";
+import { presentation } from "./presentation.js";
+import { normalizeLabel } from "./label.js";
+import { resolveIconRef } from "../core/icons.js";
 import { validate } from "../chart/spec.js";
 import { layout as layout$1 } from "../chart/registry.js";
-import "../chart/mindmap.js";
+import { mindmapPresentation } from "../chart/mindmap.js";
 // src/diagram/mindmap.js
 var mindmap_exports = /* @__PURE__ */ __exportAll({ implementations: () => implementations });
 var LAYOUTS = [
@@ -22,7 +24,6 @@ var LAYOUT_ALIASES = /* @__PURE__ */ new Set([
 	"elk",
 	"cose-bilkent"
 ]);
-var STATUSES = new Set(Object.keys(statusMarks));
 var SHAPE_FORMS = [
 	[
 		"((",
@@ -68,7 +69,7 @@ var SHAPE_FORMS = [
 var BRACKETS = /[()[\]{}]|-\)|\(-/;
 var unquote = (value) => value.length > 1 && value.startsWith("\"") && value.endsWith("\"") ? value.slice(1, -1) : value;
 function parseNodeText(raw) {
-	const value = labelText(raw).trim();
+	const value = raw.trim();
 	const start = value.search(BRACKETS);
 	if (start < 0) return {
 		label: unquote(value).trim(),
@@ -113,18 +114,36 @@ function parse(body, info = {}) {
 		errors.push(error(lang, line, zh, en, fixZh, fixEn, column));
 	};
 	const lines = String(body ?? "").split("\n");
+	const look = presentation({ lang }), assets = /* @__PURE__ */ new Set(), identifiers = /* @__PURE__ */ new Map();
+	const addAsset = (diagnostic) => {
+		if (!assets.has(diagnostic.message)) {
+			assets.add(diagnostic.message);
+			errors.push(diagnostic);
+		}
+	};
 	const decorationByLine = /* @__PURE__ */ new Map();
 	let previousNodeLine = -1;
 	for (let i = 0; i < lines.length; i += 1) {
 		const trimmed = lines[i].trim();
 		if (!trimmed || trimmed.startsWith("%%")) continue;
-		if (trimmed.startsWith(":::")) {
-			const status = /^:::([\w-]+)$/.exec(trimmed)?.[1];
+		if (look.accept(trimmed, firstLine + i)) {
 			lines[i] = "";
-			if (previousNodeLine < 0) addError(firstLine + i, "状态标记前缺少节点", "A status marker must follow a node");
-			else if (!status || !STATUSES.has(status)) addError(firstLine + i, `不支持状态标记「${trimmed}」`, `Unsupported status marker: ${trimmed}`, "只使用 :::new、:::info、:::ok、:::warn、:::danger 或 :::ext", "Use :::new, :::info, :::ok, :::warn, :::danger, or :::ext");
-			else if (decorationByLine.has(previousNodeLine)) addError(firstLine + i, "一个节点只能有一个状态标记", "A node can have only one status marker");
-			else decorationByLine.set(previousNodeLine, status);
+			continue;
+		}
+		if (/^(?::::|::icon\b)/i.test(trimmed)) {
+			lines[i] = "";
+			const classes = /^:::\s*([\w-]+(?:\s+[\w-]+)*)$/.exec(trimmed)?.[1];
+			const ref = /^::icon\(\s*([^()]+?)\s*\)$/i.exec(trimmed)?.[1];
+			if (previousNodeLine < 0 || !classes && !ref) addError(firstLine + i, "脑图装饰无效或前面缺少节点", "Malformed mindmap decoration or missing preceding node");
+			else {
+				const decoration = decorationByLine.get(previousNodeLine) || { classes: [] };
+				if (classes) decoration.classes.push(...classes.split(/\s+/));
+				if (ref) {
+					decoration.icon = resolveIconRef(ref);
+					if (!decoration.icon) addAsset(warning("IGNORED_ASSET", lang, firstLine + i, `未知图标 ${ref}`, `Unknown icon ${ref}`, "改用内置图标", "Use a supported icon"));
+				}
+				decorationByLine.set(previousNodeLine, decoration);
+			}
 			continue;
 		}
 		previousNodeLine = i;
@@ -136,7 +155,14 @@ function parse(body, info = {}) {
 		while (stack.length && record.indent <= stack.at(-1).indent) stack.pop();
 		const parent = stack.at(-1)?.node ?? null;
 		const depth = stack.length;
-		const { label, shape } = parseNodeText(record.text);
+		const { label: rawLabel, shape } = parseNodeText(record.text);
+		const id = (shape !== "none" ? record.text.split(BRACKETS, 1)[0].trim() : "") || rawLabel;
+		const normalized = normalizeLabel(rawLabel, {
+			lang,
+			line: record.line
+		});
+		normalized.diagnostics.forEach(addAsset);
+		const label = normalized.text || (normalized.icon ? id || " " : "");
 		nodeCount += 1;
 		if (nodeCount === 81) addError(record.line, "脑图最多 80 个节点", "A mindmap can contain at most 80 nodes", "拆分脑图，不要删除节点", "Split the mindmap without dropping nodes");
 		if (depth === 5) addError(record.line, "脑图最多 5 层（含根）", "A mindmap can have at most five levels including the root", "把节点移到更浅层，或拆分脑图", "Move the node up or split the mindmap");
@@ -147,8 +173,12 @@ function parse(body, info = {}) {
 			children: []
 		};
 		if (shape) node.shape = shape;
-		const status = decorationByLine.get(record.line - firstLine);
-		if (status) node.status = status;
+		const decoration = decorationByLine.get(record.line - firstLine);
+		if (decoration?.classes.length) look.addClasses(id, decoration.classes, record.line);
+		identifiers.set(node, {
+			id,
+			icon: decoration?.icon || normalized.icon
+		});
 		const sibling = parent ? parent.children.length : roots.length;
 		linesByPath.set(parent ? `${stack.at(-1).path}/children/${sibling}` : `/roots/${sibling}`, record.line);
 		const path = parent ? `${stack.at(-1).path}/children/${sibling}` : `/roots/${sibling}`;
@@ -164,7 +194,7 @@ function parse(body, info = {}) {
 		});
 	}
 	if (!roots.length) addError(firstLine, "脑图中没有节点", "Mindmap is empty", "保留一个根节点并将其他节点缩进到它下面", "Keep one root node and indent all other nodes beneath it");
-	const layoutValue = typeof info.layout === "string" ? info.layout : info.layout?.config?.layout ?? info.layout?.layout;
+	const layoutValue = info.config?.layout ?? info.config?.mindmap?.layoutAlgorithm ?? (typeof info.layout === "string" ? info.layout : info.layout?.config?.layout ?? info.layout?.layout);
 	let layout = "bilateral";
 	if (layoutValue != null && layoutValue !== "") {
 		const candidate = String(layoutValue).toLowerCase();
@@ -175,10 +205,20 @@ function parse(body, info = {}) {
 	for (const key of Object.keys(info.options || {})) addError(headerLine, `脑图头行不支持选项「${key}」`, `Mindmap header option is unsupported: ${key}`, "移除头行选项，使用 config.layout 指定布局", "Remove the header option; use config.layout to choose a layout");
 	const data = roots[0] || { label: "" };
 	if (linesByPath.has("/roots/0")) linesByPath.set("/data", linesByPath.get("/roots/0"));
+	errors.push(...look.diagnostics());
+	for (const [node, { id, icon }] of identifiers) {
+		const status = look.statusOf(id);
+		if (status) node.status = status;
+		node[mindmapPresentation] = {
+			icon,
+			link: look.linkOf(id)
+		};
+	}
 	const spec = {
 		chart: "mindmap",
 		data,
-		layout
+		layout,
+		[mindmapPresentation]: true
 	};
 	if (info.title) spec.title = info.title;
 	const checked = validate(spec);
@@ -209,7 +249,8 @@ function layout(model, options = {}) {
 	};
 }
 var implementations = { mindmap: {
-	honoredConfig: ["layout", "mindmap.colorBy"],
+	acceptsPresentation: true,
+	honoredConfig: ["layout", "mindmap.layoutAlgorithm"],
 	parse,
 	layout,
 	scene: (geometry) => geometry.scene

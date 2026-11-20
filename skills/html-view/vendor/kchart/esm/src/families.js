@@ -86,9 +86,14 @@ var families_default = {
 		"stateDiagram-v2": {
 			"topic": "flow",
 			"aliases": ["stateDiagram"]
-		},
-		"erDiagram": { "topic": "data-model" }
+		}
 	} },
+	"diagram/er": { "diagrams": { "erDiagram": { "topic": "data-model" } } },
+	"diagram/agentflow": { "diagrams": { "agentflow-beta": {
+		"syntax": "mermaid",
+		"topic": "flow",
+		"aliases": []
+	} } },
 	"diagram/wardley": { "diagrams": { "wardley-beta": {
 		"syntax": "mermaid",
 		"topic": "architecture",
@@ -138,9 +143,12 @@ var families_default = {
 		"C4Component": { "topic": "architecture" },
 		"C4Dynamic": { "topic": "architecture" },
 		"C4Deployment": { "topic": "architecture" },
-		"architecture-beta": { "topic": "architecture" },
 		"zenuml": { "topic": "sequence" }
 	} },
+	"diagram/architecture": { "diagrams": { "architecture": {
+		"aliases": ["architecture-beta"],
+		"topic": "architecture"
+	} } },
 	"diagram/block": { "diagrams": { "block": {
 		"aliases": ["block-beta"],
 		"topic": "architecture"

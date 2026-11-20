@@ -16,7 +16,7 @@
     "deps": [
       "chart/registry"
     ],
-    "bytes": 15395
+    "bytes": 15822
   },
   "chart/context": {
     "file": "units/chart/context.js",
@@ -55,7 +55,7 @@
       "chart/registry",
       "core/theme"
     ],
-    "bytes": 10771
+    "bytes": 11633
   },
   "chart/multivariate": {
     "file": "units/chart/multivariate.js",
@@ -81,7 +81,7 @@
     "deps": [
       "chart/registry"
     ],
-    "bytes": 20444
+    "bytes": 20675
   },
   "chart/spec": {
     "file": "units/chart/spec.js",
@@ -211,12 +211,40 @@
     ],
     "bytes": 12694
   },
+  "diagram/agentflow": {
+    "file": "units/diagram/agentflow.js",
+    "deps": [
+      "core/icons",
+      "diagram/graph-parse",
+      "diagram/graph-layout",
+      "diagram/graph",
+      "diagram/label",
+      "diagram/presentation",
+      "diagram/shapes",
+      "diagram/source",
+      "diagram/support"
+    ],
+    "bytes": 13957
+  },
+  "diagram/architecture": {
+    "file": "units/diagram/architecture.js",
+    "deps": [
+      "core/icons",
+      "diagram/label",
+      "diagram/presentation",
+      "diagram/support"
+    ],
+    "bytes": 14987
+  },
   "diagram/block": {
     "file": "units/diagram/block.js",
     "deps": [
+      "core/icons",
+      "diagram/label",
+      "diagram/presentation",
       "diagram/support"
     ],
-    "bytes": 12805
+    "bytes": 16065
   },
   "diagram/blocks": {
     "file": "units/diagram/blocks.js",
@@ -232,6 +260,18 @@
       "diagram/support"
     ],
     "bytes": 12504
+  },
+  "diagram/er": {
+    "file": "units/diagram/er.js",
+    "deps": [
+      "diagram/support",
+      "diagram/graph-layout",
+      "diagram/label",
+      "diagram/presentation",
+      "core/geometry",
+      "core/icons"
+    ],
+    "bytes": 12144
   },
   "diagram/eventmodeling": {
     "file": "units/diagram/eventmodeling.js",
@@ -278,7 +318,7 @@
       "core/geometry",
       "diagram/shapes"
     ],
-    "bytes": 10135
+    "bytes": 10123
   },
   "diagram/ishikawa": {
     "file": "units/diagram/ishikawa.js",
@@ -313,11 +353,14 @@
     "file": "units/diagram/mindmap.js",
     "deps": [
       "diagram/support",
+      "diagram/presentation",
+      "diagram/label",
+      "core/icons",
       "chart/spec",
       "chart/registry",
       "chart/mindmap"
     ],
-    "bytes": 5169
+    "bytes": 5901
   },
   "diagram/numeric-composition": {
     "file": "units/diagram/numeric-composition.js",
@@ -326,24 +369,28 @@
       "diagram/numeric-model",
       "chart/composition"
     ],
-    "bytes": 923
+    "bytes": 1286
   },
   "diagram/numeric-model": {
     "file": "units/diagram/numeric-model.js",
     "deps": [
       "diagram/support",
+      "diagram/label",
       "chart/spec",
       "chart/registry",
       "core/diagnostics"
     ],
-    "bytes": 1541
+    "bytes": 1975
   },
   "diagram/numeric-parse": {
     "file": "units/diagram/numeric-parse.js",
     "deps": [
-      "diagram/support"
+      "diagram/support",
+      "diagram/presentation",
+      "diagram/numeric-model",
+      "chart/composition"
     ],
-    "bytes": 4499
+    "bytes": 5914
   },
   "diagram/numeric-radar": {
     "file": "units/diagram/numeric-radar.js",
@@ -352,16 +399,17 @@
       "diagram/numeric-model",
       "chart/multivariate"
     ],
-    "bytes": 9353
+    "bytes": 9436
   },
   "diagram/numeric-sankey": {
     "file": "units/diagram/numeric-sankey.js",
     "deps": [
       "diagram/support",
       "diagram/numeric-model",
+      "diagram/presentation",
       "chart/relations"
     ],
-    "bytes": 4193
+    "bytes": 4581
   },
   "diagram/numeric-xy": {
     "file": "units/diagram/numeric-xy.js",
@@ -371,7 +419,7 @@
       "chart/basic",
       "chart/multivariate"
     ],
-    "bytes": 11559
+    "bytes": 11776
   },
   "diagram/presentation": {
     "file": "units/diagram/presentation.js",
@@ -401,7 +449,7 @@
       "diagram/graph-layout",
       "core/geometry"
     ],
-    "bytes": 20746
+    "bytes": 20726
   },
   "diagram/sequence": {
     "file": "units/diagram/sequence.js",

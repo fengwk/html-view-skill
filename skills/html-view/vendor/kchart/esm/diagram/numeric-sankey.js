@@ -1,7 +1,8 @@
 import { __exportAll } from "../_virtual/_rolldown/runtime.js";
 import { error } from "./support.js";
-import { renderWith, validateWith } from "./numeric-model.js";
-import "../chart/relations.js";
+import { numericLabel, renderWith, validateWith } from "./numeric-model.js";
+import { presentation } from "./presentation.js";
+import { sankeyPresentation } from "../chart/relations.js";
 // src/diagram/numeric-sankey.js
 var numeric_sankey_exports = /* @__PURE__ */ __exportAll({
 	honoredConfig: () => honoredConfig,
@@ -53,11 +54,12 @@ var configFlag = (config, name) => {
 };
 function parseSankey(source, info) {
 	const errors = [], rows = [], nodes = [];
+	const look = presentation({ lang: info.lang });
 	const header = String(info.params || Object.keys(info.options || {}).join(" ")).replace(/\s*:\s*$/, "").trim();
 	if (header) errors.push(issue(info, info.headerLine || info.firstLine, `sankey 不支持头行选项「${header}」`, `sankey does not accept header options: ${header}`, "把配置写在前言区 sankey: 下", "Put options under front matter sankey:"));
 	String(source).split("\n").forEach((raw, index) => {
 		const text = raw.trim(), line = info.firstLine + index;
-		if (!text || text.startsWith("%%")) return;
+		if (!text || text.startsWith("%%") || look.accept(text, line)) return;
 		const cells = csv(text);
 		if (!cells) {
 			errors.push(issue(info, line, "sankey CSV 引号格式错误", "Malformed sankey CSV quoting", "用成对的 \" 包住含逗号的名称，字段内引号写作 \"\"", "Wrap names that contain commas in \" and write inner quotes as \"\""));
@@ -94,13 +96,20 @@ function parseSankey(source, info) {
 			chart: "sankey",
 			nodes: nodes.map((id) => ({
 				id,
-				label: id
+				label: numericLabel(id, info, rows.find((e) => e.source === id || e.target === id)?.line, errors),
+				[sankeyPresentation]: {
+					status: look.statusOf(id),
+					link: look.linkOf(id)
+				}
 			})),
-			edges: rows,
+			edges: rows.map((edge, index) => ({
+				...edge,
+				[sankeyPresentation]: look.edgeStatusOf(index)
+			})),
 			showValues,
 			unit: unitOf(info)
 		},
-		errors
+		errors: [...errors, ...look.diagnostics()]
 	};
 }
 function unitOf(info) {
@@ -115,6 +124,7 @@ function toSpec(model) {
 	return {
 		chart: "sankey",
 		tolerant: true,
+		[sankeyPresentation]: true,
 		data: {
 			nodes: model.nodes,
 			edges: model.edges.map(({ line, ...edge }) => edge)
@@ -148,6 +158,7 @@ var implementations = { sankey: {
 	validate,
 	layout,
 	optionMode: "raw",
+	acceptsPresentation: true,
 	honoredConfig
 } };
 export { honoredConfig, implementations, numeric_sankey_exports };

@@ -1,11 +1,13 @@
 import { __exportAll } from "../_virtual/_rolldown/runtime.js";
-import { error } from "./support.js";
+import { error, warning } from "./support.js";
+import { normalizeLabel } from "./label.js";
 import { validate } from "../chart/spec.js";
 import { layout } from "../chart/registry.js";
 import { ExpectedDiagnostic } from "../core/diagnostics.js";
 // src/diagram/numeric-model.js
 var numeric_model_exports = /* @__PURE__ */ __exportAll({
 	diagnostics: () => diagnostics,
+	numericLabel: () => numericLabel,
 	renderWith: () => renderWith,
 	validateWith: () => validateWith
 });
@@ -78,4 +80,13 @@ function renderWith(spec, options, info, lineFor) {
 		};
 	}
 }
-export { diagnostics, numeric_model_exports, renderWith, validateWith };
+function numericLabel(value, info, line, errors) {
+	const { text, icon, diagnostics } = normalizeLabel(value, {
+		lang: info.lang,
+		line
+	});
+	if (icon) diagnostics.push(warning("IGNORED_ASSET", info.lang, line, "数值图标签仅绘制文字，不绘制图标", "Numeric chart labels show text only; icons are omitted", "改用纯文本标签", "Use a text label"));
+	for (const diagnostic of diagnostics) if (!errors.some((e) => e.message === diagnostic.message)) errors.push(diagnostic);
+	return text.trim() || String(value);
+}
+export { diagnostics, numericLabel, numeric_model_exports, renderWith, validateWith };

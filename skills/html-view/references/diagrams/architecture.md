@@ -43,9 +43,9 @@ C4、`architecture-beta`、`block-beta` 共用上限：40 个节点、60 条边�
 
 使用 `Deployment_Node` 表达部署节点与其所含 C4 元素；边界仅支持一层。最多 40 个节点、60 条边、240 行；不支持的语句报错。
 
-## architecture-beta
+## architecture
 
-支持 `group id(icon)[名称]`、`service id(icon)[名称] in groupId`、`junction id` 以及带端口的关系。图标限 `cloud`、`database`、`disk`、`internet`、`server`、`browser`；端口仅 `L`、`R`、`T`、`B`。分组不能嵌套。未登记图标、未知节点或不支持语法会报错；不要把其他 Mermaid 图标名当作可用值。
+也接受 `architecture-beta`。`group id(icon)[名称]` 声明分组（可嵌套，`in 父组`），`service id(icon)[名称] in 组` 声明服务，`junction id` 声明连线交汇点（画成点，不画成框），`a:R --> L:b` 按端口 `L`/`R`/`T`/`B` 连线，`{group}` 后缀可连到分组边界。内置图标 `cloud`、`database`、`disk`、`internet`、`server`；`logos:…`、`mdi:…` 等图标名按内置图标或宿主注册的图标解析，解析不到时画中性服务卡片并给出警告。
 
 ## block
 
@@ -55,4 +55,4 @@ C4、`architecture-beta`、`block-beta` 共用上限：40 个节点、60 条边�
 
 Wardley 地图：`anchor 名称 [可见度, 演化]` 与 `component 名称 [可见度, 演化]` 放置组件，两个坐标都在 0–1 之间且须写小数点（如 `1.0`）；`A -> B` 表示依赖，可用正文 `title`。横轴为演化阶段，纵轴为价值链可见度；标签自动避让，不改变坐标语义。
 
-所有 Mermaid C4、`architecture-beta`、`block`、`wardley-beta` 示例可在源码中写前言区 `title`；关系图正文 `title` 也受支持。阅读文档须提供图题；应在源码写 `title`，而不是依赖图框外的说明。
+所有 Mermaid C4、`architecture`、`block`、`wardley-beta` 示例可在源码中写前言区 `title`；关系图正文 `title` 也受支持。阅读文档须提供图题；应在源码写 `title`，而不是依赖图框外的说明。
