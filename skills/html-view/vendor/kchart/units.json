@@ -4,7 +4,7 @@
     "deps": [
       "chart/registry"
     ],
-    "bytes": 26435
+    "bytes": 28407
   },
   "chart/catalog": {
     "file": "units/chart/catalog.js",
@@ -16,7 +16,7 @@
     "deps": [
       "chart/registry"
     ],
-    "bytes": 15822
+    "bytes": 17121
   },
   "chart/context": {
     "file": "units/chart/context.js",
@@ -344,7 +344,7 @@
       "diagram/graph-route",
       "diagram/shapes"
     ],
-    "bytes": 63806
+    "bytes": 64463
   },
   "diagram/graph-parse": {
     "file": "units/diagram/graph-parse.js",
@@ -355,14 +355,14 @@
       "diagram/label",
       "core/icons"
     ],
-    "bytes": 24314
+    "bytes": 24533
   },
   "diagram/graph-route": {
     "file": "units/diagram/graph-route.js",
     "deps": [
       "diagram/shapes"
     ],
-    "bytes": 5744
+    "bytes": 7918
   },
   "diagram/graph": {
     "file": "units/diagram/graph.js",
@@ -373,7 +373,7 @@
       "core/geometry",
       "diagram/shapes"
     ],
-    "bytes": 11041
+    "bytes": 11487
   },
   "diagram/ishikawa": {
     "file": "units/diagram/ishikawa.js",
@@ -449,7 +449,7 @@
       "diagram/numeric-model",
       "chart/composition"
     ],
-    "bytes": 1286
+    "bytes": 1308
   },
   "diagram/numeric-model": {
     "file": "units/diagram/numeric-model.js",
@@ -470,7 +470,7 @@
       "diagram/numeric-model",
       "chart/composition"
     ],
-    "bytes": 5914
+    "bytes": 5958
   },
   "diagram/numeric-radar": {
     "file": "units/diagram/numeric-radar.js",
@@ -499,7 +499,7 @@
       "chart/basic",
       "chart/multivariate"
     ],
-    "bytes": 11832
+    "bytes": 11905
   },
   "diagram/packet": {
     "file": "units/diagram/packet.js",
@@ -585,12 +585,12 @@
       "diagram/presentation",
       "diagram/support"
     ],
-    "bytes": 26878
+    "bytes": 27268
   },
   "diagram/shapes": {
     "file": "units/diagram/shapes.js",
     "deps": [],
-    "bytes": 5554
+    "bytes": 5628
   },
   "diagram/source": {
     "file": "units/diagram/source.js",

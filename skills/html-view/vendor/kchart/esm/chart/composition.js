@@ -512,7 +512,7 @@ var treeNodes = (root) => {
 };
 function fallbackLegend(children, entries, x, y, width, ctx, kind, format = (value) => ctx.format(value, "value")) {
 	for (const item of entries) {
-		const lines = ctx.wrap(`${item.index}. ${item.label} · ${format(item.value)}`, Math.max(1, width - 28), 12);
+		const lines = ctx.wrap(`${item.index == null ? "" : `${item.index}. `}${item.label} · ${format(item.value)}`, Math.max(1, width - 28), 12);
 		children.push(ctx.rect(x, y - 10, 12, 12, { fill: item.color }), ctx.textLines(x + 18, y, lines, {
 			size: 12,
 			fill: ctx.color("fg")
@@ -530,9 +530,9 @@ function fallbackLegend(children, entries, x, y, width, ctx, kind, format = (val
 	return y;
 }
 function treemap(spec, ctx) {
-	const root = spec.data, width = Math.min(ctx.width - 48, 752), top = 44, tree = treeNodes(root), leaves = tree.filter((x) => !x.children.length);
-	tree[0].value;
+	const root = spec.data, tree = treeNodes(root), leaves = tree.filter((x) => !x.children.length);
 	const diagram = spec[compositionPresentation];
+	let width = Math.min(ctx.width - 48, 752), mapHeight = 242, needWidth = false, needHeight = false;
 	const tones = new Map(leaves.map((leaf, i) => [leaf, `tone${i % 6 + 1}`])), children = [], fallback = [];
 	const statusOf = (entry) => ctx.design[entry.node[compositionPresentation]?.status];
 	const colorOf = (leaf) => statusOf(leaf) || ctx.color(tones.get(leaf));
@@ -557,7 +557,49 @@ function treemap(spec, ctx) {
 			}
 		}));
 		if (!entry.children.length) {
-			if (entry.value > 0 && w > 0 && h > 0) {
+			if (diagram && entry.value > 0) {
+				const index = leaves.indexOf(entry) + 1, label = String(entry.node.label), value = format(entry.value);
+				const tileW = w - 4, tileH = h - 4;
+				const fits = (text) => ctx.measure(text, 12, 600) + 8 <= tileW;
+				if (tileH < 16 || !fits(String(index))) {
+					needHeight ||= tileH < 16;
+					needWidth ||= !fits(String(index));
+					return;
+				}
+				const qualified = [...hidden, label].join(" / ");
+				const name = fits(qualified) ? qualified : label, full = `${name} · ${value}`;
+				const lines = showValues && fits(full) ? [full] : fits(name) ? showValues && tileH >= 34 && fits(value) ? [name, value] : [name] : [String(index)];
+				const indexed = lines[0] === String(index) && !fits(name);
+				const fill = colorOf(entry), ink = ctx.textOn(statusOf(entry) || tones.get(entry));
+				children.push(ctx.rect(x + 2, y + 2, tileW, tileH, {
+					fill,
+					meta: {
+						kind: "node",
+						id: entry.path,
+						path: entry.path,
+						label,
+						value
+					}
+				}));
+				lines.forEach((text, i) => children.push(ctx.text(x + 6, y + 2 + (tileH < 22 ? tileH / 2 + 4 : 15) + i * 15, text, {
+					size: 12,
+					weight: 600,
+					fill: ink,
+					meta: {
+						kind: indexed ? "treemap-tile-index" : "treemap-tile-label",
+						path: entry.path,
+						label,
+						...indexed ? { index } : {}
+					}
+				})));
+				if (indexed || name !== qualified) fallback.push({
+					index: indexed ? index : null,
+					label: qualified,
+					value: entry.value,
+					path: entry.path,
+					color: fill
+				});
+			} else if (!diagram && entry.value > 0 && w > 0 && h > 0) {
 				const i = leaves.indexOf(entry), inset = 2, label = String(entry.node.label), value = format(entry.value);
 				const listed = [...hidden, label].join(" / ");
 				const tileW = Math.max(0, w - 4), tileH = Math.max(0, h - 4);
@@ -611,7 +653,7 @@ function treemap(spec, ctx) {
 			} else if (!entry.children.length) {
 				const i = leaves.indexOf(entry);
 				fallback.push({
-					index: i + 1,
+					index: diagram ? null : i + 1,
 					label: [...hidden, String(entry.node.label)].join(" / "),
 					value: entry.value,
 					path: entry.path,
@@ -645,10 +687,31 @@ function treemap(spec, ctx) {
 			offset += part;
 		});
 	};
-	place(tree[0], 24, top, width, 242, 0);
-	const listEnd = fallbackLegend(children, fallback, 24, 310, Math.min(width, 360), ctx, "treemap-name", format);
-	const height = fallback.length ? listEnd + 8 : 294;
-	return ctx.scene(height, children, spec.title);
+	const rootTotal = () => spec.fields?.value?.unit === "$" && spec.fields.value.decimals === 0 ? `$${new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }).format(tree[0].value)}` : format(tree[0].value);
+	const heading = diagram?.namedRoot ? `${root.label} · ${rootTotal()}` : "";
+	let top;
+	for (let attempt = 0;; attempt += 1) {
+		const rootLines = heading ? ctx.wrap(heading, width, 13, 650) : [];
+		top = 44 + rootLines.length * 18;
+		if (rootLines.length) children.push(ctx.textLines(24, 39, rootLines, {
+			size: 13,
+			weight: 650,
+			leading: 18,
+			fill: ctx.color("fg")
+		}));
+		place(tree[0], 24, top, width, mapHeight, 0);
+		if (!needWidth && !needHeight) break;
+		if (attempt === 6) ctx.fit("矩形树图的最小分块无法容纳编号", "拆分图表或缩小权重差距");
+		if (needWidth) width *= 1.5;
+		if (needHeight) mapHeight *= 1.5;
+		needWidth = needHeight = false;
+		children.length = fallback.length = 0;
+	}
+	const listEnd = fallbackLegend(children, fallback, 24, top + mapHeight + 24, Math.min(width, 360), ctx, "treemap-name", format);
+	const height = fallback.length ? listEnd + 8 : top + mapHeight + 8;
+	const scene = ctx.scene(height, children, spec.title);
+	if (diagram) scene.width = Math.max(scene.width, width + 48);
+	return scene;
 }
 function sunburst(spec, ctx) {
 	const tree = treeNodes(spec.data), root = tree[0], nodes = tree.filter((entry) => entry.depth > 0), fallback = [];

@@ -183,6 +183,7 @@ function parseTreemap(source, info) {
 			titleLine,
 			treeLines,
 			data,
+			namedRoot: roots.length === 1 && data.children.length > 0,
 			valueField,
 			prefix: valueField?.format === "percent" && pattern.startsWith("$") ? "$" : ""
 		},

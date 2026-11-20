@@ -37,7 +37,8 @@ var implementations = {
 		fields: model.valueField ? { value: model.valueField } : void 0,
 		[compositionPresentation]: {
 			showValues: info.config?.treemap?.showValues !== false,
-			prefix: model.prefix
+			prefix: model.prefix,
+			namedRoot: model.namedRoot
 		}
 	}), (model, path) => {
 		if (path === "/title") return model.titleLine;

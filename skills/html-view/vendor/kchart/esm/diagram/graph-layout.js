@@ -1,6 +1,6 @@
 import { __exportAll } from "../_virtual/_rolldown/runtime.js";
 import { DIRECTIONS, FONT as FONT$1, fallbackMeasure, maxWidthOf, warning, wrapText } from "./support.js";
-import { repairRoutes } from "./graph-route.js";
+import { placeGraphLabels, repairRoutes } from "./graph-route.js";
 import { flowOutlineName, outlinePort, shapeGlyphBox, shapeOutline, shapeSize } from "./shapes.js";
 // src/diagram/graph-layout.js
 var graph_layout_exports = /* @__PURE__ */ __exportAll({ layoutGraph: () => layoutGraph });
@@ -79,7 +79,10 @@ function collapseFrames(model) {
 }
 function layoutGraph(source, options = {}, info = {}) {
 	const geometry = arrangeGraph(source, options, info);
-	if (source.type !== "er") repairRoutes(geometry);
+	if (source.type !== "er") {
+		repairRoutes(geometry);
+		placeGraphLabels(geometry, options.measure ?? fallbackMeasure);
+	}
 	if (source.type !== "er" && (source.nodes.length > 60 || geometry.width > (options.width ?? Infinity) * 2)) geometry.errors = [warning("LARGE_DIAGRAM", options.lang ?? info.lang, info.headerLine ?? 1, "图较大，可在框内滚动", "Large diagram; scroll within the frame", "考虑拆成多张图", "Consider splitting the diagram")];
 	return geometry;
 }
@@ -102,7 +105,7 @@ function arrangeGraph(source, options, info, allowCompact = true) {
 	const projected = /* @__PURE__ */ new Map();
 	for (const frame of [...frames.values()].sort((a, b) => a.depth - b.depth || a.seq - b.seq)) {
 		const wholeBlock = compact && !frame.parent;
-		if (hidden.has(frame.id) || occupied.has(frame.id) && !(wholeBlock || frame.dir || inheritDir || frame.kind === "divider" || childRegions.has(frame.id))) continue;
+		if (hidden.has(frame.id) || occupied.has(frame.id) && !(wholeBlock || frame.dir || inheritDir || frame.kind === "composite" || frame.kind === "divider" || childRegions.has(frame.id))) continue;
 		const members = new Set(occupied.has(frame.id) ? all.filter((item) => isMember(item, frame)).map((item) => item.id) : []);
 		const external = edges.some((edge) => members.has(edge.from) !== members.has(edge.to));
 		if (external && !wholeBlock) continue;
@@ -154,17 +157,43 @@ function arrangeGraph(source, options, info, allowCompact = true) {
 			toFrame: edge.toFrame && !proxy(to)
 		};
 	});
-	const outer = layoutCore({
+	const visible = nodes.filter((item) => !hidden.has(item.id));
+	const proxies = [...blocks.values()].map(({ frame, w, h }) => ({
+		...frame,
+		label: "",
+		block: {
+			w,
+			h
+		},
+		shape: "rect"
+	}));
+	const strip = !visible.length && !outerEdges.length && proxies.every((p) => p.kind === "divider" && !p.parent);
+	const horizontal = model.direction === "TB" || model.direction === "BT";
+	let at = MARGIN;
+	const compartments = strip ? proxies.sort((a, b) => a.seq - b.seq).map(({ id, block: { w, h } }) => {
+		const item = {
+			id,
+			x: horizontal ? at : MARGIN,
+			y: horizontal ? MARGIN : at,
+			w,
+			h
+		};
+		at += (horizontal ? w : h) + MARGIN;
+		return item;
+	}) : [];
+	const outer = strip ? {
+		type: model.type,
+		direction: model.direction,
+		edges: [],
+		frames: [],
+		labels: [],
+		ranks: [],
+		nodes: compartments,
+		width: horizontal ? at : Math.max(...compartments.map((p) => p.w)) + 32,
+		height: horizontal ? Math.max(...compartments.map((p) => p.h)) + 32 : at
+	} : layoutCore({
 		...model,
-		nodes: [...nodes.filter((item) => !hidden.has(item.id)), ...[...blocks.values()].map(({ frame, w, h }) => ({
-			...frame,
-			label: "",
-			block: {
-				w,
-				h
-			},
-			shape: "rect"
-		}))],
+		nodes: [...visible, ...proxies],
 		subgraphs: model.subgraphs.filter((frame) => !hidden.has(frame.id) && !proxy(frame.id)),
 		edges: outerEdges
 	}, options);
@@ -265,7 +294,8 @@ function layoutCore(model, { measure = fallbackMeasure, lang, ctx, renderOptions
 	}
 	const measureNode = (node) => {
 		const flowShape = model.type === "flowchart" && flowOutlineName(node.shape);
-		const titleText = !(flowShape && shapeGlyphBox(flowShape, 1, 1, direction)) || node.explicitLabel || node.label !== node.id ? markOf(node.class) + (node.label ?? node.id) : "";
+		const glyph = flowShape && shapeGlyphBox(flowShape, 1, 1, direction);
+		const titleText = !glyph || node.explicitLabel || node.label !== node.id ? (model.mermaid ? "" : markOf(node.class)) + (node.label ?? node.id) : "";
 		const titleLines = !titleText ? [] : wrapText(titleText, node.kind === "er" ? 180 : 200, FONT.title, measure);
 		const descLines = [];
 		for (const desc of node.desc || []) descLines.push(...wrapText(desc, 200, FONT.body, measure));
@@ -322,9 +352,12 @@ function layoutCore(model, { measure = fallbackMeasure, lang, ctx, renderOptions
 			const descW = maxWidthOf(descLines, FONT.body, measure);
 			tw = Math.max(64, Math.max(titleW, descW) + 28);
 			th = 20 + titleLines.length * 19 + (descLines.length ? 5 + descLines.length * 17 : 0);
-			th = Math.max(40, th) + (node.kind === "collapsed" ? 20 : 0) + (node.icon ? 24 : 0);
-			if (flowShape) [tw, th] = shapeSize(flowShape, tw, th, direction, titleLines.length > 0);
-			else if (node.shape === "diamond") {
+			th = Math.max(40, th) + (node.kind === "collapsed" ? 20 : 0) + (node.icon ? (node.iconHeight ?? 16) + 8 : 0);
+			if (node.icon && node.iconHeight) tw = Math.max(tw, node.iconHeight + 28);
+			if (flowShape) {
+				[tw, th] = shapeSize(flowShape, tw, th, direction, titleLines.length > 0);
+				if (glyph && titleLines.length) th = Math.max(th, titleLines.length * 19 + 12);
+			} else if (node.shape === "diamond") {
 				tw *= 1.7;
 				th *= 1.7;
 			} else if (node.shape === "circle") {
@@ -1506,6 +1539,7 @@ function layoutCore(model, { measure = fallbackMeasure, lang, ctx, renderOptions
 		const shapeOf = (item) => {
 			const node = item.node || {};
 			if (node.kind === "choice") return "diamond";
+			if (node.kind === "note") return "flow:note";
 			if (node.kind === "start" || node.kind === "end") return "circle";
 			const flowShape = model.type === "flowchart" && flowOutlineName(node.shape);
 			return flowShape ? `flow:${flowShape}` : node.shape || "rect";

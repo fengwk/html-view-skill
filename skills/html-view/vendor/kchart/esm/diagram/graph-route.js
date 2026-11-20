@@ -1,9 +1,10 @@
 import { __exportAll } from "../_virtual/_rolldown/runtime.js";
-import { flowOutlineName, outlinePort, shapeOutline } from "./shapes.js";
+import { flowOutlineName, outlinePort, shapeGlyphBox, shapeOutline } from "./shapes.js";
 // src/diagram/graph-route.js
 var graph_route_exports = /* @__PURE__ */ __exportAll({
 	TRACK_CLEAR: () => 8,
 	TRACK_GAP: () => 12,
+	placeGraphLabels: () => placeGraphLabels,
 	repairRoutes: () => repairRoutes
 });
 var TRACK_GAP = 12;
@@ -79,16 +80,22 @@ function sharesRun(a, b, p, q, gap = 1, span = 4) {
 	const axis = same(a.x, b.x) && same(p.x, q.x) && Math.abs(a.x - p.x) < gap - .001 ? "y" : same(a.y, b.y) && same(p.y, q.y) && Math.abs(a.y - p.y) < gap - .001 ? "x" : null;
 	return axis && Math.min(Math.max(a[axis], b[axis]), Math.max(p[axis], q[axis])) - Math.max(Math.min(a[axis], b[axis]), Math.min(p[axis], q[axis])) > span;
 }
-function shortest(from, to, obstacles, occupied, type, bounds, label, original, back) {
+function crosses(a, b) {
+	const side = (p, q, r) => (q.x - p.x) * (r.y - p.y) - (q.y - p.y) * (r.x - p.x);
+	return side(a.p0, a.p1, b.p0) * side(a.p0, a.p1, b.p1) < -1e-6 && side(b.p0, b.p1, a.p0) * side(b.p0, b.p1, a.p1) < -1e-6;
+}
+function shortest(from, to, obstacles, occupied, type, bounds, label, original, back, frameSides, arrivals) {
 	let best = null, score = Infinity;
 	const candidates = (a, b, key, span) => {
 		const midpoint = (a[key] + b[key]) / 2;
+		const frameTracks = frameSides.filter(({ p0, p1 }) => p0[key] === p1[key]).flatMap(({ p0 }) => [p0[key] - 8, p0[key] + 8]);
 		const tracks = back ? occupied.filter(({ p0, p1 }) => Math.abs(p0[key] - p1[key]) < .01).flatMap(({ p0 }) => [p0[key] - 12, p0[key] + 12]) : [];
 		return [.../* @__PURE__ */ new Set([
 			midpoint,
 			6,
 			bounds[span] - 6,
 			...tracks,
+			...frameTracks,
 			...obstacles.flatMap((r) => [r[key] - 1, r[key] + r[span] + 1])
 		])].filter((x) => x >= 4 && x <= bounds[span] - 4).sort((x, y) => Math.abs(x - midpoint) - Math.abs(y - midpoint) || x - y).slice(0, 28);
 	};
@@ -97,6 +104,7 @@ function shortest(from, to, obstacles, occupied, type, bounds, label, original, 
 		const { port: fromPort, stub: a } = attachment(from, source, type, startOffset);
 		const { port: toPort, stub: b } = attachment(to, target, type, endOffset);
 		if (!clear(fromPort, a) || !clear(b, toPort)) return;
+		if (arrivals.some((edge) => distance(edge.end, toPort) < 8)) return;
 		if (distance(fromPort, a) + distance(a, b) + distance(b, toPort) >= score) return;
 		const validate = (mids) => {
 			const points = [
@@ -118,7 +126,10 @@ function shortest(from, to, obstacles, occupied, type, bounds, label, original, 
 			const cost = length + (compact.length - 2) * 16;
 			if (cost >= score) return;
 			const segments = compact.slice(1).map((p, i) => straight(compact[i], p));
-			if (segments.some(({ p0, p1 }) => occupied.some((seg) => sharesRun(p0, p1, seg.p0, seg.p1, back ? 12 : 1, back ? 8 : 4)))) return;
+			if (segments.some(({ p0, p1 }) => occupied.some((seg) => sharesRun(p0, p1, seg.p0, seg.p1, back ? 12 : 1, back ? 8 : 4)) || frameSides.some((seg) => sharesRun(p0, p1, seg.p0, seg.p1, 8, 12)) || arrivals.some((edge) => edge.segments.some((seg) => crosses({
+				p0,
+				p1
+			}, seg) || sharesRun(p0, p1, seg.p0, seg.p1, 8, 8))))) return;
 			let labelRect = label;
 			if (label) {
 				const box = (p) => ({
@@ -298,6 +309,7 @@ function repairRoutes(geometry, redirects = /* @__PURE__ */ new Map()) {
 	const coordinate = (p) => direction === "LR" ? p.x : direction === "RL" ? -p.x : direction === "BT" ? -p.y : p.y;
 	const back = (e) => e.reversed || e.start && e.end && coordinate(e.start) > coordinate(e.end) + 1;
 	const ordered = [...geometry.edges].sort((a, b) => Number(!!back(a)) - Number(!!back(b)));
+	const frameSides = [...frames.values()].flatMap(borders);
 	const nodeBorders = new Map([...nodes.values()].map((node) => [node.id, borders(node)]));
 	for (const edge of ordered) {
 		if (edge.style === "invisible" || edge.self || !edge.segments?.length) continue;
@@ -312,8 +324,9 @@ function repairRoutes(geometry, redirects = /* @__PURE__ */ new Map()) {
 		const tight = [...boxes.map((r) => expand(r, 1.5)), ...titles];
 		const occupiedOf = () => geometry.edges.filter((other) => other !== edge && other.style !== "invisible" && !pending.has(other.id)).flatMap((other) => other.segments);
 		const occupied = isBack ? occupiedOf() : null;
+		const arrivals = to.kind === "end" ? geometry.edges.filter((other) => other !== edge && other.to === to.id && other.end && (distance(other.start, other.end) > distance(edge.start, edge.end) || distance(other.start, other.end) === distance(edge.start, edge.end) && other.id < edge.id)) : [];
 		const hugs = (seg, box) => nodeBorders.get(box.id)?.some((side) => sharesRun(seg.p0, seg.p1, side.p0, side.p1, 8, 8));
-		let collision = !!redirect || edge.segments.some((seg) => boxes.some((box) => !box.frame && hugs(seg, box)) || occupied?.some((other) => sharesRun(seg.p0, seg.p1, other.p0, other.p1, 12, 8)));
+		let collision = !!redirect || edge.segments.some((seg) => boxes.some((box) => !box.frame && hugs(seg, box)) || occupied?.some((other) => sharesRun(seg.p0, seg.p1, other.p0, other.p1, 12, 8)) || frameSides.some((side) => sharesRun(seg.p0, seg.p1, side.p0, side.p1, 8, 12)) || arrivals.some((other) => other.segments.some((run) => crosses(seg, run) || sharesRun(seg.p0, seg.p1, run.p0, run.p1, 8, 8))));
 		if (!collision) for (const seg of edge.segments) {
 			let prev = seg.p0;
 			for (let i = 1; i <= 5; i++) {
@@ -346,7 +359,7 @@ function repairRoutes(geometry, redirects = /* @__PURE__ */ new Map()) {
 		], occupied ?? occupiedOf(), geometry.type, {
 			w: geometry.width,
 			h: geometry.height
-		}, edge.labelRect, !redirect, isBack);
+		}, edge.labelRect, !redirect, isBack, frameSides, arrivals);
 		if (replacement) {
 			pending.delete(edge.id);
 			Object.assign(edge, replacement, {
@@ -360,4 +373,78 @@ function repairRoutes(geometry, redirects = /* @__PURE__ */ new Map()) {
 	}
 	return geometry;
 }
-export { TRACK_CLEAR, TRACK_GAP, graph_route_exports, repairRoutes };
+function placeGraphLabels(geometry, measure) {
+	const { nodes, frames, edges, width, height } = geometry;
+	const titles = frames.map((f) => f.titleRect).filter((r) => r?.w && r.h);
+	const paths = edges.map((edge) => edge.style === "invisible" ? [] : edge.segments.flatMap((seg) => {
+		if (["x", "y"].some((key) => [
+			seg.c1,
+			seg.c2,
+			seg.p1
+		].every((p) => Math.abs(p[key] - seg.p0[key]) < 1e-8))) return [seg];
+		return Array.from({ length: 12 }, (_, i) => straight(curvePoint(seg, i / 12), curvePoint(seg, (i + 1) / 12)));
+	}));
+	const pathHits = (path, box) => path.some((seg) => hits(seg.p0, seg.p1, box));
+	const fits = (box) => box.x >= 0 && box.y >= 0 && box.x + box.w <= width && box.y + box.h <= height;
+	edges.forEach((edge, index) => {
+		const r = edge.labelRect;
+		if (!r || !paths[index].length) return;
+		const center = {
+			x: r.x + r.w / 2,
+			y: r.y + r.h / 2
+		};
+		const blockers = [
+			...nodes,
+			...titles,
+			...edges.flatMap((e) => e !== edge && e.labelRect ? [e.labelRect] : [])
+		];
+		let best = null, score = Infinity;
+		for (const { p0, p1 } of paths[index]) {
+			const dx = p1.x - p0.x, dy = p1.y - p0.y;
+			const len = Math.hypot(dx, dy);
+			if (!len) continue;
+			const t = Math.min(1, Math.max(0, ((center.x - p0.x) * dx + (center.y - p0.y) * dy) / (len * len)));
+			const steps = Math.min(128, Math.ceil(len / 5));
+			for (const at of [t, ...Array.from({ length: steps }, (_, i) => (i + .5) / steps)]) {
+				const p = {
+					x: p0.x + dx * at,
+					y: p0.y + dy * at
+				};
+				const cost = Math.hypot(p.x - center.x, p.y - center.y);
+				if (cost >= score) continue;
+				const box = {
+					...r,
+					x: p.x - r.w / 2,
+					y: p.y - r.h / 2
+				};
+				if (!fits(box) || blockers.some((b) => overlaps(box, b)) || paths.some((path, j) => j !== index && pathHits(path, box))) continue;
+				best = box;
+				score = cost;
+			}
+		}
+		if (best) {
+			edge.labelRect = best;
+			const label = geometry.labels.find((label) => label.edge === edge.id);
+			if (label) Object.assign(label, best);
+		}
+	});
+	if (geometry.type !== "flowchart") return;
+	for (const n of nodes) {
+		const glyph = shapeGlyphBox(flowOutlineName(n.shape), n.w, n.h, n.direction);
+		if (!glyph || !n.lines.length) continue;
+		const w = Math.max(...n.lines.map((value) => measure(value, {
+			size: 14,
+			weight: 600
+		})));
+		const h = n.lines.length * 19;
+		const rect = (x) => ({
+			x,
+			y: n.y + (n.h - h) / 2,
+			w,
+			h
+		});
+		const blocked = (box) => !fits(box) || paths.some((path) => pathHits(path, expand(box, 2))) || nodes.some((other) => other !== n && overlaps(box, other)) || edges.some((e) => e.labelRect && overlaps(box, e.labelRect));
+		n.glyphLabelLeft = blocked(rect(n.x + glyph.x + glyph.w + 8)) && !blocked(rect(n.x + glyph.x - 8 - w));
+	}
+}
+export { TRACK_CLEAR, TRACK_GAP, graph_route_exports, placeGraphLabels, repairRoutes };

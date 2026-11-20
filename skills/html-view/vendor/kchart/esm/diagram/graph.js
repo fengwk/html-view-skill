@@ -195,7 +195,15 @@ function drawFlowShape(ctx, name, { x, y, w, h, direction }, common, a) {
 		if (name === "lin-cyl") detail(`M${at(0, .19)} A${w / 2} ${h * .12} 0 0 0 ${at(1, .19)}`);
 	}
 	if (name === "h-cyl") detail(`M${at(.12, 0)} A${w * .12} ${h / 2} 0 0 1 ${at(.12, 1)}`);
-	if (name === "tag-rect" || name === "tag-doc") detail(line(.75, 0, 1, .24) + line(.75, 0, .75, .24) + line(.75, .24, 1, .24));
+	if (name === "tag-rect" || name === "tag-doc") {
+		const d = Math.min(14, h * .24), base = name === "tag-doc" ? .9 : 1;
+		const start = 1 - d / w;
+		detail(line(start, name === "tag-doc" ? base + .09 * Math.sin(start * 2 * Math.PI) : base, 1, base - d / h));
+	}
+	if (name === "note") {
+		const fold = Math.min(12, w / 3, h / 3);
+		detail(`M${x + w - fold} ${y} v${fold} h${fold}`);
+	}
 	if (name === "docs" || name === "st-rect") {
 		const bottom = (name === "docs" ? .9 : 1) * (h - 10);
 		for (const i of [1, 2]) {
@@ -228,11 +236,10 @@ function drawShape(ctx, item, n, a) {
 	};
 	const flowShape = item.flowchart && flowOutlineName(node.shape);
 	if (flowShape) return drawFlowShape(ctx, flowShape, n, common, a);
-	if (node.kind === "note") return [ctx.rect(x, y, w, h, {
+	if (node.kind === "note") return drawFlowShape(ctx, "note", n, {
 		...common,
-		fill: ctx.mix(a.node, a.warn, a.soft),
-		rx: 3
-	})];
+		fill: ctx.mix(a.node, a.warn, a.soft)
+	}, a);
 	if (node.kind === "start") return [ctx.circle(x + w / 2, y + h / 2, Math.min(w, h) / 2, {
 		fill: a.fg2,
 		stroke: "none"
@@ -300,8 +307,8 @@ function drawShape(ctx, item, n, a) {
 		"stroke-width": 1.25
 	})];
 }
-function drawIcon(ctx, icon, x, y, color) {
-	const [left, top, w, h] = icon.viewBox.split(/\s+/).map(Number), scale = 16 / Math.max(w, h);
+function drawIcon(ctx, icon, x, y, color, size = 16) {
+	const [left, top, w, h] = icon.viewBox.split(/\s+/).map(Number), scale = size / Math.max(w, h);
 	return ctx.el("g", { transform: `translate(${x - (left + w / 2) * scale} ${y - (top + h / 2) * scale}) scale(${scale})` }, icon.elements.map(({ tag, attrs }) => ctx.shape(tag, {
 		...attrs,
 		...icon.set === "simple" ? { fill: color } : {
@@ -383,11 +390,25 @@ function drawNode(ctx, item, n, a) {
 	const collapsed = node.kind === "collapsed";
 	const flowShape = item.flowchart && flowOutlineName(node.shape);
 	const glyph = flowShape && shapeGlyphBox(flowShape, n.w, n.h, n.direction);
-	const iconH = node.icon ? 24 : 0;
+	const iconSize = node.iconHeight ?? 16;
+	const iconH = node.icon ? iconSize + 8 : 0;
 	const aboveIcon = node.iconPosition === "t" && titleH > 0;
-	const top = glyph ? n.y + glyph.y - titleH - 6 : n.y + Math.max(10, (n.h - titleH - gap - descH - (collapsed ? 20 : 0) - iconH) / 2) + (aboveIcon ? 0 : iconH);
-	if (node.icon) children.push(drawIcon(ctx, node.icon, n.x + n.w / 2, aboveIcon ? top + titleH + 12 : top - 12, a.fg3));
-	const textX = glyph ? n.x + glyph.x + glyph.w + 8 : n.x + n.w / 2;
+	const top = glyph ? n.y + (n.h - titleH) / 2 : n.y + Math.max(10, (n.h - titleH - gap - descH - (collapsed ? 20 : 0) - iconH) / 2) + (aboveIcon ? 0 : iconH);
+	if (node.icon) {
+		const cx = n.x + n.w / 2, cy = aboveIcon ? top + titleH + iconH / 2 : top - iconH / 2;
+		const tile = {
+			fill: a.surface,
+			stroke: a[node.class] ?? a.line2,
+			"stroke-width": 1
+		};
+		if (node.iconForm === "circle") children.push(ctx.circle(cx, cy, iconH / 2, tile));
+		else if (["square", "rounded"].includes(node.iconForm)) children.push(ctx.rect(cx - iconH / 2, cy - iconH / 2, iconH, iconH, {
+			...tile,
+			rx: node.iconForm === "rounded" ? 8 : 0
+		}));
+		children.push(drawIcon(ctx, node.icon, cx, cy, a.fg3, iconSize));
+	}
+	const textX = glyph ? n.x + glyph.x + (n.glyphLabelLeft ? -8 : glyph.w + 8) : n.x + n.w / 2;
 	if (collapsed) {
 		const y = n.y + n.h - 20;
 		children.push(path(ctx, `M${n.x} ${y} H${n.x + n.w}`, {
@@ -402,7 +423,7 @@ function drawNode(ctx, item, n, a) {
 		]) children.push(ctx.circle(n.x + n.w / 2 + dx, y + 10, 1.25, { fill: a.fg4 }));
 	}
 	lines.forEach((line, i) => children.push(text(ctx, textX, top + i * 19 + 9.5, line, {
-		anchor: glyph ? "start" : "middle",
+		anchor: glyph ? n.glyphLabelLeft ? "end" : "start" : "middle",
 		size: FONT.title.size,
 		weight: node.kind === "note" ? FONT.body.weight : FONT.title.weight,
 		fill: a.fg1

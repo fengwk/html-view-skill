@@ -1,7 +1,7 @@
 import { __exportAll } from "../_virtual/_rolldown/runtime.js";
 import { error, warning } from "./support.js";
 import { numericLabel, renderWith, validateWith } from "./numeric-model.js";
-import "../chart/basic.js";
+import { diagramLine } from "../chart/basic.js";
 import { diagramCombo } from "../chart/multivariate.js";
 // src/diagram/numeric-xy.js
 var numeric_xy_exports = /* @__PURE__ */ __exportAll({ implementations: () => implementations });
@@ -326,6 +326,7 @@ function specOf(model, info) {
 	}));
 	return {
 		chart: model.chart,
+		...model.chart === "line" ? { [diagramLine]: true } : {},
 		...model.title ? { title: model.title } : {},
 		...subtitle ? { subtitle } : {},
 		data,

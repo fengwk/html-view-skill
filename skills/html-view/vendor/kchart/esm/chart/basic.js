@@ -1,7 +1,10 @@
 import { __exportAll } from "../_virtual/_rolldown/runtime.js";
 import { register } from "./registry.js";
 // src/chart/basic.js
-var basic_exports = /* @__PURE__ */ __exportAll({ install: () => install });
+var basic_exports = /* @__PURE__ */ __exportAll({
+	diagramLine: () => diagramLine,
+	install: () => install
+});
 var segmentsOf = (values) => {
 	const segments = [];
 	let current = null;
@@ -197,6 +200,72 @@ var shareSegmentPath = (x, y, width, height, roundLeft, roundRight) => {
 	const left = roundLeft ? radius : 0, right = roundRight ? radius : 0;
 	return `M${x + left},${y} H${x + width - right}${roundRight ? ` Q${x + width},${y} ${x + width},${y + right}` : ""} V${y + height - right}${roundRight ? ` Q${x + width},${y + height} ${x + width - right},${y + height}` : ""} H${x + left}${roundLeft ? ` Q${x},${y + height} ${x},${y + height - left}` : ""} V${y + left}${roundLeft ? ` Q${x},${y} ${x + left},${y}` : ""} Z`;
 };
+var diagramLine = Symbol("diagram line");
+function placePointLabels(ctx, children, plot, segments, labels) {
+	const edges = segments.flatMap((points) => points.slice(1).map((point, i) => [points[i], point]));
+	const points = segments.flat(), occupied = [], leaders = [];
+	const clamp = (n, min, max) => Math.max(min, Math.min(max, n));
+	const intersects = (box, [a, b]) => {
+		const [[ax, ay], [bx, by]] = a[0] <= b[0] ? [a, b] : [b, a];
+		if (bx < box.left || ax > box.right) return false;
+		if (ax === bx) return Math.max(ay, by) >= box.top && Math.min(ay, by) <= box.bottom;
+		const at = (x) => ay + (by - ay) * (x - ax) / (bx - ax);
+		const lo = at(Math.max(ax, box.left)), hi = at(Math.min(bx, box.right));
+		return Math.max(lo, hi) >= box.top && Math.min(lo, hi) <= box.bottom;
+	};
+	for (const { x, y, text, weight, fill, meta } of labels) {
+		const w = ctx.measure(text, 12, weight) + 6, h = 18;
+		const candidates = [];
+		for (const gap of [
+			6,
+			12,
+			22,
+			34,
+			50,
+			72
+		]) for (const dx of [
+			-1,
+			0,
+			1
+		]) for (const dy of [
+			-1,
+			0,
+			1
+		]) {
+			if (!dx && !dy) continue;
+			const left = clamp(x - w / 2 + dx * (w / 2 + gap), plot.left + 1, plot.right - w - 1);
+			const top = clamp(y - h / 2 + dy * (h / 2 + gap), plot.top + 1, plot.bottom - h - 1);
+			const right = left + w, bottom = top + h;
+			const ex = clamp(x, left, right), ey = clamp(y, top, bottom), distance = Math.hypot(x - ex, y - ey);
+			const leader = distance > 12 ? [[x + (ex - x) * 5 / distance, y + (ey - y) * 5 / distance], [ex, ey]] : null;
+			candidates.push({
+				left,
+				top,
+				right,
+				bottom,
+				distance,
+				leader
+			});
+		}
+		candidates.sort((a, b) => a.distance - b.distance);
+		const box = candidates.find((b) => b.right <= plot.right && b.bottom <= plot.bottom && !edges.some((edge) => intersects(b, edge)) && !points.some(([px, py]) => px + 5 > b.left && px - 5 < b.right && py + 5 > b.top && py - 5 < b.bottom) && !leaders.some((leader) => intersects(b, leader)) && !occupied.some((o) => b.left < o.right && b.right > o.left && b.top < o.bottom && b.bottom > o.top || b.leader && intersects(o, b.leader)));
+		if (!box) ctx.fit("折线标签无法在绘图区内放置", "缩短标注或增加图幅", "Cannot fit line labels inside the plot", "Shorten labels or increase chart width");
+		occupied.push(box);
+		if (box.leader) {
+			leaders.push(box.leader);
+			children.push(ctx.line(...box.leader.flat(), {
+				stroke: fill,
+				"stroke-width": 1
+			}));
+		}
+		children.push(ctx.text(box.left + 3, box.top + 13, text, {
+			size: 12,
+			weight,
+			fill,
+			meta
+		}));
+	}
+}
 var lineArea = (spec, ctx) => {
 	const data = ctx.table(spec), isArea = spec.chart === "area", stacked = Boolean(spec.stack);
 	if (stacked && data.series.some((series) => series.values.some((value) => value == null))) ctx.fit("堆叠折线/面积不支持缺失值", "补齐数值后再使用stack，或去掉stack");
@@ -287,7 +356,10 @@ var lineArea = (spec, ctx) => {
 		}
 		return right;
 	};
-	plot.right = neededRight();
+	const diagram = spec[diagramLine];
+	const noteWidth = diagram ? Math.max(0, ...(spec.annotations || []).map((a) => ctx.measure(a.text || "", 12))) : 0;
+	const labelRoom = noteWidth ? (noteWidth + 24) * Math.max(1, categoryCount - 1) + rightLabelWidth : 0;
+	plot.right = diagram ? Math.max(neededRight(), plot.left + labelRoom) : neededRight();
 	const x = (i) => data.categories.length === 1 ? (plot.left + plot.right) / 2 : plot.left + i / (data.categories.length - 1) * (plot.right - plot.left);
 	const seenTickLabels = /* @__PURE__ */ new Set();
 	ticks.ticks.forEach((tick, i) => {
@@ -474,7 +546,8 @@ var lineArea = (spec, ctx) => {
 			});
 		}
 	});
-	(lastReadouts.length && !(spec.variant === "counter" && spec.unit) ? dodgeReadouts(lastReadouts, plot.top + 8, plot.bottom - 8) : []).forEach((group) => {
+	const pointLabels = [];
+	(!diagram && lastReadouts.length && !(spec.variant === "counter" && spec.unit) ? dodgeReadouts(lastReadouts, plot.top + 8, plot.bottom - 8) : []).forEach((group) => {
 		const sample = group.items[0];
 		group.items.forEach(({ series, last, value, label, color }) => {
 			const record = data.rows.find((r) => r[data.categoryField] === data.categories[last.index] && (!spec.encode.series || String(r[spec.encode.series]) === series.id))?.[spec.encode.id] ?? `${last.index}`;
@@ -535,18 +608,29 @@ var lineArea = (spec, ctx) => {
 			const row = data.rows.find((r) => r[spec.encode.id] === a.record);
 			const index = row ? data.categories.indexOf(row[data.categoryField]) : -1;
 			const value = row?.[a.field];
-			if (index >= 0 && value != null) annotationLabels.push({
-				text: a.text,
-				y: y(value) - 4,
-				side: index > data.categories.length / 2 ? "end" : "start",
-				x: x(index),
-				fill: ctx.textColor(isArea ? "fg" : "accent"),
-				meta: {
+			if (index >= 0 && value != null) {
+				const fill = ctx.textColor(isArea ? "fg" : "accent"), meta = {
 					kind: "annotation",
 					record: a.record,
 					label: a.text
-				}
-			});
+				};
+				if (diagram) pointLabels.push({
+					text: a.text,
+					x: x(index),
+					y: y(value),
+					weight: 400,
+					fill,
+					meta
+				});
+				else annotationLabels.push({
+					text: a.text,
+					y: y(value) - 4,
+					side: index > data.categories.length / 2 ? "end" : "start",
+					x: x(index),
+					fill,
+					meta
+				});
+			}
 		}
 		if (a.kind === "rule") {
 			const py = y(a.value);
@@ -566,6 +650,22 @@ var lineArea = (spec, ctx) => {
 			});
 		}
 	});
+	if (diagram) {
+		for (const { last, label, labelColor, value, series } of lastReadouts) pointLabels.push({
+			text: label,
+			x: x(last.index),
+			y: y(value),
+			weight: 700,
+			fill: labelColor,
+			meta: {
+				kind: "value",
+				series: series.id,
+				value,
+				label
+			}
+		});
+		placePointLabels(ctx, layout.children, plot, data.series.flatMap((series) => pointsFor(series.values, x, y)), pointLabels);
+	}
 	placeAnnotationLabels(annotationLabels, plot.top + 4, plot.bottom - 4);
 	annotationLabels.forEach((item, index) => {
 		const anchor = item.side === "end" ? "end" : "start";
@@ -1210,4 +1310,4 @@ function install({ register }) {
 	register("funnel", funnel);
 }
 install({ register });
-export { basic_exports, install };
+export { basic_exports, diagramLine, install };
