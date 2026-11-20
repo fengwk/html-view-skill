@@ -680,46 +680,128 @@ function cardMarkers(ctx, a, edges) {
     filledDiamond: ['M1 7 L7 2 L13 7 L7 12 Z', null],
     arrow: ['M4 3 L13 7 L4 11', 'none'],
     cross: ['M5 3 L13 11 M5 11 L13 3', 'none'],
-    contains: ['M2 3 H10 V11 H2 Z M4 7 H8 M6 5 V9', surface],
   };
   const used = new Map(edges.flatMap(edge => [edge.start, edge.end].filter(Boolean)
     .map(name => [markerId(name, edge.tone), { name, ink: a[edge.tone] || a.fg4 }])));
   return ctx.el('defs', {}, [...used].map(([id, { name, ink }]) => {
     const attrs = { stroke: ink, 'stroke-width': 1.25 };
-    const shape = name === 'circle' ? ctx.circle(7, 7, 5, { ...attrs, fill: surface })
-      : ctx.path(shapes[name][0], { ...attrs, fill: shapes[name][1] ?? ink });
+    const children = name === 'contains' ? [ctx.circle(8, 7, 4, { ...attrs, fill: surface }),
+      ctx.path('M4 7 H12 M8 3 V11', { ...attrs, fill: 'none' })]
+      : name === 'circle' ? [ctx.circle(7, 7, 5, { ...attrs, fill: surface })]
+        : [ctx.path(shapes[name][0], { ...attrs, fill: shapes[name][1] ?? ink })];
     return ctx.el('marker', { id, viewBox: '0 0 14 14', refX: name === 'circle' ? 7 : 13,
-      refY: 7, markerWidth: 14, markerHeight: 14, markerUnits: 'userSpaceOnUse', orient: 'auto-start-reverse' }, [shape]);
+      refY: 7, markerWidth: 14, markerHeight: 14, markerUnits: 'userSpaceOnUse', orient: 'auto-start-reverse' }, children);
   }));
 }
 
-// Reserve each compartment through graph-layout's independently measured description rows.
-// Empty bands need a sizing row too, but no drawn text. The engine measures at 13px,
-// slightly larger than the 12px detail rows, so leave room for that second measurement.
+// An overlong segment with no legal breakpoint stays intact and widens the card or frame.
+function wrapAtSeparators(text, limit, measure, boundary) {
+  return text.split('\n').flatMap(paragraph => {
+    const parts = paragraph.split(boundary);
+    const lines = [];
+    let row = parts.shift();
+    for (const part of parts) {
+      if (row && measure(row + part) > limit) { lines.push(row.trimEnd()); row = part.trimStart(); }
+      else row += part;
+    }
+    return [...lines, row];
+  });
+}
+
+// The shared router exempts endpoint ancestor frames from collision tests. Move only a border
+// that a parallel run hugs, retaining ordinary padding around the route and all existing contents.
+function clearFrameBorders(graph) {
+  const clearance = 8;
+  const parentOf = new Map([...graph.nodes, ...graph.frames].map(item => [item.id, item.parent]));
+  const contains = (frame, id) => {
+    for (let parent = parentOf.get(id); parent; parent = parentOf.get(parent)) if (parent === frame.id) return true;
+    return false;
+  };
+  for (const frame of graph.frames) {
+    const original = { ...frame };
+    for (const edge of graph.edges.filter(edge => contains(frame, edge.from) || contains(frame, edge.to))) for (const { p0, p1, c1, c2 } of edge.segments) {
+      for (const [axis, cross, size, span] of [['x', 'y', 'w', 'h'], ['y', 'x', 'h', 'w']]) {
+        const track = p0[axis];
+        if (![p1, c1, c2].every(p => Math.abs(p[axis] - track) < .1)) continue;
+        const run = Math.min(Math.max(p0[cross], p1[cross]), original[cross] + original[span])
+          - Math.max(Math.min(p0[cross], p1[cross]), original[cross]);
+        if (run < 16) continue;
+        const low = original[axis], high = low + original[size];
+        if (Math.abs(track - low) < clearance) {
+          const extra = Math.max(0, frame[axis] - track + clearance);
+          frame[axis] -= extra; frame[size] += extra;
+        }
+        if (Math.abs(track - high) < clearance) frame[size] = Math.max(frame[size], track + clearance - frame[axis]);
+      }
+    }
+  }
+}
 export function layoutCards(model, { ctx, width, lang, measure = (s, f) => ctx.measure(s, f.size, f.weight) }) {
   const { cards, frames = [], edges, direction } = model;
   const requirements = model.type === 'requirementDiagram';
   const a = appearance(ctx);
   const cardById = new Map(cards.map(card => [card.id, card]));
   const rowsById = new Map();
+  const frameById = new Map(frames.map(frame => [frame.id, frame]));
+  const titleSlots = new Map();
+  const frameHead = new Map(frames.map((frame, frameIndex) => {
+    const title = withIconSlot(frame.label, frame.icon);
+    const titleMeasure = s => s.startsWith(iconSlot) ? 18 + ctx.measure(s.slice(1), 13, 600) : ctx.measure(s, 13, 600);
+    const lines = wrapAtSeparators(title, 332, titleMeasure, /(?<=\.)/u);
+    // Reserve whole preformatted lines without letting the shared character wrapper break them again.
+    const slots = lines.map((line, i) => {
+      if (!line) return '';
+      const token = `\ue000${frameIndex}.${i}\ue001`;
+      titleSlots.set(token, Math.min(199, titleMeasure(line)));
+      return token;
+    });
+    return [frame.id, { lines, slots, w: Math.max(...lines.map(titleMeasure)) }];
+  }));
+  const frameMin = new Map();
+  if (direction === 'TB' || direction === 'BT') {
+    const sized = new Set();
+    for (const card of cards) if (!card.hidden) for (let id = card.parent; id && !sized.has(id); id = frameById.get(id)?.parent) {
+      sized.add(id);
+      const { w } = frameHead.get(id);
+      if (w > 199) frameMin.set(card.id, Math.max(frameMin.get(card.id) || 0, w + 2));
+    }
+  }
   const nodes = cards.map((card, seq) => {
-    const wrap = rows => rows.flatMap(row => ctx.wrap(row.text, 172, FONT.label.size, FONT.label.weight)
-      .map(text => ({ ...row, text })));
+    const wrap = (rows, members = false) => rows.flatMap(row => (members
+      ? wrapAtSeparators(row.text, 328, s => measure(s, FONT.label), /(?<=,)|(?<=[^\s:])(?=\s*:(?!:))/u)
+      : ctx.wrap(row.text, 172, FONT.label.size, FONT.label.weight)).map(text => ({ ...row, text })));
     const [first, ...rest] = card.sections;
     const typeBand = first?.[0]?.role === 'stereotype';
     const annotations = wrap(typeBand ? first : (card.annotations || []).map(row => ({ ...row, text: `«${row.text}»` })));
-    const sections = (typeBand ? rest : card.sections).map(wrap);
-    rowsById.set(card.id, { annotations, sections });
-    const desc = [...(card.icon ? ['·'] : []), ...annotations.map(row => row.text), ...sections.flatMap(rows => rows.length ? rows.map(row => row.text) : ['·'])];
-    return { id: card.id, seq, label: card.title || '\u00a0', desc, parent: card.parent,
-      ...(card.hidden ? { kind: 'start' } : {}) };
+    const sections = (typeBand ? rest : card.sections).map(rows => wrap(rows, !requirements));
+    const label = card.title || '\u00a0';
+    const lines = ctx.wrap(label, 200, FONT.title.size, FONT.title.weight);
+    rowsById.set(card.id, { annotations, sections, lines });
+    const detail = [...annotations, ...sections.flat()];
+    const w = Math.max(64, frameMin.get(card.id) || 0, 28 + Math.max(0, ...lines.map(s => measure(s, FONT.title)),
+      ...detail.map(row => measure(row.text, FONT.body))));
+    const rowCount = annotations.length + Number(Boolean(card.icon)) + sections.reduce((sum, rows) => sum + Math.max(1, rows.length), 0);
+    const h = Math.max(40, 20 + lines.length * 19 + (rowCount ? 5 + rowCount * 17 : 0));
+    return { id: card.id, seq, label, parent: card.parent,
+      ...(card.hidden ? { kind: 'start' } : { block: { w, h } }) };
   });
   const graph = layoutGraph({ type: 'flowchart', direction, nodes,
-    subgraphs: frames.map((frame, seq) => ({ ...frame, seq, title: withIconSlot(frame.label, frame.icon) })),
+    subgraphs: frames.map((frame, seq) => ({ ...frame, seq, title: frameHead.get(frame.id).slots.join('\n') })),
     edges: edges.map((edge, seq) => ({ ...edge, seq, label: withIconSlot(edge.label, edge.icon), style: edge.dashed ? 'dashed' : 'solid',
       startArrow: Boolean(edge.start), endArrow: Boolean(edge.end) })),
-  }, { lang, measure: (s, font) => s.startsWith(iconSlot) ? 18 + measure(s.slice(1), font) : measure(s, font) });
-  const frameById = new Map(frames.map(frame => [frame.id, frame]));
+  }, { lang, measure: (s, font) => titleSlots.get(s) ?? (s.startsWith(iconSlot) ? 18 + measure(s.slice(1), font) : measure(s, font)) });
+  for (const frame of graph.frames) {
+    const head = frameHead.get(frame.id), rect = frame.titleRect;
+    if (!head || !rect) continue;
+    frame.lines = head.lines;
+    rect.w = head.w;
+    frame.w = Math.max(frame.w, rect.x - frame.x + rect.w + 14);
+  }
+  clearFrameBorders(graph);
+  for (const frame of graph.frames) {
+    graph.width = Math.max(graph.width, frame.x + frame.w + 8);
+    graph.height = Math.max(graph.height, frame.y + frame.h + 8);
+  }
   const text = (x, y, value, opts = {}) => ctx.text(x, y, value, { 'dominant-baseline': 'central', fill: a.fg3, ...opts });
   const outlines = [], titles = [], paths = [], boxes = [], labels = [];
   const obstacles = [...graph.nodes, ...graph.frames.map(frame => frame.titleRect).filter(Boolean),
@@ -795,15 +877,20 @@ export function layoutCards(model, { ctx, width, lang, measure = (s, f) => ctx.m
     const card = cardById.get(n.id);
     if (card.hidden) continue;
     const { x, y, w, h } = n;
-    const { annotations, sections } = rowsById.get(n.id);
+    const { annotations, sections, lines } = rowsById.get(n.id);
     const stroke = card.tone ? a[card.tone] : a.line2;
-    const fill = card.tone ? ctx.mix(a.node, stroke, a.soft) : a.node;
+    const fill = card.tone && card.tone !== 'ext' ? ctx.mix(a.node, stroke, a.soft) : a.node;
     const anchor = requirements || card.note ? 'start' : 'middle';
     const tx = anchor === 'start' ? x + 14 : x + w / 2;
-    const header = 20 + (annotations.length + Number(Boolean(card.icon))) * 17 + n.lines.length * 19;
+    const header = 20 + (annotations.length + Number(Boolean(card.icon))) * 17 + lines.length * 19;
     const items = [];
-    items.push(ctx.rect(x, y, w, h, { rx: 7, fill, stroke, meta: { kind: 'node', id: card.id } }));
-    if (sections.length) items.push(ctx.rect(x + 1, y + 1, w - 2, header - 1, { rx: 6, fill: a.line1, 'fill-opacity': .3 }));
+    items.push(ctx.rect(x, y, w, h, { rx: 7, fill, stroke, 'stroke-width': 1.25,
+      'stroke-dasharray': card.tone === 'ext' ? '4 3' : undefined,
+      meta: { kind: 'node', id: card.id, ...(card.tone ? { status: card.tone } : {}) } }));
+    if (sections.length) items.push(ctx.rect(x + 1, y + 1, w - 2, header - 1, {
+      rx: 6, fill: card.tone && card.tone !== 'ext' ? ctx.mix(a.node, stroke, Math.max(.20, a.soft)) : a.line1,
+      'fill-opacity': card.tone && card.tone !== 'ext' ? 1 : .3,
+    }));
     let cursor = y + 10;
     if (card.icon) {
       items.push(drawIcon(ctx, card.icon, tx + (anchor === 'start' ? 7 : 0), cursor + 8.5, stroke));
@@ -812,7 +899,7 @@ export function layoutCards(model, { ctx, width, lang, measure = (s, f) => ctx.m
     const drawRow = (row, px, baseline, opts) => items.push(text(px, baseline, row.text, { size: FONT.label.size,
       'font-style': row.fontStyle, 'text-decoration': row.decoration, ...opts }));
     for (const row of annotations) { drawRow(row, tx, cursor + 8.5, { anchor }); cursor += 17; }
-    for (const line of n.lines) {
+    for (const line of lines) {
       items.push(text(tx, cursor + 9.5, line, { ...FONT.title, ...(card.note ? { weight: 400 } : {}), anchor, fill: a.fg1 })); cursor += 19;
     }
     cursor += 10;

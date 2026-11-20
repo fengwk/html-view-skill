@@ -195,7 +195,7 @@ function parse(source, info = {}) {
       }
       reference(from, line); reference(to, line);
       const contains = verb === 'contains';
-      // `contains` is solid with Mermaid's square marker at the source; the other six are dashed with an open arrow
+      // `contains` is solid with a circled plus at the source; the other six are dashed with an open arrow
       // at the target and always labelled `<<verb>>` (requirementDb.ts:318-339).
       edges.push({
         from, to, verb, label: `<<${verb}>>`, dashed: !contains, line,
