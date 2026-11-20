@@ -622,7 +622,10 @@ function layout(model, { measure, width, lang, compact }, info = {}) {
     if (event.destroy) while (active.get(event.destroy).length) stop(event.destroy, y, 0);
   }
   // 片段标题与分支标题要让开同一行的激活条：条画在框上，标题压到条上会看不清。
-  const barsByX = [...activations].sort((a, b) => a.x - b.x);
+  const labelObstacles = model.clearFragmentLabels
+    ? [...activations, ...actors.map(actor => ({ x: actor.x - 1, y: creations.get(actor.id) ?? top - 4, h: bottom }))]
+    : [...activations];
+  const barsByX = labelObstacles.sort((a, b) => a.x - b.x);
   const labelXOf = (box, y, width) => {
     let x = box.x + 8;
     for (const bar of barsByX) {

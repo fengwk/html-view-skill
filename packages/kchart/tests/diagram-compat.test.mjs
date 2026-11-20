@@ -104,7 +104,7 @@ test('block, Wardley, ZenUML and all railroad dialects report localized, actiona
   const cases = [
     ['block-beta', 'block:A["%s"]', 2, '复合块缺少 end', 'Composite block is missing end', /单独写一行 end/, /Put end on its own line/],
     ['wardley-beta', 'title %s\n[A] --> [B]', 3, '无法识别 Wardley 地图语句', 'Unrecognized Wardley map statement', /"需求" --> "网关"/, /"Demand" --> "Gateway"/],
-    ['zenuml', 'title %s\n@Actor(User)\nA-->>User: reply\nUser', 3, 'ZenUML 不支持此注解：「@Actor(User)」', 'Unsupported ZenUML annotation: "@Actor(User)"', /单独一行 User/, /bare participant name User/],
+    ['zenuml', 'title %s\n@Actor(User)\nA-->>User: reply\nUser', 3, 'ZenUML 参与者注解写法无效：「@Actor(User)」', 'Invalid ZenUML participant annotation "@Actor(User)"', /@Actor User/, /@Actor User/],
     ...[
       ['railroad-beta', '=', '=', /item = terminal\("x"\);/],
       ['railroad-ebnf-beta', '= 或 ::=', '= or ::=', /item = "x";/],
@@ -123,8 +123,9 @@ test('block, Wardley, ZenUML and all railroad dialects report localized, actiona
       if (rule) assert.match(first.fix, rule, kind);
       if (kind === 'zenuml') {
         assert.equal(diagnostics[1].line, 4);
-        assert.equal(diagnostics[1].message, message === zh ? 'ZenUML 不支持消息箭头「-->>」' : 'Unsupported ZenUML message arrow "-->>"');
+        assert.equal(diagnostics[1].message, message === zh ? 'ZenUML 消息箭头写法无效：「-->>」' : 'Invalid ZenUML message arrow "-->>"');
         assert.match(diagnostics[1].fix, /A->User: reply/);
+        assert.match(diagnostics[1].fix, /@return A->User: reply/);
       }
     }
   }

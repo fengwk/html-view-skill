@@ -298,7 +298,7 @@
       }
     }
   },
-  "diagram/relations": {
+  "diagram/zenuml": {
     "diagrams": {
       "zenuml": {
         "topic": "sequence"
