@@ -1,6 +1,7 @@
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
-import { diagram, check } from '../dist/esm/node.js';
+import { diagram, check, theme } from '../dist/esm/node.js';
+import { contrast, mix, pushContrast } from '../src/core/color.js';
 import { createContext } from '../src/core/context.js';
 import { measureOf } from '../src/diagram/support.js';
 import { implementations as tree } from '../src/diagram/treeview.js';
@@ -69,12 +70,68 @@ test('Venn triple intersection at narrow and wide widths', () => {
   }
 });
 
-// The region grid shows extra sets; oversized intersection labels retain a fallback instead of clipping.
+// Check the emitted fill order and require an ink correction that plain paper alone would not trigger.
+test('Venn plain ring labels contrast with their light and dark fills', () => {
+  const source = 'venn-beta\nset B\nset A\nunion A,B[Overlap]\n  text T[Detail]\nstyle B fill:#d22\nstyle B,A fill:#d22';
+  for (const name of ['paper', 'obsidian']) {
+    const base = theme(name);
+    const fg2 = pushContrast(base.surface, base.fg1, base.surface, 4.5);
+    const { svg, scene } = diagram(source, { width: 500, theme: { ...base, fg2 } });
+    assert.ok(svg);
+    assert.equal(scene.children.some(node => node.tag === 'rect'), false);
+    assert.doesNotMatch(svg, /<text\b[^>]*\bstroke=/);
+    const fills = scene.children.filter(node => node.tag === 'circle' && node.attrs['fill-opacity'] === 0.10);
+    assert.equal(fills.length, 2);
+    const backgrounds = fills.map(node => mix(base.surface, node.attrs.fill, 0.10));
+    backgrounds.push(mix(backgrounds[0], fills[1].attrs.fill, 0.10));
+    assert.ok(contrast(fg2, base.surface) >= 4.5 && contrast(fg2, backgrounds[2]) < 4.5, name);
+    const labels = scene.children.flatMap(node => node.children || []).filter(node => node.tag === 'text');
+    assert.deepEqual(labels.map(node => node.text), ['B', 'A', 'Overlap', 'Detail']);
+    for (const [index, label] of labels.entries()) {
+      assert.ok(label.attrs['font-size'] >= 12);
+      assert.ok(contrast(label.attrs.fill, backgrounds[Math.min(index, 2)]) >= 4.5, `${name}: ${label.text}`);
+    }
+    assert.equal(labels[2].attrs['font-weight'], 600);
+    assert.notEqual(labels[2].attrs.fill, labels[3].attrs.fill);
+  }
+});
+
+// An untitled lens has only its item line box; every placed block clears even the nearest points on excluded circles.
+test('Venn untitled intersection keeps its text within the exact region', () => {
+  const body = 'set A:20\nset B:16\nset C:14\nunion B,A\n  text T[Shared]\nunion B,C';
+  const ctx = createContext({ width: 360 });
+  const plan = venn['venn-beta'].layout(parseVenn(body).model, { width: 360, measure: measureOf(ctx), lang: 'en' });
+  const lens = plan.regions.find(region => region.key === 'A|B');
+  assert.ok(lens);
+  assert.deepEqual(lens.rows.map(row => [row.text, row.y]), [['Shared', lens.y]]);
+  assert.equal(lens.block.h, 16);
+  assert.equal(plan.regions.some(region => region.key === 'B|C'), false);
+  assert.deepEqual(plan.shelf, []);
+  for (const { x, y, ids, block: { w, h } } of plan.regions) {
+    const corners = [-w / 2, w / 2].flatMap(dx => [-h / 2, h / 2].map(dy => [x + dx, y + dy]));
+    for (const { id, cx, cy, r } of plan.rings) {
+      if (ids.includes(id)) {
+        assert.ok(corners.every(([px, py]) => Math.hypot(px - cx, py - cy) <= r - 4));
+      } else {
+        const closestX = Math.max(x - w / 2, Math.min(cx, x + w / 2));
+        const closestY = Math.max(y - h / 2, Math.min(cy, y + h / 2));
+        assert.ok(Math.hypot(closestX - cx, closestY - cy) >= r + 4);
+      }
+    }
+  }
+});
+
+// The grid still uses panels; a non-fitting lens moves its title and linked, icon-bearing item to the shelf once.
 test('Venn region fallbacks', () => {
   const grid = draw('venn-beta\nset A\nset B\nset C\nset D\nset E\nunion A,B', 360);
   assert.ok(grid.diagnostics.some(d => d.code === 'DIAGRAM_HINT'));
-  const long = draw(`venn-beta\nset A\nset B\nunion A,B["${'LongLabel'.repeat(30)}"]`, 360);
+  assert.equal(grid.scene.children.filter(node => node.tag === 'rect').length, 6);
+  const title = 'LongLabel'.repeat(30);
+  const long = draw(`venn-beta\nset A\nset B\nunion A,B[${title}]\n  text T[fa:fa-home Detail]\nclick T href "https://example.com"`, 360);
   assert.ok(long.diagnostics.some(d => d.code === 'DIAGRAM_HINT'));
+  assert.match(long.svg, /stroke-dasharray="3 3"/);
+  for (const text of [title, 'Detail']) assert.equal(long.svg.split(`>${text}</text>`).length, 2);
+  assert.match(long.svg, /<a href="https:\/\/example.com">.*data-kc-kind="icon".*>Detail<\/text><\/a>/);
 });
 
 // Missing members and orphan labels fail; neutral multi-member styles warn without blocking.

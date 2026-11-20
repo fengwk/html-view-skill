@@ -1,5 +1,6 @@
 /* venn-beta: Mermaid's sets, unions and text nodes as tinted overlapping rings; four or more sets become a region grid. */
 
+import { contrast, pushContrast } from '../core/color.js';
 import { FONT, appearance as appearanceOf, error as issueAt, fallbackMeasure, warning, wrapText } from './support.js';
 import { normalizeLabel } from './label.js';
 import { presentation } from './presentation.js';
@@ -12,10 +13,8 @@ const HEAD_LINE = 18;      // 14 px pitch: set labels and grid panel headers
 const ITEM_LINE = 16;      // 12 px pitch: union labels, text nodes, shelf rows
 const ITEM_GAP = 4;        // region label → its own text nodes
 const SET_CLEAR = 12;      // set label → ring stroke
-const UNION_CLEAR = 10;    // union chip → ring stroke
-const INK_GAP = 4;         //文字到圆环描边的最后一层余量（标签块边框之外）
-const CHIP_X = 7;          // union chip padding (the chip hides the arcs behind the label)
-const CHIP_Y = 2;
+const UNION_CLEAR = 10;    // union label → ring stroke
+const INK_GAP = 4;         // minimum clearance from the line box to the circle edge
 const SHELF_GAP = 26;      // plot bottom → the shelf
 const SHELF_PITCH = 28;    // between shelf items on one row
 const LEADER = 8;          // shelf row top → its leader line
@@ -26,6 +25,8 @@ const GRID_COLS = 3;
 const ITEM_CAP = 12;       // text nodes kept inside one region before a hint is raised
 const SIZE_DEFAULT = 10;   // Mermaid's default weight; a union of n sets defaults to 10 / n²
 const RING_STROKE = 1.5;
+const RING_OPACITY = 0.10;
+const TEXT_CONTRAST = 4.5;
 const SPREADS = 17;        // spread candidates, ordered by distance from the canonical layout
 const GROW = 1.12;         // ring growth per fitting pass; the scene widens, text never shrinks
 const MAX_GROWTH = 6;
@@ -43,6 +44,7 @@ const TRIANGLE_CANON = 1;
 const TITLE_FONT = { size: FONT.title.size, weight: FONT.title.weight };
 const SET_FONT = { size: FONT.title.size, weight: FONT.title.weight };
 const ITEM_FONT = { size: FONT.label.size, weight: FONT.label.weight };
+const UNION_FONT = { ...ITEM_FONT, weight: 600 };
 
 // --- parsing ------------------------------------------------------------------------------------
 
@@ -370,41 +372,34 @@ function boundsOf(rings) {
 // the widest unbreakable token is the floor, so an over-long label grows the rings or moves to the shelf.
 function planBlock(region, measure) {
   const slack = region.kind === 'set' ? SET_CLEAR : UNION_CLEAR;
-  const pad = region.kind === 'set' ? 0 : CHIP_X * 2;
-  const texts = [...region.labels.map((label) => label.text), ...region.items.map((item) => item.text)];
-  const font = region.kind === 'set' ? SET_FONT : ITEM_FONT;
-  const floor = Math.max(0, ...texts.flatMap((text) => String(text).split(/\s+/).filter(Boolean)
+  const labelFont = region.kind === 'set' ? SET_FONT : UNION_FONT;
+  const floorOf = (entries, font) => Math.max(0, ...entries.flatMap(({ text }) => String(text).split(/\s+/).filter(Boolean)
     .map((word) => measure(word, font))));
-  const cap = Math.max(48, floor + 2, (region.clear - slack) * 2 - 20 - pad);
-  const wrap = (value, spec) => wrapText(value, cap, spec, (piece, spec2) => measure(piece, spec2));
-  const labelFont = region.kind === 'set' ? SET_FONT : ITEM_FONT;
-  const labels = [];
-  for (const label of region.labels) for (const row of wrap(label.text, labelFont)) labels.push({ text: row, font: labelFont, icon: label.icon, link: label.link });
-  const items = [];
-  for (const item of region.items) for (const row of wrap(item.text, ITEM_FONT)) items.push({ text: row, font: ITEM_FONT, icon: item.icon, link: item.link, status: item.status });
-  const widest = (rows) => (rows.length ? Math.max(...rows.map((row) => measure(row.text, row.font) + (row.icon ? 18 : 0))) : 0);
-  const labelW = labels.length ? widest(labels) + pad : 0;
-  const labelH = labels.length * ((region.kind === 'set' ? HEAD_LINE : ITEM_LINE) + CHIP_Y * 2 / labels.length);
-  const itemW = widest(items);
-  const itemH = items.length * ITEM_LINE;
-  const w = Math.max(labelW, itemW);
-  const h = labelH + (items.length ? (labels.length ? ITEM_GAP : 0) + itemH : 0);
-  const block = {
-    labels, items, slack, pad, labelW, labelH, itemW, itemH, w, h,
-    chip: region.kind !== 'set' && labels.length > 0,
-  };
-  // Room = the tightest clearance around the block's own border, so a wide flat lens label is judged by its
-  // real corners instead of a circumscribed circle. Negative room means the block must grow or move.
-  block.room = h ? borderClearance(region, w, h) - INK_GAP : Infinity;
-  block.fits = block.room >= -0.5;
-  return block;
+  const cap = Math.max(48, floorOf(region.labels, labelFont) + 2, floorOf(region.items, ITEM_FONT) + 2, (region.clear - slack) * 2 - 20);
+  const rows = (entries, font, status) => entries.flatMap((entry) => wrapText(entry.text, cap, font, measure)
+    .map((text) => ({ text, font, icon: entry.icon, link: entry.link, status: entry.status || status })));
+  const labels = rows(region.labels, labelFont, region.status);
+  const items = rows(region.items, ITEM_FONT, labels.length ? null : region.status);
+  const labelH = labels.length * (region.kind === 'set' ? HEAD_LINE : ITEM_LINE);
+  const w = Math.max(0, ...[...labels, ...items].map((row) => rowWidth(row, measure)));
+  const h = labelH + (labels.length && items.length ? ITEM_GAP : 0) + items.length * ITEM_LINE;
+  // Negative room means the whole block must grow or move.
+  return { labels, items, labelH, w, h, room: h ? blockClearance(region, w, h) - INK_GAP : Infinity };
 }
 
-// Smallest clearance over the block's border samples, relative to the region's deepest point.
-function borderClearance(region, w, h) {
+function rowWidth(row, measure) {
+  return measure(row.text, row.font) + (row.icon ? 18 : 0);
+}
+
+// For inside rings the farthest rectangle point is a corner; for outside rings the closest
+// point is the centre clamped to the rectangle, which need not be a corner or edge midpoint.
+function blockClearance(region, w, h) {
   let worst = Infinity;
-  for (const [sx, sy] of [[-1, -1], [1, -1], [1, 1], [-1, 1], [0, -1], [1, 0], [0, 1], [-1, 0]]) {
-    worst = Math.min(worst, clearanceAt(region.x + (sx * w) / 2, region.y + (sy * h) / 2, region.inside, region.outside));
+  for (const ring of region.inside) {
+    worst = Math.min(worst, ring.r - Math.hypot(Math.abs(region.x - ring.cx) + w / 2, Math.abs(region.y - ring.cy) + h / 2));
+  }
+  for (const ring of region.outside) {
+    worst = Math.min(worst, Math.hypot(Math.max(0, Math.abs(region.x - ring.cx) - w / 2), Math.max(0, Math.abs(region.y - ring.cy) - h / 2)) - ring.r);
   }
   return worst;
 }
@@ -430,11 +425,12 @@ function regionList(rings, model) {
   for (const union of model.unions) {
     const key = union.ids.join('|');
     const existing = merged.get(key);
-    if (existing) { if (union.label) existing.labels.push({ text: union.label, line: union.line }); continue; }
+    const labels = union.label || union.icon ? [{ text: union.label, icon: union.icon, line: union.line, link: union.link }] : [];
+    if (existing) { existing.labels.push(...labels); continue; }
     const region = {
       key, kind: 'union', ids: union.ids, line: union.line,
       tone: rings.find((ring) => ring.id === union.ids[0])?.tone || 1,
-      labels: union.label ? [{ text: union.label, icon: union.icon, line: union.line, link: union.link }] : [],
+      labels,
       items: (groups.get(key) || []).map((text) => ({ text: text.label, icon: text.icon, link: text.link, status: text.status })),
       status: union.status, link: union.link,
       texts: groups.get(key) || [],
@@ -478,18 +474,17 @@ function chooseSpread(ringsFor, regions, measure, preferred) {
   order.sort((left, right) => Math.abs(left - preferred) - Math.abs(right - preferred) || right - left);
   let best = null;
   for (const spread of order) {
-    bindRegions(regions, ringsFor(spread));
-    const worst = roomOf(regions, measure, true);
+    const rings = ringsFor(spread);
+    bindRegions(regions, rings);
+    const coarse = roomOf(regions, measure, true);
+    const worst = coarse >= 0 ? roomOf(regions, measure, false) : coarse;
+    if (worst >= 0) return { rings, worst };
     if (!best || worst > best.worst + 1e-9) best = { spread, worst };
-    if (worst >= 0) {
-      bindRegions(regions, ringsFor(spread));
-      roomOf(regions, measure, false);
-      return { rings: ringsFor(spread), worst };
-    }
   }
   // Nothing fits at this radius: keep the roomiest spread and let the caller grow the rings.
-  bindRegions(regions, ringsFor(best.spread));
-  return { rings: ringsFor(best.spread), worst: roomOf(regions, measure, false) };
+  const rings = ringsFor(best.spread);
+  bindRegions(regions, rings);
+  return { rings, worst: roomOf(regions, measure, false) };
 }
 
 // --- ring layout --------------------------------------------------------------------------------
@@ -499,19 +494,12 @@ function layoutBlock(region) {
   const block = region.block;
   const top = region.y - block.h / 2;
   const pitch = region.kind === 'set' ? HEAD_LINE : ITEM_LINE;
-  region.rows = [];
-  region.chip = null;
-  if (block.labels.length) {
-    region.chip = { x: region.x - block.labelW / 2, y: top, w: block.labelW, h: block.labelH };
-    block.labels.forEach((row, index) => region.rows.push({
-      text: row.text, font: row.font, icon: row.icon, link: row.link, status: row.status,
-      x: region.x, y: top + CHIP_Y + (index + 0.5) * pitch, anchor: 'middle',
-    }));
-  }
+  region.rows = block.labels.map((row, index) => ({
+    ...row, x: region.x, y: top + (index + 0.5) * pitch, anchor: 'middle',
+  }));
   const itemTop = top + block.labelH + (block.labels.length && block.items.length ? ITEM_GAP : 0);
   block.items.forEach((row, index) => region.rows.push({
-    text: row.text, font: row.font, icon: row.icon, link: row.link, status: row.status,
-    x: region.x, anchor: 'middle', y: itemTop + (index + 0.5) * ITEM_LINE,
+    ...row, x: region.x, anchor: 'middle', y: itemTop + (index + 0.5) * ITEM_LINE,
   }));
 }
 
@@ -534,15 +522,14 @@ function planRings(model, { measure, width, lang }) {
   // Whatever still does not fit leaves its region for the shelf, with a leader back to the region.
   const shelf = [];
   for (const region of regions) {
-    if (region.block.fits) continue;
+    if (region.block.room >= 0) continue;
     shelf.push({ region, rows: [...region.block.labels, ...region.block.items] });
-    region.block = { ...region.block, labels: [], labelW: 0, labelH: 0, chip: false };
   }
   // Text nodes scoped to a combination no set or union declares would vanish; keep them, captioned.
   const claimed = new Set(regions.map((region) => region.key));
   for (const text of model.texts) {
     if (claimed.has(text.key)) continue;
-    shelf.push({ region: { x: null, y: null, tone: 1, line: text.line, caption: text.ids.join(' ∩ ') }, rows: [{ text: text.label, font: ITEM_FONT }] });
+    shelf.push({ region: { x: null, y: null, tone: 1, line: text.line, caption: text.ids.join(' ∩ ') }, rows: [{ text: text.label, font: ITEM_FONT, icon: text.icon, link: text.link, status: text.status }] });
   }
   const notes = [];
   if (shelf.length) {
@@ -559,7 +546,7 @@ function planRings(model, { measure, width, lang }) {
       '把说明移到图外，或拆成多张图', 'Move details outside, or split the diagram'));
     break;
   }
-  const drawn = regions.filter((region) => region.block.h > 0 || region.block.labels.length);
+  const drawn = regions.filter((region) => region.block.h > 0 && region.block.room >= 0);
   for (const region of drawn) layoutBlock(region);
   return finish({ mode: 'rings', rings, regions: drawn, plot: boundsOf(rings), rows: drawn.flatMap((region) => region.rows), shelf, notes }, model, { measure, width });
 }
@@ -676,10 +663,10 @@ function finish(plan, model, { measure, width }) {
     let rowH = 0;
     for (const item of plan.shelf) {
       const caption = item.region.caption ? [{ text: item.region.caption, font: ITEM_FONT, kind: 'caption' }] : [];
-      const rows = [...caption, ...item.rows.map((row) => ({ ...row, kind: row.font === SET_FONT ? 'label' : 'item' }))];
-      const w = Math.max(0, ...rows.map((row) => measure(row.text, row.font)));
+      const rows = [...caption, ...item.rows];
+      const w = Math.max(0, ...rows.map((row) => rowWidth(row, measure)));
       if (cursor > plan.plot.x && cursor + w > plan.plot.x + limit) { cursor = plan.plot.x; top += rowH + GRID_GAP / 2; rowH = 0; }
-      const lines = rows.map((row, index) => ({ text: row.text, font: row.font, kind: row.kind, x: cursor, y: top + (index + 0.5) * ITEM_LINE }));
+      const lines = rows.map((row, index) => ({ ...row, anchor: 'start', x: cursor, y: top + (index + 0.5) * ITEM_LINE }));
       shelf.push({
         lines, tone: item.region.tone,
         from: item.region.x == null ? null : { x: item.region.x, y: item.region.y },
@@ -705,7 +692,6 @@ function finish(plan, model, { measure, width }) {
   for (const region of plan.regions || []) {
     region.x += dx;
     region.y += dy;
-    if (region.chip) { region.chip.x += dx; region.chip.y += dy; }
   }
   for (const item of shelf) {
     for (const line of item.lines) { line.x += dx; line.y += dy; }
@@ -755,8 +741,16 @@ function scene(plan, ctx) {
   const look = appearanceOf(ctx);
   const paper = ctx.color('bg');
   const tone = (index) => ctx.frameTone(ctx.color(`tone${((index - 1) % 6) + 1}`));
-  const row = (item) => {
-    const ink = item.status ? ctx.textColor(look[item.status]) : item.kind === 'caption' ? look.fg3 : item.font === SET_FONT ? look.fg1 : look.fg2;
+  const row = (item, background) => {
+    let ink = item.status ? ctx.textColor(look[item.status]) : item.kind === 'caption' ? look.fg3 : item.font === SET_FONT ? look.fg1 : look.fg2;
+    if (background && contrast(ink, background) < TEXT_CONTRAST) {
+      let target = ctx.textOn(background);
+      // A mid-tone custom theme can exhaust the contrast available on its preferred side.
+      if (contrast(target, background) < TEXT_CONTRAST) {
+        target = contrast('#000000', background) >= TEXT_CONTRAST ? '#000000' : '#ffffff';
+      }
+      ink = pushContrast(ink, target, background, TEXT_CONTRAST);
+    }
     const children = [ctx.text(item.x + (item.icon ? (item.anchor === 'middle' ? 9 : 18) : 0), item.y, item.text, {
       anchor: item.anchor, size: item.font.size, weight: item.font.weight, 'dominant-baseline': 'central', fill: ink,
     })];
@@ -768,28 +762,28 @@ function scene(plan, ctx) {
   };
   const children = [];
   if (plan.mode === 'rings') {
-    for (const ring of plan.rings) {
-      children.push(ctx.circle(ring.cx, ring.cy, ring.r, { fill: (ring.status ? ctx.frameTone(look[ring.status]) : tone(ring.tone)), 'fill-opacity': 0.10 }));
+    const fills = plan.rings.map((ring) => ring.status ? ctx.frameTone(look[ring.status]) : tone(ring.tone));
+    for (const [index, ring] of plan.rings.entries()) {
+      children.push(ctx.circle(ring.cx, ring.cy, ring.r, { fill: fills[index], 'fill-opacity': RING_OPACITY }));
     }
-    for (const ring of plan.rings) {
+    for (const [index, ring] of plan.rings.entries()) {
       children.push(ctx.circle(ring.cx, ring.cy, ring.r, {
-        fill: 'none', stroke: (ring.status ? ctx.frameTone(look[ring.status]) : tone(ring.tone)), 'stroke-width': RING_STROKE,
+        fill: 'none', stroke: fills[index], 'stroke-width': RING_STROKE,
         meta: { kind: 'node', id: ring.id, label: ring.id },
       }));
     }
-    // A paper chip is drawn over the arcs so a union label still reads where rings cross.
     for (const region of plan.regions) {
-      if (!region.chip) continue;
-      children.push(ctx.rect(region.chip.x, region.chip.y, region.chip.w, region.chip.h, { rx: look.smallRadius, fill: region.status ? ctx.tint(paper, look[region.status], .12) : paper }));
+      const background = plan.rings.reduce((under, ring, index) => region.ids.includes(ring.id)
+        ? ctx.mix(under, fills[index], RING_OPACITY) : under, paper);
+      for (const item of region.rows) children.push(row(item, background));
     }
-    for (const item of plan.rows) children.push(row(item));
     for (const item of plan.shelf) {
       if (item.from) {
         children.push(ctx.line(item.from.x, item.from.y, item.to.x, item.to.y, {
           stroke: ctx.tint(paper, tone(item.tone), 0.55), 'stroke-width': 1, 'stroke-dasharray': '3 3',
         }));
       }
-      for (const line of item.lines) children.push(row(line));
+      for (const line of item.lines) children.push(row(line, paper));
     }
   } else {
     for (const panel of plan.panels) {
