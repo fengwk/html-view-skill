@@ -102,6 +102,29 @@ test('unknown icon names produce a nonblocking warning', () => {
   assert.equal(flatten(scene).filter(n => n.tag === 'path').length, 0);
 });
 
+// Dropping an unresolved icon slot centers the label without shifting mixed row/column centers or indenting the group title.
+test('iconless services use compact centered cards on the same tracks as icon cards', () => {
+  const body = 'group api(logos:missing-architecture-icon)[API]\nservice a(logos:missing-architecture-icon)[Database] in api\nservice b(server)[Server] in api\nservice c[Disk] in api\nalign row a b\nalign column a c\na:R -- L:b\na:B -- T:c';
+  const { scene, diagnostics } = diagram(header + body, { width: 360 });
+  assert.ok(scene, JSON.stringify(diagnostics));
+  assert.deepEqual(checkScene(scene), []);
+  assert.deepEqual(diagnostics.map(d => d.code), ['IGNORED_ASSET']);
+  const elements = flatten(scene), box = id => elements.find(n => n.meta?.id === id).attrs;
+  const [a, b, c] = ['a', 'b', 'c'].map(box);
+  const centerX = ({ x, width }) => x + width / 2;
+  const centerY = ({ y, height }) => y + height / 2;
+  assert.equal(centerY(a), centerY(b));
+  assert.equal(centerX(a), centerX(c));
+  assert.ok(a.height < b.height / 2);
+  assert.ok(c.width < a.width);
+  for (const [label, card] of [['Database', a], ['Disk', c]]) {
+    const { attrs } = elements.find(n => n.text === label);
+    assert.equal(attrs.x, centerX(card));
+    assert.equal(attrs.y, centerY(card));
+  }
+  assert.equal(elements.find(n => n.text === 'API').attrs.x - box('api').x, 12);
+});
+
 // Exact host-registered packs and shared aliases render real geometry, unknown packs warn without a placeholder.
 test('resolves Iconify and label icon references', () => {
   registerIcons({ prefix: 'architecture-test', icons: { service: { body: '<path d="M2 2 L14 14" />' } } });
@@ -168,7 +191,7 @@ test('a horizontal chain does not double back or paint a group as a service', ()
 
 // Explicit alignment remains stable and keeps its natural dimensions in a narrow viewport.
 test('row alignment follows member order without shrinking or reflowing', () => {
-  const body = 'service c[C]\nservice b[B]\nservice a[A]\nservice d[D]\nalign row a b c d';
+  const body = 'service c(server)[C]\nservice b(server)[B]\nservice a(server)[A]\nservice d(server)[D]\nalign row a b c d';
   const readCards = width => render(body, width).filter(n => n.meta?.kind === 'node').toSorted((a, b) => a.attrs.x - b.attrs.x);
   const cards = readCards(360);
   assert.deepEqual(cards.map(n => n.meta.id), ['a', 'b', 'c', 'd']);
