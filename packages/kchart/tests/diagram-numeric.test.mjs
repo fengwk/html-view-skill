@@ -7,6 +7,15 @@ import { implementations as radar } from '../src/diagram/numeric-radar.js';
 import { createContext } from '../src/core/context.js';
 import { renderScene } from '../src/core/svg.js';
 import { diagram } from '../dist/esm/node.js';
+import { readFileSync } from 'node:fs';
+
+const corpus = JSON.parse(readFileSync(new URL('./conformance/mermaid-12.3.0.json', import.meta.url)));
+const reviewScene = (id, width) => {
+  const { scene, diagnostics } = diagram(corpus.find(record => record.id === id).source, { width });
+  assert.ok(scene, JSON.stringify(diagnostics));
+  const walk = parts => parts.flatMap(part => [part, ...walk(part.children || [])]);
+  return walk(scene.children);
+};
 
 const implementations = Object.assign({}, composition, xy, sankey, radar);
 const info = (kind, firstLine = 3, options = {}) => ({ kind, syntax: 'mermaid', header: kind, headerLine: firstLine - 1, firstLine, options, lang: 'zh' });
@@ -176,6 +185,48 @@ test('treemap presentation, safe link and value format', () => {
   assert.match(svg, /A · \$50\.0%/);
   const nodes = laid.scene.children.flatMap(part => part.tag === 'a' ? part.children : [part]);
   assert.equal(nodes.find(part => part.meta?.kind === 'node' && part.meta.label === 'A')?.attrs.fill, createContext().design.danger);
+});
+
+// Every numbered treemap readout can be matched to its tile; wide shallow tiles still display text.
+test('treemap marks every tile and preserves its named root and total', () => {
+  for (const width of [360, 800]) {
+    for (const [id, rootLabel] of [['61', 'Products · 180'], ['97', 'Main · 50'], ['183', 'Budget · $1,500,000'], ['202', 'Market Share · $100.0%']]) {
+      const parts = reviewScene(`treemap.md:${id}`, width);
+      assert.equal(parts.filter(p => p.text === rootLabel).length, 1);
+      const tiles = parts.filter(p => p.meta?.kind === 'node');
+      const marks = parts.filter(p => /^treemap-tile-(index|label)$/.test(p.meta?.kind || ''));
+      for (const tile of tiles) assert.ok(marks.some(mark => mark.meta.path === tile.meta.path));
+      const indexes = parts.filter(p => p.meta?.kind === 'treemap-name' && p.meta.index != null).map(p => p.meta.index);
+      assert.deepEqual(indexes, marks.filter(mark => mark.meta.kind === 'treemap-tile-index').map(mark => mark.meta.index));
+      if (id === '183') assert.ok(marks.some(mark => mark.text.startsWith('Supplies ·')));
+      if (id === '202' && width === 800) assert.ok(marks.some(mark => mark.text === 'Company C'));
+    }
+  }
+});
+
+// Point notes remain close to their own markers, clear of the adjacent series segments and plot edge.
+test('xychart positions dense point labels within the plot', () => {
+  const ctx = createContext();
+  for (const width of [360, 800]) {
+    const parts = reviewScene('xyChart.md:244', width);
+    const points = parts.filter(p => p.tag === 'circle' && p.meta?.kind === 'record').map(p => [p.attrs.cx, p.attrs.cy]);
+    const labels = parts.filter(p => ['annotation', 'value'].includes(p.meta?.kind) && p.tag === 'text');
+    assert.equal(labels.length, 6);
+    for (const p of labels) {
+      const [px, py] = points[p.meta.kind === 'value' ? points.length - 1 : Number(p.meta.record)];
+      const { x, y, 'font-weight': weight } = p.attrs;
+      const right = x + ctx.measure(p.text, 12, weight);
+      assert.ok(x >= points[0][0] && right <= points.at(-1)[0]);
+      assert.ok(Math.abs(py - y) < 60 && px >= x - 24 && px <= right + 24, p.text);
+      for (let i = 1; i < points.length; i++) {
+        const [ax, ay] = points[i - 1], [bx, by] = points[i];
+        if (right < ax || x > bx) continue;
+        const at = xx => ay + (by - ay) * (xx - ax) / (bx - ax);
+        const ys = [at(Math.max(x, ax)), at(Math.min(right, bx))];
+        assert.ok(Math.max(...ys) < y - 10 || Math.min(...ys) > y + 3, p.text);
+      }
+    }
+  }
 });
 
 // XY uses evenly spaced categories, keeps sparse line labels and warns once when horizontal is unavailable.

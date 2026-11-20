@@ -18,7 +18,7 @@ const pie = bind(parsePie, model => ({
 const treemap = bind(parseTreemap, (model, info) => ({
   chart: 'treemap', title: model.title || undefined, data: model.data,
   fields: model.valueField ? { value: model.valueField } : undefined,
-  [compositionPresentation]: { showValues: info.config?.treemap?.showValues !== false, prefix: model.prefix },
+  [compositionPresentation]: { showValues: info.config?.treemap?.showValues !== false, prefix: model.prefix, namedRoot: model.namedRoot },
 }), (model, path) => {
   if (path === '/title') return model.titleLine;
   for (let key = path; key; key = key.slice(0, key.lastIndexOf('/'))) {
