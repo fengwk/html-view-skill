@@ -146,6 +146,15 @@
       }
     }
   },
+  "diagram/agentflow": {
+    "diagrams": {
+      "agentflow-beta": {
+        "syntax": "mermaid",
+        "topic": "flow",
+        "aliases": []
+      }
+    }
+  },
   "diagram/wardley": {
     "diagrams": {
       "wardley-beta": {

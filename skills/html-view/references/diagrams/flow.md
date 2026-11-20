@@ -52,4 +52,10 @@ Mermaid 泳道图：头行可带 `LR` / `TB`，每个 `subgraph 泳道名 … en
 
 Event Modeling：`tf 序号 类型 名称`（也可写 `timeframe`）按时间帧逐行声明，类型为 `ui`、`cmd`、`evt`、`rmo`（读模型）、`pcr`（处理器）及其全称；未写来源时连到最近的前一帧，`->> 序号` 显式指定来源。图按界面/自动化、命令/读模型、事件三条泳道排布，连线正交。
 
+## agentflow-beta
+
+智能体工作流。头行可指定 `TB` / `TD` / `BT` / `LR` / `RL`。用 `flow agent["智能体"] … end` 嵌套分组，`global … end` 声明不归入分组的共享节点，`connector api["外部服务"]` 声明连接器。节点用 `id["标签"]@{ shape: task }`，角色形状有 `task`、`tool`、`input`、`decision`、`refdoc`、`action`。`-->` 表示顺序，`-.-` 表示引用，`--x` 表示失败；边可带文字标签。
+
+`agent@{ view: collapsed }` 将分组折成一个节点并保留与外部的连线。`instruction`、`model`、`connectorRef` 等元数据显示在提示中；适合宽度时，在节点上额外显示 `params` / `returns`。主题由 KChart 决定；ELK、间距覆盖和点击回调不执行，旧式或未知形状会提示并回退为 `task`。
+
 Mermaid flowchart、stateDiagram-v2 与 journey 可用前言区 `title`，阅读文档必须给图题。原生泳道也可用前言 `title`；无标题不应靠源码外的文字补足图自身的阅读语境。
