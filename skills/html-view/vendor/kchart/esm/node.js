@@ -34,6 +34,7 @@ import { blocks_exports } from "./diagram/blocks.js";
 import { c4_exports } from "./diagram/c4.js";
 import { class_exports } from "./diagram/class.js";
 import { cynefin_exports } from "./diagram/cynefin.js";
+import { emphasis_exports } from "./diagram/emphasis.js";
 import { er_exports } from "./diagram/er.js";
 import { eventmodeling_exports } from "./diagram/eventmodeling.js";
 import { gantt_date_exports } from "./diagram/gantt-date.js";
@@ -119,6 +120,7 @@ var modulesByPath = /* #__PURE__ */ Object.assign({
 	"./src/diagram/c4.js": c4_exports,
 	"./src/diagram/class.js": class_exports,
 	"./src/diagram/cynefin.js": cynefin_exports,
+	"./src/diagram/emphasis.js": emphasis_exports,
 	"./src/diagram/er.js": er_exports,
 	"./src/diagram/eventmodeling.js": eventmodeling_exports,
 	"./src/diagram/gantt-date.js": gantt_date_exports,

@@ -1,5 +1,5 @@
 import { error, warning } from './support.js';
-import { stripEmphasis } from './label.js';
+import { stripEmphasis } from './emphasis.js';
 const quoteValue = value => {
   const v = value.trim();
   if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) return v.slice(1, -1);

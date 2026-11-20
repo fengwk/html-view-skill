@@ -1,6 +1,6 @@
 import { __exportAll } from "../_virtual/_rolldown/runtime.js";
 import { error, warning } from "./support.js";
-import { stripEmphasis } from "./label.js";
+import { stripEmphasis } from "./emphasis.js";
 // src/diagram/source.js
 var source_exports = /* @__PURE__ */ __exportAll({
 	ignoredConfigWarning: () => ignoredConfigWarning,

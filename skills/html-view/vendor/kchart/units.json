@@ -287,6 +287,11 @@
     ],
     "bytes": 13422
   },
+  "diagram/emphasis": {
+    "file": "units/diagram/emphasis.js",
+    "deps": [],
+    "bytes": 390
+  },
   "diagram/er": {
     "file": "units/diagram/er.js",
     "deps": [
@@ -405,9 +410,10 @@
     "file": "units/diagram/label.js",
     "deps": [
       "core/icons",
-      "diagram/support"
+      "diagram/support",
+      "diagram/emphasis"
     ],
-    "bytes": 4411
+    "bytes": 4191
   },
   "diagram/layers": {
     "file": "units/diagram/layers.js",
@@ -590,9 +596,9 @@
     "file": "units/diagram/source.js",
     "deps": [
       "diagram/support",
-      "diagram/label"
+      "diagram/emphasis"
     ],
-    "bytes": 10072
+    "bytes": 10075
   },
   "diagram/support": {
     "file": "units/diagram/support.js",

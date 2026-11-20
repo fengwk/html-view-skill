@@ -1,5 +1,6 @@
 import { resolveIconRef } from '../core/icons.js';
 import { warning } from './support.js';
+import { stripEmphasis } from './emphasis.js';
 
 // HTML 4 named entities plus XML and common HTML5 names; no DOM is needed in Node or in a unit.
 const entities = new Map(`AElig:c6 Aacute:c1 Acirc:c2 Agrave:c0 Alpha:391 Aring:c5 Atilde:c3 Auml:c4 Beta:392 Ccedil:c7 Chi:3a7 Dagger:2021 Delta:394 ETH:d0 Eacute:c9 Ecirc:ca Egrave:c8 Epsilon:395 Eta:397 Euml:cb Gamma:393 Iacute:cd Icirc:ce Igrave:cc Iota:399 Iuml:cf Kappa:39a Lambda:39b Mu:39c Ntilde:d1 Nu:39d OElig:152 Oacute:d3 Ocirc:d4 Ograve:d2 Omega:3a9 Omicron:39f Oslash:d8 Otilde:d5 Ouml:d6 Phi:3a6 Pi:3a0 Prime:2033 Psi:3a8 Rho:3a1 Scaron:160 Sigma:3a3 THORN:de Tau:3a4 Theta:398 Uacute:da Ucirc:db Ugrave:d9 Upsilon:3a5 Uuml:dc Xi:39e Yacute:dd Yuml:178 Zeta:396
@@ -18,15 +19,6 @@ const decode = value => value.replace(/(?:&#([0-9]+|[xX][\da-fA-F]+)|#([0-9]+)|[
 
 const html = /<\/?(br|img|b|i|u|em|strong|small|sup|sub|span|code|mark|font|s|del|ins|kbd|a)(?=[\s/>])(?:"[^"]*"|'[^']*'|[^<>"'])*>/gi;
 
-// Mermaid Markdown strings: **bold**, __bold__, *italic* and _italic_ keep their text; the emphasis is not drawn.
-// As in CommonMark, underscores inside a word (snake_case, 中_文) and markers next to spaces stay literal.
-function stripEmphasis(text) {
-  return String(text)
-    .replace(/\*\*([\s\S]*?)\*\*/g, '$1')
-    .replace(/(^|[^\p{L}\p{N}_])__(?=\S)([\s\S]*?\S)__(?![\p{L}\p{N}_])/gu, '$1$2')
-    .replace(/\*([^*]+)\*/g, '$1')
-    .replace(/(^|[^\p{L}\p{N}_])_(?=\S)([^_\n]*?\S)_(?![\p{L}\p{N}_])/gu, '$1$2');
-}
 const iconToken = /(?<![\w:-])fa[bsrlk]?:fa-[a-z\d]+(?:-[a-z\d]+)*/gi;
 
 // Each label is stateless. Diagram parsers deduplicate returned warnings by subject across labels.
@@ -61,4 +53,4 @@ function normalizeLabel(raw, { lang, line = 1 } = {}) {
   return { text, icon, diagnostics };
 }
 
-export { normalizeLabel, stripEmphasis };
+export { normalizeLabel };
