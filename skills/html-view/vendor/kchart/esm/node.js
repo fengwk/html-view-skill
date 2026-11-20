@@ -21,31 +21,47 @@ import { diagnostics_exports } from "./core/diagnostics.js";
 import { format_exports } from "./core/format.js";
 import { geometry_exports } from "./core/geometry.js";
 import { icon_data_exports } from "./core/icon-data.js";
-import { icons_exports } from "./core/icons.js";
+import { icons_exports, registerIcons } from "./core/icons.js";
 import { scale_exports } from "./core/scale.js";
 import { scene_exports } from "./core/scene.js";
 import { svg_exports } from "./core/svg.js";
 import { text_exports } from "./core/text.js";
 import { DEFAULT_THEME, FONT_FAMILY, defaultStyle, resolveThemeConfig, theme, theme_exports, themes, validateThemeSnapshot } from "./core/theme.js";
+import { block_exports } from "./diagram/block.js";
 import { blocks_exports } from "./diagram/blocks.js";
+import { cynefin_exports } from "./diagram/cynefin.js";
+import { eventmodeling_exports } from "./diagram/eventmodeling.js";
+import { gantt_date_exports } from "./diagram/gantt-date.js";
+import { gantt_exports } from "./diagram/gantt.js";
 import { graph_layout_exports } from "./diagram/graph-layout.js";
 import { graph_parse_exports } from "./diagram/graph-parse.js";
 import { graph_exports } from "./diagram/graph.js";
+import { ishikawa_exports } from "./diagram/ishikawa.js";
+import { journey_exports } from "./diagram/journey.js";
+import { label_exports } from "./diagram/label.js";
 import { layers_exports } from "./diagram/layers.js";
 import { mindmap_exports as mindmap_exports$1 } from "./diagram/mindmap.js";
-import { numeric_common_exports } from "./diagram/numeric-common.js";
 import { numeric_composition_exports } from "./diagram/numeric-composition.js";
+import { numeric_model_exports } from "./diagram/numeric-model.js";
 import { numeric_parse_exports } from "./diagram/numeric-parse.js";
 import { numeric_radar_exports } from "./diagram/numeric-radar.js";
 import { numeric_sankey_exports } from "./diagram/numeric-sankey.js";
 import { numeric_xy_exports } from "./diagram/numeric-xy.js";
+import { presentation_exports } from "./diagram/presentation.js";
 import { registry_exports as registry_exports$1 } from "./diagram/registry.js";
 import { relations_exports as relations_exports$1 } from "./diagram/relations.js";
 import { sequence_exports } from "./diagram/sequence.js";
+import { shapes_exports } from "./diagram/shapes.js";
 import { prepareSource, source_exports } from "./diagram/source.js";
 import { support_exports } from "./diagram/support.js";
+import { swimlane_mermaid_exports } from "./diagram/swimlane-mermaid.js";
 import { swimlane_exports } from "./diagram/swimlane.js";
 import { time_exports } from "./diagram/time.js";
+import { timeline_exports } from "./diagram/timeline.js";
+import { treeview_exports } from "./diagram/treeview.js";
+import { usecase_exports } from "./diagram/usecase.js";
+import { venn_exports } from "./diagram/venn.js";
+import { wardley_exports } from "./diagram/wardley.js";
 import { interaction_exports } from "./interaction.js";
 import { createPageApi } from "./page-api.js";
 import families_default from "./src/families.js";
@@ -81,25 +97,41 @@ var modulesByPath = /* #__PURE__ */ Object.assign({
 	"./src/core/svg.js": svg_exports,
 	"./src/core/text.js": text_exports,
 	"./src/core/theme.js": theme_exports,
+	"./src/diagram/block.js": block_exports,
 	"./src/diagram/blocks.js": blocks_exports,
+	"./src/diagram/cynefin.js": cynefin_exports,
+	"./src/diagram/eventmodeling.js": eventmodeling_exports,
+	"./src/diagram/gantt-date.js": gantt_date_exports,
+	"./src/diagram/gantt.js": gantt_exports,
 	"./src/diagram/graph-layout.js": graph_layout_exports,
 	"./src/diagram/graph-parse.js": graph_parse_exports,
 	"./src/diagram/graph.js": graph_exports,
+	"./src/diagram/ishikawa.js": ishikawa_exports,
+	"./src/diagram/journey.js": journey_exports,
+	"./src/diagram/label.js": label_exports,
 	"./src/diagram/layers.js": layers_exports,
 	"./src/diagram/mindmap.js": mindmap_exports$1,
-	"./src/diagram/numeric-common.js": numeric_common_exports,
 	"./src/diagram/numeric-composition.js": numeric_composition_exports,
+	"./src/diagram/numeric-model.js": numeric_model_exports,
 	"./src/diagram/numeric-parse.js": numeric_parse_exports,
 	"./src/diagram/numeric-radar.js": numeric_radar_exports,
 	"./src/diagram/numeric-sankey.js": numeric_sankey_exports,
 	"./src/diagram/numeric-xy.js": numeric_xy_exports,
+	"./src/diagram/presentation.js": presentation_exports,
 	"./src/diagram/registry.js": registry_exports$1,
 	"./src/diagram/relations.js": relations_exports$1,
 	"./src/diagram/sequence.js": sequence_exports,
+	"./src/diagram/shapes.js": shapes_exports,
 	"./src/diagram/source.js": source_exports,
 	"./src/diagram/support.js": support_exports,
+	"./src/diagram/swimlane-mermaid.js": swimlane_mermaid_exports,
 	"./src/diagram/swimlane.js": swimlane_exports,
 	"./src/diagram/time.js": time_exports,
+	"./src/diagram/timeline.js": timeline_exports,
+	"./src/diagram/treeview.js": treeview_exports,
+	"./src/diagram/usecase.js": usecase_exports,
+	"./src/diagram/venn.js": venn_exports,
+	"./src/diagram/wardley.js": wardley_exports,
 	"./src/interaction.js": interaction_exports
 });
 var dist = new URL(
@@ -306,4 +338,4 @@ var diagramRenderer;
 var defaultDiagrams = () => diagramRenderer ??= rendererFor(dependencyOrder(diagramRoots()), true, readMapFile);
 var diagram = (source, options) => defaultDiagrams().diagram(source, options);
 var check = (source, options) => defaultDiagrams().check(source, options);
-export { DEFAULT_THEME, FONT_FAMILY, browserSource, catalog, check, createRenderer, dataTable, defaultStyle, detectSyntax, diagram, diagramTypes, modulesFor, parse, render, resolveThemeConfig, runtimeSource, schema, structureRoles, theme, themes, validate, validateThemeSnapshot };
+export { DEFAULT_THEME, FONT_FAMILY, browserSource, catalog, check, createRenderer, dataTable, defaultStyle, detectSyntax, diagram, diagramTypes, modulesFor, parse, registerIcons, render, resolveThemeConfig, runtimeSource, schema, structureRoles, theme, themes, validate, validateThemeSnapshot };

@@ -100,7 +100,7 @@ function pieLayout(spec, ctx, isDonut = false) {
 	const cx = sideLegend ? groupX + chartSpan / 2 : width / 2;
 	const r = width <= 360 ? Math.min(112, width * .275) : Math.min(sideLegend ? 168 : 112, Math.max(60, chartSpan * .32));
 	const cy = r + 36, inner = isDonut ? r * .58 : 0;
-	const children = [], sectors = [], ticksVariant = isDonut && spec.variant === "ticks";
+	const children = [], sectors = [], sliceLabels = [], ticksVariant = isDonut && spec.variant === "ticks";
 	let a = -Math.PI / 2;
 	rows.forEach((row, i) => {
 		const next = a + TAU * values[i] / total;
@@ -120,10 +120,19 @@ function pieLayout(spec, ctx, isDonut = false) {
 				fill,
 				meta
 			});
+			if (spec.sliceLabels && next - a >= 14 * Math.PI / 180 && 2 * r * .72 * Math.sin(Math.min(Math.PI, next - a) / 2) >= ctx.measure("100%", 12, 600) + 8) {
+				const [x, y] = polar(cx, cy, r * .72, (a + next) / 2);
+				sliceLabels.push(ctx.text(x, y + 4, `${Math.round(100 * values[i] / total)}%`, {
+					anchor: "middle",
+					size: 12,
+					weight: 600,
+					fill: ctx.textOn(fill)
+				}));
+			}
 		}
 		a = next;
 	});
-	if (!isDonut) children.push(...solidSectors(ctx, cx, cy, sectors));
+	if (!isDonut) children.push(...solidSectors(ctx, cx, cy, sectors), ...sliceLabels);
 	if (ticksVariant) {
 		const count = Math.min(240, Math.max(96, Math.floor(TAU * (r - 8.5) / 2.5)));
 		for (let tick = 0; tick < count; tick += 1) {

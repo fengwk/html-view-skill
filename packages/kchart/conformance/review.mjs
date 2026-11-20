@@ -71,7 +71,7 @@ function pageHtml(items, bundle) {
   const sources = JSON.stringify(items.map(item => item.source)).replace(/</g, '\\u003c');
   return `<!doctype html><meta charset="utf-8"><title>KChart review</title>
 <style>body{margin:16px;font:13px system-ui,sans-serif;background:#f4f4f4;color:#222}h2{font-size:13px;margin:16px 0 6px}h2.bad{color:#b00020}
-.pair{display:grid;grid-template-columns:${width + 2}px 1fr;gap:12px;align-items:start}.cell{background:#fff;border:1px solid #ddd;overflow:auto;max-height:1600px}
+.pair{display:flex;gap:12px;align-items:flex-start}.cell{background:#fff;border:1px solid #ddd;flex:none;min-width:${width}px}
 .cell svg{display:block;max-width:none}pre{white-space:pre-wrap;margin:8px}</style>
 ${rows}
 <script src="${bundle}"></script>
@@ -98,8 +98,10 @@ try {
     await page.setViewport({ width: 2 * width + 80, height: 1000 });
     await page.goto(pathToFileURL(join(out, `${name}.html`)).href);
     await page.evaluate('window.ready');
-    const height = await page.evaluate('Math.min(document.documentElement.scrollHeight, 16000)');
-    writeFileSync(join(out, `${name}.png`), await page.screenshot({ x: 0, y: 0, width: 2 * width + 80, height }));
+    // Show every diagram at its natural size: widened KChart scenes must not be cropped in review.
+    const [pageWidth, height] = await page.json('JSON.stringify([document.documentElement.scrollWidth, Math.min(document.documentElement.scrollHeight, 16000)])');
+    await page.setViewport({ width: Math.min(pageWidth, 6000), height: 1000 });
+    writeFileSync(join(out, `${name}.png`), await page.screenshot({ x: 0, y: 0, width: Math.min(pageWidth, 6000), height }));
   }
 } finally {
   await browser.close();

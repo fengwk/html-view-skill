@@ -1,10 +1,14 @@
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
-import { implementations } from '../src/diagram/time.js';
+import { implementations as time } from '../src/diagram/time.js';
+import { implementations as gantt } from '../src/diagram/gantt.js';
+import { implementations as timeline } from '../src/diagram/timeline.js';
+import { implementations as journey } from '../src/diagram/journey.js';
 import { createContext as context } from '../src/core/context.js';
 import { renderScene } from '../src/core/svg.js';
 import { themes } from '../src/core/theme.js';
 
+const implementations = { ...time, ...gantt, ...timeline, ...journey };
 const info = (kind, overrides = {}) => ({ kind, lang: 'en', options: {}, firstLine: 2, headerLine: 1, ...overrides });
 function render(source, kind, options = {}) {
   const [, ...body] = source.split('\n');
@@ -70,7 +74,7 @@ test('kanban, timeline and packet size their own label space', () => {
 
 // 同一日期只能出现一次轴刻度；日期跨度、状态 flags 和 after 推导须保持原语义。
 test('gantt retains civil dates and states without duplicate month labels', () => {
-  const { parsed, laid } = render('gantt\ntitle Sample schedule\nsection Work\nLong : done, task-a, 2024-01-01, 2024-03-31\nShort : active, after task-a, 2d', 'gantt');
+  const { parsed, laid } = render('gantt\ntitle Sample schedule\naxisFormat %Y-%m\nsection Work\nLong : done, task-a, 2024-01-01, 2024-03-31\nShort : active, after task-a, 2d', 'gantt');
   assert.equal(parsed.model.items[0].start, '2024-01-01');
   assert.equal(parsed.model.items[0].end, '2024-03-31');
   assert.deepEqual([...parsed.model.items[0].flags], ['done']);

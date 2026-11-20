@@ -89,6 +89,16 @@ var families_default = {
 		},
 		"erDiagram": { "topic": "data-model" }
 	} },
+	"diagram/wardley": { "diagrams": { "wardley-beta": {
+		"syntax": "mermaid",
+		"topic": "architecture",
+		"aliases": []
+	} } },
+	"diagram/eventmodeling": { "diagrams": { "eventmodeling": {
+		"syntax": "mermaid",
+		"topic": "flow",
+		"aliases": []
+	} } },
 	"diagram/layers": { "diagrams": { "layers": {
 		"syntax": "layers",
 		"topic": "architecture"
@@ -97,16 +107,24 @@ var families_default = {
 		"syntax": "blocks",
 		"topic": "architecture"
 	} } },
+	"diagram/usecase": { "diagrams": { "usecase-beta": {
+		"syntax": "mermaid",
+		"topic": "sequence"
+	} } },
+	"diagram/swimlane-mermaid": { "diagrams": { "swimlane-beta": {
+		"syntax": "mermaid",
+		"topic": "flow"
+	} } },
 	"diagram/swimlane": { "diagrams": { "swimlane": {
 		"syntax": "swimlane",
 		"topic": "flow"
 	} } },
 	"diagram/sequence": { "diagrams": { "sequenceDiagram": { "topic": "sequence" } } },
 	"diagram/mindmap": { "diagrams": { "mindmap": { "topic": "hierarchy" } } },
+	"diagram/gantt": { "diagrams": { "gantt": { "topic": "time" } } },
+	"diagram/timeline": { "diagrams": { "timeline": { "topic": "time" } } },
+	"diagram/journey": { "diagrams": { "journey": { "topic": "flow" } } },
 	"diagram/time": { "diagrams": {
-		"gantt": { "topic": "time" },
-		"timeline": { "topic": "time" },
-		"journey": { "topic": "flow" },
 		"gitGraph": { "topic": "time" },
 		"kanban": { "topic": "time" },
 		"packet-beta": { "topic": "time" },
@@ -121,18 +139,34 @@ var families_default = {
 		"C4Dynamic": { "topic": "architecture" },
 		"C4Deployment": { "topic": "architecture" },
 		"architecture-beta": { "topic": "architecture" },
-		"block-beta": { "topic": "architecture" },
 		"zenuml": { "topic": "sequence" }
 	} },
+	"diagram/block": { "diagrams": { "block": {
+		"aliases": ["block-beta"],
+		"topic": "architecture"
+	} } },
 	"diagram/numeric-composition": { "diagrams": {
 		"pie": { "topic": "composition" },
-		"treemap-beta": { "topic": "composition" }
+		"treemap": {
+			"topic": "composition",
+			"aliases": ["treemap-beta"]
+		}
 	} },
 	"diagram/numeric-xy": { "diagrams": { "xychart": {
 		"topic": "trend",
 		"aliases": ["xychart-beta"]
 	} } },
-	"diagram/numeric-sankey": { "diagrams": { "sankey-beta": { "topic": "network" } } },
-	"diagram/numeric-radar": { "diagrams": { "radar-beta": { "topic": "matrix" } } }
+	"diagram/numeric-sankey": { "diagrams": { "sankey": {
+		"topic": "network",
+		"aliases": ["sankey-beta"]
+	} } },
+	"diagram/numeric-radar": { "diagrams": { "radar-beta": { "topic": "matrix" } } },
+	"diagram/ishikawa": { "diagrams": { "ishikawa": {
+		"topic": "hierarchy",
+		"aliases": ["ishikawa-beta"]
+	} } },
+	"diagram/treeview": { "diagrams": { "treeView-beta": { "topic": "hierarchy" } } },
+	"diagram/venn": { "diagrams": { "venn-beta": { "topic": "composition" } } },
+	"diagram/cynefin": { "diagrams": { "cynefin-beta": { "topic": "matrix" } } }
 };
 export { families_default as default };

@@ -1,12 +1,153 @@
 import { __exportAll } from "../_virtual/_rolldown/runtime.js";
-import { parseSankey as sankey } from "./numeric-parse.js";
-import { render, validate } from "./numeric-common.js";
+import { error } from "./support.js";
+import { renderWith, validateWith } from "./numeric-model.js";
 import "../chart/relations.js";
 // src/diagram/numeric-sankey.js
-var numeric_sankey_exports = /* @__PURE__ */ __exportAll({ implementations: () => implementations });
-var implementations = { "sankey-beta": {
-	parse: sankey,
+var numeric_sankey_exports = /* @__PURE__ */ __exportAll({
+	honoredConfig: () => honoredConfig,
+	implementations: () => implementations
+});
+var MAX_NODES = 60;
+var MAX_EDGES = 120;
+var issue = (info, line, zh, en, fixZh = "修正 Mermaid sankey 语法", fixEn = "Correct the Mermaid sankey syntax") => error(info.lang, line, zh, en, fixZh, fixEn);
+var csv = (text) => {
+	const cells = [];
+	let value = "", quoted = false, after = false;
+	for (let i = 0; i < text.length; i++) {
+		const char = text[i];
+		if (quoted) {
+			if (char === "\"" && text[i + 1] === "\"") {
+				value += "\"";
+				i += 1;
+			} else if (char === "\"") {
+				quoted = false;
+				after = true;
+			} else value += char;
+		} else if (char === "\"") {
+			if (value.trim() || after) return null;
+			value = "";
+			quoted = true;
+		} else if (char === ",") {
+			cells.push(value.trim());
+			value = "";
+			after = false;
+		} else if (after && !/\s/.test(char)) return null;
+		else value += char;
+	}
+	if (quoted) return null;
+	cells.push(value.trim());
+	return cells;
+};
+var value = (text) => {
+	const parsed = Number.parseFloat(text);
+	return Number.isFinite(parsed) ? parsed : null;
+};
+var configValue = (config, name) => {
+	if (!config || typeof config !== "object" || Array.isArray(config)) return void 0;
+	const key = Object.keys(config).find((candidate) => candidate.toLowerCase() === name.toLowerCase());
+	return key === void 0 ? void 0 : config[key];
+};
+var configFlag = (config, name) => {
+	const found = configValue(config, name);
+	return typeof found === "boolean" ? found : void 0;
+};
+function parseSankey(source, info) {
+	const errors = [], rows = [], nodes = [];
+	const header = String(info.params || Object.keys(info.options || {}).join(" ")).replace(/\s*:\s*$/, "").trim();
+	if (header) errors.push(issue(info, info.headerLine || info.firstLine, `sankey 不支持头行选项「${header}」`, `sankey does not accept header options: ${header}`, "把配置写在前言区 sankey: 下", "Put options under front matter sankey:"));
+	String(source).split("\n").forEach((raw, index) => {
+		const text = raw.trim(), line = info.firstLine + index;
+		if (!text || text.startsWith("%%")) return;
+		const cells = csv(text);
+		if (!cells) {
+			errors.push(issue(info, line, "sankey CSV 引号格式错误", "Malformed sankey CSV quoting", "用成对的 \" 包住含逗号的名称，字段内引号写作 \"\"", "Wrap names that contain commas in \" and write inner quotes as \"\""));
+			return;
+		}
+		if (cells.length !== 3) {
+			errors.push(issue(info, line, `sankey 每行必须是 Source,Target,Value 三列，本行 ${cells.length} 列`, `Each sankey row needs exactly 3 columns, got ${cells.length}`, "每行只写来源、目标、数值三列", "Write source, target and value only"));
+			return;
+		}
+		const [from, to] = [cells[0], cells[1]], amount = value(cells[2]);
+		if (!from || !to) {
+			errors.push(issue(info, line, "sankey 来源与目标不能为空", "Sankey source and target must not be empty"));
+			return;
+		}
+		if (amount === null || amount <= 0) {
+			errors.push(issue(info, line, `sankey 流量必须为正有限数，本行「${cells[2]}」`, `Sankey value must be a positive finite number, got "${cells[2]}"`, "把数值改为大于 0 的有限数", "Use a positive finite number"));
+			return;
+		}
+		for (const id of [from, to]) if (!nodes.includes(id)) nodes.push(id);
+		rows.push({
+			id: `edge-${rows.length + 1}`,
+			source: from,
+			target: to,
+			value: amount,
+			line
+		});
+	});
+	if (!rows.length && !errors.length) errors.push(issue(info, info.firstLine, "sankey 至少需要一条有效流量 CSV 记录", "Sankey needs at least one valid CSV flow record"));
+	if (nodes.length > MAX_NODES) errors.push(issue(info, info.firstLine, `sankey 最多 ${MAX_NODES} 个节点，当前 ${nodes.length} 个`, `Sankey supports at most ${MAX_NODES} nodes, got ${nodes.length}`, "合并同名来源或目标后重试", "Merge related sources or targets"));
+	if (rows.length > MAX_EDGES) errors.push(issue(info, info.firstLine, `sankey 最多 ${MAX_EDGES} 条流量，当前 ${rows.length} 条`, `Sankey supports at most ${MAX_EDGES} flows, got ${rows.length}`, "合并相同来源与目标的流量后重试", "Combine flows that share a source and target"));
+	const showValues = configFlag(configValue(info.config, "sankey"), "showValues") ?? true;
+	return {
+		model: {
+			chart: "sankey",
+			nodes: nodes.map((id) => ({
+				id,
+				label: id
+			})),
+			edges: rows,
+			showValues,
+			unit: unitOf(info)
+		},
+		errors
+	};
+}
+function unitOf(info) {
+	const config = configValue(info.config, "sankey");
+	const prefix = configValue(config, "prefix"), suffix = configValue(config, "suffix");
+	if (prefix === void 0 && suffix === void 0) return void 0;
+	const text = (value) => value === void 0 || value === null ? "" : String(value);
+	const [pre, post] = [text(prefix), text(suffix)];
+	return /^[\p{L}\p{Sc}%‰°]*\p{Sc}?[\p{L}\p{Sc}%‰°]*$/u.test(`${pre}${post}`) && `${pre}${post}` ? `${pre}${post}` : void 0;
+}
+function toSpec(model) {
+	return {
+		chart: "sankey",
+		tolerant: true,
+		data: {
+			nodes: model.nodes,
+			edges: model.edges.map(({ line, ...edge }) => edge)
+		},
+		layout: "right",
+		showValues: model.showValues,
+		...model.unit ? { unit: model.unit } : {}
+	};
+}
+function lineFor(model, detail) {
+	const path = String(detail?.path || "").split("/").slice(1).map((part) => part.replace(/~1/g, "/").replace(/~0/g, "~"));
+	const indexAt = (key) => path[path.indexOf(key) + 1];
+	const edgeIndex = Number(indexAt("edges"));
+	if (Number.isInteger(edgeIndex) && model.edges[edgeIndex]) return model.edges[edgeIndex].line;
+	const nodeIndex = Number(indexAt("nodes"));
+	if (Number.isInteger(nodeIndex) && model.nodes[nodeIndex]) {
+		const id = model.nodes[nodeIndex].id;
+		return model.edges.find((edge) => edge.source === id || edge.target === id)?.line;
+	}
+	return model.edges[0]?.line;
+}
+var validate = (model, info) => validateWith(toSpec(model), info, (detail) => lineFor(model, detail));
+var layout = (model, options, info) => renderWith(toSpec(model), options, info, (detail) => lineFor(model, detail));
+var honoredConfig = Object.freeze([
+	"sankey.showValues",
+	"sankey.prefix",
+	"sankey.suffix"
+]);
+var implementations = { sankey: {
+	parse: parseSankey,
 	validate,
-	layout: render
+	layout,
+	optionMode: "raw",
+	honoredConfig
 } };
-export { implementations, numeric_sankey_exports };
+export { honoredConfig, implementations, numeric_sankey_exports };
