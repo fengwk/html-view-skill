@@ -7,7 +7,7 @@
    解析与声明构造都留在本文件，共享的 numeric-parse.js / numeric-common.js 不再需要 xychart 规则。 */
 
 import { error, warning } from './support.js';
-import { renderWith, validateWith } from './numeric-model.js';
+import { numericLabel, renderWith, validateWith } from './numeric-model.js';
 import '../chart/basic.js';
 import '../chart/multivariate.js';
 
@@ -155,14 +155,14 @@ function parseXychart(source, info) {
       const text = item.text.replace(/^title\b/i, '').trim();
       if (!text) { errors.push(issue(info, item.line, 'title 需要标题文字', 'title needs some text')); continue; }
       if (title !== null) { errors.push(issue(info, item.line, 'xychart 只能有一个 title', 'xychart accepts one title')); continue; }
-      title = unquote(text); titleLine = item.line; continue;
+      title = numericLabel(unquote(text), info, item.line, errors); titleLine = item.line; continue;
     }
     if (/^x-axis\b/i.test(item.text)) {
       const axis = readAxis(info, item.text.replace(/^x-axis\b/i, '').trim(), item.line, errors);
       // Mermaid 的第二条 x-axis 覆盖第一条（setXAxisTitle/setXAxisBand 直接赋值），这里同样最后一条生效。
       if (axis.title !== null) {
         if (xTitle !== null) hint(errors, info, item.line, 'xychart 重复的 x-axis，只保留最后一条', 'Duplicate x-axis; the last one is used');
-        xTitle = axis.title;
+        xTitle = numericLabel(axis.title, info, item.line, errors);
       }
       if (axis.data) {
         if (xData) hint(errors, info, item.line, 'xychart 重复的 x-axis 数据，只保留最后一条', 'Duplicate x-axis data; the last one is used');
@@ -175,7 +175,7 @@ function parseXychart(source, info) {
       yAxisLine ??= item.line;
       if (axis.title !== null) {
         if (yTitle !== null) hint(errors, info, item.line, 'xychart 重复的 y-axis，只保留最后一条', 'Duplicate y-axis; the last one is used');
-        yTitle = axis.title;
+        yTitle = numericLabel(axis.title, info, item.line, errors);
       }
       if (axis.data && axis.data.kind === 'linear') {
         if (yDomain) hint(errors, info, item.line, 'xychart 重复的 y-axis 范围，只保留最后一条', 'Duplicate y-axis range; the last one is used');
@@ -207,7 +207,7 @@ function parseXychart(source, info) {
   const lengths = plots.map(plot => plot.points.length);
   const categoryCount = xData?.kind === 'band' ? xData.categories.length : Math.max(0, ...lengths);
   let categories;
-  if (xData?.kind === 'band') categories = uniqueCategories(errors, info, categoryLine, xData.categories);
+  if (xData?.kind === 'band') categories = uniqueCategories(errors, info, categoryLine, xData.categories.map(value => numericLabel(value, info, categoryLine, errors)));
   else if (xData?.kind === 'linear') categories = linearLabels(xData.min, xData.max, categoryCount);
   // 既没有 x-axis 也没有类别时，Mermaid 用 1…n 的线性轴；这里就是同样的 1…n 标签。
   else categories = Array.from({ length: categoryCount }, (_, index) => String(index + 1));
@@ -220,10 +220,13 @@ function parseXychart(source, info) {
     else if (plot.points.length < categories.length && pad === 0) hint(errors, info, plot.line, `bar 数据点数少于类别数，缺少的点按 0 绘制`, `The bar plot has fewer points than categories; missing points are drawn as 0`, '补齐数据点', 'Provide a value for every category');
     return {
       type: plot.type,
-      name: plot.name,
+      name: plot.name && numericLabel(plot.name, info, plot.line, errors),
       line: plot.line,
       values: categories.map((_, index) => plot.points[index]?.value ?? pad),
-      pointLabels: categories.map((_, index) => plot.points[index]?.label ?? null),
+      pointLabels: categories.map((_, index) => {
+        const label = plot.points[index]?.label;
+        return label ? numericLabel(label, info, plot.line, errors) : null;
+      }),
     };
   });
 

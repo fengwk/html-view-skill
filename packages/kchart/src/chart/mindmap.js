@@ -9,6 +9,7 @@ const GAP_X = 44, COMPACT_GAP = 24, GAP_Y = 18, PAD_X = 14, PAD_Y = 9, TEXT_WIDT
 const PLANS = [GAP_X, COMPACT_GAP].flatMap(gap => [TEXT_WIDTH, 190, 160, 140, 120].map(cap => ({ gap, cap })));
 const mindLayouts = ['bilateral', 'right', 'left', 'radial', 'org', 'brace', 'fishbone', 'timeline'];
 const treeLayouts = ['right', 'left', 'org', 'brace'];
+export const mindmapPresentation = Symbol('mindmap presentation');
 const LEAF_LINE_GAP = 8;
 const BRANCH_RADIUS = 7;
 const hasFrame = (variant, depth, children) => depth === 0 || Boolean(children?.length) || variant === 'cards';
@@ -102,16 +103,20 @@ function arrange(spec, ctx, mode, { cap, gap }) {
     const weight = depth === 0 ? 650 : 500;
     const frame = frameOf(shape, spec.variant, depth, source.children);
     const textOnly = mode === 'bilateral' && !frame;
-    const wrapOptions = { bounded: textOnly };
-    const marker = source.status ? statusMarks[source.status] : '';
-    const markerWidth = marker ? ctx.measure(marker, 12, 700) + 6 : 0;
-    const lines = ctx.wrap(source.label, textWidth - markerWidth, 13, weight, wrapOptions);
+    const decoration = source[mindmapPresentation], icon = decoration?.icon;
+    const wrapOptions = { bounded: textOnly && !decoration };
+    const marker = !icon && source.status ? statusMarks[source.status] : '';
+    const markerWidth = icon ? 18 : marker ? ctx.measure(marker, 12, 700) + 6 : 0;
+    // Enlarge the wrapping budget before layout instead of splitting long Latin words.
+    const budget = decoration ? source.label.split(/\s+/).reduce((width, word) => /[A-Za-z]/.test(word) ? Math.max(width, Math.ceil(ctx.measure(word, 13, weight)) + 1) : width, textWidth - markerWidth) : textWidth - markerWidth;
+    const lines = ctx.wrap(source.label, budget, 13, weight, wrapOptions);
     const noteLines = source.note ? ctx.wrap(source.note, textWidth, 12, 400, wrapOptions) : [];
     const widths = [...lines.map(s => ctx.measure(s, 13, weight)), ...noteLines.map(s => ctx.measure(s, 12, 400))];
     const measuredWidth = Math.max(...widths) + PAD_X * 2 + markerWidth;
     const n = {
       id: source.id || `n${nodes.length}`, label: source.label, note: source.note || '', status: source.status || '', marker, markerWidth, parent, depth, children: [], lines, noteLines, shape, frame,
-      w: Math.max(70, textOnly ? measuredWidth : Math.min(cap, measuredWidth)), contentW: measuredWidth - PAD_X * 2,
+      icon, link: decoration?.link,
+      w: Math.max(70, textOnly || decoration ? measuredWidth : Math.min(cap, measuredWidth)), contentW: measuredWidth - PAD_X * 2,
       h: Math.max(34, lines.length * 17 + noteLines.length * 15 + PAD_Y * 2),
     };
     nodes.push(n);
@@ -295,7 +300,7 @@ function arrange(spec, ctx, mode, { cap, gap }) {
   return { nodes, root, coords, fishboneSpine, fishboneSpineEnd: fishboneSpineEnd + MARGIN - minX, gap, width };
 }
 
-function bilateralPath(a, b, parentIsRoot, gap) {
+function bilateralPath(a, b, parentIsRoot, gap, diagram) {
   const left = b.cx < a.cx, direction = left ? -1 : 1;
   const fromX = a.frame ? (left ? a.x : a.x + a.w)
     : parentIsRoot ? a.cx + direction * (a.contentW / 2 + LEAF_LINE_GAP)
@@ -304,6 +309,10 @@ function bilateralPath(a, b, parentIsRoot, gap) {
   const toX = b.frame ? childSide : nodeTextX(b, left) - direction * LEAF_LINE_GAP;
   const start = `M${fromX} ${a.cy}`, end = `L${toX} ${b.cy}`;
   if (a.cy === b.cy) return `${start} ${end}`;
+  if (diagram) {
+    const control = childSide - direction * gap / 2;
+    return `${start} C${control} ${(a.cy + b.cy) / 2} ${control} ${b.cy} ${toX} ${b.cy}`;
+  }
 
   // 同一列的兄弟分支共用转折线。圆角位于层间空隙中，首尾留出水平线段。
   const turnX = childSide - direction * gap / 2;
@@ -336,7 +345,7 @@ function build(spec, ctx, isMindmap) {
   for (const n of nodes) if (n.parent) {
     const a = coords.get(n.parent), b = coords.get(n);
     let d;
-    if (mode === 'bilateral') d = bilateralPath(a, b, n.parent === root, plan.gap);
+    if (mode === 'bilateral') d = bilateralPath(a, b, n.parent === root, plan.gap, spec[mindmapPresentation]);
     else if (mode === 'org') { const top = { x: a.cx, y: a.y + a.h }, bottom = { x: b.cx, y: b.y }, sharedY = (top.y + bottom.y) / 2; d = `M${top.x} ${top.y} L${top.x} ${sharedY} L${bottom.x} ${sharedY} L${bottom.x} ${bottom.y}`; }
     else if (mode === 'fishbone' && n.parent === root) { const spineX = fishboneSpine.get(n), rootEdge = { x: a.x + a.w, y: a.cy }, branchEnd = boundary(b, spineX - b.cx, a.cy - b.cy); d = `M${rootEdge.x} ${rootEdge.y} L${spineX} ${rootEdge.y} L${branchEnd.x} ${branchEnd.y}`; }
     else {
@@ -356,11 +365,13 @@ function build(spec, ctx, isMindmap) {
   const svgNodes = [], rootText = ctx.textOn(rootTone);
   for (const n of nodes) {
     const p = coords.get(n), rootNode = n === root, card = variant === 'cards';
-    const framed = n.frame;
+    const framed = n.frame, first = svgNodes.length;
+    const tone = spec[mindmapPresentation] && n.status ? ctx.design[n.status] : null;
+    const nodeInk = rootNode && framed ? ctx.textOn(tone || rootTone) : ctx.color('fg');
     if (framed) {
-      const fill = rootNode ? rootTone : ctx.tint(ctx.palette.bg, branchTone, card ? 0.035 : 0.12);
-      const stroke = rootNode ? rootTone : card ? ctx.color('axis') : ctx.tint(ctx.palette.bg, branchTone, 0.28);
-      svgNodes.push(...outlineOf(ctx, n, p, { fill, stroke, 'stroke-width': rootNode || card ? 1 : 0.8 }, { kind: isMindmap ? 'mindmap' : 'tree', node: n.id, related: descendants(n) }));
+      const fill = rootNode ? tone || rootTone : ctx.tint(ctx.palette.bg, tone || branchTone, card ? 0.035 : 0.12);
+      const stroke = rootNode ? tone || rootTone : tone || (card ? ctx.color('axis') : ctx.tint(ctx.palette.bg, branchTone, 0.28));
+      svgNodes.push(...outlineOf(ctx, n, p, { fill, stroke, 'stroke-width': rootNode || card ? 1 : 0.8 }, spec[mindmapPresentation] ? { kind: 'node', id: n.id } : { kind: isMindmap ? 'mindmap' : 'tree', node: n.id, related: descendants(n) }));
     }
     // 无框叶子的文字向连线一侧对齐，长短不一的多行文字也紧靠同一个端口。
     const leftLeaf = mode === 'bilateral' && !framed && p.cx < rootPosition.cx;
@@ -372,14 +383,22 @@ function build(spec, ctx, isMindmap) {
     const weight = rootNode ? 650 : 500;
     const labelStep = 16, total = n.lines.length * labelStep + n.noteLines.length * 15;
     const labelY = p.cy - total / 2 + 12;
-    svgNodes.push(...ctx.textLines(labelX, labelY, n.lines, { anchor, size: 13, weight, fill: rootNode && framed ? rootText : ctx.color('fg'), meta: { kind: isMindmap ? 'mindmap' : 'tree', node: n.id, related: descendants(n), role: 'label' } }).children);
+    svgNodes.push(...ctx.textLines(labelX, labelY, n.lines, { anchor, size: 13, weight, fill: nodeInk, meta: { kind: isMindmap ? 'mindmap' : 'tree', node: n.id, related: descendants(n), role: 'label' } }).children);
     if (n.marker) svgNodes.push(ctx.text(markerX, labelY, n.marker, { anchor: 'middle', size: 12, weight: 700, fill: rootNode && framed ? rootText : ctx.textColor(ctx.design[n.status]), meta: { kind: isMindmap ? 'mindmap' : 'tree', node: n.id, related: descendants(n), role: 'status', status: n.status } }));
+    if (n.icon) {
+      const [minX, minY, w, h] = String(n.icon.viewBox).split(/[\s,]+/).map(Number);
+      const scale = 12 / Math.max(w, h);
+      const gx = rootNode ? labelX - ctx.measure(n.lines[0], 13, weight) / 2 - 18 : leftLeaf ? tx - 12 : tx;
+      svgNodes.push(ctx.el('g', { transform: `translate(${gx - minX * scale} ${labelY - 10 - minY * scale}) scale(${scale})` },
+        n.icon.elements.map(({ tag, attrs }) => ctx.shape(tag, { ...attrs, ...(n.icon.set === 'tabler' ? { fill: 'none', stroke: nodeInk, 'stroke-width': 2 } : { fill: nodeInk }) }))));
+    }
     let y = labelY + n.lines.length * labelStep;
     for (const line of n.noteLines) { svgNodes.push(ctx.text(tx, y, line, { anchor, size: 12, fill: rootNode && framed ? rootText : ctx.color('muted'), meta: { kind: isMindmap ? 'mindmap' : 'tree', node: n.id, related: descendants(n), role: 'note' } })); y += 15; }
+    if (n.link) svgNodes.push(ctx.link(n.link.href, svgNodes.splice(first), n.link));
   }
   function descendants(n) { return [n.id, ...n.children.flatMap(descendants)]; }
   const edgeTone = ctx.frameTone(ctx.color('tone5'));
-  const paths = edgeList.map(e => ctx.path(e.d, { fill: 'none', stroke: edgeTone, 'stroke-width': 1.4, 'stroke-linecap': 'round', 'stroke-linejoin': 'round', meta: { kind: isMindmap ? 'mindmap' : 'tree', node: e.child.id, related: descendants(e.child), from: e.from, to: e.to } }));
+  const paths = edgeList.map(e => ctx.path(e.d, { fill: 'none', stroke: edgeTone, 'stroke-width': 1.4, 'stroke-linecap': 'round', 'stroke-linejoin': 'round', meta: spec[mindmapPresentation] ? { kind: 'edge', from: e.from, to: e.to } : { kind: isMindmap ? 'mindmap' : 'tree', node: e.child.id, related: descendants(e.child), from: e.from, to: e.to } }));
   if (mode === 'fishbone' && root.children.length) {
     const r = coords.get(root);
     const spine = `M${r.x + r.w} ${r.cy} L${Math.max(r.x + r.w, fishboneSpineEnd)} ${r.cy}`;

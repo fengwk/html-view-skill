@@ -3,7 +3,8 @@
    每个数值图模块只负责自己的语法解析和源码行归属（lineFor），因为 ruled-out 的
    numeric-common 映射表不认识各图型新增的声明键。 */
 
-import { error as issueAt } from './support.js';
+import { error as issueAt, warning } from './support.js';
+import { normalizeLabel } from './label.js';
 import { validate as validateSpec } from '../chart/spec.js';
 import { layout } from '../chart/registry.js';
 import { ExpectedDiagnostic } from '../core/diagnostics.js';
@@ -74,4 +75,12 @@ function renderWith(spec, options, info, lineFor) {
   }
 }
 
-export { diagnostics, validateWith, renderWith };
+// Numeric chart engines have text-only readouts. Normalize them while reporting omitted glyphs once.
+function numericLabel(value, info, line, errors) {
+  const { text, icon, diagnostics } = normalizeLabel(value, { lang: info.lang, line });
+  if (icon) diagnostics.push(warning('IGNORED_ASSET', info.lang, line, '数值图标签仅绘制文字，不绘制图标', 'Numeric chart labels show text only; icons are omitted', '改用纯文本标签', 'Use a text label'));
+  for (const diagnostic of diagnostics) if (!errors.some(e => e.message === diagnostic.message)) errors.push(diagnostic);
+  return text.trim() || String(value);
+}
+
+export { diagnostics, numericLabel, validateWith, renderWith };

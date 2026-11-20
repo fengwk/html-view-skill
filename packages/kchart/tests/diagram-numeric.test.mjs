@@ -164,6 +164,19 @@ test('treemap multiple roots, separators and invalid leaves', () => {
   assert.ok(bad.errors.some(e => e.line === cfg.firstLine + 2 && /权重/.test(e.message)));
 });
 
+// Treemap class suffixes color a leaf through the theme, and percent/currency formatting retains both symbols.
+test('treemap presentation, safe link and value format', () => {
+  const cfg = { ...info('treemap'), config: { treemap: { valueFormat: '$.1%' } } };
+  const parsed = implementations.treemap.parse('"Root"\n  "A": .5:::hot\n  "B": .5\nclassDef hot fill:#f00\nclick A href "https://example.org"', cfg);
+  assert.deepEqual(parsed.errors, []);
+  const laid = layout('treemap', parsed, cfg);
+  const svg = svgFor(laid);
+  assert.match(svg, /<a href="https:\/\/example.org"/);
+  assert.match(svg, /A · \$50\.0%/);
+  const nodes = laid.scene.children.flatMap(part => part.tag === 'a' ? part.children : [part]);
+  assert.equal(nodes.find(part => part.meta?.kind === 'node' && part.meta.label === 'A')?.attrs.fill, createContext().design.danger);
+});
+
 // XY uses evenly spaced categories, keeps sparse line labels and warns once when horizontal is unavailable.
 test('xychart numeric axis and point labels', () => {
   const cfg = info('xychart');
