@@ -49,6 +49,14 @@ click B call doThing()`);
   assert.deepEqual(new Set(diagnostics.map(d => d.code)), new Set(['IGNORED_CONFIG', 'IGNORED_INTERACTION']));
 });
 
+// Container and edge labels allocate room for their own icon, including an icon-only edge.
+test('renders icons in frame titles and edge labels', () => {
+  const { svg, scene, diagnostics } = render('flowchart TB\nsubgraph group["fa:fa-user Users"]\nA -->|fa:fa-user| B\nend');
+  assert.deepEqual(diagnostics, []);
+  assert.equal(svg.match(/scale\(/g)?.length, 2);
+  assert.deepEqual(checkScene(scene), []);
+});
+
 // Both graph kinds retain readable geometry and warn once beyond the large-node threshold.
 test.each(['flowchart', 'stateDiagram-v2'])('warns but renders 61 nodes: %s', kind => {
   const source = [kind, ...Array.from({ length: 60 }, (_, i) => `n${i} --> n${i + 1}`)].join('\n');

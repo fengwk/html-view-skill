@@ -23,7 +23,9 @@ function hits(a, b, rect) {
 
 function attachment(node, side, type, offset = 0) {
   const v = vertical(side), sign = side === 'top' || side === 'left' ? -1 : 1;
-  const shape = !node.frame && type === 'flowchart' && flowOutlineName(node.shape);
+  const shape = !node.frame && (type === 'flowchart' ? flowOutlineName(node.shape)
+    : node.kind === 'choice' ? 'diam' : node.kind === 'start' || node.kind === 'end' ? 'circle'
+      : node.kind === 'state' ? 'rounded' : node.kind === 'note' ? 'note' : null);
   const plain = v ? { x: node.w / 2, y: sign < 0 ? 0 : node.h } : { x: sign < 0 ? 0 : node.w, y: node.h / 2 };
   if (v) plain.x += node.w * offset;
   else plain.y += node.h * offset;
@@ -68,8 +70,9 @@ function shortest(from, to, obstacles, occupied, type, bounds, label, original) 
         if (i > 1 && i < points.length - 1 && (hits(points[i - 1], points[i], expand(from, 4)) || hits(points[i - 1], points[i], expand(to, 4)))) return;
         if (i > 1 && i < points.length - 1 && !clear(points[i - 1], points[i])) return;
       }
-      const compact = points.filter((p, i) => !i || i === points.length - 1 || !(
-        p.x === points[i - 1].x && p.x === points[i + 1].x || p.y === points[i - 1].y && p.y === points[i + 1].y));
+      const compact = points.filter((p, i) => !i || i === points.length - 1 ||
+        Math.abs(distance(points[i - 1], p) + distance(p, points[i + 1]) - distance(points[i - 1], points[i + 1])) > .001 ||
+        (points[i - 1].x !== points[i + 1].x && points[i - 1].y !== points[i + 1].y));
       const cost = length + (compact.length - 2) * 16;
       if (cost >= score) return;
       let labelRect = label;

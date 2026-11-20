@@ -90,9 +90,9 @@ function arrangeGraph(source, options, info, allowCompact = true) {
       nodes: nodes.filter(item => members.has(item.id)).map(topLevel),
       subgraphs: model.subgraphs.filter(item => members.has(item.id)).map(topLevel), edges: inside,
     }, options, info, false);
-    const lines = frame.title ? wrapText(frame.title, 200, FONT.frame, measure) : [];
+    const lines = frame.title ? wrapText(frame.title, 200, FONT.frame, measure) : frame.icon ? [''] : [];
     const descLines = (frame.desc ?? []).flatMap(line => wrapText(line, 180, FONT.body, measure));
-    const titleW = Math.max(maxWidthOf(lines, FONT.frame, measure), maxWidthOf(descLines, FONT.body, measure));
+    const titleW = Math.max(maxWidthOf(lines, FONT.frame, measure) + (frame.icon ? 22 : 0), maxWidthOf(descLines, FONT.body, measure));
     const titleH = lines.length * 17 + (descLines.length ? 4 + descLines.length * 16 : 0);
     const titleBand = titleH ? titleH + 8 : 0;
     const w = Math.max(inner.width, titleW + 32), h = inner.height + titleBand;
@@ -325,7 +325,8 @@ function layoutCore(model, { measure = fallbackMeasure, lang, ctx, renderOptions
 
   const layoutClusterTitle = (cluster, maxWidth) => {
     cluster.titleLines = wrapText(cluster.title, maxWidth, FONT.frame, measure);
-    cluster.titleW = maxWidthOf(cluster.titleLines, FONT.frame, measure);
+    if (!cluster.titleLines.length && cluster.model.icon) cluster.titleLines = [''];
+    cluster.titleW = maxWidthOf(cluster.titleLines, FONT.frame, measure) + (cluster.model.icon ? 22 : 0);
     cluster.titleBand = 10 + cluster.titleLines.length * 17
       + (cluster.descLines.length ? 4 + cluster.descLines.length * 16 : 0) + 8;
   };
@@ -585,7 +586,7 @@ function layoutCore(model, { measure = fallbackMeasure, lang, ctx, renderOptions
       continue;
     }
     const chain = [a];
-    let labelRank = le.edge.label ? a.rank + Math.max(1, Math.floor(span / 2)) : -1;
+    let labelRank = le.edge.label || le.edge.icon ? a.rank + Math.max(1, Math.floor(span / 2)) : -1;
     if (le.edge.label && (le.fromFrame || le.toFrame)) {
       const candidates = [];
       const lowIsFrame = le.reversed ? le.toFrame : le.fromFrame;
@@ -612,7 +613,8 @@ function layoutCore(model, { measure = fallbackMeasure, lang, ctx, renderOptions
       let labelLines = [];
       if (isLabel) {
         labelLines = wrapText(le.edge.label, 160, FONT.label, measure);
-        tw = Math.max(26, maxWidthOf(labelLines, FONT.label, measure) + 10);
+        if (!labelLines.length && le.edge.icon) labelLines = [''];
+        tw = Math.max(26, maxWidthOf(labelLines, FONT.label, measure) + 10 + (le.edge.icon ? 22 : 0));
         th = Math.max(18, labelLines.length * 16 + 6);
       }
       const item = {
@@ -1914,8 +1916,8 @@ function layoutCore(model, { measure = fallbackMeasure, lang, ctx, renderOptions
         const rect = tbRectOf(item);
         const shape = shapeOf(item);
         // 标签居中压在环的外侧竖边上，环的高度要容得下标签
-        loop.labelLines = edge.label ? wrapText(edge.label, 120, FONT.label, measure) : [];
-        loop.labelW = loop.labelLines.length ? maxWidthOf(loop.labelLines, FONT.label, measure) + 10 : 0;
+        loop.labelLines = edge.label ? wrapText(edge.label, 120, FONT.label, measure) : edge.icon ? [''] : [];
+        loop.labelW = loop.labelLines.length ? maxWidthOf(loop.labelLines, FONT.label, measure) + 10 + (edge.icon ? 22 : 0) : 0;
         loop.labelH = loop.labelLines.length ? Math.max(18, loop.labelLines.length * 16 + 6) : 0;
         const halfSpan = Math.max(8, (loop.labelH + 6) / 2);
         loop.upper = {
