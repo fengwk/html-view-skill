@@ -5,10 +5,11 @@ import { error, warning } from './support.js';
 import { presentation } from './presentation.js';
 import { normalizeLabel } from './label.js';
 import { resolveIconRef } from '../core/icons.js';
-import { validate } from '../chart/spec.js';
-import { layout as layoutChartModel } from '../chart/registry.js';
+import { createRegistry, layouts as chartLayouts } from '../chart/registry.js';
+import { validate as validateSpec } from '../chart/spec.js';
 import { mindmapPresentation } from '../chart/mindmap.js';
 
+const MAX_NODES = 2000, MAX_DEPTH = 100;
 const LAYOUTS = ['bilateral', 'right', 'left', 'radial', 'org', 'brace', 'fishbone', 'timeline'];
 // Mermaid's layout-algorithm names have no KChart counterpart; both sides fall back the same way.
 const LAYOUT_ALIASES = new Set(['tidy-tree', 'dagre', 'elk', 'cose-bilkent']);
@@ -100,19 +101,20 @@ function parse(body, info = {}) {
 
   const records = readRecords(lines, firstLine, lang, errors);
   const roots = [], stack = [], linesByPath = new Map();
-  let nodeCount = 0;
+  let nodeCount = 0, maxDepth = 0;
   for (const record of records) {
     while (stack.length && record.indent <= stack.at(-1).indent) stack.pop();
     const parent = stack.at(-1)?.node ?? null;
     const depth = stack.length;
+    maxDepth = Math.max(maxDepth, depth + 1);
     const { label: rawLabel, shape } = parseNodeText(record.text);
     const id = (shape !== 'none' ? record.text.split(BRACKETS, 1)[0].trim() : '') || rawLabel;
     const normalized = normalizeLabel(rawLabel, { lang, line: record.line });
     normalized.diagnostics.forEach(addAsset);
     const label = normalized.text || (normalized.icon ? id || ' ' : '');
     nodeCount += 1;
-    if (nodeCount === 81) addError(record.line, '脑图最多 80 个节点', 'A mindmap can contain at most 80 nodes', '拆分脑图，不要删除节点', 'Split the mindmap without dropping nodes');
-    if (depth === 5) addError(record.line, '脑图最多 5 层（含根）', 'A mindmap can have at most five levels including the root', '把节点移到更浅层，或拆分脑图', 'Move the node up or split the mindmap');
+    if (nodeCount === MAX_NODES + 1) addError(record.line, `脑图超过安全上限 ${MAX_NODES} 个节点`, `Mindmap exceeds the safety cap of ${MAX_NODES} nodes`, '拆分脑图后重试', 'Split the mindmap and try again');
+    if (depth >= MAX_DEPTH) addError(record.line, `脑图超过安全深度上限 ${MAX_DEPTH} 层`, `Mindmap exceeds the safety depth cap of ${MAX_DEPTH}`, '拆分脑图或降低层级', 'Split the mindmap or reduce its depth');
     if (/:::(?:[\w-]+)?|::icon\(/i.test(record.text)) {
       addError(record.line, '不支持行内节点装饰', 'Inline node decorations are unsupported', '在节点下一行使用受控 :::状态 标记', 'Use a supported :::status marker on the next line');
     }
@@ -162,8 +164,9 @@ function parse(body, info = {}) {
     node[mindmapPresentation] = { icon, link: look.linkOf(id) };
   }
   const spec = { chart: 'mindmap', data, layout, [mindmapPresentation]: true };
+  Object.defineProperties(spec, { nodeCount: { value: nodeCount }, maxDepth: { value: maxDepth } });
   if (info.title) spec.title = info.title;
-  const checked = validate(spec);
+  const checked = validateSpec(spec);
   for (const issue of checked.errors) {
     if (issue.message === '超过80节点上限' || issue.message === '超过树深度上限') continue;
     let path = '', line = firstLine;
@@ -176,9 +179,25 @@ function parse(body, info = {}) {
   return { model: spec, errors };
 }
 
-function layout(model, options = {}) {
-  const scene = layoutChartModel(model, options.renderOptions || options);
-  return { width: scene.width, height: scene.height, scene };
+const mindmapRegistry = createRegistry(spec => {
+  const result = validateSpec(spec);
+  const errors = result.errors.filter(issue => !['超过80节点上限', '超过树深度上限'].includes(issue.message));
+  return { errors, data: errors.length ? null : result.data ?? spec };
+});
+mindmapRegistry.register('mindmap', chartLayouts.get('mindmap'));
+
+function layout(model, options = {}, info = {}) {
+  // With many siblings bilateral rails cross labels and share long collinear runs.
+  // Radial spacing grows with leaf count, giving each branch a distinct sector.
+  const radial = model.nodeCount > 80 && model.layout !== 'radial';
+  const scene = mindmapRegistry.layout(radial ? { ...model, layout: 'radial' } : model, options.renderOptions || options);
+  const requested = options.width || 800;
+  const large = model.nodeCount > 60 || model.maxDepth > 5 || scene.width > requested * 2;
+  const errors = large ? [warning('LARGE_DIAGRAM', info.lang || options.lang || 'zh', info.firstLine || 1,
+    radial ? '大型脑图使用径向布局以避免重叠' : '脑图较大，可在图内滚动查看',
+    radial ? 'Large mindmap uses radial layout to avoid overlaps' : 'Large mindmap; scroll within the figure',
+    '拆分脑图以便阅读', 'Split the mindmap for readability')] : [];
+  return { width: scene.width, height: scene.height, scene, errors };
 }
 
 export const implementations = { mindmap: { acceptsPresentation: true, honoredConfig: ['layout', 'mindmap.layoutAlgorithm'], parse, layout, scene: geometry => geometry.scene } };

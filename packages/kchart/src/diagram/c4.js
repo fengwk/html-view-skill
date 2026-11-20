@@ -196,8 +196,9 @@ function parse(source, { kind, lang, firstLine = 2, config: sharedConfig }) {
       note('IGNORED_STYLE', line, ASSETS.filter(field => args[field] && !SHAPES.has(args[field].toLowerCase())).concat(args.shape && !taggedShape ? ['shape'] : []));
     }
     // Bound routing work, independently of the available display width.
-    if (items.size > 200 || rels.size > 300 || stack.length > 64) {
-      bad(line, 'C4 图超出处理上限', 'C4 diagram exceeds its work limit');
+    if (items.size > 300 || rels.size > 300 || stack.length > 64) {
+      errors.push(error(lang, line, 'C4 图最多 300 个元素、300 条关系、64 层边界',
+        'C4 supports up to 300 elements, 300 relations and 64 boundary levels', '请拆分图表', 'Split the diagram'));
       break;
     }
   }

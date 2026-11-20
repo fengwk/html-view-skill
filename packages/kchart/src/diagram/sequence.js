@@ -3,7 +3,7 @@ import { normalizeLabel } from './label.js';
 import { presentation, roleOfColor, safeHref } from './presentation.js';
 import { FONT, appearance, error, maxWidthOf, snap, warning, wrapText } from './support.js';
 
-const LIMITS = Object.freeze({ participants: 20, messages: 200, fragmentDepth: 4, lines: 4 });
+const LIMITS = Object.freeze({ participants: 300, messages: 500, fragmentDepth: 32, lines: 4 });
 const SECTIONS = new Set(['else', 'and', 'option']);
 const TYPES = new Set(['actor', 'boundary', 'collections', 'control', 'database', 'entity', 'participant', 'queue']);
 const ARROWS = new Map();
@@ -313,7 +313,7 @@ function parse(source, info) {
     errors.push(warning('IGNORED_STYLE', lang, ignoredColors.values().next().value,
       `区段颜色使用中性色：${colors}`, `Region colors rendered as neutral: ${colors}`, '使用有彩度的颜色', 'Use chromatic colors'));
   }
-  return { model: { type: 'sequence', participants, statements, title }, errors };
+  return { model: { type: 'sequence', participants, statements, title, messages }, errors };
 }
 
 const ICON_SPACE = 20;
@@ -667,7 +667,7 @@ function layout(model, { measure, width, lang }, info = {}) {
   // 画布宽度取内容右边界与版心宽度的较小值；内容放不下时返回固有宽度，由宿主滚动。
   const naturalWidth = snap(contentRight + 8);
   const canvas = naturalWidth <= width ? Math.floor(width) : naturalWidth;
-  if (naturalWidth > width * 2) errors.push(warning('LARGE_DIAGRAM', lang, actors[0].line, '时序图较宽，需要横向滚动', 'Wide sequence diagram requires horizontal scrolling', '可将时序图拆分', 'Consider splitting the diagram'));
+  if (naturalWidth > width * 2 || actors.length > 60 || model.messages > 200) errors.push(warning('LARGE_DIAGRAM', lang, actors[0].line, '时序图较大，可滚动查看', 'Large sequence diagram; scroll to view it', '可将时序图拆分', 'Consider splitting the diagram'));
   return {
     type: 'sequence', width: canvas, height: snap(height), actors, events, activations, errors, title: model.title,
   };

@@ -88,7 +88,9 @@ function parse(source, info) {
     }
   }
   // Work caps bound both the constraint solver and the obstacle router, not the viewport.
-  if (items.size > 400 || edges.length > 600 || aligns.length > 400) fail(info.firstLine, '架构图过大，请拆分', 'Architecture diagram is too large; split it into smaller diagrams');
+  if (items.size > 400 || edges.length > 600 || aligns.length > 400) fail(info.firstLine,
+    '架构图超过安全上限（400 个元素、600 条边或 400 条对齐），请拆分',
+    'Architecture exceeds its safety cap (400 items, 600 edges, or 400 alignments); split it into smaller diagrams');
   errors.push(...look.diagnostics());
   for (const item of items.values()) { item.status = look.statusOf(item.id); item.link = look.linkOf(item.id); }
   edges.forEach((edge, index) => { edge.status = look.edgeStatusOf(index); });
@@ -139,6 +141,12 @@ function place({ items, nodes, edges, aligns }, preferStraight = true) {
     }
   };
   visit(undefined);
+  // Large unconnected declarations all begin on the same pair of tracks. Their collision
+  // resolution is exactly declaration-order rows; construct that solution directly rather
+  // than repeatedly restarting the constraint solver for each shifted service.
+  if (ids.length > 60 && !edges.length && !aligns.length) {
+    return { xy: [new Map(ids.map(id => [id, 0])), new Map(ids.map((id, index) => [id, index]))] };
+  }
   const constraints = [[], []], perpendicular = [[], []];
   const add = (axis, relation) => {
     const rules = constraints[axis];

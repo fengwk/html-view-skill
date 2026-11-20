@@ -31,8 +31,8 @@ test('resolves swimlane ownership and lane titles independently', () => {
 
 // Lane overflow and contradictory direction statements are reported at the offending source line.
 test('reports lane and direction constraints', () => {
-  const lanes = Array.from({ length: 7 }, (_, i) => `subgraph Lane${i}\nA${i}\nend`).join('\n');
-  assert.ok(diagram(`swimlane-beta\n${lanes}`, { lang: 'en' }).diagnostics.some(d => d.line === 20 && /6 lanes/.test(d.message)));
+  const lanes = Array.from({ length: 41 }, (_, i) => `subgraph Lane${i}\nA${i}\nend`).join('\n');
+  assert.ok(diagram(`swimlane-beta\n${lanes}`, { lang: 'en' }).diagnostics.some(d => d.line === 122 && /40 lanes/.test(d.message)));
   assert.ok(diagram('swimlane-beta LR\nsubgraph Lane\ndirection TD\nA\nend', { lang: 'en' }).diagnostics.some(d => d.line === 3 && /Conflicting/.test(d.message)));
 });
 

@@ -222,5 +222,5 @@ test('20 participants and 200 messages render with a single width warning', () =
   assert.equal(layout.actors.length, 20);
   assert.equal(layout.events.filter(e => e.kind === 'message').length, 200);
   assert.ok(layout.activations.every(bar => bar.x >= 0 && bar.y + bar.h === layout.actors[0].life.y2));
-  assert.match(parse([...actors, ...calls, 'P0->>P19'].join('\n')).errors[0].message, /200/);
+  assert.match(parse([...actors, ...Array(501).fill('P0->>P19')].join('\n')).errors[0].message, /500/);
 });
