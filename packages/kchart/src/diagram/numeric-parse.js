@@ -111,5 +111,5 @@ export function parseTreemap(source, info) {
     else if (match && pattern) valueField = { ...(match[1] && match[3] !== '%' ? { unit: '$' } : {}), ...(match[2] ? { decimals: +match[2] } : {}), ...(match[3] === '%' ? { format: 'percent' } : {}) };
     else errors.push(warning('IGNORED_CONFIG', info.lang, info.configLines?.['treemap.valueformat'] || info.firstLine, `未识别 treemap.valueFormat ${pattern}`, `Unsupported treemap.valueFormat ${pattern}`, '使用默认数字格式', 'Use the default number format'));
   }
-  return { model: { chart: 'treemap', title, titleLine, treeLines, data, valueField, prefix: valueField?.format === 'percent' && pattern.startsWith('$') ? '$' : '' }, errors };
+  return { model: { chart: 'treemap', title, titleLine, treeLines, data, namedRoot: roots.length === 1 && data.children.length > 0, valueField, prefix: valueField?.format === 'percent' && pattern.startsWith('$') ? '$' : '' }, errors };
 }
