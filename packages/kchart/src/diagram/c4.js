@@ -424,10 +424,10 @@ function drawBox(ctx, b) {
   return b.link ? [ctx.link(b.link.href, shapes, b.link)] : shapes;
 }
 
-function layout(model, { width, ctx, lang }) {
+function layout(model, { width, ctx, lang, compact }) {
   const root = makeBoxes(model, ctx, lang), nodes = [], frames = [], byId = new Map();
   const margin = 38;
-  const sceneWidth = Math.max(width, root.w + 2 * margin);
+  const sceneWidth = Math.max(compact ? 0 : width, root.w + 2 * margin);
   let height = root.h + 2 * margin;
   function place(boxes, x, y) {
     for (const box of boxes) {
@@ -510,9 +510,25 @@ function layout(model, { width, ctx, lang }) {
       const tie = connected ? null : [pOnEdge, end];
       if (tie && occupied.some(b => hits(tie, b))) continue;
       const straddle = frames.some(frame => !contains(frame, inflate(candidate, 2)) && overlaps(frame, inflate(candidate, 2)));
+      if (straddle) continue;
       const score = distance(point(cx(candidate), cy(candidate)), preferred) + (tie ? distance(...tie) * 2 : 0)
-        + (straddle ? 34 : 0) + 240 * other.filter(seg => hits(seg, candidate)).length;
+        + 240 * other.filter(seg => hits(seg, candidate)).length;
       if (score < best) { best = score; box = candidate; leader = tie; }
+    }
+    if (!box) {
+      // Search the free space beside the drawing before parking a label below it.
+      for (const t of [0.5, 0.4, 0.6, 0.3, 0.7, 0.2, 0.8, 0.1, 0.9]) {
+        const p = along(t);
+        for (const x of [6 + w / 2, sceneWidth - 6 - w / 2]) {
+          const candidate = plate(point(x, p.y));
+          const padded = inflate(candidate, 2);
+          if (!free(candidate) || frames.some(frame => overlaps(frame, padded) && !contains(frame, padded))) continue;
+          const tie = [p, point(p.x < x ? candidate.x : candidate.x + w, p.y)];
+          if (occupied.some(b => hits(tie, b))) continue;
+          const score = distance(...tie);
+          if (score < best) { best = score; box = candidate; leader = tie; }
+        }
+      }
     }
     if (!box) {
       box = plate(point(mid.x, height + h / 2));

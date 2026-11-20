@@ -186,7 +186,9 @@ function layout(model, options = {}, info = {}) {
   // With many siblings bilateral rails cross labels and share long collinear runs.
   // Radial spacing grows with leaf count, giving each branch a distinct sector.
   const radial = model.nodeCount > 80 && model.layout !== 'radial';
-  const scene = mindmapRegistry.layout(radial ? { ...model, layout: 'radial' } : model, options.renderOptions || options);
+  const renderOptions = options.renderOptions || options;
+  const scene = mindmapRegistry.layout(radial ? { ...model, layout: 'radial' } : model,
+    options.compact ? { ...renderOptions, width: options.width } : renderOptions);
   const requested = options.width || 800;
   const large = model.nodeCount > 60 || model.maxDepth > 5 || scene.width > requested * 2;
   const errors = large ? [warning('LARGE_DIAGRAM', info.lang || options.lang || 'zh', info.firstLine || 1,
