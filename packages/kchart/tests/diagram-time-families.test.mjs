@@ -167,3 +167,64 @@ test('Journey validates scores and scrolls rather than dropping long rows', () =
   assert.ok(scene.width > options.width);
   assert.equal(scene.children.filter(n => n.meta?.kind === 'node').length, 12);
 });
+
+// Body titles win in the frame and SVG; the independent accessibility title and description still apply.
+test('time families prefer their body title', () => {
+  for (const [kind, task] of [['gantt', 'A: 2024-01-01, 1d'], ['timeline', 'A : Event'], ['journey', 'A: 3']]) {
+    const source = `---\ntitle: Fallback heading\n---\n${kind}\ntitle Body &amp; plan\naccTitle: Accessible title\naccDescr {\n  Details\n}\n${task}`;
+    const result = api.diagram(source, { ...options, frame: true });
+    noErrors(result.diagnostics);
+    assert.equal(result.scene.heading, 'Body & plan');
+    assert.equal(result.scene.title, 'Accessible title');
+    assert.equal(result.scene.description, 'Details');
+    assert.ok(!result.svg.includes('Fallback heading'));
+  }
+});
+
+// Gantt retains literal percent syntax and trailing statement text, and joins a vertical marker's name and date.
+test('Gantt uses a single caption next to a vertical marker', () => {
+  const source = 'gantt\ntitle Rollout %% note\ndateFormat YYYY\naxisFormat %y %%\ntopAxis\nTrack: 1900, 1920\n9: vert, 1906, 1s %% not part of a duration';
+  const { info, model, diagnostics } = api.parse(source, options);
+  noErrors(diagnostics);
+  assert.equal(info.title, 'Rollout %% note');
+  assert.equal(model.items[1].endTime, model.items[1].startTime);
+  assert.ok(diagnostics.some(d => d.code === 'DIAGRAM_HINT' && d.message.includes('1s %%')));
+  assert.ok(texts(sceneOf(source)).some(t => t.text === '9 · 06 %'));
+});
+
+// Only safe URLs become anchors, even when a Gantt task declares href and call together.
+test('Gantt safely handles both click commands and draws calm status bars', () => {
+  const source = `gantt\nA: a, 2024-01-01, 1d\nB: active, b, 2024-01-02, 1d\nC: crit, c, 2024-01-03, 1d\nD: done, d, 2024-01-04, 1d\nclick a href "https://example.com/a" call onOpen()\nclick b call onOpen() href "https://example.com/b"\nclick c href "javascript:alert(1)"`;
+  const { svg, scene, diagnostics } = api.diagram(source, options);
+  noErrors(diagnostics);
+  assert.deepEqual(checkScene(scene), []);
+  assert.deepEqual(scene.children.filter(n => n.tag === 'a').map(n => n.attrs.href), ['https://example.com/a', 'https://example.com/b']);
+  assert.equal(diagnostics.filter(d => d.code === 'IGNORED_INTERACTION').length, 2);
+  assert.ok(!/onOpen|javascript:/.test(svg));
+  const bars = scene.children.flatMap(n => n.tag === 'a' ? n.children : [n]).filter(n => n.meta?.kind === 'node');
+  assert.equal(new Set(bars.map(n => n.attrs.fill)).size, 4);
+  assert.ok(bars.every(n => n.attrs.stroke && n.attrs.stroke !== n.attrs.fill));
+});
+
+// All three families resolve labels and local icons, apply class status and keep a single warning for repeated missing icons.
+test('time families use shared label and presentation rules', () => {
+  const fixtures = [
+    ['gantt', 'fa:fa-user A &amp; B:::urgent: id, 2024-01-01, 1d\nfa:fa-does-not-exist X: 1d\nfa:fa-does-not-exist Y: 1d', 'id'],
+    ['timeline', 'fa:fa-user A &amp; B:::urgent : A\nfa:fa-does-not-exist X : Two\nfa:fa-does-not-exist Y : Three', 'period:0'],
+    ['journey', 'fa:fa-user A &amp; B:::urgent: 4: Me\nfa:fa-does-not-exist X: 3\nfa:fa-does-not-exist Y: 2', 'task:0'],
+  ];
+  for (const [kind, body, id] of fixtures) {
+    const source = `${kind}\n${body}\nclassDef urgent fill:#ff0000\nclick ${id} href "https://example.com/"`;
+    const { model, diagnostics } = api.parse(source, options);
+    noErrors(diagnostics);
+    assert.equal(diagnostics.filter(d => d.code === 'IGNORED_ASSET').length, 1);
+    const first = (model.items || model.tasks)[0];
+    assert.equal(first.name || first.text, 'A & B');
+    assert.ok(first.icon, kind);
+    assert.equal(first.status, 'danger');
+    for (const width of [360, 800]) {
+      const scene = sceneOf(source, { width });
+      assert.ok(scene.children.some(n => n.tag === 'a' && n.attrs.href === 'https://example.com/'), kind);
+    }
+  }
+});

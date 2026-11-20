@@ -1,6 +1,9 @@
 /* Mermaid journey diagrams: scored tasks grouped into themed section bands, drawn as a compact row model. */
 
-import { FONT, appearance as appearanceOf, error, labelText, warning } from './support.js';
+import { resolveIconRef } from '../core/icons.js';
+import { FONT, appearance as appearanceOf, error, warning } from './support.js';
+import { normalizeLabel } from './label.js';
+import { presentation } from './presentation.js';
 
 const TASK_ADVISORY = 60;
 const TASK_CAP = 2000;
@@ -11,6 +14,8 @@ const HONORED = new Map([['taskfontsize', 'taskFontSize'], ['maxlabelwidth', 'ma
 const COLOR_KEYS = new Set(['actorcolours', 'sectionfills', 'sectioncolours', 'titlecolor']);
 const configKey = value => String(value).toLowerCase().replace(/[-_]/g, '');
 const FACE_R = 9;
+const ICON_SIZE = 14;
+const ICON_GAP = 4;
 const SCALE = { segments: 5, width: 4, gap: 2, height: 3, total: 5 * 4 + 4 * 2 };
 const LAYOUT = { labelX: 12, labelPad: 12, plotGap: 6, right: 16, band: 10, bottom: 16, row: 48, chipR: 4, chipGap: 6 };
 LAYOUT.chip = LAYOUT.chipR * 2 + LAYOUT.chipGap;
@@ -40,7 +45,7 @@ function uncomment(value) {
   return value;
 }
 // `;` terminates a journey statement, but an entity code such as `#35;` is a single character.
-const hasStraySemicolon = value => value.replace(/#[\w]+;/g, '').includes(';');
+const hasStraySemicolon = value => value.replace(/(?:&#?|#)[\w]+;/g, '').includes(';');
 
 function readConfig(info, lang, line, errors) {
   const source = info?.config?.journey;
@@ -76,8 +81,29 @@ function parse(body, info = {}) {
     leftMargin: pixels(raw.leftMargin, 0, 0, 480),
   };
   const tasks = [], sections = [{ name: '', tasks: [] }];
-  let title = info.title || '', accTitle = '', accDescr = '', decimalWarned = false, overflow = false;
-  let brace = null;
+  const look = presentation({ lang });
+  const assetWarnings = new Set();
+  const addAssetWarnings = diagnostics => diagnostics.forEach(diagnostic => {
+    if (diagnostic.code !== 'IGNORED_ASSET' || !assetWarnings.has(diagnostic.message)) {
+      errors.push(diagnostic);
+      if (diagnostic.code === 'IGNORED_ASSET') assetWarnings.add(diagnostic.message);
+    }
+  });
+  const cleanLabel = (raw, line) => {
+    let explicit;
+    const consume = ref => { explicit ??= ref; return ''; };
+    const source = raw.replace(/::icon\(([^)]+)\)/gi, (_, ref) => consume(ref.trim()))
+      .replace(/(?<![\w:/.-])(?:logos|mdi|tabler|simple-icons):[a-z\d-]+/gi, consume);
+    const result = normalizeLabel(source, { lang, line });
+    addAssetWarnings(result.diagnostics);
+    return { text: result.text, icon: (explicit ? explicitIcon(explicit, line) : null) || result.icon };
+  };
+  const explicitIcon = (ref, line) => {
+    const icon = resolveIconRef(ref);
+    if (!icon) addAssetWarnings([warning('IGNORED_ASSET', lang, line, `未知图标 ${ref}`, `Unknown icon ${ref}`, '使用内置图标', 'Use a built-in icon')]);
+    return icon;
+  };
+  let title = info.title || '', titleLine = info.headerLine || Math.max(1, firstLine - 1), decimalWarned = false, overflow = false;
   const ignoredOptions = Object.keys(info.options || {});
   if (ignoredOptions.length) {
     errors.push(warning('IGNORED_CONFIG', lang, info.headerLine || Math.max(1, firstLine - 1),
@@ -87,50 +113,39 @@ function parse(body, info = {}) {
   const lines = String(body ?? '').replace(/\r\n?/g, '\n').split('\n');
   for (let index = 0; index < lines.length; index += 1) {
     const line = firstLine + index;
-    const text = uncomment(String(lines[index]).trim()).trim();
-    if (brace) {
-      const end = text.indexOf('}');
-      brace.push(end < 0 ? text : text.slice(0, end));
-      if (end >= 0) { accDescr = brace.join(' ').replace(/\s+/g, ' ').trim(); brace = null; }
-      continue;
-    }
+    const raw = lines[index].trim();
+    if (look.accept(raw, line)) continue;
+    const text = uncomment(raw).trim();
     if (!text || text.startsWith('%%')) continue;
     if (hasStraySemicolon(text)) {
       errors.push(issue(lang, line, '分号不能用于分隔旅程图语句', 'Semicolons cannot separate journey statements', '每行只写一条语句', 'Write one statement per line'));
       continue;
     }
     let match;
-    if ((match = /^accTitle\s*:\s*(.*)$/i.exec(text))) { accTitle = match[1].trim(); continue; }
-    if ((match = /^accDescr\s*:\s*(.*)$/i.exec(text))) { accDescr = match[1].trim(); continue; }
-    if ((match = /^accDescr\s*\{\s*([\s\S]*)$/i.exec(text))) {
-      const rest = match[1];
-      const end = rest.indexOf('}');
-      if (end >= 0) accDescr = rest.slice(0, end).trim();
-      else brace = [rest];
-      continue;
-    }
-    if ((match = /^title(?:\s*:|\s+)(.*)$/i.exec(text))) { title = match[1].trim(); continue; }
+    if ((match = /^title(?:\s*:|\s+)(.*)$/i.exec(text))) { title = match[1].trim(); titleLine = line; continue; }
     if (/^title$/i.test(text)) continue;
     if (/^section\b/i.test(text)) {
-      const name = /^section\s+([^#:\n;]+)$/i.exec(text);
+      const name = /^section\s+(.+)$/i.exec(text);
       if (!name || !name[1].trim()) {
-        errors.push(issue(lang, line, '分组名不能包含冒号或为空', 'A section name must be non-empty and cannot contain ":"', '写成「section 名称」', 'Write "section name"'));
+        errors.push(issue(lang, line, '分组名不能为空', 'A section name must be non-empty', '写成「section 名称」', 'Write "section name"'));
         continue;
       }
-      sections.push({ name: labelText(name[1].trim()), tasks: [] });
+      const section = cleanLabel(name[1].trim(), line);
+      sections.push({ name: section.text, icon: section.icon, tasks: [], line });
       continue;
     }
-    const colon = text.indexOf(':');
-    const name = colon < 0 ? '' : text.slice(0, colon).trim();
+    const names = [];
+    const statement = text.replace(/:::([\w-]+)/g, (_, name) => { names.push(name); return ''; });
+    const colon = [...statement.matchAll(/::icon\([^)]+\)|(?<![\w:/.-])(?:fa[bsrlk]?|logos|mdi|tabler|simple-icons):[a-z\d-]+|(:)/gi)].find(match => match[1])?.index;
+    const name = colon == null ? '' : statement.slice(0, colon).trim();
     if (!name) {
       errors.push(issue(lang, line, '旅程任务需要写成「任务名: 评分: 参与者」', 'A journey task reads "task name: score: actors"', '在冒号前写任务名', 'Write the task name before the colon'));
       continue;
     }
-    const pieces = text.slice(colon + 1).split(':');
-    const scoreText = pieces[0].trim();
-    const score = scoreText === '' ? Number.NaN : Number(scoreText);
-    // Mermaid splits only the first two pieces: the score, then the actor list.
-    const actors = [...new Set((pieces[1] || '').split(',').map(actor => labelText(actor).trim()).filter(Boolean))];
+    const [, scoreText, cast = ''] = /^\s*([^:]*?)(?:\s*:\s*(.*))?$/.exec(statement.slice(colon + 1));
+    const score = scoreText.trim() ? Number(scoreText) : NaN;
+    const actorLabels = cast.split(',').map(actor => cleanLabel(actor.trim(), line));
+    const actors = [...new Set(actorLabels.map(actor => actor.text).filter(Boolean))];
     if (!Number.isFinite(score)) {
       errors.push(issue(lang, line, `评分「${scoreText}」不是数字`, `Score "${scoreText}" is not a number`, '用 1–5 的整数评分', 'Use a whole score from 1 to 5'));
       continue;
@@ -151,16 +166,48 @@ function parse(body, info = {}) {
       }
       continue;
     }
-    const task = { id: `task:${tasks.length}`, name: labelText(name), score, actors, line };
+    const label = cleanLabel(name, line);
+    const id = `task:${tasks.length}`;
+    if (names.length) look.addClasses(id, names, line);
+    const task = { id, name: label.text, icon: label.icon,
+      score, actors, actorLabels, line };
     tasks.push(task); sections.at(-1).tasks.push(task);
   }
-  if (brace) accDescr = brace.join(' ').replace(/\s+/g, ' ').trim();
+  const normalizedTitle = cleanLabel(title, titleLine);
+  title = normalizedTitle.text;
+  info.title = title;
   if (!tasks.length && !errors.some(item => item.severity !== 'warning')) {
     errors.push(issue(lang, firstLine, '旅程图中没有任务', 'Journey has no tasks', '添加「任务名: 评分: 参与者」', 'Add "task name: score: actors"'));
   }
   // Actors keep first-appearance order: chips, legend colors and tones all follow it.
   const actors = [...new Set(tasks.flatMap(task => task.actors))];
-  return { model: { type: 'journey', title, tasks, sections, actors, accTitle, accDescr, config }, errors };
+  const actorIcons = new Map(), actorLinks = new Map();
+  for (const task of tasks) for (const actor of task.actorLabels) if (actor.text) {
+    if (actor.icon && !actorIcons.has(actor.text)) actorIcons.set(actor.text, actor.icon);
+    if (!actorLinks.has(actor.text)) actorLinks.set(actor.text, look.linkOf(actor.text));
+  }
+  for (const task of tasks) {
+    task.status = look.statusOf(task.id);
+    task.link = look.linkOf(task.id);
+  }
+  for (const section of sections) {
+    section.status = look.statusOf(section.name);
+    section.link = look.linkOf(section.name);
+  }
+  errors.push(...look.diagnostics());
+  return { model: { type: 'journey', title, titleIcon: normalizedTitle.icon, titleLink: look.linkOf(title), tasks, sections, actors,
+    actorIcons: Object.fromEntries(actorIcons), actorLinks: Object.fromEntries(actorLinks),
+    actorStatuses: Object.fromEntries(actors.map(actor => [actor, look.statusOf(actor)])),
+    config }, errors };
+}
+
+function drawIcon(ctx, icon, x, y, size = ICON_SIZE, color = ctx.color('fg')) {
+  if (!icon) return null;
+  const [vx, vy, w, h] = icon.viewBox.split(/\s+/).map(Number), scale = size / Math.max(w, h);
+  const stroke = icon.set === 'tabler';
+  return ctx.el('g', { transform: `translate(${x + (size - w * scale) / 2} ${y + (size - h * scale) / 2}) scale(${scale}) translate(${-vx} ${-vy})`,
+    fill: stroke ? 'none' : color, stroke: stroke ? color : 'none', 'stroke-width': 1.8, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' },
+  icon.elements.map(({ tag, attrs }) => ctx.shape(tag, attrs)));
 }
 
 function layout(model, options = {}) {
@@ -175,8 +222,10 @@ function layout(model, options = {}) {
   const labelFont = { size: FONT.label.size, weight: FONT.label.weight };
   const titleSize = config.titleFontSize || FONT.title.size;
   const maxLabelWidth = config.maxLabelWidth || 360;
-  const { tasks, actors } = model, groups = model.sections.filter(g => g.name || g.tasks.length);
+  const { tasks, actors } = model, groups = model.sections.filter(g => g.name || g.icon || g.tasks.length);
   const actorIndex = new Map(actors.map((actor, index) => [actor, index]));
+  const linked = (link, children) => link ? [ctx.link(link.href, children, link)] : children;
+  const iconSlot = icon => icon ? ICON_SIZE + ICON_GAP : 0;
   const children = [], errors = [];
   const font = (size, weight) => ({ size, weight });
   const widthOf = (value, style) => measure(value, style);
@@ -184,15 +233,16 @@ function layout(model, options = {}) {
   // Actor chips and the legend share one tone per actor, fixed by first appearance.
   const toneOf = name => {
     const index = actorIndex.get(name);
-    return ctx.tint(paper, ctx.color(`tone${index % 6 + 1}`), .8);
+    const status = model.actorStatuses?.[name];
+    return ctx.tint(paper, status ? ctx.design[status] : ctx.color(`tone${index % 6 + 1}`), .8);
   };
 
   // 1. Text metrics: task names wrap to maxLabelWidth, the label column grows to fit them and the chips.
-  const names = new Map(tasks.map(task => [task, ctx.wrap(task.name, maxLabelWidth, bodyFont.size, bodyFont.weight)]));
+  const names = new Map(tasks.map(task => [task, ctx.wrap(task.name, Math.max(40, maxLabelWidth - iconSlot(task.icon)), bodyFont.size, bodyFont.weight)]));
   const chipsOf = task => (task.actors.length ? (task.actors.length - 1) * LAYOUT.chip + LAYOUT.chipR * 2 : 0);
-  const labelWidth = Math.max(0, ...tasks.map(task => Math.max(0, ...names.get(task).map(line => widthOf(line, bodyFont))) + (task.actors.length ? 10 + chipsOf(task) : 0)));
+  const labelWidth = Math.max(0, ...tasks.map(task => iconSlot(task.icon) + Math.max(0, ...names.get(task).map(line => widthOf(line, bodyFont))) + (task.actors.length ? 10 + chipsOf(task) : 0)));
   const sectionFont = font(FONT.body.size, 600);
-  const sectionWidth = Math.max(0, ...groups.flatMap(group => group.name.split('\n').map(line => widthOf(line, sectionFont))));
+  const sectionWidth = Math.max(0, ...groups.flatMap(group => group.name.split('\n').map((line, index) => widthOf(line, sectionFont) + (index === 0 ? iconSlot(group.icon) : 0))));
   const pitch = bodyFont.size + 5;
   const left = Math.max(config.leftMargin || 0, LAYOUT.labelX + Math.max(labelWidth, sectionWidth) + LAYOUT.labelPad + FACE_R + LAYOUT.plotGap);
   // A five-stop scale needs room for a legible step; the scene widens (the host scrolls) instead of shrinking text.
@@ -202,14 +252,18 @@ function layout(model, options = {}) {
 
   // 2. Top band: optional in-scene title, the actor legend, then the numbered 1–5 scale.
   const inSceneTitle = Boolean(model.title) && !renderOptions?.frame;
-  if (inSceneTitle) children.push(ctx.text(LAYOUT.labelX, titleSize + 12, model.title, { size: titleSize, weight: 600, fill: ink }));
+  if (inSceneTitle) {
+    const titleText = ctx.text(LAYOUT.labelX + iconSlot(model.titleIcon), titleSize + 12, model.title, { size: titleSize, weight: 600, fill: ink });
+    const titleParts = [...(model.titleIcon ? [drawIcon(ctx, model.titleIcon, LAYOUT.labelX, titleSize + 12 - ICON_SIZE / 2)] : []), titleText];
+    children.push(...linked(model.titleLink, [ctx.el('g', {}, titleParts)]));
+  }
   let cursor = inSceneTitle ? 12 + titleSize + 18 : 16;
   const legendWidth = Math.max(120, x1 - LAYOUT.labelX);
   const legendRows = [];
   let row = [], used = 0, rowHeight = 0;
   for (const name of actors) {
-    const lines = ctx.wrap(name, Math.max(60, legendWidth - 13), labelFont.size, labelFont.weight);
-    const itemWidth = 13 + Math.max(0, ...lines.map(line => widthOf(line, labelFont)));
+    const lines = ctx.wrap(name, Math.max(40, legendWidth - 13 - iconSlot(model.actorIcons?.[name])), labelFont.size, labelFont.weight);
+    const itemWidth = 13 + iconSlot(model.actorIcons?.[name]) + Math.max(0, ...lines.map(line => widthOf(line, labelFont)));
     if (row.length && used + itemWidth > legendWidth) { legendRows.push({ items: row, height: rowHeight }); row = []; used = 0; rowHeight = 0; }
     row.push({ name, lines, width: itemWidth });
     used += itemWidth + 14;
@@ -219,10 +273,12 @@ function layout(model, options = {}) {
   for (const legend of legendRows) {
     let x = LAYOUT.labelX;
     for (const item of legend.items) {
-      children.push(ctx.titled(ctx.circle(x + LAYOUT.chipR, cursor + 8, LAYOUT.chipR, { fill: toneOf(item.name), stroke: paper, 'stroke-width': 1 }),
-        item.name));
-      item.lines.forEach((text, i) => children.push(ctx.text(x + 13, cursor + 8 + i * 15, text, { ...labelFont, fill: muted, 'dominant-baseline': 'middle' })));
-      x += item.width + 14;
+      const icon = model.actorIcons?.[item.name], slot = iconSlot(icon);
+      const marker = ctx.titled(ctx.circle(x + LAYOUT.chipR, cursor + 8, LAYOUT.chipR, { fill: toneOf(item.name), stroke: paper, 'stroke-width': 1 }), item.name);
+      children.push(...linked(model.actorLinks?.[item.name], [marker]));
+      if (icon) children.push(drawIcon(ctx, icon, x + 13, cursor + 1));
+      item.lines.forEach((text, i) => children.push(...linked(model.actorLinks?.[item.name], [ctx.text(x + 13 + slot, cursor + 8 + i * 15, text, { ...labelFont, fill: muted, 'dominant-baseline': 'middle' })])));
+      x += item.width + slot + 14;
     }
     cursor += legend.height + (legendRows.length > 1 ? 4 : 0);
   }
@@ -236,7 +292,7 @@ function layout(model, options = {}) {
   // 3. Section bands: one themed band behind each group of rows, the name on its own header line.
   const bands = [];
   for (const [index, group] of groups.entries()) {
-    const sectionLines = group.name ? group.name.split('\n') : [];
+    const sectionLines = group.name || group.icon ? group.name.split('\n') : [];
     const bandY = cursor, headerH = sectionLines.length ? 10 + 18 * sectionLines.length : 0;
     let y = bandY + headerH;
     const rows = group.tasks.map(task => {
@@ -254,28 +310,42 @@ function layout(model, options = {}) {
   // Bands sit under every other mark so row lines and faces stay crisp.
   for (const band of bands) {
     if (!band.group.name) continue;
+    const sectionTone = band.group.status ? ctx.design[band.group.status] : ctx.color(`tone${band.index % 6 + 1}`);
     children.push(ctx.rect(8, band.y, x1 + LAYOUT.labelPad - 8, band.height, {
-      rx: look.radius, fill: ctx.tint(paper, ctx.color(`tone${band.index % 6 + 1}`), .06),
-      meta: { kind: 'frame', id: `section:${band.index}` },
+      rx: look.radius, fill: ctx.tint(paper, sectionTone, .06),
+      meta: { kind: 'frame', id: `section:${band.index}`, ...(band.group.status ? { status: band.group.status } : {}) },
     }));
   }
 
   // 4. Rows: name and chips in the label column, a row rule, and the score face with its inline scale.
   for (const band of bands) {
-    band.sectionLines.forEach((line, i) => children.push(ctx.text(LAYOUT.labelX, band.y + 15 + i * 18, line,
-      { ...sectionFont, fill: muted, 'dominant-baseline': 'middle' })));
+    band.sectionLines.forEach((line, i) => {
+      const iconSlotWidth = i === 0 ? iconSlot(band.group.icon) : 0;
+      const text = ctx.text(LAYOUT.labelX + iconSlotWidth, band.y + 15 + i * 18, line,
+        { ...sectionFont, fill: muted, 'dominant-baseline': 'middle' });
+      const parts = [...(i === 0 && band.group.icon ? [drawIcon(ctx, band.group.icon, LAYOUT.labelX, band.y + 8)] : []), text];
+      children.push(...linked(band.group.link, parts));
+    });
     for (const { task, lines, mid } of band.rows) {
-      lines.forEach((text, i) => children.push(ctx.text(LAYOUT.labelX, mid + (i - (lines.length - 1) / 2) * pitch, text,
-        { ...bodyFont, fill: ink, 'dominant-baseline': 'middle' })));
+      const taskIconSlot = iconSlot(task.icon);
+      if (task.icon) children.push(drawIcon(ctx, task.icon, LAYOUT.labelX, mid - ICON_SIZE / 2));
+      lines.forEach((text, i) => children.push(...linked(task.link, [ctx.text(LAYOUT.labelX + taskIconSlot, mid + (i - (lines.length - 1) / 2) * pitch, text,
+        { ...bodyFont, fill: ink, 'dominant-baseline': 'middle' })])));
       if (task.actors.length) {
-        const start = LAYOUT.labelX + Math.max(0, ...lines.map(line => widthOf(line, bodyFont))) + 10 + LAYOUT.chipR;
-        task.actors.forEach((name, i) => children.push(ctx.titled(
-          ctx.circle(start + i * LAYOUT.chip, mid, LAYOUT.chipR, { fill: toneOf(name), stroke: paper, 'stroke-width': 1 }), name)));
+        const start = LAYOUT.labelX + taskIconSlot + Math.max(0, ...lines.map(line => widthOf(line, bodyFont))) + 10 + LAYOUT.chipR;
+        task.actors.forEach((name, i) => {
+          const marker = ctx.titled(ctx.circle(start + i * LAYOUT.chip, mid, LAYOUT.chipR,
+            { fill: toneOf(name), stroke: paper, 'stroke-width': 1 }), name);
+          children.push(...linked(model.actorLinks?.[name], [marker]));
+        });
       }
       children.push(ctx.line(x0, mid, x1, mid, { stroke: grid, 'stroke-width': 1 }));
       const score = Math.min(SCALE.segments, Math.max(1, task.score));
       const faceX = x0 + (score - 1) * step;
-      children.push(ctx.circle(faceX, mid, FACE_R, { fill: ctx.tint(paper, accent, .06), stroke: accent, 'stroke-width': 1.4, meta: { kind: 'node', id: task.id } }));
+      const taskTone = task.status ? ctx.design[task.status] : accent;
+      const face = ctx.circle(faceX, mid, FACE_R, { fill: ctx.tint(paper, taskTone, .06), stroke: taskTone, 'stroke-width': 1.4,
+        meta: { kind: 'node', id: task.id, ...(task.status ? { status: task.status } : {}) } });
+      children.push(...linked(task.link, [face]));
       for (const eye of [-3, 3]) children.push(ctx.circle(faceX + eye, mid - 2.5, 1.2, { fill: muted }));
       // The face only has three expressions, so a five-segment readout under it carries the exact score.
       const mouth = task.score > 3 ? `M${faceX - 4} ${mid + 2} Q${faceX} ${mid + 7} ${faceX + 4} ${mid + 2}`
@@ -303,12 +373,11 @@ function layout(model, options = {}) {
   const scene = {
     width: sceneWidth, height, children,
     ...(model.title ? { title: model.title } : {}),
-    ...(model.accDescr ? { description: model.accDescr } : {}),
     ...(renderOptions?.frame && model.title ? { heading: model.title } : {}),
   };
   return { width: sceneWidth, height, scene, errors };
 }
 
-const implementations = { journey: { parse, layout, honoredConfig } };
+const implementations = { journey: { parse, layout, honoredConfig, acceptsPresentation: true } };
 
 export { implementations };
