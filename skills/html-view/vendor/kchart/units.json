@@ -363,7 +363,7 @@
     "deps": [
       "diagram/shapes"
     ],
-    "bytes": 7918
+    "bytes": 8088
   },
   "diagram/graph": {
     "file": "units/diagram/graph.js",

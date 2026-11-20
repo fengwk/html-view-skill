@@ -9,6 +9,7 @@ var graph_route_exports = /* @__PURE__ */ __exportAll({
 });
 var TRACK_GAP = 12;
 var TRACK_CLEAR = 8;
+var EDGE_CLEAR = 4;
 var sides = [
 	"top",
 	"right",
@@ -84,7 +85,7 @@ function crosses(a, b) {
 	const side = (p, q, r) => (q.x - p.x) * (r.y - p.y) - (q.y - p.y) * (r.x - p.x);
 	return side(a.p0, a.p1, b.p0) * side(a.p0, a.p1, b.p1) < -1e-6 && side(b.p0, b.p1, a.p0) * side(b.p0, b.p1, a.p1) < -1e-6;
 }
-function shortest(from, to, obstacles, occupied, type, bounds, label, original, back, frameSides, arrivals) {
+function shortest(from, to, obstacles, occupied, type, bounds, label, original, back, frameSides, arrivals, clearOf = []) {
 	let best = null, score = Infinity;
 	const candidates = (a, b, key, span) => {
 		const midpoint = (a[key] + b[key]) / 2;
@@ -126,7 +127,7 @@ function shortest(from, to, obstacles, occupied, type, bounds, label, original, 
 			const cost = length + (compact.length - 2) * 16;
 			if (cost >= score) return;
 			const segments = compact.slice(1).map((p, i) => straight(compact[i], p));
-			if (segments.some(({ p0, p1 }) => occupied.some((seg) => sharesRun(p0, p1, seg.p0, seg.p1, back ? 12 : 1, back ? 8 : 4)) || frameSides.some((seg) => sharesRun(p0, p1, seg.p0, seg.p1, 8, 12)) || arrivals.some((edge) => edge.segments.some((seg) => crosses({
+			if (segments.some(({ p0, p1 }) => occupied.some((seg) => sharesRun(p0, p1, seg.p0, seg.p1, back ? 12 : 1, back ? 8 : 4)) || clearOf.some((seg) => sharesRun(p0, p1, seg.p0, seg.p1, EDGE_CLEAR, 4)) || frameSides.some((seg) => sharesRun(p0, p1, seg.p0, seg.p1, 8, 12)) || arrivals.some((edge) => edge.segments.some((seg) => crosses({
 				p0,
 				p1
 			}, seg) || sharesRun(p0, p1, seg.p0, seg.p1, 8, 8))))) return;
@@ -352,14 +353,16 @@ function repairRoutes(geometry, redirects = /* @__PURE__ */ new Map()) {
 			continue;
 		}
 		const labelObstacles = geometry.edges.filter((other) => other !== edge && other.labelRect).map((other) => expand(other.labelRect, 2));
-		const replacement = shortest(from, to, [
+		const forwardRuns = isBack ? [] : geometry.edges.filter((other) => other !== edge && other.style !== "invisible" && !pending.has(other.id) && !back(other)).flatMap((other) => other.segments);
+		const route = (clearOf) => shortest(from, to, [
 			...obstacles,
 			...titles,
 			...labelObstacles
 		], occupied ?? occupiedOf(), geometry.type, {
 			w: geometry.width,
 			h: geometry.height
-		}, edge.labelRect, !redirect, isBack, frameSides, arrivals);
+		}, edge.labelRect, !redirect, isBack, frameSides, arrivals, clearOf);
+		const replacement = forwardRuns.length && route(forwardRuns) || route([]);
 		if (replacement) {
 			pending.delete(edge.id);
 			Object.assign(edge, replacement, {

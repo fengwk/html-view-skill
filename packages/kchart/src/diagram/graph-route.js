@@ -2,6 +2,8 @@ import { flowOutlineName, shapeOutline, shapeGlyphBox, outlinePort } from './sha
 
 export const TRACK_GAP = 12;
 export const TRACK_CLEAR = 8;
+// Two parallel runs closer than this read as one line (the scene geometry check uses the same 4px).
+const EDGE_CLEAR = 4;
 const sides = ['top', 'right', 'bottom', 'left'];
 const vertical = side => side === 'top' || side === 'bottom';
 const distance = (a, b) => Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
@@ -55,7 +57,9 @@ function crosses(a, b) {
     side(b.p0, b.p1, a.p0) * side(b.p0, b.p1, a.p1) < -1e-6;
 }
 
-function shortest(from, to, obstacles, occupied, type, bounds, label, original, back, frameSides, arrivals) {
+// clearOf: parallel runs a forward route must keep EDGE_CLEAR away from (edges that read as one
+// line otherwise). Without it the old 1px tolerance applies, so a route is never lost.
+function shortest(from, to, obstacles, occupied, type, bounds, label, original, back, frameSides, arrivals, clearOf = []) {
   let best = null, score = Infinity;
   const candidates = (a, b, key, span) => {
     const midpoint = (a[key] + b[key]) / 2;
@@ -94,6 +98,7 @@ function shortest(from, to, obstacles, occupied, type, bounds, label, original, 
       const segments = compact.slice(1).map((p, i) => straight(compact[i], p));
       if (segments.some(({ p0, p1 }) => occupied.some(seg =>
         sharesRun(p0, p1, seg.p0, seg.p1, back ? TRACK_GAP : 1, back ? 8 : 4)) ||
+        clearOf.some(seg => sharesRun(p0, p1, seg.p0, seg.p1, EDGE_CLEAR, 4)) ||
         frameSides.some(seg => sharesRun(p0, p1, seg.p0, seg.p1, TRACK_CLEAR, 12)) ||
         arrivals.some(edge => edge.segments.some(seg => crosses({ p0, p1 }, seg) ||
           sharesRun(p0, p1, seg.p0, seg.p1, TRACK_CLEAR, 8))))) return;
@@ -215,8 +220,13 @@ export function repairRoutes(geometry, redirects = new Map()) {
     }
     if (!collision) { if (checkTracks) settled.push(...edge.segments); continue; }
     const labelObstacles = geometry.edges.filter(other => other !== edge && other.labelRect).map(other => expand(other.labelRect, 2));
-    const replacement = shortest(from, to, [...obstacles, ...titles, ...labelObstacles], occupied ?? occupiedOf(), geometry.type,
-      { w: geometry.width, h: geometry.height }, edge.labelRect, !redirect, isBack, frameSides, arrivals);
+    // A forward route keeps clear of other forward routes. Back edges yield later, so their current
+    // runs are not reserved yet.
+    const forwardRuns = isBack ? [] : geometry.edges.filter(other => other !== edge && other.style !== 'invisible' &&
+      !pending.has(other.id) && !back(other)).flatMap(other => other.segments);
+    const route = clearOf => shortest(from, to, [...obstacles, ...titles, ...labelObstacles], occupied ?? occupiedOf(), geometry.type,
+      { w: geometry.width, h: geometry.height }, edge.labelRect, !redirect, isBack, frameSides, arrivals, clearOf);
+    const replacement = (forwardRuns.length && route(forwardRuns)) || route([]);
     if (replacement) {
       pending.delete(edge.id);
       Object.assign(edge, replacement, { from: from.id, to: to.id, fromFrame: from.frame === true, toFrame: to.frame === true });
