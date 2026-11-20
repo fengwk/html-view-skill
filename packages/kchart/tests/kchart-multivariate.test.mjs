@@ -1,6 +1,7 @@
 // 多维图型的真实几何与专属语义：阻止注册名存在但回退成通用柱图。
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
+import { contrast } from '../src/core/color.js';
 import { install } from '../src/chart/multivariate.js';
 import { loadChart } from './kchart-fixture.mjs';
 import { createRenderer, themes } from '../dist/esm/node.js';
@@ -126,6 +127,29 @@ test('Review回归：combo共享同轴尺度、列分组，矩阵说明不压列
   assert.deepEqual(Array.from(points, e => e.meta.series).sort(), ['A','B']);
 });
 
+// 柱色接近线色时只在实际柱面内描细边，且柱写在折线后也不会盖住它。
+test('combo only separates low-contrast traces from the columns underneath', () => {
+  const spec = cases.find(item => item.chart === 'combo');
+  const dark = K.render({ ...spec, annotations: [], layers: [...spec.layers].reverse() }, { width: 720, theme: 'terminal', prefix: 'contrast' });
+  const { children } = dark.scene;
+  const rim = children.find(item => item.attrs['clip-path']);
+  const path = children.find(item => item.tag === 'path');
+  const rimPath = rim.children.find(item => item.tag === 'path');
+  assert.equal(rimPath.attrs.d, path.attrs.d);
+  assert.equal(rimPath.attrs['stroke-width'] - path.attrs['stroke-width'], 2);
+  assert.equal(path.attrs.stroke, themes.terminal.tones[0], 'series color still follows the declared order');
+  assert.ok(contrast(path.attrs.stroke, rimPath.attrs.stroke) >= 3);
+  assert.notEqual(rimPath.attrs.stroke, themes.terminal.surface);
+  const columns = children.filter(item => item.tag === 'rect' && item.attrs.fill === themes.terminal.tones[1]);
+  assert.equal(columns.length, spec.data.length);
+  assert.ok(columns.every(item => children.indexOf(item) < children.indexOf(rim)) && children.indexOf(rim) < children.indexOf(path));
+  const [clip] = children.find(item => item.tag === 'defs').children;
+  const box = ({ x, y, width, height }) => ({ x, y, width, height });
+  assert.deepEqual(clip.children.map(item => box(item.attrs)), columns.map(item => box(item.attrs)));
+  assert.match(dark.svg, /id="contrast-combo-column-1"/);
+  assert.match(dark.svg, /clip-path="url\(#contrast-combo-column-1\)"/);
+});
+
 test('Review回归：空值分段、字段格式化及末端标签留白', () => {
   // 这些具体风险使用实际布局输出核对：空值断线、雷达复用字段格式、发射扇标签不被画布裁切。
   const parallel = { chart:'parallel', data:[{name:'A',a:1,b:null,c:3},{name:'B',a:2,b:4,c:5}], encode:{label:'name',dimensions:['a','b','c']}, fields:{a:{domain:[0,5]},b:{domain:[0,5]},c:{domain:[0,5]}} };
@@ -245,10 +269,11 @@ test('Gallery multivariate cases remain readable at narrow and desktop widths', 
   const point = aligned.children.find(node => node.tag === 'circle' && Math.abs(node.attrs.cy - (sixty.attrs.y - 4)) < 0.01);
   assert.ok(point, 'the 60% observation is drawn on the 60% gridline');
   assert.ok(Number(leftLabels.at(-1).text) >= 22, `left axis labels its top tick: ${leftLabels.map(node => node.text).join('|')}`);
-  // 折线压在柱子上：同一路径先以底色描边，再画彩色线。
-  const linePaths = aligned.children.filter(node => node.tag === 'path' && node.attrs.fill === 'none');
-  const casing = linePaths.findIndex(node => node.attrs.stroke === K.util.context().palette.bg);
-  assert.ok(casing >= 0 && linePaths[casing + 1]?.attrs.d === linePaths[casing].attrs.d, 'a background casing precedes the line drawn over columns');
+  // 默认 Claude 的线/柱对比足够，保留连续的系列色折线和实心圆点，不加底色边。
+  const marks = visit(aligned.children);
+  const linePaths = marks.filter(node => node.tag === 'path' && node.attrs.fill === 'none');
+  assert.deepEqual(linePaths.map(node => [node.attrs.stroke, node.attrs['stroke-width']]), [[themes.claude.tones[1], 2]]);
+  assert.ok(!marks.some(node => node.attrs['clip-path'] || (node.tag === 'circle' && node.attrs.stroke)));
   const narrowTally = K.render(caseSpec('tally'), { width:502 }).scene;
   assert.ok(narrowTally.width <= 502, '100 tally marks and formatted values fit in the 558px gallery viewport without clipping');
   const bump = K.render(caseSpec('bump'), { width:268 }).scene;

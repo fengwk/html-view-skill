@@ -61,9 +61,10 @@
     "file": "units/chart/multivariate.js",
     "deps": [
       "chart/registry",
-      "core/geometry"
+      "core/geometry",
+      "core/color"
     ],
-    "bytes": 28062
+    "bytes": 28462
   },
   "chart/registry": {
     "file": "units/chart/registry.js",
@@ -311,7 +312,7 @@
       "diagram/support",
       "diagram/map-label"
     ],
-    "bytes": 19826
+    "bytes": 19875
   },
   "diagram/gantt-date": {
     "file": "units/diagram/gantt-date.js",
@@ -505,7 +506,7 @@
       "chart/basic",
       "chart/multivariate"
     ],
-    "bytes": 13417
+    "bytes": 13434
   },
   "diagram/packet": {
     "file": "units/diagram/packet.js",

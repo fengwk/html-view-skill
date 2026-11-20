@@ -12,6 +12,7 @@ const LANE_GAP = 12;
 const TRACK = 7;
 const SLOT = 6;
 const BOX_PAD = 10;
+const GLYPH_GAP = 6;
 const SIDE_INSET = 12;
 const MIN_LANE_H = 64;
 const MIN_BOX_H = 48;
@@ -364,13 +365,13 @@ function layout(model, options = {}, info = {}) {
   const boxes = model.frames.map((frame, index) => {
     const spec = TYPES[frame.type];
     const glyphW = Math.ceil(measure(spec.glyph, GLYPH_FONT));
-    const nameLines = wrapText(frame.name, maxText - glyphW - 6, NAME_FONT, measure);
+    const nameLines = wrapText(frame.name, maxText - glyphW - GLYPH_GAP, NAME_FONT, measure);
     const data = dataLinesOf(frame, frame.dataRef ? blocks.get(frame.dataRef) : null, measure, maxText, narrow);
-    const inner = Math.max(maxWidthOf(nameLines, NAME_FONT, measure) + glyphW + 6, data ? maxWidthOf(data.lines, DATA_FONT, measure) : 0);
-    const w = Math.min(MAX_BOX_W, Math.max(MIN_BOX_W, snap(inner + 2 * BOX_PAD)));
+    const contentW = Math.max(maxWidthOf(nameLines, NAME_FONT, measure) + glyphW + GLYPH_GAP, data ? maxWidthOf(data.lines, DATA_FONT, measure) : 0);
+    const w = Math.min(MAX_BOX_W, Math.max(MIN_BOX_W, snap(contentW + 2 * BOX_PAD)));
     const contentH = nameLines.length * NAME_STEP + (data?.lines.length ? DATA_GAP + data.lines.length * DATA_STEP : 0);
     const h = Math.max(MIN_BOX_H, snap(BOX_PAD * 2 + contentH));
-    return { frame, index, lane: frame.lane, glyph: spec.glyph, glyphW, nameLines, data, contentH, w, h, x: 0, r: 0, y: 0 };
+    return { frame, index, lane: frame.lane, glyph: spec.glyph, glyphW, nameLines, data, contentW, contentH, w, h, x: 0, r: 0, y: 0 };
   });
 
   // 3. Horizontal placement: each frame starts after the previous column and after its own lane's end.
@@ -643,25 +644,27 @@ function scene(geometry, ctx) {
     const stroke = tone ? ctx.tint(look.bg, tone, 0.45) : look.line2;
     const ink = ctx.textOn(fill);
     const glyphInk = tone ? ctx.textColor(tone) : look.fg3;
-    // The minimum card height and grid rounding add space; share it above and below the content.
+    // Center the content block, keeping the payload rows on the same left edge as the type glyph.
+    const contentX = box.x + Math.max(BOX_PAD, (box.w - box.contentW) / 2);
     const contentY = box.y + (box.h - box.contentH) / 2;
+    const nameX = contentX + box.glyphW + GLYPH_GAP;
     const nameY = contentY + NAME_STEP / 2;
     const parts = [
       ctx.rect(box.x, box.y, box.w, box.h, {
         fill, stroke, 'stroke-width': 1, rx: look.smallRadius, meta: { kind: 'node', id: box.frame.id },
       }),
-      ctx.text(box.x + BOX_PAD, nameY, box.glyph, {
+      ctx.text(contentX, nameY, box.glyph, {
         size: GLYPH_FONT.size, weight: GLYPH_FONT.weight, fill: glyphInk, anchor: 'start', 'dominant-baseline': 'central',
       }),
     ];
     for (const [index, line] of box.nameLines.entries()) {
-      parts.push(ctx.text(box.x + BOX_PAD + box.glyphW + 6, nameY + index * NAME_STEP, line, {
+      parts.push(ctx.text(nameX, nameY + index * NAME_STEP, line, {
         size: NAME_FONT.size, weight: NAME_FONT.weight, fill: ink, anchor: 'start', 'dominant-baseline': 'central',
       }));
     }
     const dataTop = contentY + box.nameLines.length * NAME_STEP + DATA_GAP;
     for (const [index, line] of (box.data?.lines || []).entries()) {
-      parts.push(ctx.text(box.x + BOX_PAD, dataTop + DATA_STEP / 2 + index * DATA_STEP, line, {
+      parts.push(ctx.text(contentX, dataTop + DATA_STEP / 2 + index * DATA_STEP, line, {
         size: DATA_FONT.size, weight: DATA_FONT.weight, fill: ink, anchor: 'start', 'dominant-baseline': 'central',
       }));
     }

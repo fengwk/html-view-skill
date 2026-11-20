@@ -270,7 +270,7 @@ function parseXychart(source, info) {
 }
 
 // 模型 → KChart 声明：单序列用 line/column，多序列或需要图例时用 combo（每个序列一层）。
-function specOf(model, info) {
+function specOf(model, info, panelIndex = 0) {
   const en = isEnglish(info?.lang);
   const subtitle = [model.xLabel, model.yLabel].filter(Boolean).join(' · ') || undefined;
   const domain = model.yDomain ? { domain: model.yDomain } : {};
@@ -281,7 +281,7 @@ function specOf(model, info) {
     ]));
     return {
       chart: 'combo',
-      [diagramCombo]: true,
+      [diagramCombo]: { index: panelIndex },
       ...(model.title ? { title: model.title } : {}),
       ...(subtitle ? { subtitle } : {}),
       data,
@@ -356,7 +356,8 @@ const validate = (model, info) => panelsOf(model, info).flatMap(panel =>
   validateWith(specOf(panel, info), info, detail => lineFor(panel, detail)));
 const layout = (model, options, info) => {
   const panels = panelsOf(model, info);
-  const results = panels.map(panel => renderWith(specOf(panel, info), options, info, detail => lineFor(panel, detail)));
+  // A combined SVG contains all panels, so combo clipping IDs need a panel namespace.
+  const results = panels.map((panel, index) => renderWith(specOf(panel, info, index), options, info, detail => lineFor(panel, detail)));
   if (results.some(result => !result.scene)) return results.find(result => !result.scene);
   const result = results[0];
   if (results.length > 1) {

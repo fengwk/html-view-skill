@@ -16,6 +16,7 @@ var LANE_GAP = 12;
 var TRACK = 7;
 var SLOT = 6;
 var BOX_PAD = 10;
+var GLYPH_GAP = 6;
 var SIDE_INSET = 12;
 var MIN_LANE_H = 64;
 var MIN_BOX_H = 48;
@@ -479,10 +480,10 @@ function layout(model, options = {}, info = {}) {
 	const boxes = model.frames.map((frame, index) => {
 		const spec = TYPES[frame.type];
 		const glyphW = Math.ceil(measure(spec.glyph, GLYPH_FONT));
-		const nameLines = wrapText(frame.name, maxText - glyphW - 6, NAME_FONT, measure);
+		const nameLines = wrapText(frame.name, maxText - glyphW - GLYPH_GAP, NAME_FONT, measure);
 		const data = dataLinesOf(frame, frame.dataRef ? blocks.get(frame.dataRef) : null, measure, maxText, narrow);
-		const inner = Math.max(maxWidthOf(nameLines, NAME_FONT, measure) + glyphW + 6, data ? maxWidthOf(data.lines, DATA_FONT, measure) : 0);
-		const w = Math.min(MAX_BOX_W, Math.max(MIN_BOX_W, snap(inner + 20)));
+		const contentW = Math.max(maxWidthOf(nameLines, NAME_FONT, measure) + glyphW + GLYPH_GAP, data ? maxWidthOf(data.lines, DATA_FONT, measure) : 0);
+		const w = Math.min(MAX_BOX_W, Math.max(MIN_BOX_W, snap(contentW + 20)));
 		const contentH = nameLines.length * NAME_STEP + (data?.lines.length ? DATA_GAP + data.lines.length * DATA_STEP : 0);
 		const h = Math.max(MIN_BOX_H, snap(20 + contentH));
 		return {
@@ -493,6 +494,7 @@ function layout(model, options = {}, info = {}) {
 			glyphW,
 			nameLines,
 			data,
+			contentW,
 			contentH,
 			w,
 			h,
@@ -868,7 +870,9 @@ function scene(geometry, ctx) {
 		const stroke = tone ? ctx.tint(look.bg, tone, .45) : look.line2;
 		const ink = ctx.textOn(fill);
 		const glyphInk = tone ? ctx.textColor(tone) : look.fg3;
+		const contentX = box.x + Math.max(BOX_PAD, (box.w - box.contentW) / 2);
 		const contentY = box.y + (box.h - box.contentH) / 2;
+		const nameX = contentX + box.glyphW + GLYPH_GAP;
 		const nameY = contentY + NAME_STEP / 2;
 		const parts = [ctx.rect(box.x, box.y, box.w, box.h, {
 			fill,
@@ -879,14 +883,14 @@ function scene(geometry, ctx) {
 				kind: "node",
 				id: box.frame.id
 			}
-		}), ctx.text(box.x + BOX_PAD, nameY, box.glyph, {
+		}), ctx.text(contentX, nameY, box.glyph, {
 			size: GLYPH_FONT.size,
 			weight: GLYPH_FONT.weight,
 			fill: glyphInk,
 			anchor: "start",
 			"dominant-baseline": "central"
 		})];
-		for (const [index, line] of box.nameLines.entries()) parts.push(ctx.text(box.x + BOX_PAD + box.glyphW + 6, nameY + index * NAME_STEP, line, {
+		for (const [index, line] of box.nameLines.entries()) parts.push(ctx.text(nameX, nameY + index * NAME_STEP, line, {
 			size: NAME_FONT.size,
 			weight: NAME_FONT.weight,
 			fill: ink,
@@ -894,7 +898,7 @@ function scene(geometry, ctx) {
 			"dominant-baseline": "central"
 		}));
 		const dataTop = contentY + box.nameLines.length * NAME_STEP + DATA_GAP;
-		for (const [index, line] of (box.data?.lines || []).entries()) parts.push(ctx.text(box.x + BOX_PAD, dataTop + DATA_STEP / 2 + index * DATA_STEP, line, {
+		for (const [index, line] of (box.data?.lines || []).entries()) parts.push(ctx.text(contentX, dataTop + DATA_STEP / 2 + index * DATA_STEP, line, {
 			size: DATA_FONT.size,
 			weight: DATA_FONT.weight,
 			fill: ink,

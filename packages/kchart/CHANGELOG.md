@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Center the full content block horizontally in Event Modeling frames while keeping payload rows left-aligned within it.
+- In combo charts, keep lines and points above columns, and use a thin local outline only where a line overlaps a low-contrast column.
+
 ## 0.1.1
 
 - Center the title and payload together inside Event Modeling frames, with equal space above and below.

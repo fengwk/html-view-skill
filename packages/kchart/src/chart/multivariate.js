@@ -2,6 +2,7 @@
 
 import { register } from './registry.js';
 import { columnHeaders } from '../core/geometry.js';
+import { contrast, pushContrast } from '../core/color.js';
 
 export const diagramCombo = Symbol('diagram combo');
 const finite = Number.isFinite;
@@ -188,6 +189,7 @@ const chart = (spec, ctx) => {
   }
 
   if (spec.chart === 'combo') {
+    const diagramPanel = spec[diagramCombo];
     const cats = ctx.table(spec).categories, layers = spec.layers;
     const axisFields = axis => [...new Set(layers.filter(l => l.axis === axis).map(l => l.field))];
     const leftFields = axisFields('left'), rightFields = axisFields('right');
@@ -232,16 +234,15 @@ const chart = (spec, ctx) => {
       if (axisTicks.right) children.push(ctx.text(p.x + p.w + 8, y + 4, axisTicks.right.labels[i], { size: 12 }));
     });
     children.push(ctx.line(p.x, p.y + p.h, p.x + p.w, p.y + p.h, { stroke: ctx.color('axis') }));
-    const overColumns = layers.some(l => l.mark === 'column');
-    layers.forEach((layer, li) => {
-      const vals = allValues(layer.field), xs = cats.map((_, i) => bandX(i, cats.length, p)), ys = vals.map(v => finite(v) ? yFor(layer.field, v) : NaN), color = ctx.color(`tone${li % 6 + 1}`);
+    const xs = cats.map((_, i) => bandX(i, cats.length, p));
+    const traces = [], columnLayers = [];
+    // 面积底填充在后、柱在中间，折线和点始终在最上层；数据、图例和系列色仍按声明顺序。
+    layers.forEach((layer, index) => {
+      const vals = allValues(layer.field), ys = vals.map(v => finite(v) ? yFor(layer.field, v) : NaN);
+      const color = ctx.color(`tone${index % 6 + 1}`);
       if (layer.mark === 'column') {
-        const group = layers.filter(l => l.mark === 'column' && l.axis === layer.axis), slot = group.indexOf(layer), bw = p.w / cats.length * .72 / group.length;
-        vals.forEach((v, i) => {
-          if (!finite(v)) return;
-          const y = ys[i], base = y0(layer.field), left = xs[i] - bw * group.length / 2 + slot * bw;
-          children.push(ctx.rect(left, Math.min(y, base), bw * .88, Math.max(1, Math.abs(base - y)), { fill: color }));
-        });
+        columnLayers.push({ layer, index, ys, color });
+        return;
       }
       if (layer.mark === 'area') {
         let segment = [];
@@ -252,22 +253,38 @@ const chart = (spec, ctx) => {
             segment = [];
           }
         };
-        vals.forEach((v, i) => {
-          if (finite(v)) segment.push([xs[i], ys[i]]);
+        ys.forEach((y, i) => {
+          if (finite(y)) segment.push([xs[i], y]);
           else close();
         });
         close();
       }
-      if (layer.mark === 'line' || layer.mark === 'area') {
-        const d = linePath(vals, xs, v => yFor(layer.field, v));
-        // 折线压在柱子上时先描一道底色边：暗色主题的浅色柱与浅色折线不会融在一起。
-        if (overColumns) children.push(ctx.path(d, { fill: 'none', stroke: ctx.palette.bg, 'stroke-width': 5, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }));
-        children.push(ctx.path(d, { fill: 'none', stroke: color, 'stroke-width': 2 }));
-        vals.forEach((v, i) => {
-          if (finite(v)) children.push(ctx.circle(xs[i], ys[i], 2.6, { fill: color, ...(overColumns ? { stroke: ctx.palette.bg, 'stroke-width': 1.5 } : {}) }));
-        });
-      }
+      const points = ys.flatMap((y, i) => finite(y) ? [[xs[i], y]] : []);
+      if (points.length) traces.push({ d: linePath(vals, xs, v => yFor(layer.field, v)), points, color });
     });
+    const traceMarks = ({ d, points }, ink, rim = false) => [
+      ctx.path(d, { fill: 'none', stroke: ink, 'stroke-width': rim ? 4 : 2,
+        ...(rim ? { 'stroke-linejoin': 'round', 'stroke-linecap': 'round' } : {}) }),
+      ...points.map(([x, y]) => ctx.circle(x, y, rim ? 3.6 : 2.6, { fill: ink })),
+    ];
+    const markContrast = 3;
+    for (const { layer, index, ys, color } of columnLayers) {
+      const group = columnLayers.filter(item => item.layer.axis === layer.axis);
+      const slot = group.findIndex(item => item.index === index), bw = p.w / cats.length * .72 / group.length;
+      const base = y0(layer.field);
+      const boxes = ys.flatMap((y, i) => finite(y)
+        ? [[xs[i] - bw * group.length / 2 + slot * bw, Math.min(y, base), bw * .88, Math.max(1, Math.abs(base - y))]] : []);
+      for (const box of boxes) children.push(ctx.rect(...box, { fill: color }));
+      const lowContrast = traces.filter(trace => contrast(trace.color, color) < markContrast);
+      if (!boxes.length || !lowContrast.length) continue;
+      // 只在低对比的柱面内给折线留 1px 过渡边。边色由线色向图底色调整到 3:1，
+      // 不用整条底色割断柱面。下一层柱若盖住这一层，也会一起盖住它的过渡边。
+      const clip = `combo-column-${diagramPanel ? `p${diagramPanel.index}-` : ''}${index}`;
+      children.push(ctx.el('defs', {}, [ctx.el('clipPath', { id: clip }, boxes.map(box => ctx.rect(...box)))]));
+      children.push(ctx.el('g', { 'clip-path': `url(#${clip})` }, lowContrast.flatMap(trace =>
+        traceMarks(trace, pushContrast(trace.color, ctx.color('bg'), trace.color, markContrast), true))));
+    }
+    for (const trace of traces) children.push(...traceMarks(trace, trace.color));
     const comboNotes = [];
     for (const a of spec.annotations || []) {
       const layer = layers.find(l => l.field === a.field);
@@ -292,7 +309,7 @@ const chart = (spec, ctx) => {
       children.push(ctx.text(x, p.y - 8 - index * 16, item.text, { anchor: item.anchor, size: 12, ...(item.fill ? { fill: item.fill } : {}) }));
     });
     catLabels(cats, p);
-    const showAxisInLegend = !spec[diagramCombo] || (leftFields.length > 0 && rightFields.length > 0);
+    const showAxisInLegend = !diagramPanel || (leftFields.length > 0 && rightFields.length > 0);
     const lh = legend(layers.map((l, i) => {
       const meta = ctx.field(l.field), unit = meta.unit || (meta.format === 'percent' ? '%' : '');
       const axis = l.axis === 'right' ? msg('右轴', 'right axis') : msg('左轴', 'left axis');

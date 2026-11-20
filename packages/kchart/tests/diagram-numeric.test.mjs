@@ -257,6 +257,19 @@ test('xychart one-axis legend preserves inferred language without axis suffixes'
   }
 });
 
+// Each panel must clip its own line outlines to its own columns when all panels share one SVG.
+test('multi-panel xychart does not share combo clip IDs', () => {
+  const source = ['xychart', 'x-axis [Jan,Feb]', 'bar [90,80]', 'line [15,20]', ...Array(4).fill('line [30,40]'),
+    'bar [60,70]', 'line [18,24]'].join('\n');
+  const { svg, diagnostics } = diagram(source, { width: 360, theme: 'terminal', prefix: 'xy' });
+  assert.deepEqual(diagnostics.map(item => item.code), ['LARGE_DIAGRAM']);
+  const ids = [...svg.matchAll(/<clipPath id="([^"]+)"/g)].map(match => match[1]);
+  const refs = [...svg.matchAll(/clip-path="url\(#([^\)]+)\)"/g)].map(match => match[1]);
+  assert.equal(ids.length, 2);
+  assert.equal(new Set(ids).size, 2);
+  assert.deepEqual(refs, ids);
+});
+
 // XY columns expand a nonzero declared baseline, and the series cap points to the twenty-fifth plot.
 test('xychart baseline and series cap', () => {
   const cfg = info('xychart');

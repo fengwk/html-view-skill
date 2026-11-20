@@ -27,6 +27,7 @@
 ## 图型 `combo`
 
 - 必需角色：`category`；可选角色：`id`，并且必须另有非空 `layers`。每层形如 `{mark:'line'|'area'|'column', field:'字段', axis:'left'|'right'}`；最多 6 层，至少一层用 left，同一轴字段单位与格式一致。时点最多 120；支持 rule / band / note 注释。
+- 线和数据点画在柱上方；只有线色和柱色对比不足时，才在相交处加细边，不改变系列色。
 
 ## 图型 `bump`
 

@@ -1,6 +1,7 @@
 import { test } from 'vitest';
 import corpus from './conformance/mermaid-12.3.0.json';
 import assert from 'node:assert/strict';
+import { fallbackMeasure } from '../src/core/text.js';
 import { createDiagramApi } from '../src/diagram/registry.js';
 import { implementations } from '../src/diagram/eventmodeling.js';
 import { checkScene } from './helpers/geometry.mjs';
@@ -116,20 +117,30 @@ test('resolves data blocks and preserves inline text', () => {
   ]);
 });
 
-// The minimum height and grid rounding must not put extra whitespace only below the text.
+// Center the measured text block on both axes, even at minimum card sizes, without centering its individual data rows.
 test('centers one-line titles and title-plus-payload blocks inside Event Modeling cards', () => {
   const { scene } = draw('tf 01 ui Screen\ntf 02 cmd Send\ntf 03 evt Saved [[Info]]\ndata Info {\n  first: string\n  last: number\n}');
   const card = id => {
     const group = elements(scene).find(node => node.children?.some(child => child.meta?.kind === 'node' && child.meta.id === id));
-    const rect = group.children.find(child => child.tag === 'rect').attrs;
-    return { ...rect, rows: group.children.filter(child => child.tag === 'text').map(child => child.attrs.y) };
+    const box = group.children.find(child => child.tag === 'rect').attrs;
+    const rows = group.children.filter(child => child.tag === 'text');
+    const left = Math.min(...rows.map(({ attrs }) => attrs.x)) - box.x;
+    const right = box.x + box.width - Math.max(...rows.map(({ text, attrs }) =>
+      attrs.x + fallbackMeasure(text, attrs['font-size'], attrs['font-weight'])));
+    assert.ok(left >= 10 && Math.abs(right - left) < 1e-6, `${id}: ${left}px left, ${right}px right`);
+    return { ...box, rows };
   };
-  const screen = card('01');
-  assert.deepEqual(screen.rows, Array(2).fill(screen.y + screen.height / 2));
-  const saved = card('03');
-  assert.equal(saved.rows.length, 4);
-  const top = saved.rows[1] - 18 / 2 - saved.y;
-  const bottom = saved.y + saved.height - (saved.rows.at(-1) + 16 / 2);
+  for (const id of ['01', '02']) {
+    const { y, height, rows } = card(id);
+    assert.deepEqual(rows.map(({ attrs }) => attrs.y), Array(2).fill(y + height / 2));
+  }
+  const { y, height, rows } = card('03');
+  assert.equal(rows.length, 4);
+  const [glyph, name, first, last] = rows.map(({ attrs }) => attrs);
+  assert.equal(first.x, glyph.x);
+  assert.equal(last.x, glyph.x);
+  const top = name.y - 18 / 2 - y;
+  const bottom = y + height - (last.y + 16 / 2);
   assert.ok(top >= 10);
   assert.equal(top, bottom);
 });

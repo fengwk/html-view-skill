@@ -296,7 +296,7 @@ function parseXychart(source, info) {
 		errors
 	};
 }
-function specOf(model, info) {
+function specOf(model, info, panelIndex = 0) {
 	const en = isEnglish(info?.lang);
 	const subtitle = [model.xLabel, model.yLabel].filter(Boolean).join(" · ") || void 0;
 	const domain = model.yDomain ? { domain: model.yDomain } : {};
@@ -304,7 +304,7 @@ function specOf(model, info) {
 		const data = model.categories.map((category, index) => Object.fromEntries([["category", category], ...model.datasets.map((dataset, series) => [`v${series}`, dataset.values[index]])]));
 		return {
 			chart: "combo",
-			[diagramCombo]: true,
+			[diagramCombo]: { index: panelIndex },
 			...model.title ? { title: model.title } : {},
 			...subtitle ? { subtitle } : {},
 			data,
@@ -391,7 +391,7 @@ function panelsOf(model, info) {
 }
 var validate = (model, info) => panelsOf(model, info).flatMap((panel) => validateWith(specOf(panel, info), info, (detail) => lineFor(panel, detail)));
 var layout = (model, options, info) => {
-	const results = panelsOf(model, info).map((panel) => renderWith(specOf(panel, info), options, info, (detail) => lineFor(panel, detail)));
+	const results = panelsOf(model, info).map((panel, index) => renderWith(specOf(panel, info, index), options, info, (detail) => lineFor(panel, detail)));
 	if (results.some((result) => !result.scene)) return results.find((result) => !result.scene);
 	const result = results[0];
 	if (results.length > 1) {
