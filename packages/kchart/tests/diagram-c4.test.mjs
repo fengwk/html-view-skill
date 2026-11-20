@@ -113,3 +113,50 @@ Rel(api, bar, uses, HTTPS)`;
     assert.ok(all.some(node => node.text === '[Kubernetes]'));
   }
 });
+
+// Intent: the registry passes merged config and accessibility text; C4's update macro still takes precedence.
+test('C4 honors directive and front-matter row configuration', () => {
+  const source = `---
+config:
+  c4:
+    c4ShapeInRow: 1
+---
+%%{init: {'c4': {'c4ShapeInRow': 2}}}%%
+C4Context
+accTitle: Service topology
+accDescr: The three systems
+System(a, A)
+System(b, B)
+System(c, C)`;
+  const { svg, scene, diagnostics } = render(source);
+  assert.deepEqual(diagnostics.filter(d => d.code === 'IGNORED_CONFIG'), []);
+  assert.match(svg, /<title[^>]*>Service topology<\/title>/);
+  assert.match(svg, /<desc[^>]*>The three systems<\/desc>/);
+  const rows = value => walk(value).filter(n => n.meta?.kind === 'node').map(n => n.attrs.y);
+  const [a, b, c] = rows(scene);
+  assert.equal(a, b);
+  assert.ok(c > b);
+  assert.equal(new Set(rows(render(`${source}\nUpdateLayoutConfig(3)`).scene)).size, 1);
+});
+
+// Intent: C4 consumes presentation syntax using the shared roles, safe links, icon lookup and text normalization.
+test('C4 presents semantic styles and safe links without retaining unknown assets', () => {
+  const { scene, diagnostics } = render(`C4Context
+System(a, "fa:fa-user <b>Bank</b> &amp; Trust"):::custom
+System(b, "Billing ::icon(tabler:c4-unknown-asset)")
+Rel(a, b, "Pays<br/>online")
+classDef custom fill:red;stroke:red
+linkStyle 0 stroke:blue
+click a href "https://example.org" "Bank" _blank
+click b href "javascript:alert(1)"`);
+  const all = walk(scene);
+  const a = all.find(node => node.meta?.id === 'a');
+  const b = all.find(node => node.meta?.id === 'b');
+  assert.notEqual(a.attrs.stroke, b.attrs.stroke);
+  assert.notEqual(a.attrs.stroke, 'red');
+  assert.notEqual(all.find(node => node.meta?.kind === 'edge').attrs.stroke, 'blue');
+  assert.ok(['Bank & Trust', 'Billing', 'Pays', 'online'].every(text => all.some(node => node.text === text)));
+  assert.equal(all.filter(node => node.meta?.kind === 'icon').length, 1);
+  assert.deepEqual(all.filter(node => node.tag === 'a').map(node => node.attrs.href), ['https://example.org']);
+  assert.deepEqual(diagnostics.map(d => d.code).sort(), ['IGNORED_ASSET', 'IGNORED_INTERACTION']);
+});

@@ -1,5 +1,8 @@
 import { mix } from '../core/color.js';
-import { FONT, error, warning, labelText, isEn } from './support.js';
+import { resolveIconRef } from '../core/icons.js';
+import { normalizeLabel } from './label.js';
+import { presentation, roleOfColor } from './presentation.js';
+import { FONT, error, warning, isEn } from './support.js';
 
 const TYPES = ['C4Context', 'C4Container', 'C4Component', 'C4Dynamic', 'C4Deployment'];
 const ELEMENTS = new Map();
@@ -51,6 +54,7 @@ function* statements(source, firstLine) {
     }
     if (quoted && c === '\\' && /["\\]/.test(source[i + 1] ?? '')) { text += c + source[++i]; continue; }
     const prose = /^\s*(?:title\s|accTitle\s*:|accDescr\s*:)/i.test(text);
+    const style = /^\s*(?:classDef|style|linkStyle)\s/i.test(text);
     if (c === '"' && !prose) quoted = !quoted;
     if (!quoted && !prose && c === '(') depth++;
     if (!quoted && !prose && c === ')') depth--;
@@ -64,7 +68,7 @@ function* statements(source, firstLine) {
         yield { text: '}', line };
       }
       text = '';
-    } else if ((c === '\n' || c === ';' && !prose) && !quoted && depth <= 0 && !/^\s*accDescr\s*\{/i.test(text)) {
+    } else if ((c === '\n' || c === ';' && !prose && !style) && !quoted && depth <= 0 && !/^\s*accDescr\s*\{/i.test(text)) {
       if (text.trim() && !(c === '\n' && /^\s*\{/.test(source.slice(i + 1)) && /\)\s*$/.test(text))) {
         yield { text: text.trim(), line: start };
         text = ''; depth = 0;
@@ -79,9 +83,35 @@ function* statements(source, firstLine) {
 }
 
 const ASSETS = ['sprite', 'tags', 'link'];
-function parse(source, { kind, lang, firstLine = 2 }) {
+const ROWS = { c4ShapeInRow: 4, c4BoundaryInRow: 2 };
+const honoredConfig = Object.keys(ROWS).map(name => `c4.${name}`);
+const configKey = (map, name) => Object.entries(map ?? {}).find(([key]) => key.toLowerCase() === name.toLowerCase())?.[1];
+const setCount = (config, key, raw) => {
+  const value = Number.parseInt(raw, 10);
+  if (Number.isSafeInteger(value) && value >= 1) config[key] = value;
+};
+const inline = /\s*(?::::(?<class>[\w-]+)|::icon\(\s*(?<icon>[\w:-]+)\s*\))$/i;
+const iconRef = /::icon\(\s*([\w:-]+)\s*\)|(?<![\w:-])((?:logos|mdi|tabler|simple-icons):[\w-]+)/gi;
+function parse(source, { kind, lang, firstLine = 2, config: sharedConfig }) {
   const items = new Map(), rels = new Map(), errors = [], stack = [], notices = new Map();
-  const config = { c4ShapeInRow: 4, c4BoundaryInRow: 2 };
+  const config = { ...ROWS }, look = presentation({ lang }), assetWarnings = new Set();
+  const c4Config = configKey(sharedConfig, 'c4');
+  for (const key of Object.keys(config)) setCount(config, key, configKey(c4Config, key));
+  const warnAsset = diagnostic => {
+    if (!assetWarnings.has(diagnostic.message)) { assetWarnings.add(diagnostic.message); errors.push(diagnostic); }
+  };
+  const iconOf = (ref, line) => {
+    const icon = resolveIconRef(ref);
+    if (!icon) warnAsset(warning('IGNORED_ASSET', lang, line, `未知图标 ${ref}`, `Unknown icon ${ref}`, '改用内置图标', 'Use a supported icon'));
+    return icon;
+  };
+  const normalize = (raw, line) => {
+    let icon = null;
+    const clean = raw.replace(iconRef, (_, call, pack) => { const resolved = iconOf(call || pack, line); icon ??= resolved; return ''; });
+    const result = normalizeLabel(clean, { lang, line });
+    result.diagnostics.forEach(warnAsset);
+    return { text: result.text, icon: icon ?? result.icon };
+  };
   let title;
   const bad = (line, zh, en) => errors.push(error(lang, line, zh, en, '检查 C4 声明及其参数', 'Check the C4 declaration and its arguments'));
   const note = (code, line, fields) => {
@@ -93,16 +123,23 @@ function parse(source, { kind, lang, firstLine = 2 }) {
     bad(firstLine, 'C4 源文本过长', 'C4 source is too long');
     return { model: null, errors };
   }
-  for (const { text, line } of statements(source, firstLine)) {
-    if (/^title\s+/i.test(text)) { title = labelText(text.replace(/^title\s+/i, '')); continue; }
+  for (const statement of statements(source, firstLine)) {
+    let { text } = statement;
+    const { line } = statement;
+    if (look.accept(text, line)) continue;
+    if (/^title\s+/i.test(text)) { title = normalize(text.replace(/^title\s+/i, ''), line).text; continue; }
     if (/^acc(?:Title|Descr)\s*:|^accDescr\s*\{[\s\S]*\}$/i.test(text)) continue;
     if (text === '}') {
       if (stack.length) stack.pop();
       else bad(line, '没有对应的边界起点', 'Unmatched boundary close');
       continue;
     }
-    const match = /^(\w+)\s*\(([\s\S]*)\)\s*(\{)?$/.exec(text);
-    const [, macro, raw, opens] = match || [];
+    const opens = text.endsWith('{');
+    if (opens) text = text.slice(0, -1).trimEnd();
+    const suffixes = [];
+    for (let part; (part = inline.exec(text)); text = text.slice(0, part.index).trimEnd()) suffixes.unshift(part.groups);
+    const match = /^(\w+)\s*\(([\s\S]*)\)$/.exec(text);
+    const [, macro, raw] = match || [];
     const element = ELEMENTS.get(macro), deploy = DEPLOYMENT.has(macro), boundary = BOUNDARIES.get(macro);
     const relation = RELS.has(macro);
     const styleFields = macro === 'UpdateElementStyle' ? ['alias', 'bgColor', 'fontColor', 'borderColor', 'shadowing', 'shape', 'sprite', 'techn', 'legendText', 'legendSprite']
@@ -121,17 +158,17 @@ function parse(source, { kind, lang, firstLine = 2 }) {
       bad(line, '无法识别 C4 语句', 'Unrecognized C4 statement');
       continue;
     }
-    const { alias, from, to } = args;
+    const { from, to } = args;
+    const [alias, ...classes] = (args.alias ?? '').split(':::');
     const key = JSON.stringify([from, to]);
     if (macro === 'UpdateLayoutConfig') {
-      for (const name of slots) {
-        const value = Number.parseInt(args[name], 10);
-        if (Number.isSafeInteger(value) && value >= 1) config[name] = value;
-      }
+      for (const name of slots) setCount(config, name, args[name]);
     } else if (styleFields) {
       const target = macro === 'UpdateElementStyle' ? items.get(alias) : rels.get(key);
       const shape = SHAPES.get(args.shape?.toLowerCase());
+      const colors = ['bgColor', 'fontColor', 'borderColor', 'textColor', 'lineColor'];
       if (target) {
+        for (const field of colors) if (args[field]) target[field] = roleOfColor(args[field]);
         if (shape && !target.frame) target.shape = shape;
         if (args.techn !== undefined) target.techn = args.techn;
         for (const dim of ['offsetX', 'offsetY']) {
@@ -139,11 +176,11 @@ function parse(source, { kind, lang, firstLine = 2 }) {
           if (Number.isFinite(value)) target[dim] = value;
         }
       }
-      note('IGNORED_STYLE', line, styleFields.filter(field => args[field] && !['alias', 'from', 'to', 'techn', 'offsetX', 'offsetY'].includes(field) && !(field === 'shape' && shape && target && !target.frame)));
+      note('IGNORED_STYLE', line, styleFields.filter(field => args[field] && !(colors.includes(field) && target?.[field]) && !['alias', 'from', 'to', 'techn', 'offsetX', 'offsetY'].includes(field) && !(field === 'shape' && shape && target && !target.frame)));
     } else if (relation) {
       if (!from || !to) { bad(line, '关系缺少端点', 'Relationship is missing an endpoint'); continue; }
       rels.set(key, { from, to, label: args.label, techn: args.techn, descr: args.descr, line,
-        index: args.index, hint: RELS.get(macro), start: macro === 'BiRel' || macro === 'Rel_Back', end: macro !== 'Rel_Back' });
+        icon: suffixes.find(part => part.icon)?.icon, index: args.index, hint: RELS.get(macro), start: macro === 'BiRel' || macro === 'Rel_Back', end: macro !== 'Rel_Back' });
       note('IGNORED_STYLE', line, ASSETS.filter(field => args[field]));
     } else {
       if (!alias || items.has(alias)) { bad(line, '元素别名缺失或重复', 'Missing or duplicate element alias'); continue; }
@@ -152,6 +189,8 @@ function parse(source, { kind, lang, firstLine = 2 }) {
         type: deploy ? args.type || 'Node' : boundary ? args.type || boundary : element.label,
         zh: element?.zh, external: element?.external, shape: taggedShape || element?.shape || 'box',
         parent: stack.at(-1)?.id, frame: Boolean(opens), align: macro === 'Node_R' ? 'right' : 'left', line };
+      look.addClasses(alias, [...classes, ...suffixes.map(part => part.class).filter(Boolean)], line);
+      item.icon = suffixes.find(part => part.icon)?.icon;
       items.set(alias, item);
       if (opens) stack.push(item);
       note('IGNORED_STYLE', line, ASSETS.filter(field => args[field] && !SHAPES.has(args[field].toLowerCase())).concat(args.shape && !taggedShape ? ['shape'] : []));
@@ -166,6 +205,19 @@ function parse(source, { kind, lang, firstLine = 2 }) {
   for (const rel of rels.values()) for (const id of [rel.from, rel.to]) {
     if (!items.has(id)) bad(rel.line, `未声明关系端点「${id}」`, `Undeclared relationship endpoint "${id}"`);
   }
+  for (const entry of [...items.values(), ...rels.values()]) {
+    let icon = entry.icon ? iconOf(entry.icon, entry.line) : null;
+    for (const field of ['label', 'type', 'techn', 'descr']) {
+      if (!entry[field]) continue;
+      const result = normalize(entry[field], entry.line);
+      entry[field] = result.text;
+      icon ??= result.icon;
+    }
+    entry.icon = icon;
+  }
+  for (const item of items.values()) { item.status = look.statusOf(item.id); item.link = look.linkOf(item.id); }
+  [...rels.values()].forEach((rel, index) => { rel.status = look.edgeStatusOf(index); });
+  errors.push(...look.diagnostics());
   if (kind === 'C4Dynamic') {
     let order = 0;
     for (const rel of rels.values()) rel.label = `${++order}: ${rel.label ?? ''}`;
@@ -194,7 +246,7 @@ function makeBoxes(model, ctx, lang) {
     if (!children.has(item.parent)) children.set(item.parent, []);
     children.get(item.parent).push(item);
   }
-  const rows = (value, font, width = CARD - 40) => value ? ctx.wrap(labelText(value), width, font.size, font.weight).map(text => ({ text, font })) : [];
+  const rows = (value, font, width = CARD - 40) => value ? ctx.wrap(value, width, font.size, font.weight).map(text => ({ text, font })) : [];
   function pack(parent) {
     const items = children.get(parent) ?? [];
     let w = 0, y = 0;
@@ -207,9 +259,10 @@ function makeBoxes(model, ctx, lang) {
         const type = `${item.external ? isEn(lang) ? 'External ' : '外部' : ''}${!isEn(lang) && item.zh ? item.zh : item.type}`;
         const lines = [...rows(item.label, FONT.title), ...rows(`[${type}${item.techn ? `: ${item.techn}` : ''}]`, FONT.label), ...rows(item.descr, FONT.body)];
         const inner = frame ? pack(item.id) : null;
-        const icon = item.shape === 'person' && !frame ? 25 : item.shape === 'database' && !frame ? 8 : 0;
-        const header = 2 * PAD + lines.length * LINE + icon;
-        const box = { ...item, x, y, lines, icon, header, w: Math.max(CARD, (inner?.w ?? 0) + 2 * PAD), h: header + (inner ? inner.h + PAD : 0), children: inner?.boxes ?? [] };
+        const iconSpace = item.icon || item.shape === 'person' && !frame ? 25 : 0;
+        const topSpace = iconSpace + (item.shape === 'database' && !frame ? 8 : 0);
+        const header = 2 * PAD + lines.length * LINE + topSpace;
+        const box = { ...item, x, y, lines, topSpace, iconSpace, header, w: Math.max(CARD, (inner?.w ?? 0) + 2 * PAD), h: header + (inner ? inner.h + PAD : 0), children: inner?.boxes ?? [] };
         boxes.push(box);
         x += box.w + GUTTER;
         w = Math.max(w, x - GUTTER);
@@ -288,10 +341,21 @@ function route(a, b, obstacles, existing, bounds, index) {
   return best;
 }
 
+function iconShape(ctx, icon, x, y, ink) {
+  if (!icon) return [];
+  const [l, t, w, h] = icon.viewBox.split(/\s+/).map(Number), scale = 18 / Math.max(w, h);
+  const solid = icon.set === 'simple';
+  return [{ ...ctx.el('g', { transform: `translate(${x - (l + w / 2) * scale} ${y - (t + h / 2) * scale}) scale(${scale})`,
+    fill: solid ? ink : 'none', stroke: solid ? 'none' : ink, 'stroke-width': 1.6, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' },
+  icon.elements.map(({ tag, attrs }) => ctx.shape(tag, attrs))), meta: { kind: 'icon' } }];
+}
+
 function drawBox(ctx, b) {
   const { x, y, w, h } = b;
-  const ink = b.external ? ctx.design.ext : ctx.frameTone(mix(ctx.design.line2, ctx.design.fg3, b.frame ? 0.48 : 0.27));
-  const paint = { fill: b.frame ? 'none' : ctx.design.surface, stroke: ink, 'stroke-width': 1.25,
+  const status = b.borderColor || b.status || b.bgColor || (b.external ? 'ext' : null);
+  const ink = ctx.design[status] ?? ctx.frameTone(mix(ctx.design.line2, ctx.design.fg3, b.frame ? 0.48 : 0.27));
+  const tint = b.bgColor || b.status;
+  const paint = { fill: b.frame ? 'none' : tint ? mix(ctx.design.surface, ctx.design[tint], 0.08) : ctx.design.surface, stroke: ink, 'stroke-width': 1.25,
     ...(b.frame || b.external ? { 'stroke-dasharray': b.frame ? '5 4' : '3 3' } : {}) };
   const meta = { kind: b.frame ? 'frame' : 'node', id: b.id };
   let outline, details = [];
@@ -304,15 +368,17 @@ function drawBox(ctx, b) {
   } else {
     outline = ctx.shape('rect', { x, y, width: w, height: h, rx: b.frame ? 5 : 8, ...paint }, meta);
     if (!b.frame && b.shape === 'component') details = [ctx.rect(x + 8, y + 9, 4, h - 18, { fill: ink, rx: 2 })];
-    if (!b.frame && b.shape === 'person') details = [ctx.shape('circle', { cx: cx(b), cy: y + 15, r: 5, fill: ink }),
+    if (!b.frame && b.shape === 'person' && !b.icon) details = [ctx.shape('circle', { cx: cx(b), cy: y + 15, r: 5, fill: ink }),
       ctx.path(`M${cx(b) - 9} ${y + 32} C${cx(b) - 9} ${y + 21} ${cx(b) + 9} ${y + 21} ${cx(b) + 9} ${y + 32} Z`, { fill: ink })];
   }
   const alignRight = b.frame && b.align === 'right';
-  const labels = b.lines.map(({ text, font }, i) => ctx.text(b.frame ? alignRight ? x + w - PAD : x + PAD : cx(b), y + PAD + b.icon + (i + 0.5) * LINE, text, {
+  const labels = b.lines.map(({ text, font }, i) => ctx.text(b.frame ? alignRight ? x + w - PAD : x + PAD : cx(b), y + PAD + b.topSpace + (i + 0.5) * LINE, text, {
     anchor: b.frame ? alignRight ? 'end' : 'start' : 'middle', 'dominant-baseline': 'central', size: font.size, weight: font.weight,
-    fill: font === FONT.title ? ctx.design.fg1 : ctx.design.fg3,
+    fill: font === FONT.title ? ctx.design[b.fontColor] ?? ctx.design.fg1 : ctx.design.fg3,
   }));
-  return [outline, ...details, ...labels];
+  const icons = iconShape(ctx, b.icon, b.frame ? alignRight ? x + w - PAD - 9 : x + PAD + 9 : cx(b), y + PAD + b.iconSpace - 11, ink);
+  const shapes = [outline, ...details, ...icons, ...labels];
+  return b.link ? [ctx.link(b.link.href, shapes, b.link)] : shapes;
 }
 
 function layout(model, { width, ctx, lang }) {
@@ -330,15 +396,16 @@ function layout(model, { width, ctx, lang }) {
   }
   place(root.boxes, Math.max(margin, (sceneWidth - root.w) / 2), margin);
   const headers = frames.map(b => {
-    const w = Math.max(...b.lines.map(({ text, font }) => ctx.measure(text, font.size, font.weight))) + 6;
-    return { x: b.align === 'right' ? b.x + b.w - PAD + 3 - w : b.x + PAD - 3, y: b.y + PAD - 3, w, h: b.lines.length * LINE + 6 };
+    const w = Math.max(b.iconSpace, ...b.lines.map(({ text, font }) => ctx.measure(text, font.size, font.weight))) + 6;
+    return { x: b.align === 'right' ? b.x + b.w - PAD + 3 - w : b.x + PAD - 3, y: b.y + PAD - 3, w, h: b.topSpace + b.lines.length * LINE + 6 };
   });
   const children = frames.flatMap(b => drawBox(ctx, b));
   const occupied = [...nodes, ...headers];
   const used = [], routes = [], errors = [], arrowBoxes = [];
   for (const [i, rel] of model.rels.entries()) {
     const a = byId.get(rel.from), b = byId.get(rel.to);
-    const obstacles = occupied.filter(box => box !== a && box !== b).map(box => inflate(box, 4));
+    const blockers = frames.filter(frame => frame !== a && frame !== b && !contains(frame, a) && !contains(frame, b));
+    const obstacles = [...occupied.filter(box => box !== a && box !== b), ...blockers].map(box => inflate(box, 4));
     // Endpoints are also obstacles after the first short port segment.
     const endpointInsets = [a, b].filter(box => !box.frame || a === b || !contains(box, box === a ? b : a)).map(box => inflate(box, -2));
     const path = route(a, b, [...obstacles, ...endpointInsets], used,
@@ -348,7 +415,7 @@ function layout(model, { width, ctx, lang }) {
       continue;
     }
     const meta = { from: rel.from, to: rel.to };
-    const ink = ctx.design.fg3;
+    const ink = ctx.design[rel.status || rel.lineColor] ?? ctx.design.fg3;
     children.push(ctx.shape('polyline', { points: path.map(p => `${p.x},${p.y}`).join(' '), fill: 'none', stroke: ink, 'stroke-width': 1.35, 'stroke-linejoin': 'round' }, { kind: 'edge', ...meta }));
     for (const [enabled, tip, next, end] of [[rel.start, path[0], path[1], 'start'], [rel.end, path.at(-1), path.at(-2), 'end']]) {
       if (!enabled) continue;
@@ -361,11 +428,13 @@ function layout(model, { width, ctx, lang }) {
     routes.push({ path, rel, meta });
   }
   children.push(...nodes.flatMap(b => drawBox(ctx, b)));
+  const leaders = [];
   for (const { path, rel, meta } of routes) {
-    const lines = [rel.label, rel.techn && `[${rel.techn}]`, rel.descr].filter(Boolean).flatMap(value => ctx.wrap(labelText(value), 156, FONT.label.size));
-    if (!lines.length) continue;
-    const w = Math.max(...lines.map(line => ctx.measure(line, FONT.label.size, FONT.label.weight))) + 16;
-    const h = lines.length * LINE + 8;
+    const lines = [rel.label, rel.techn && `[${rel.techn}]`, rel.descr].filter(Boolean).flatMap(value => ctx.wrap(value, 156, FONT.label.size));
+    if (!lines.length && !rel.icon) continue;
+    const iconSpace = rel.icon ? 22 : 0;
+    const w = Math.max(iconSpace, ...lines.map(line => ctx.measure(line, FONT.label.size, FONT.label.weight))) + 16;
+    const h = lines.length * LINE + 8 + iconSpace;
     const parts = segments(path), length = parts.reduce((sum, [a, b]) => sum + distance(a, b), 0);
     const along = fraction => {
       let rest = length * fraction;
@@ -384,12 +453,13 @@ function layout(model, { width, ctx, lang }) {
     const candidates = [[preferred, mid]];
     for (const t of [0.5, 0.4, 0.6, 0.3, 0.7, 0.2, 0.8, 0.1, 0.9]) {
       const p = along(t);
+      candidates.push([point(p.x, 6 + h / 2), p], [point(p.x, height - 6 - h / 2), p]);
       for (const dx of [0, -w / 2 - 4, w / 2 + 4]) for (const dy of [0, -h / 2 - 4, h / 2 + 4, -h - 8, h + 8]) {
         candidates.push([point(p.x + dx, p.y + dy), p]);
       }
     }
     let box, leader, best = Infinity;
-    const other = used.filter(seg => !path.includes(seg[0]) || !path.includes(seg[1]));
+    const other = used.filter(seg => !path.includes(seg[0]) || !path.includes(seg[1])).concat(leaders);
     for (const [p, pOnEdge] of candidates) {
       const candidate = plate(p);
       if (!free(candidate)) continue;
@@ -407,14 +477,18 @@ function layout(model, { width, ctx, lang }) {
       height += h + 14;
       leader = [mid, point(cx(box), box.y)];
     }
-    if (leader) children.push(ctx.path(`M${leader[0].x} ${leader[0].y} L${leader[1].x} ${leader[1].y}`, { fill: 'none', stroke: ctx.design.fg3, 'stroke-dasharray': '2 3' }));
+    if (leader) {
+      leaders.push(leader);
+      children.push(ctx.path(`M${leader[0].x} ${leader[0].y} L${leader[1].x} ${leader[1].y}`, { fill: 'none', stroke: ctx.design.fg3, 'stroke-dasharray': '2 3', meta: { kind: 'leader', ...meta } }));
+    }
     occupied.push(box);
     children.push({ ...ctx.el('g', {}, [ctx.rect(box.x, box.y, box.w, box.h, { fill: ctx.design.bg, stroke: ctx.design.line2, rx: 5 }),
-      ...lines.map((line, i) => ctx.text(cx(box), box.y + 4 + (i + 0.5) * LINE, line, { anchor: 'middle', 'dominant-baseline': 'central', size: FONT.label.size, fill: ctx.design.fg1 }))]), meta: { kind: 'edge-label-group', ...meta } });
+      ...iconShape(ctx, rel.icon, cx(box), box.y + 14, ctx.design[rel.status || rel.textColor] ?? ctx.design.fg3),
+      ...lines.map((line, i) => ctx.text(cx(box), box.y + 4 + iconSpace + (i + 0.5) * LINE, line, { anchor: 'middle', 'dominant-baseline': 'central', size: FONT.label.size, fill: ctx.design[rel.textColor] ?? ctx.design.fg1 }))]), meta: { kind: 'edge-label-group', ...meta } });
   }
   if (sceneWidth > 2 * width || nodes.length > 60) errors.push(warning('LARGE_DIAGRAM', lang, 1, 'C4 图较大', 'Large C4 diagram', '考虑拆分图表', 'Consider splitting the diagram'));
   return { scene: { width: sceneWidth, height, children, title: model.title, heading: model.title }, errors };
 }
 
-const implementations = Object.fromEntries(TYPES.map(kind => [kind, { parse, layout }]));
+const implementations = Object.fromEntries(TYPES.map(kind => [kind, { parse, layout, acceptsPresentation: true, honoredConfig }]));
 export { implementations };
