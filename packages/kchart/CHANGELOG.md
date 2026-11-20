@@ -1,15 +1,12 @@
 # Changelog
 
-## Unreleased
-
-- Center the full content block horizontally in Event Modeling frames while keeping payload rows left-aligned within it.
-- In combo charts, keep lines and points above columns, and use a thin local outline only where a line overlaps a low-contrast column.
-- Raise warning-label contrast in the Cloud Music theme. Report an invalid top-level chart `id` once, without rejecting the supported `encode.id` role.
-
 ## 0.1.1
 
-- Center the title and payload together inside Event Modeling frames, with equal space above and below.
+- Center the title and payload together both horizontally and vertically inside Event Modeling frames. Keep the payload rows left-aligned within that block.
 - Draw Venn labels directly on the set and intersection fills, without label backplates or halos. Keep text clear of ring outlines and move labels below the diagram only when they cannot fit.
+- Keep lines and points above columns in combo charts and Mermaid XY charts. Add a thin outline only where a line overlaps a low-contrast column.
+- Raise warning-label contrast in the Cloud Music theme.
+- Report an invalid top-level chart `id` once, while continuing to support row identifiers through `encode.id`.
 
 ## 0.1.0
 
