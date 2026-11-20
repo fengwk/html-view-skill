@@ -180,17 +180,17 @@
       }
     }
   },
+  "diagram/gantt": {
+    "diagrams": { "gantt": { "topic": "time" } }
+  },
+  "diagram/timeline": {
+    "diagrams": { "timeline": { "topic": "time" } }
+  },
+  "diagram/journey": {
+    "diagrams": { "journey": { "topic": "flow" } }
+  },
   "diagram/time": {
     "diagrams": {
-      "gantt": {
-        "topic": "time"
-      },
-      "timeline": {
-        "topic": "time"
-      },
-      "journey": {
-        "topic": "flow"
-      },
       "gitGraph": {
         "topic": "time"
       },
