@@ -91,7 +91,11 @@ function createDiagramApi(implementations, types) {
 
   function parseUnchecked(input, options = {}) {
     const syntax = options.syntax || 'mermaid';
-    const prepared = prepareSource(input, { syntax, lang: options.lang });
+    const keepsTrailingComments = (kind) => {
+      const known = byAlias.get(kind.toLowerCase());
+      return implementations[known?.kind]?.trailingComments === false;
+    };
+    const prepared = prepareSource(input, { syntax, lang: options.lang, keepsTrailingComments });
     const rawKind = String(prepared.kind || '').toLowerCase();
     const type = byAlias.get(rawKind) || byKind.get(rawKind);
     const implementation = type && implementations[type.kind];

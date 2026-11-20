@@ -261,5 +261,6 @@ function layout(model, { width, ctx, measure, renderOptions }) {
   return { width: w, height, scene, errors };
 }
 
-const implementations = { gantt: { parse, layout, honoredConfig: ['gantt.axisFormat', 'gantt.tickInterval', 'gantt.weekday', 'gantt.topAxis', 'gantt.displayMode', 'gantt.todayDate'] } };
+// Mermaid's gantt lexer reads `%%` after statement text as part of the value (axisFormat `%%` is a literal %).
+const implementations = { gantt: { parse, layout, trailingComments: false, honoredConfig: ['gantt.axisFormat', 'gantt.tickInterval', 'gantt.weekday', 'gantt.topAxis', 'gantt.displayMode', 'gantt.todayDate'] } };
 export { implementations };

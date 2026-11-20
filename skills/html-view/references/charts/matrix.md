@@ -24,6 +24,10 @@
 
 - 必需角色：`label`、`dimensions`；可选：`id`、`series`。`dimensions` 为 3–6 个字段名数组，最多 24 个实体。与 radar 不同，不要求每个维度显式声明 domain。无 variant 参数。
 
+## cynefin-beta
+
+Cynefin 情境框架：`complex`、`complicated`、`clear`、`chaotic`、`confusion` 五个域下逐行写带引号的条目，`complex --> complicated: "说明"` 表示域之间的迁移；可用正文 `title`。域边界为固定几何，不随机抖动。
+
 ## 可运行示例
 
 ```kchart

@@ -269,7 +269,8 @@ function normalizeMarkdown(source) {
   return result + source.slice(cursor);
 }
 
-function prepareSource(source, { syntax = 'mermaid', lang } = {}) {
+// keepsTrailingComments(kind): some Mermaid grammars (gantt) lex `%%` after statement text as part of the value.
+function prepareSource(source, { syntax = 'mermaid', lang, keepsTrailingComments = () => false } = {}) {
   const original = String(source ?? '').replace(/^\uFEFF/, '').replace(/\r\n?/g, '\n');
   const lines = original.split('\n');
   const errors = [], config = {}, configLines = new Map(), ignored = new Map();
@@ -309,6 +310,7 @@ function prepareSource(source, { syntax = 'mermaid', lang } = {}) {
     }
   }
 
+  const trailing = new Map();
   if (syntax === 'mermaid') {
     let quote = '';
     for (let i = start; i < lines.length; i++) {
@@ -317,7 +319,10 @@ function prepareSource(source, { syntax = 'mermaid', lang } = {}) {
       quote = found.quote;
       if (found.index < 0) continue;
       lines[i] = raw.slice(0, found.index).trimEnd();
-      if (!raw.startsWith('%%{', found.index)) continue;
+      if (!raw.startsWith('%%{', found.index)) {
+        if (lines[i].trim()) trailing.set(i, raw);
+        continue;
+      }
       const at = i + 1;
       let end = i, text = raw.slice(found.index + 3), close = marker(text, '}%%');
       // Recover a closing delimiter even if invalid JSON leaves a quote open.
@@ -374,6 +379,7 @@ function prepareSource(source, { syntax = 'mermaid', lang } = {}) {
     bodyStart = start; firstLine = start + 1;
   }
 
+  if (kind && keepsTrailingComments(kind)) for (const [i, raw] of trailing) if (i >= bodyStart) lines[i] = raw;
   const rawBody = lines.slice(bodyStart).join('\n');
   const bodyLines = (mermaid ? normalizeMarkdown(rawBody) : rawBody).split('\n');
   if (mermaid) {

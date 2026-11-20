@@ -6,9 +6,6 @@ var MAX_ITEMS = 80;
 var MAX_LINES = 240;
 var MAX_PACKET_BIT = 4095;
 var kinds = [
-	"gantt",
-	"timeline",
-	"journey",
 	"gitGraph",
 	"kanban",
 	"packet-beta",

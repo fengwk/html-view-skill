@@ -143,10 +143,22 @@
     }
   },
   "diagram/wardley": {
-    "diagrams": { "wardley-beta": { "syntax": "mermaid", "topic": "architecture", "aliases": [] } }
+    "diagrams": {
+      "wardley-beta": {
+        "syntax": "mermaid",
+        "topic": "architecture",
+        "aliases": []
+      }
+    }
   },
   "diagram/eventmodeling": {
-    "diagrams": { "eventmodeling": { "syntax": "mermaid", "topic": "flow", "aliases": [] } }
+    "diagrams": {
+      "eventmodeling": {
+        "syntax": "mermaid",
+        "topic": "flow",
+        "aliases": []
+      }
+    }
   },
   "diagram/layers": {
     "diagrams": {
@@ -166,12 +178,18 @@
   },
   "diagram/usecase": {
     "diagrams": {
-      "usecase-beta": { "syntax": "mermaid", "topic": "sequence" }
+      "usecase-beta": {
+        "syntax": "mermaid",
+        "topic": "sequence"
+      }
     }
   },
   "diagram/swimlane-mermaid": {
     "diagrams": {
-      "swimlane-beta": { "syntax": "mermaid", "topic": "flow" }
+      "swimlane-beta": {
+        "syntax": "mermaid",
+        "topic": "flow"
+      }
     }
   },
   "diagram/swimlane": {
@@ -317,7 +335,7 @@
   "diagram/ishikawa": {
     "diagrams": {
       "ishikawa": {
-        "topic": "causality",
+        "topic": "hierarchy",
         "aliases": [
           "ishikawa-beta"
         ]

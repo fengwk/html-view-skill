@@ -161,3 +161,10 @@ test('native bare source and parseOptions retain exact values and positions', ()
   assert.equal(parsed.errors.length, 2);
   assert.deepEqual(parsed.errors.map(({ line }) => line), [4, 4]);
 });
+
+// Trailing %% comments are stripped by default, but a kind may keep them as text (gantt axisFormat %%).
+test('keepsTrailingComments lets a kind keep %% text after a statement', () => {
+  const source = 'gantt\naxisFormat %s %%\nflow A --> B %% note';
+  assert.equal(Source.prepareSource(source).body, 'axisFormat %s\nflow A --> B');
+  assert.equal(Source.prepareSource(source, { keepsTrailingComments: kind => kind === 'gantt' }).body, 'axisFormat %s %%\nflow A --> B %% note');
+});
