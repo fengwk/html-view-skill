@@ -4,7 +4,7 @@
 
 Boards change visibly in this release, with additional Mermaid compatibility fixes.
 
-- `diagram()` and the Mermaid facade accept opt-in `compact: true` for left-aligned, content-sized diagrams with a 720px layout cap and 12–14px text. Structure diagrams use their natural geometry instead of filling the host width.
+- `diagram()` and the Mermaid facade accept opt-in `compact: true` for left-aligned, content-sized diagrams with a 720px layout cap and 12–14px text. Structure diagrams use their natural geometry instead of filling the host width. Compact diagrams without an outer frame show one left-aligned title above the drawing.
 - Size compact Mermaid charts from their data instead of the host width. Keep CJK quadrant y-axis labels upright, remove the halo from Mermaid Sankey labels, and draw single-leaf compact treemaps as small tiles.
 - Give class member text clearance from compartment dividers, keep C4 relationship captions off boundary borders, prefer explicit word breaks in Git commit captions, and balance bilateral mindmap branches by subtree weight. The fallback text measurer now counts fullwidth forms as fullwidth glyphs.
 - Native `blocks` draws one-page overview boards. New `card` (a title plus description lines), `note`, `legend` and `grid N` lines join `row`, `col` and `box`. Braces at the end of a `box` or `card` line take a style word (`accent`, `new`, `info`, `ok`, `warn`, `danger`, `ext`), `db`, a `#01` badge, an `@id` reference or a `"tag"`. Relations `->`, `=>` (main flow) and `~>` (dashed) connect groups and cards by `@id` or exact title.

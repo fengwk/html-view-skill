@@ -292,7 +292,7 @@ function layout(model, options = {}) {
   const widest = (lines, font) => Math.ceil(Math.max(0, ...lines.map(line => ink(line, font))));
 
   const titleLines = model.title ? wrap(model.title, Math.max(160, Math.min(640, width - MARGIN * 2)), nameFont) : [];
-  const titleHeight = titleLines.length ? titleLines.length * TITLE_LINE + TITLE_GAP : 0;
+  const titleHeight = !options.embedHeading && titleLines.length ? titleLines.length * TITLE_LINE + TITLE_GAP : 0;
   const itemCount = DOMAINS.reduce((sum, name) => sum + model.domains[name].length, 0);
   // Transition captions need a clear corridor between the two domain description blocks.
   const transitionRoom = model.transitions.some(transition => transition.label) ? 104 : 0;
@@ -447,6 +447,7 @@ function layout(model, options = {}) {
     height: planHeight,
     compact,
     title: titleLines.length ? { lines: titleLines, x: plotX + plotW / 2, top: MARGIN + TITLE_LINE / 2 } : null,
+    ...(options.embedHeading ? { embedHeading: true, heading: model.title } : {}),
     plot: { x: plotX, y: plotY, w: plotW, h: plotH },
     centre, rx, ry,
     quadrants: QUADRANTS.map(name => quadrants[name]),
@@ -555,7 +556,7 @@ function scene(plan, ctx) {
     });
   }
 
-  if (plan.title) {
+  if (!plan.embedHeading && plan.title) {
     plan.title.lines.forEach((line, index) => children.push(label(line, { size: plan.compact ? 13 : FONT.title.size, weight: FONT.title.weight }, ink.fg1,
       plan.title.x, plan.title.top + index * TITLE_LINE)));
   }
@@ -564,6 +565,7 @@ function scene(plan, ctx) {
     width: plan.width,
     height: plan.height,
     title: plan.title ? plan.title.lines.join(' ') : undefined,
+    ...(plan.embedHeading ? { heading: plan.heading } : {}),
     children,
     anchor: plan.anchor,
   };

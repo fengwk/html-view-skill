@@ -213,7 +213,7 @@ const arrowhead = (ctx, a, b, fill) => {
   return ctx.path(`M${b.x} ${b.y} L${p.x + dx * .48} ${p.y + dy * .48} L${p.x - dx * .48} ${p.y - dy * .48} Z`, { fill });
 };
 
-function layout(model, { width, lang, ctx, compact = false }, info = {}) {
+function layout(model, { width, lang, ctx, compact = false, embedHeading }, info = {}) {
   const t = appearance(ctx), edge = ctx.color('muted'), grid = ctx.color('grid'), axis = t.fg4;
   const titleFont = compact ? { ...FONT.title, size: 13 } : FONT.title;
   const config = mapConfig(info.config, 'wardley');
@@ -235,7 +235,7 @@ function layout(model, { width, lang, ctx, compact = false }, info = {}) {
     const together = { text: parts.map(part => part.text).join(' '), icons: parts.flatMap(part => part.icons) };
     return stageInkWidth(together) + 22 <= plotW * bandFraction(i) ? [together] : parts;
   });
-  const titleRows = model.title || model.titleIcon ? ctx.wrap(model.title, plotW - iconGap(model.titleIcon), titleFont.size, titleFont.weight) : [];
+  const titleRows = !embedHeading && (model.title || model.titleIcon) ? ctx.wrap(model.title, plotW - iconGap(model.titleIcon), titleFont.size, titleFont.weight) : [];
   const top = 48 + Math.max(0, titleRows.length - 1) * 16;
   const stagesExtra = Math.max(0, ...stages.map(rows => rows.length - 2)) * 16;
   const compactHeight = Math.max(top + 212 + stagesExtra, Math.min(540, 400 + model.nodes.length * 2 + model.links.length));
@@ -495,7 +495,7 @@ function layout(model, { width, lang, ctx, compact = false }, info = {}) {
   }
   const errors = W > width * 2 || nodes.size > 60 ? [warning('LARGE_DIAGRAM', lang, info.headerLine || 1,
     '地图较大，可在图框内滚动', 'Large map; scroll inside the frame', '按主题拆分组件及其依赖', 'Split components and their dependencies into maps by topic')] : [];
-  return { scene: { width: W, height: footerY + 8, title: model.title || undefined,
+  return { scene: { width: W, height: footerY + 8, title: model.title || undefined, ...(embedHeading ? { heading: model.title } : {}),
     children: [...guides, ...frames, ...lines, ...leaders, ...marks, ...labels] }, errors };
 }
 

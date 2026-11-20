@@ -3,6 +3,7 @@ import { blocking, error, measureOf } from './support.js';
 import { createContext } from '../core/context.js';
 import { containText, cropInk, el } from '../core/scene.js';
 import { renderScene } from '../core/svg.js';
+import { wrapText } from '../core/text.js';
 import { ExpectedDiagnostic } from '../core/diagnostics.js';
 
 const SILENT_CONFIG = new Set([
@@ -175,13 +176,29 @@ function createDiagramApi(implementations, types) {
       const ctx = createContext({ ...options, width: layoutWidth, compact, lang: parsed.info.lang });
       const measure = measureOf(ctx);
       const renderOptions = { ...options, frame: options.frame ?? true };
-      const geometry = implementation.layout(parsed.model, { width: layoutWidth, compact, lang: ctx.lang, measure, ctx, renderOptions }, parsed.info);
+      const embedHeading = compact && renderOptions.frame === false;
+      // Use framed layout to reserve titles for the shared heading, but render without the outer frame.
+      const layoutOptions = embedHeading ? { ...renderOptions, frame: true } : renderOptions;
+      const geometry = implementation.layout(parsed.model, { width: layoutWidth, compact, embedHeading, lang: ctx.lang, measure, ctx, renderOptions: layoutOptions }, parsed.info);
       const diagnostics = merge(parsed.diagnostics, normalize(geometry?.errors, parsed.type));
       if (diagnostics.some(blocking)) return { svg: null, scene: null, diagnostics };
       const laid = geometry?.scene || (typeof implementation.scene === 'function' ? implementation.scene(geometry, ctx, parsed.info) : null);
       if (!laid || !Number.isFinite(laid.width) || !Number.isFinite(laid.height) || !Array.isArray(laid.children)) throw new TypeError(`Invalid scene for diagram: ${parsed.type.kind}`);
       // 裸 SVG 在宿主图框内可能被裁切；保留字体 ascent/descent 超出 em 估算的余量。
-      const contained = compact ? cropInk(laid, ctx.measureRendered) : containText(laid, ctx.measure, { blockPadding: 4 });
+      const heading = parsed.info.title || laid.heading;
+      const header = [];
+      if (embedHeading && (heading || laid.subtitle)) {
+        const wrap = (value, size, weight) => wrapText(value, Math.max(14, layoutWidth - 4), ctx.font(size, weight),
+          (text, font) => ctx.measureInk(text, font.size, font.weight), { bounded: true });
+        const lines = heading ? wrap(heading, 16, 650) : [];
+        if (lines.length) header.push(ctx.textLines(0, 0, lines,
+          { size: 16, weight: 650, leading: 22, fill: ctx.color('fg'), meta: { kind: 'diagram-title' } }));
+        if (laid.subtitle) header.push(ctx.textLines(0, lines.length * 22, wrap(laid.subtitle, 12, 400),
+          { size: 12, weight: 400, leading: 18, fill: ctx.color('muted') }));
+      }
+      const headingNode = header.length ? el('g', {}, header) : null;
+      const contained = compact ? cropInk(laid, embedHeading ? ctx.measureInk : ctx.measureRendered, { fullText: embedHeading, heading: headingNode })
+        : containText(laid, ctx.measure, { blockPadding: 4 });
       const sceneWidth = compact ? contained.width : Math.max(width, contained.width);
       const offset = Math.max(0, (sceneWidth - contained.width) / 2);
       const children = offset ? [el('g', { transform: `translate(${offset} 0)` }, contained.children)] : contained.children;
@@ -194,7 +211,7 @@ function createDiagramApi(implementations, types) {
         ...(anchor ? { anchor } : {}),
         title,
         ...(parsed.info.accDescr !== undefined ? { description: parsed.info.accDescr } : {}),
-        heading: parsed.info.title || contained.heading,
+        heading,
       };
       return { svg: renderScene(scene, renderOptions), scene, diagnostics };
     } catch (error) {

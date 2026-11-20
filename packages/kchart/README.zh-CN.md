@@ -25,7 +25,7 @@ const bars = await render({
 
 渲染选项包括 `width`、`lang`、`theme`、`media`、`frame`、`prefix` 和 `measure(text, size, weight, fontFamily)`。宿主已有图框时可设置 `frame: false`。每个内联 SVG 应使用不同的 `prefix`；结构图可能宽于请求值，建议让容器可以横向滚动。
 
-嵌入页面时，可在异步或同步 `diagram()`、或 Mermaid 适配器的 `render()` 中传入 `compact: true`。布局宽度上限为 720px，画布贴合可见内容、不再居中，文字使用 12–14px。可同时设置 `frame: false` 去掉 KChart 的外层图框。`compact` 默认关闭。
+嵌入页面时，可在异步或同步 `diagram()`、或 Mermaid 适配器的 `render()` 中传入 `compact: true`。布局宽度上限为 720px，画布贴合可见内容、不再居中，文字使用 12–14px。同时设置 `frame: false` 时，不绘制外层图框；有标题的图只在图形上方显示一次标题，左对齐并按布局宽度换行。`compact` 默认关闭。
 
 不传 `lang` 时，结构图会根据源码推断语言：英文词至少有一个，且数量不少于中日韩字符的两倍时用英文，否则用中文。显式指定 `lang` 可覆盖推断结果。
 

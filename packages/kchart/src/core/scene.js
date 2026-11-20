@@ -154,7 +154,7 @@ function pathExtent(value, point, matrix) {
   }
 }
 
-function sceneExtent(scene, measure, blockPadding, ink = false) {
+function sceneExtent(scene, measure, blockPadding, ink = false, fullText = false) {
   let box = null;
   const grow = (x, y) => { box = box ? { x0: Math.min(box.x0, x), y0: Math.min(box.y0, y), x1: Math.max(box.x1, x), y1: Math.max(box.y1, y) } : { x0: x, y0: y, x1: x, y1: y }; };
   let stroke = 0;
@@ -179,8 +179,9 @@ function sceneExtent(scene, measure, blockPadding, ink = false) {
       const left = attrs['text-anchor'] === 'middle' ? x - width / 2 : attrs['text-anchor'] === 'end' ? x - width : x;
       const baseline = attrs['dominant-baseline'];
       const [top, bottom] = ['middle', 'central'].includes(baseline) ? [y - size / 2, y + size / 2] : ['hanging', 'text-before-edge'].includes(baseline) ? [y, y + size] : [y - size * 0.8, y + size * 0.2];
-      const y0 = top - blockPadding, y1 = bottom + blockPadding;
-      rect(left, y0, left + width, y1);
+      // SVG font boxes can exceed the em in both directions, even for bare text.
+      const extraY = fullText ? size * .22 : 0, extraX = fullText ? 1 : 0;
+      rect(left - extraX, top - blockPadding - extraY, left + width + extraX, bottom + blockPadding + extraY);
       drawn = true;
     } else if (ink && (hasFill || hasStroke || attrs['marker-start'] || attrs['marker-end'] || attrs['marker-mid'])) {
       const n = (key) => Number(attrs[key]) || 0;
@@ -230,14 +231,27 @@ function containText(scene, measure, { blockPadding = 0 } = {}) {
   return { ...scene, width: scene.width + left + right, height: scene.height + top + bottom, children: left || top ? [el('g', { transform: `translate(${left} ${top})` }, scene.children)] : scene.children, ...(anchor ? { anchor } : {}), overflow: { left, top, right, bottom } };
 }
 
-function cropInk(scene, measure) {
-  const box = sceneExtent(scene, measure, 0, true);
-  if (!box) return scene;
+function cropInk(scene, measure, { fullText = false, heading } = {}) {
+  const body = sceneExtent(scene, measure, 0, true, fullText);
+  const header = heading && sceneExtent({ children: [heading] }, measure, 0, true, fullText);
+  if (!body && !header) return scene;
+  const box = body || header;
+  let children = scene.children;
+  if (header) {
+    // Align the heading and drawing by their ink bounds, not the family's layout margins.
+    const gap = 8;
+    const dx = box.x0 - header.x0, dy = body ? body.y0 - header.y1 - gap : 0;
+    children = [el('g', { transform: `translate(${dx} ${dy})` }, [heading]), ...children];
+    if (body) {
+      box.x1 = Math.max(box.x1, header.x1 + dx);
+      box.y0 = header.y0 + dy;
+    }
+  }
   const pad = 1 + box.stroke / 2;
   const x = pad - box.x0, y = pad - box.y0;
   const anchor = scene.anchor;
   return { ...scene, width: box.x1 - box.x0 + 2 * pad, height: box.y1 - box.y0 + 2 * pad,
-    children: [el('g', { transform: `translate(${x} ${y})` }, scene.children)],
+    children: [el('g', { transform: `translate(${x} ${y})` }, children)],
     ...(anchor ? { anchor: { ...anchor, x: anchor.x + x, y: anchor.y + y } } : {}) };
 }
 

@@ -23,6 +23,9 @@ function createContext(options = {}) {
   // Scene bounds read already-mapped SVG attributes; do not apply the type scale twice.
   const measureText = options.measure || fallbackMeasure;
   const measureRendered = (value, size, weight) => measureText(value, size, weight, fontFamily);
+  // The fallback's average Latin advance is too narrow for wide glyphs at a tight crop edge.
+  const measureInk = options.measure ? measureRendered : (value, size, weight) =>
+    measureRendered(value, size, weight) + (String(value).match(/[mMwW@]/g)?.length || 0) * size * .38;
   const measure = (value, size, weight) => {
     const mapped = font(size, weight);
     return measureRendered(value, mapped.size, mapped.weight);
@@ -106,7 +109,7 @@ function createContext(options = {}) {
   };
   const ctx = {
     width, lang, theme, fontFamily, scheme: resolved.scheme, design: resolved, assets: options.assets || null,
-    compact, font, measure, measureRendered,
+    compact, font, measure, measureRendered, measureInk,
     el: el, shape: primitive, text, titled, link, textColor, textOn,
     rect: (x, y, w, h, opts = {}) => primitive('rect', { x, y, width: w, height: h, ...opts }, opts.meta),
     line: (x1, y1, x2, y2, opts = {}) => primitive('line', { x1, y1, x2, y2, ...opts }, opts.meta),

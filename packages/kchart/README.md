@@ -25,7 +25,7 @@ const bars = await render({
 
 Render options include `width`, `lang`, `theme`, `media`, `frame`, `prefix`, and `measure(text, size, weight, fontFamily)`. Set `frame: false` if your host already supplies a figure frame. Give each inline SVG a unique `prefix`; allow horizontal scrolling if a diagram needs more room than the requested width.
 
-For embedding, set `compact: true` in `diagram()` (async or sync) or in the Mermaid facade’s `render()` options. It caps layout width at 720px, crops the scene to its visible content instead of centering it, and uses 12–14px text. Use `frame: false` to omit KChart’s outer frame. The default is `compact: false`.
+For embedding, set `compact: true` in `diagram()` (async or sync) or in the Mermaid facade’s `render()` options. It caps layout width at 720px, crops the scene to its visible content instead of centering it, and uses 12–14px text. With `frame: false`, KChart omits the outer frame and shows any diagram title once above the drawing, left-aligned and wrapped to the layout width. The default is `compact: false`.
 
 If `lang` is omitted, diagrams infer English or Chinese from the source: English when there are at least twice as many English words as CJK characters and at least one English word; otherwise Chinese. Set `lang` explicitly to override this.
 

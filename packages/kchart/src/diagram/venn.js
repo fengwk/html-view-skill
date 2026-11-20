@@ -503,7 +503,7 @@ function layoutBlock(region) {
   }));
 }
 
-function planRings(model, { measure, width, lang, compact }) {
+function planRings(model, { measure, width, lang, compact, embedHeading }) {
   const available = compact ? 560 : Math.max(240, width - MARGIN * 2);
   const preferred = canonicalSpread(model.sets, 1);
   const unit = boundsOf(ringsAt(model.sets, 1, preferred));
@@ -556,14 +556,14 @@ function planRings(model, { measure, width, lang, compact }) {
   }
   const drawn = regions.filter((region) => region.block.h > 0 && region.block.room >= 0);
   for (const region of drawn) layoutBlock(region);
-  return finish({ mode: 'rings', rings, regions: drawn, plot: boundsOf(rings), rows: drawn.flatMap((region) => region.rows), shelf, notes }, model, { measure, width, compact });
+  return finish({ mode: 'rings', rings, regions: drawn, plot: boundsOf(rings), rows: drawn.flatMap((region) => region.rows), shelf, notes }, model, { measure, width, compact, embedHeading });
 }
 
 // --- region grid (four or more sets) ------------------------------------------------------------
 
 // Beyond three rings the readable overlap regions disappear: one tinted panel per set plus one per declared
 // union keeps every set, union and text node visible without pretending the overlaps are circles.
-function planGrid(model, { measure, width, lang, compact }) {
+function planGrid(model, { measure, width, lang, compact, embedHeading }) {
   const groups = new Map();
   for (const text of model.texts) {
     const list = groups.get(text.key) || [];
@@ -650,17 +650,17 @@ function planGrid(model, { measure, width, lang, compact }) {
     `${model.sets.length} sets would leave unreadable overlaps; drawn as a region grid instead`,
     '集合减到 3 个可获得圆环布局，或接受分区面板', 'Keep three sets for rings, or accept the region grid')];
   const plot = { x: 0, y: 0, w: cols * cellW + (cols - 1) * GRID_GAP, h: cursor - GRID_GAP };
-  return finish({ mode: 'grid', panels, plot, rows: panels.flatMap((panel) => panel.rows), shelf: [], notes }, model, { measure, width, compact });
+  return finish({ mode: 'grid', panels, plot, rows: panels.flatMap((panel) => panel.rows), shelf: [], notes }, model, { measure, width, compact, embedHeading });
 }
 
 // --- shared plan finishing ----------------------------------------------------------------------
 
 // Adds the title, stacks the shelf under the plot and shifts everything into the margin box.
-function finish(plan, model, { measure, width, compact }) {
+function finish(plan, model, { measure, width, compact, embedHeading }) {
   const titleLines = model.title
     ? wrapText(model.title, compact ? 480 : Math.max(160, Math.min(width - MARGIN * 2, 480)), TITLE_FONT, (piece, spec) => measure(piece, spec))
     : [];
-  const titleH = titleLines.length ? titleLines.length * TITLE_LINE + TITLE_GAP : 0;
+  const titleH = !embedHeading && titleLines.length ? titleLines.length * TITLE_LINE + TITLE_GAP : 0;
   const shelf = [];
   let shelfRight = plan.plot.x + plan.plot.w;
   let shelfBottom = plan.plot.y + plan.plot.h;
@@ -687,7 +687,7 @@ function finish(plan, model, { measure, width, compact }) {
     }
   }
   const spanW = Math.max(plan.plot.x + plan.plot.w, shelfRight) - plan.plot.x;
-  const contentW = Math.max(spanW, ...titleLines.map((row) => measure(row, TITLE_FONT)));
+  const contentW = Math.max(spanW, ...(embedHeading ? [] : titleLines).map((row) => measure(row, TITLE_FONT)));
   // The plot box is the content's own bounding box, which may start at negative coordinates (a raised apex).
   const dx = MARGIN + (contentW - spanW) / 2 - plan.plot.x;
   const dy = MARGIN + titleH - plan.plot.y;
@@ -711,6 +711,7 @@ function finish(plan, model, { measure, width, compact }) {
     height,
     mode: plan.mode,
     title: titleLines.length ? { lines: titleLines, x: MARGIN + contentW / 2, top: MARGIN + TITLE_LINE / 2 } : null,
+    ...(embedHeading ? { embedHeading, heading: model.title } : {}),
     rings: plan.rings || [],
     regions: plan.regions || [],
     panels: plan.panels || [],
@@ -725,11 +726,11 @@ function layout(model, options = {}) {
   const measure = options.measure || fallbackMeasure;
   const width = Math.max(1, Number(options.width) || 800);
   const lang = options.lang || 'zh';
-  const compact = options.compact === true;
+  const compact = options.compact === true, { embedHeading } = options;
   if (!model.sets.length) return { width, height: 0, errors: [] };
   const plan = model.sets.length <= RING_MAX
-    ? planRings(model, { measure, width, lang, compact })
-    : planGrid(model, { measure, width, lang, compact });
+    ? planRings(model, { measure, width, lang, compact, embedHeading })
+    : planGrid(model, { measure, width, lang, compact, embedHeading });
   const errors = [...plan.notes];
   const parts = model.sets.length + model.unions.length + model.texts.length;
   if (parts > PARTS_HINT) {
@@ -808,7 +809,7 @@ function scene(plan, ctx) {
       for (const item of panel.rows) children.push(row(item));
     }
   }
-  if (plan.title) {
+  if (!plan.embedHeading && plan.title) {
     plan.title.lines.forEach((line, index) => children.push(ctx.text(plan.title.x, plan.title.top + index * TITLE_LINE, line, {
       anchor: 'middle', size: TITLE_FONT.size, weight: TITLE_FONT.weight, fill: look.fg1, 'dominant-baseline': 'central',
     })));
@@ -817,6 +818,7 @@ function scene(plan, ctx) {
     width: plan.width,
     height: plan.height,
     title: plan.title ? plan.title.lines.join(' ') : undefined,
+    ...(plan.embedHeading ? { heading: plan.heading } : {}),
     children,
     anchor: plan.anchor,
   };

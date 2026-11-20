@@ -94,7 +94,7 @@ function parse(body, { firstLine = 2, headerLine = 1, lang, params, config }) {
   return { model: { rows, title, headerLine, settings }, errors: [...errors, ...look.diagnostics()] };
 }
 
-function layout(model, { width, measure, lang }) {
+function layout(model, { width, measure, lang, embedHeading }) {
   const available = Math.max(120, width - 2 * MARGIN);
   const { settings } = model;
   const step = clamp(clamp(settings.rowIndent, 10, 4, 90) + clamp(settings.paddingX, 14, 4, 24), STEP, 12, 96);
@@ -115,7 +115,7 @@ function layout(model, { width, measure, lang }) {
   }
   const noteWidth = Math.max(0, ...rows.map(row => maxWidthOf(row.notes, FONT.label, measure)));
   const inline = !noteWidth || end + 16 + noteWidth + MARGIN <= width + 240;
-  const title = model.title ? wrapText(model.title, available, FONT.title, measure) : [];
+  const title = !embedHeading && model.title ? wrapText(model.title, available, FONT.title, measure) : [];
   let y = MARGIN + (title.length ? title.length * 19 + 12 : 0);
   let right = Math.max(end, MARGIN + maxWidthOf(title, FONT.title, measure));
   for (const row of rows) {
@@ -132,7 +132,7 @@ function layout(model, { width, measure, lang }) {
   const naturalWidth = Math.ceil(right + MARGIN + 8);
   const errors = rows.length > 61 || naturalWidth > width * 2
     ? [warning('LARGE_DIAGRAM', lang, model.headerLine, '树视图较大', 'This tree view is large', '考虑拆分为多个树视图', 'Consider splitting it into smaller trees')] : [];
-  return { rows, title, width: naturalWidth, height: y + MARGIN, right, lineThickness, errors };
+  return { rows, title, ...(embedHeading ? { heading: model.title } : {}), width: naturalWidth, height: y + MARGIN, right, lineThickness, errors };
 }
 
 function scene(plan, ctx) {
@@ -162,7 +162,7 @@ function scene(plan, ctx) {
     if (row.notes.length) labels.push(textBlock(ctx, { x: row.noteX, y: row.noteY, lines: row.notes, font: FONT.label, anchor: 'start', lineHeight: 16, fill: ctx.color('muted') }));
   }
   if (plan.title.length) labels.push(textBlock(ctx, { x: MARGIN, y: MARGIN + plan.title.length * 19 / 2, lines: plan.title, font: FONT.title, anchor: 'start', lineHeight: 19 }));
-  return { width: plan.width, height: plan.height, children: [...edges, ...labels] };
+  return { width: plan.width, height: plan.height, children: [...edges, ...labels], ...(plan.heading ? { heading: plan.heading } : {}) };
 }
 
 export const implementations = { 'treeView-beta': { optionMode: 'raw', acceptsPresentation: true, honoredConfig, parse, layout, scene } };

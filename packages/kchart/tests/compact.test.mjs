@@ -87,12 +87,12 @@ test('compact APIs share the width cap and keep explicit opt-out unchanged', asy
 
 test('one sample of every Mermaid kind is cropped on both axes without losing text', () => {
   // Re-cropping a correctly positioned scene must not move either edge; the geometry gate checks text independently.
-  const { measureRendered } = createContext(options);
+  const { measureRendered, measureInk } = createContext(options);
   for (const { kind, aliases } of diagramTypes.filter(type => type.syntax === 'mermaid')) {
     const [syntax, source] = diagramExample([kind, ...aliases]);
     const { scene } = diagram(source, { ...options, syntax, width: 1800 });
     assert.ok(scene, kind);
-    const recropped = cropInk(scene, measureRendered);
+    const recropped = cropInk(scene, measureInk, { fullText: true });
     const offset = recropped.children[0].attrs.transform.match(/^translate\((\S+) (\S+)\)$/).slice(1).map(Number);
     offset.forEach(n => close(n, 0));
     assert.deepEqual(checkScene(scene, { measure: measureRendered }).filter(issue => ['text-outside', 'small-text'].includes(issue.kind)), [], kind);

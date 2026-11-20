@@ -529,7 +529,7 @@ function layout(model, options = {}, info = {}) {
     return tracks.length ? LANE_GAP + depth * TRACK : gap < rows.length - 1 ? LANE_GAP : 0;
   });
   const { title, titleIcon } = model;
-  const titleLines = title || titleIcon ? wrapText(title, laneRightX - pad - (titleIcon ? 20 : 0), FONT.title, measure) : [];
+  const titleLines = !options.embedHeading && (title || titleIcon) ? wrapText(title, laneRightX - pad - (titleIcon ? 20 : 0), FONT.title, measure) : [];
   let cursor = pad + titleLines.length * 20;
   rows.forEach((lane, index) => {
     lane.y = cursor;
@@ -604,7 +604,7 @@ function layout(model, options = {}, info = {}) {
   }
   return {
     type: 'eventmodeling', width: sceneWidth, height: sceneHeight,
-    lanes: rows, boxes, edges, captions, errors, title, titleIcon, titleLines, pad,
+    lanes: rows, boxes, edges, captions, errors, title, titleIcon, titleLines, pad, ...(options.embedHeading ? { heading: title } : {}),
   };
 }
 
@@ -686,7 +686,7 @@ function scene(geometry, ctx) {
     }));
   }
 
-  return { width: geometry.width, height: geometry.height, title: geometry.title, children };
+  return { width: geometry.width, height: geometry.height, title: geometry.title, ...(geometry.heading ? { heading: geometry.heading } : {}), children };
 }
 
 const honoredConfig = ['eventmodeling.padding'];
