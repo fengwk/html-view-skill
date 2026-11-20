@@ -14,7 +14,6 @@ const samples = {
   C4Component: 'C4Component\nSystem_Boundary(sys, "System") {\nComponent(ui, "UI")\n}\nComponent(api, "API")\nRel(ui, api, "calls")',
   C4Dynamic: 'C4Dynamic\nPerson(user, "Customer")\nSystem(app, "Shop")\nRel(user, app, "browses")',
   C4Deployment: 'C4Deployment\nDeployment_Node(host, "Server", "Linux")\nContainer(app, "API")\nRel(host, app, "hosts")',
-  'architecture-beta': 'architecture-beta\ngroup cloud(cloud)[Cloud]\nservice api(server)[API] in cloud\nservice db(database)[Database] in cloud\napi:R --> L:db',
   zenuml: 'zenuml\nClient\nAPI\nClient->API: request\nClient.call()',
 };
 const parse = (kind, body) => plain(implementations[kind].parse(body, { kind, lang: 'en', firstLine: 2, options: {} }));
