@@ -42,13 +42,16 @@ test('structure frame and node colors match layers SVG', () => {
   }
 });
 
-// 看板卡片与能力项沿用公开的节点底色，与手写 SVG 的 --viz-node 一致。
-test('board cards and capabilities use the public node fill', () => {
+// 看板里带样式的卡片沿用公开的节点底色（与手写 SVG 的 --viz-node 一致）；普通卡片和能力项是无边框底块。
+test('board styled cards use the public node fill and plain ones are borderless tiles', () => {
   for (const theme of ['claude', 'cloudmusic', 'tokyo']) {
-    const { svg, diagnostics } = diagram('blocks\nrow\n  box Group: Item\n  card Card\n    Detail', { syntax: 'blocks', theme });
+    const { svg, diagnostics } = diagram('blocks\nrow\n  box Group: Item\n  card Plain\n  card Styled {ok}', { syntax: 'blocks', theme });
     assert.deepEqual(diagnostics, []);
     const { colors } = structureRoles({ theme });
-    const fills = [...svg.matchAll(/data-kc-kind="(?:capability|node)"[^>]*><rect[^>]* fill="([^"]+)"/g)].map(match => match[1]);
-    assert.deepEqual(fills, [colors.node, colors.node]);
+    const shapes = [...svg.matchAll(/data-kc-kind="(?:capability|node)"[^>]*><rect([^>]*)>/g)]
+      .map(([, attrs]) => ({ fill: attrs.match(/ fill="([^"]+)"/)[1], outlined: / stroke=/.test(attrs) }));
+    assert.deepEqual(shapes.map(s => s.outlined), [false, false, true]);
+    assert.equal(shapes[2].fill, colors.node);
+    assert.ok(shapes.slice(0, 2).every(s => s.fill !== colors.node));
   }
 });

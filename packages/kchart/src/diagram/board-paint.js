@@ -1,4 +1,4 @@
-import { contrast, pushContrast } from '../core/color.js';
+import { contrast, deltaE2000, pushContrast } from '../core/color.js';
 import { FONT, appearance, maxWidthOf, wrapText } from './support.js';
 
 // The shared look of boards: nested groups of cards (native blocks, Mermaid block). Groups recede
@@ -16,6 +16,9 @@ const ITEM = Object.freeze({ h: 36, padX: 12, min: 72, gap: 8, font: FONT.body }
 const EDGE_KINDS = Object.freeze({ '->': 'plain', '=>': 'strong', '~>': 'dashed' });
 const ICON = Object.freeze({ size: 16, gap: 6 });
 const DASH = '5 4';
+const TILE = .07;
+const OUTLINE = .72;
+const DISTINCT = 12;
 const TEXT_CONTRAST = 4.5;
 const round = value => +Number(value).toFixed(2);
 
@@ -87,27 +90,38 @@ function measureLegend(entries, measure, width = Infinity) {
   return { rows, heights, w: widest, h: heights.reduce((sum, h) => sum + h, 0) + Math.max(0, rows.length - 1) * 6 };
 }
 
-function boardLook(ctx) {
+// `styles`: the style words one board uses. In-figure emphasis is the chart accent (tones[1]), as in
+// structureRoles().em; frameInk themes use ink. When the board also uses a status whose outline is
+// within DISTINCT (CIEDE2000, the series baseline) of the accent's in this theme, the board's accent
+// becomes ink too, so no two legend entries look alike.
+function boardLook(ctx, styles = []) {
   const d = ctx.design, a = appearance(ctx), bg = d.bg;
-  const accent = ctx.frameTone(d.accent, true);
+  const outlined = color => ctx.tint(bg, color, OUTLINE);
+  const chartAccent = ctx.frameTone(ctx.color('accent'), true);
+  const clash = styles.includes('accent') && styles.some(style => STATUS.has(style) && deltaE2000(outlined(chartAccent), outlined(d[style])) < DISTINCT);
+  const accent = clash ? d.fg1 : chartAccent;
   // Explicit styles keep their semantic hue; a theme's frameInk only replaces decoration.
   const hue = style => (style === 'accent' ? accent : STATUS.has(style) ? d[style] : null);
   const ink = (color, under) => (contrast(color, under) >= TEXT_CONTRAST ? color : pushContrast(color, d.fg1, under, TEXT_CONTRAST));
   const neutral = ctx.tint(bg, ctx.color('muted'), .62);
   const recessed = a.node === d.surface2 ? d.surface : d.surface2;
+  // Plain cards and items are borderless tiles one step off whatever group they sit in; styled ones
+  // are raised and outlined, so plain and styled differ by shape, not only by hue.
+  const tile = under => ctx.tint(under, d.fg3, TILE);
   const chip = color => { const fill = ctx.tint(bg, color, .14); return { fill, color: ink(color, fill) }; };
   return {
-    bg, radius: Math.min(a.radius, 10), smallRadius: Math.min(a.smallRadius, 8), fg: d.fg1, muted: d.fg3,
+    bg, radius: Math.min(a.radius, 10), smallRadius: Math.min(a.smallRadius, 8), fg: d.fg1, muted: d.fg3, line: neutral,
     tag: { fill: a.node, stroke: d.line2, color: ink(d.fg3, a.node) },
     // Capability marks keep their status hue, like layers.
-    item(tone) {
+    item(tone, under = d.surface) {
       const color = STATUS.has(tone) ? d[tone] : null;
-      return { fill: a.node, stroke: color ? ctx.mix(bg, color, .4) : neutral, mark: color ? ink(color, a.node) : d.fg1 };
+      return color ? { fill: a.node, stroke: ctx.mix(bg, color, .4), mark: ink(color, a.node) } : { fill: tile(under), stroke: null, mark: d.fg1 };
     },
-    card(style) {
+    card(style, under = d.surface) {
       if (style === 'ext') return { fill: recessed, stroke: neutral, dash: DASH, desc: ink(d.fg3, recessed), badge: chip(accent) };
       const color = hue(style);
-      return { fill: a.node, stroke: color ? ctx.tint(bg, color, .72) : neutral, dash: null, desc: ink(d.fg3, a.node), badge: chip(color || accent) };
+      if (!color) { const fill = tile(under); return { fill, stroke: null, dash: null, desc: ink(d.fg3, fill), badge: chip(accent) }; }
+      return { fill: a.node, stroke: outlined(color), dash: null, desc: ink(d.fg3, a.node), badge: chip(color) };
     },
     frame(style) {
       const color = style === 'ext' ? null : hue(style), fill = style === 'ext' ? d.surface2 : d.surface;
@@ -161,10 +175,12 @@ function drawFrame(ctx, frame, look) {
   return { ...ctx.el('g', {}, parts), meta: { kind: 'frame', id, ...(style ? { style } : {}) } };
 }
 
-// card: { id, x, y, w, h, style?, badge?, tag?, ...measureCard(...) }
+const outline = (s, width) => (s.stroke ? { stroke: s.stroke, 'stroke-width': width, ...(s.dash ? { 'stroke-dasharray': s.dash } : {}) } : {});
+
+// card: { id, x, y, w, h, style?, badge?, tag?, under? (fill of the group it sits in), ...measureCard(...) }
 function drawCard(ctx, card, look) {
-  const { id, x, y, w, h, style, badge, tag, titleLines, descLines, badgeW, tagW } = card, s = look.card(style);
-  const parts = [ctx.rect(x, y, w, h, { rx: look.radius, fill: s.fill, stroke: s.stroke, 'stroke-width': 1.25, ...(s.dash ? { 'stroke-dasharray': s.dash } : {}) })];
+  const { id, x, y, w, h, style, badge, tag, titleLines, descLines, badgeW, tagW, under } = card, s = look.card(style, under);
+  const parts = [ctx.rect(x, y, w, h, { rx: look.radius, fill: s.fill, ...outline(s, 1.25) })];
   let tx = x + CARD.padX;
   const ty = y + CARD.padY + CARD.title / 2;
   if (badge) { parts.push(chip(ctx, tx, ty, badgeW, badge, s.badge)); tx += badgeW + CHIP.gap; }
@@ -179,11 +195,11 @@ function drawCard(ctx, card, look) {
   return { ...ctx.el('g', {}, parts), meta: { kind: 'node', id, ...(style ? { style } : {}) } };
 }
 
-// item: { x, y, w, h, label, name, mark?, tone?, icon? (resolved icon) }
+// item: { x, y, w, h, label, name, mark?, tone?, icon? (resolved icon), under? }
 function drawItem(ctx, item, look) {
-  const { x, y, w, h, label, name, mark, tone, icon } = item, s = look.item(tone);
+  const { x, y, w, h, label, name, mark, tone, icon, under } = item, s = look.item(tone, under);
   const lead = icon ? ICON.size + ICON.gap : 0, left = x + (w - lead - ctx.measure(label, ITEM.font.size, ITEM.font.weight)) / 2, cy = y + h / 2;
-  const parts = [ctx.rect(x, y, w, h, { rx: look.smallRadius, fill: s.fill, stroke: s.stroke, 'stroke-width': 1 })];
+  const parts = [ctx.rect(x, y, w, h, { rx: look.smallRadius, fill: s.fill, ...outline(s, 1) })];
   if (icon) parts.push(iconGlyph(ctx, icon, left, cy, look.muted));
   const font = { size: ITEM.font.size, weight: ITEM.font.weight, fill: look.fg, 'dominant-baseline': 'central' };
   parts.push(mark
@@ -246,7 +262,8 @@ function drawLabel(ctx, { from, to, rect, lines, icon, plate }, look) {
 }
 
 // legend: { x, y, ...measureLegend(entries, measure, width) }; entry.key is a style word, 'default', 'db' or an operator.
-function drawLegend(ctx, legend, look, marks) {
+// `under` is the fill behind the legend, so a plain-card swatch shows the same tile as the cards.
+function drawLegend(ctx, legend, look, marks, under) {
   const items = [];
   let top = legend.y;
   legend.rows.forEach((row, r) => {
@@ -259,10 +276,10 @@ function drawLegend(ctx, legend, look, marks) {
         delete parts[0].meta;
       } else if (item.key === 'db') {
         const s = look.frame();
-        parts.push(ctx.path(`M${x + 2} ${cy - 4} A8 3 0 0 1 ${x + 18} ${cy - 4} V${cy + 4} A8 3 0 0 1 ${x + 2} ${cy + 4} Z M${x + 2} ${cy - 4} A8 3 0 0 0 ${x + 18} ${cy - 4}`, { fill: s.fill, stroke: look.card().stroke, 'stroke-width': 1 }));
+        parts.push(ctx.path(`M${x + 2} ${cy - 4} A8 3 0 0 1 ${x + 18} ${cy - 4} V${cy + 4} A8 3 0 0 1 ${x + 2} ${cy + 4} Z M${x + 2} ${cy - 4} A8 3 0 0 0 ${x + 18} ${cy - 4}`, { fill: s.fill, stroke: look.line, 'stroke-width': 1 }));
       } else {
-        const s = look.card(item.key === 'default' ? undefined : item.key);
-        parts.push(ctx.rect(x + 1, cy - 6, LEGEND.swatch - 2, 12, { rx: 3, fill: s.fill, stroke: s.stroke, 'stroke-width': 1.25, ...(s.dash ? { 'stroke-dasharray': '3 2' } : {}) }));
+        const s = look.card(item.key === 'default' ? undefined : item.key, under);
+        parts.push(ctx.rect(x + 1, cy - 6, LEGEND.swatch - 2, 12, { rx: 3, fill: s.fill, ...outline({ ...s, dash: s.dash && '3 2' }, 1.25) }));
       }
       item.lines.forEach((line, i) => parts.push(ctx.text(x + LEGEND.swatch + LEGEND.gap, cy + i * LEGEND.row, line, {
         size: LEGEND.font.size, weight: LEGEND.font.weight, fill: look.fg, 'dominant-baseline': 'central',

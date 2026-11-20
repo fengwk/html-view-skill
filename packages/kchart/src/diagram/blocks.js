@@ -349,8 +349,10 @@ function labelFits(rect, { width, height }) {
 }
 
 function scene(g, ctx) {
-  const look = boardLook(ctx), marks = markers(ctx);
-  const capabilities = g.nodes.map(node => ({ ...drawItem(ctx, { ...node, icon: node.icon ? geometry(node.icon) : null }, look),
+  const styles = [...g.cards, ...g.frames].map(box => box.style).concat(g.nodes.map(node => node.tone), g.legends.flatMap(legend => legend.rows.flat().map(item => item.key)));
+  const look = boardLook(ctx, styles), marks = markers(ctx);
+  const under = ({ x, y, w = 2, h = 2 }) => surfaceAt(g.frames, look, x + w / 2, y + h / 2);
+  const capabilities = g.nodes.map(node => ({ ...drawItem(ctx, { ...node, icon: node.icon ? geometry(node.icon) : null, under: under(node) }, look),
     meta: { kind: 'capability', label: node.name, container: node.parent.name, ...(node.mark ? { mark: node.mark } : {}) } }));
   const paths = [], labels = [];
   for (const edge of g.edges) {
@@ -362,9 +364,9 @@ function scene(g, ctx) {
         plate: surfaceAt(g.frames, look, rect.x + rect.w / 2, rect.y + rect.h / 2) }, look));
     }
   }
-  const legends = g.legends.map(legend => drawLegend(ctx, legend, look, marks));
+  const legends = g.legends.map(legend => drawLegend(ctx, legend, look, marks, under({ x: legend.x, y: legend.y })));
   return { width: g.width, height: g.height, children: [...marks.defs(), ...g.frames.map(frame => drawFrame(ctx, frame, look)),
-    ...capabilities, ...g.cards.map(card => drawCard(ctx, card, look)), ...g.notes.map(note => drawNote(ctx, note, look)), ...legends, ...paths, ...labels] };
+    ...capabilities, ...g.cards.map(card => drawCard(ctx, { ...card, under: under(card) }, look)), ...g.notes.map(note => drawNote(ctx, note, look)), ...legends, ...paths, ...labels] };
 }
 
 export const implementations = { blocks: { parse, layout, scene } };

@@ -1,6 +1,7 @@
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
-import { diagram } from '../dist/esm/node.js';
+import { diagram, themes } from '../dist/esm/node.js';
+import { deltaE2000 } from '../src/core/color.js';
 import { checkScene } from './helpers/geometry.mjs';
 
 const draw = (source, options = {}) => diagram(source, { syntax: 'blocks', width: 801, ...options });
@@ -70,6 +71,25 @@ test.each(errors)('blocks v2 localizes and locates the diagnostic for %j', (body
     return diagnostic;
   });
   assert.notEqual(results[0].fix, results[1].fix);
+});
+
+// Plain cards differ from styled ones by shape (borderless tile); styled outlines used together in one
+// board stay ≥ 12 CIEDE2000 apart in every theme, because a clashing accent falls back to ink.
+test('blocks v2 keeps every legend style distinguishable in every theme', () => {
+  const status = ['new', 'info', 'ok', 'warn', 'danger'];
+  const outlines = (styles, theme) => draw(`row\n${styles.map(s => `  card ${s} {${s}}`).join('\n')}\n  card plain`, { theme })
+    .scene.children.filter(el => el.meta?.kind === 'node').map(el => el.children[0].attrs.stroke);
+  for (const theme of Object.keys(themes)) {
+    for (const styles of [['accent', ...status], ...status.map(s => ['accent', s])]) {
+      const strokes = outlines(styles, theme);
+      assert.equal(strokes.pop(), undefined, `${theme}: plain card has no outline`);
+      strokes.forEach((a, i) => strokes.slice(i + 1).forEach((b, j) => assert.ok(deltaE2000(a, b) >= 12,
+        `${theme}: ${styles[i]} ${a} vs ${styles[i + 1 + j]} ${b}`)));
+    }
+  }
+  // The fallback is per board: Claude keeps its accent hue unless a clashing status shares the board.
+  const [alone] = outlines(['accent', 'ok'], 'claude'), [clashing] = outlines(['accent', 'danger'], 'claude');
+  assert.notEqual(alone, clashing);
 });
 
 // Each size trigger emits exactly one warning; a narrow viewport grows the canvas, not the row count.
