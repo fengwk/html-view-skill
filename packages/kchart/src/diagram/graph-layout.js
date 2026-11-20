@@ -21,7 +21,102 @@ const hgap = (a, b) => {
   return 20;
 };
 
-function layoutGraph(model, { measure = fallbackMeasure, lang, ctx, renderOptions } = {}) {
+function collapseFrames(model) {
+  const frames = new Map(model.subgraphs.map(frame => [frame.id, frame]));
+  if (![...frames.values()].some(frame => frame.view === 'collapsed')) return model;
+  const byId = new Map([...model.nodes, ...model.subgraphs].map(item => [item.id, item]));
+  const redirects = new Map();
+  for (const item of byId.values()) {
+    let collapsed = item.view === 'collapsed' ? item.id : null;
+    for (let parent = item.parent; parent; parent = frames.get(parent)?.parent) {
+      if (frames.get(parent)?.view === 'collapsed') collapsed = parent;
+    }
+    if (collapsed != null) redirects.set(item.id, collapsed);
+  }
+  const nodes = model.nodes.filter(node => !redirects.has(node.id));
+  for (const frame of frames.values()) if (redirects.get(frame.id) === frame.id) {
+    nodes.push({ ...frame, label: frame.title, shape: 'rounded', kind: 'collapsed' });
+  }
+  const subgraphs = model.subgraphs.filter(frame => !redirects.has(frame.id));
+  const edges = model.edges.flatMap(edge => {
+    const from = redirects.get(edge.from) ?? edge.from, to = redirects.get(edge.to) ?? edge.to;
+    if (from === to && redirects.has(from)) return [];
+    return [{ ...edge, from, to, fromFrame: edge.fromFrame && !redirects.has(from), toFrame: edge.toFrame && !redirects.has(to) }];
+  });
+  return { ...model, nodes, subgraphs, edges };
+}
+
+// A closed frame can be laid out in its own direction without rotating its labels or shapes.
+// The parent router sees its entire bounding box; only edges addressed to the frame can enter.
+function layoutGraph(source, options = {}) {
+  const model = collapseFrames(source);
+  const frames = new Map(model.subgraphs.map(frame => [frame.id, frame]));
+  const childRegions = new Set(model.subgraphs.filter(frame => frame.kind === 'divider').map(frame => frame.parent));
+  const hidden = new Set(), localEdges = new Set(), blocks = new Map();
+  const nodes = [...model.nodes], edges = [...model.edges];
+  const measure = options.measure ?? fallbackMeasure;
+  const isMember = (item, frame) => {
+    for (let parent = item.parent; parent; parent = frames.get(parent)?.parent) if (parent === frame.id) return true;
+    return false;
+  };
+  const all = [...nodes, ...model.subgraphs];
+  for (const frame of [...frames.values()].sort((a, b) => a.depth - b.depth || a.seq - b.seq)) {
+    if (hidden.has(frame.id) || !(frame.dir || frame.kind === 'divider' || childRegions.has(frame.id))) continue;
+    const members = new Set(all.filter(item => isMember(item, frame)).map(item => item.id));
+    if (!members.size || edges.some(edge => members.has(edge.from) !== members.has(edge.to))) continue;
+    const topLevel = item => item.parent === frame.id ? { ...item, parent: null } : item;
+    const inside = edges.filter(edge => members.has(edge.from));
+    const inner = layoutGraph({ ...model, direction: frame.dir || (model.type === 'state' ? 'TB' : model.direction),
+      nodes: nodes.filter(item => members.has(item.id)).map(topLevel),
+      subgraphs: model.subgraphs.filter(item => members.has(item.id)).map(topLevel), edges: inside,
+    }, options);
+    const lines = frame.title ? wrapText(frame.title, 200, FONT.frame, measure) : [];
+    const descLines = (frame.desc ?? []).flatMap(line => wrapText(line, 180, FONT.body, measure));
+    const titleW = Math.max(maxWidthOf(lines, FONT.frame, measure), maxWidthOf(descLines, FONT.body, measure));
+    const titleH = lines.length * 17 + (descLines.length ? 4 + descLines.length * 16 : 0);
+    const titleBand = titleH ? titleH + 8 : 0;
+    const w = Math.max(inner.width, titleW + 32), h = inner.height + titleBand;
+    blocks.set(frame.id, { frame, inner, lines, descLines, titleW, titleH, titleBand, w, h });
+    for (const id of members) hidden.add(id);
+    for (const edge of inside) localEdges.add(edge);
+  }
+  if (!blocks.size) return layoutCore(model, options);
+  const proxy = id => blocks.has(id);
+  const outer = layoutCore({ ...model,
+    nodes: [...nodes.filter(item => !hidden.has(item.id)), ...[...blocks.values()].map(({ frame, w, h }) => ({ ...frame, label: '', block: { w, h }, shape: 'rect' }))],
+    subgraphs: model.subgraphs.filter(frame => !hidden.has(frame.id) && !proxy(frame.id)),
+    edges: edges.filter(edge => !localEdges.has(edge)).map(edge => ({ ...edge,
+      fromFrame: edge.fromFrame && !proxy(edge.from), toFrame: edge.toFrame && !proxy(edge.to),
+    })),
+  }, options);
+  const retained = [];
+  for (const node of outer.nodes) {
+    const block = blocks.get(node.id);
+    if (!block) { retained.push(node); continue; }
+    const { frame, inner, lines, descLines, titleW, titleH, titleBand, w, h } = block;
+    const dx = node.x + (w - inner.width) / 2, dy = node.y + titleBand;
+    const move = p => p && { ...p, x: p.x + dx, y: p.y + dy };
+    const attach = item => item.parent == null ? frame.id : item.parent;
+    outer.frames.push({ ...frame, x: node.x, y: node.y, w, h, lines, descLines,
+      titleRect: { x: node.x + 16, y: node.y + 10, w: titleW, h: titleH },
+    });
+    outer.frames.push(...inner.frames.map(item => ({ ...move(item), parent: attach(item), titleRect: move(item.titleRect) })));
+    retained.push(...inner.nodes.map(item => ({ ...move(item), parent: attach(item),
+      titleY: item.titleY + dy, descY: item.descY == null ? null : item.descY + dy,
+    })));
+    outer.labels.push(...inner.labels.map(move));
+    outer.edges.push(...inner.edges.map(edge => ({ ...edge, start: move(edge.start), end: move(edge.end), labelRect: move(edge.labelRect),
+      segments: edge.segments.map(({ p0, c1, c2, p1 }) => ({ p0: move(p0), c1: move(c1), c2: move(c2), p1: move(p1) })),
+    })));
+  }
+  for (const edge of outer.edges) {
+    if (proxy(edge.from)) edge.fromFrame = true;
+    if (proxy(edge.to)) edge.toFrame = true;
+  }
+  return { ...outer, nodes: retained, model };
+}
+
+function layoutCore(model, { measure = fallbackMeasure, lang, ctx, renderOptions } = {}) {
   const direction = DIRECTIONS.includes(model.direction) ? model.direction : 'TB';
   const isLR = direction === 'LR' || direction === 'RL';
   const clusters = new Map();
@@ -115,7 +210,7 @@ function layoutGraph(model, { measure = fallbackMeasure, lang, ctx, renderOption
       const descW = maxWidthOf(descLines, FONT.body, measure);
       tw = Math.max(64, Math.max(titleW, descW) + 28);
       th = 20 + titleLines.length * 19 + (descLines.length ? 5 + descLines.length * 17 : 0);
-      th = Math.max(40, th);
+      th = Math.max(40, th) + (node.kind === 'collapsed' ? 20 : 0);
       const flowShape = model.type === 'flowchart' && flowOutlineName(node.shape);
       if (flowShape) {
         [tw, th] = shapeSize(flowShape, tw, th);
@@ -132,6 +227,7 @@ function layoutGraph(model, { measure = fallbackMeasure, lang, ctx, renderOption
         th += 12;
       }
     }
+    if (node.block) ({ w: tw, h: th } = node.block);
     const loops = selfEdges.get(node.id) || [];
     let loopExtra = 0;
     let loopLabels = [];
@@ -208,7 +304,7 @@ function layoutGraph(model, { measure = fallbackMeasure, lang, ctx, renderOption
       children: [],
       seq: sg.seq,
       depth: sg.depth,
-      title: sg.title || sg.id,
+      title: sg.title ?? sg.id,
       titleLines: [],
       descLines: [],
       class: sg.class || null,
@@ -3500,6 +3596,7 @@ function layoutGraph(model, { measure = fallbackMeasure, lang, ctx, renderOption
       id: cluster.id,
       title: cluster.title,
       class: cluster.class,
+      kind: cluster.model.kind,
       parent: cluster.model.parent || null,
       lines: cluster.titleLines,
       descLines: cluster.descLines,

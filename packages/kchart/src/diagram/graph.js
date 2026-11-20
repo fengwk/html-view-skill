@@ -123,6 +123,7 @@ function drawShape(ctx, item, n, a) {
   const common = { fill, stroke, 'stroke-width': 1.25, ...(node.class === 'ext' ? { 'stroke-dasharray': '4 3' } : {}) };
   const flowShape = item.flowchart && flowOutlineName(node.shape);
   if (flowShape) return drawFlowShape(ctx, flowShape, n, common, a);
+  if (node.kind === 'note') return [ctx.rect(x, y, w, h, { ...common, fill: ctx.mix(a.node, a.warn, a.soft), rx: 3 })];
   if (node.kind === 'start') return [ctx.circle(x + w / 2, y + h / 2, Math.min(w, h) / 2, { fill: a.fg2, stroke: 'none' })];
   if (node.kind === 'end') return [
     ctx.circle(x + w / 2, y + h / 2, Math.min(w, h) / 2, { fill: a.node, stroke: a.fg2, 'stroke-width': 1.5 }),
@@ -151,7 +152,7 @@ function drawShape(ctx, item, n, a) {
 
 function drawNode(ctx, item, n, a) {
   const node = item.node, children = [titleNode(ctx, node.label || node.id), ...drawShape(ctx, item, n, a)];
-  const nodeMeta = { kind: 'node', id: node.id, ...(node.class ? { status: node.class } : {}) };
+  const nodeMeta = { kind: node.kind === 'collapsed' ? 'frame' : 'node', id: node.id, ...(node.class ? { status: node.class } : {}) };
   if (node.kind === 'start' || node.kind === 'end' || node.kind === 'choice' || node.kind === 'fork' || node.kind === 'join') return group(ctx, children, nodeMeta);
   if (node.kind === 'er' && n.er) {
     const er = n.er, pad = er.pad, ruleY = n.y + er.headerH;
@@ -172,7 +173,13 @@ function drawNode(ctx, item, n, a) {
   }
   const lines = item.titleLines || [], desc = item.descLines || [];
   const titleH = lines.length * 19, descH = desc.length * 17, gap = desc.length ? 7 : 0;
-  const top = n.y + Math.max(10, (n.h - titleH - gap - descH) / 2);
+  const collapsed = node.kind === 'collapsed';
+  const top = n.y + Math.max(10, (n.h - titleH - gap - descH - (collapsed ? 20 : 0)) / 2);
+  if (collapsed) {
+    const y = n.y + n.h - 20;
+    children.push(path(ctx, `M${n.x} ${y} H${n.x + n.w}`, { fill: 'none', stroke: a.line2, 'stroke-dasharray': '4 3' }));
+    for (const dx of [-5, 0, 5]) children.push(ctx.circle(n.x + n.w / 2 + dx, y + 10, 1.25, { fill: a.fg4 }));
+  }
   lines.forEach((line, i) => children.push(text(ctx, n.x + n.w / 2, top + i * 19 + 9.5, line, { anchor: 'middle', size: FONT.title.size, weight: FONT.title.weight, fill: a.fg1 }, { kind: 'node-label', id: node.id })));
   desc.forEach((line, i) => children.push(text(ctx, n.x + n.w / 2, top + titleH + gap + i * 17 + 8.5, line, { anchor: 'middle', size: FONT.body.size, fill: a.fg3 }, { kind: 'node-description', id: node.id })));
   return group(ctx, children, nodeMeta);
@@ -182,7 +189,7 @@ function scene(geometry, ctx, info = {}) {
   const a = appearance(ctx), model = geometry.model || {}, modelNodes = new Map((model.nodes || []).map(node => [node.id, node]));
   const framesLayer = [], edgeLayer = [], nodeLayer = [], edgeLabelLayer = [], titleLayer = [];
   for (const frame of geometry.frames || []) {
-    const attrs = { fill: a.surface, stroke: frame.class && a[frame.class] ? a[frame.class] : a.line2, 'stroke-width': 1, 'stroke-dasharray': '5 4' };
+    const attrs = { fill: frame.kind === 'divider' ? a.node : a.surface, stroke: frame.class && a[frame.class] ? a[frame.class] : a.line2, 'stroke-width': 1, 'stroke-dasharray': '5 4' };
     const frameChildren = [ctx.rect(frame.x, frame.y, frame.w, frame.h, { ...attrs, rx: 6 })];
     framesLayer.push(group(ctx, frameChildren, { kind: 'frame', id: frame.id, ...(frame.class ? { status: frame.class } : {}) }));
     if (frame.lines?.length) {

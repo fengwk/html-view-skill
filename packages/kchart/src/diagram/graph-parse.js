@@ -214,16 +214,15 @@ function parseOperator(text, start) {
   };
 }
 
-function parseSubgraphDecl(rest) {
+function parseSubgraphDecl(rest, anonymousId) {
   const text = rest.trim();
   let m = /^([^\s[\]]+)\s*\[([\s\S]*)\]\s*$/.exec(text);
   if (m) return { id: m[1], title: normalizeLabel(stripQuotes(m[2])) || m[1] };
   if (/^(["'])/.test(text) && /["']$/.test(text)) {
     const title = normalizeLabel(stripQuotes(text));
-    return { id: title, title };
+    return { id: anonymousId, title };
   }
-  const parts = text.split(/\s+/);
-  return { id: parts[0], title: normalizeLabel(text) || parts[0] };
+  return { id: text && !/\s/.test(text) ? text : anonymousId, title: normalizeLabel(text) };
 }
 
 function parseFlowchartBody(statements, errors, direction = 'TB', lang) {
@@ -233,11 +232,16 @@ function parseFlowchartBody(statements, errors, direction = 'TB', lang) {
   const nodes = new Map();
   const subgraphs = new Map();
   const stack = [];
+  const declarations = new Map();
   const knownFrames = new Set();
   for (const st of statements) {
-    const m = /^subgraph\s+([^\s[\]]+)/i.exec(st.text);
-    if (m) knownFrames.add(m[1]);
+    const m = /^subgraph\b\s*(.*)$/.exec(st.text);
+    if (!m) continue;
+    const decl = parseSubgraphDecl(m[1], `subGraph${declarations.size}`);
+    declarations.set(st, decl);
+    knownFrames.add(decl.id);
   }
+  const frameMetadata = new Map();
   let seq = 0;
   let edgeSeq = 0;
   let nodeLimit = false;
@@ -258,6 +262,10 @@ function parseFlowchartBody(statements, errors, direction = 'TB', lang) {
     if (token.error === 'shape' || token.error === 'metadata') {
       addError(line, '无法解析形状属性', '使用 A@{ shape: rect, label: "文字" }');
       return null;
+    }
+    if (token.metadata && knownFrames.has(token.id) && 'view' in token.metadata) {
+      frameMetadata.set(token.id, token.metadata.view);
+      return { id: token.id, frame: true };
     }
     if (token.metadata) {
       const { shape, label, ...other } = token.metadata;
@@ -345,17 +353,26 @@ function parseFlowchartBody(statements, errors, direction = 'TB', lang) {
     }
   };
 
+  let skipDepth = 0;
+  let depthLimit = false;
   for (const st of statements.slice(1)) {
     const text = st.text;
     const line = st.line;
-    if (/^subgraph\b/i.test(text)) {
-      const decl = parseSubgraphDecl(text.replace(/^subgraph\b/i, ''));
-      if (subgraphs.has(decl.id) || knownFrames.has(decl.id) && subgraphs.has(decl.id)) {
-        addError(line, `子图 id 重复：${decl.id}`, '换一个 id');
+    const decl = declarations.get(st);
+    if (skipDepth) {
+      if (decl) skipDepth += 1;
+      else if (text === 'end') skipDepth -= 1;
+      continue;
+    }
+    if (decl) {
+      if (stack.length + 1 > LIMITS.subgraphDepth) {
+        if (!depthLimit) addError(line, `子图嵌套 ${stack.length + 1} 层，超过上限 ${LIMITS.subgraphDepth} 层`, '拆成总图和局部图');
+        depthLimit = true;
+        skipDepth = 1;
         continue;
       }
-      if (stack.length + 1 > LIMITS.subgraphDepth) {
-        addError(line, `子图嵌套 ${stack.length + 1} 层，超过上限 ${LIMITS.subgraphDepth} 层`, '拆成总图和局部图');
+      if (subgraphs.has(decl.id)) {
+        stack.push(subgraphs.get(decl.id));
         continue;
       }
       const sg = {
@@ -371,7 +388,7 @@ function parseFlowchartBody(statements, errors, direction = 'TB', lang) {
       stack.push(sg);
       continue;
     }
-    if (/^end\s*$/i.test(text)) {
+    if (text === 'end') {
       if (!stack.length) {
         addError(line, 'end 没有对应的 subgraph', '删除多余的 end');
         continue;
@@ -380,12 +397,11 @@ function parseFlowchartBody(statements, errors, direction = 'TB', lang) {
       continue;
     }
     if (/^direction\b/i.test(text)) {
-      if (!stack.length) {
-        const token = text.replace(/^direction\b/i, '').trim();
-        const d = parseDirection(token);
-        if (d.error) addError(line, d.error, '方向用 TB、TD、BT、LR、RL');
-        else direction = d.direction;
-      }
+      const token = text.replace(/^direction\b/i, '').trim().split(/\s/)[0];
+      const d = parseDirection(token);
+      if (d.error) addError(line, d.error, '方向用 TB、TD、BT、LR、RL');
+      else if (stack.length) stack.at(-1).dir = d.direction;
+      else direction = d.direction;
       continue;
     }
     if (/^(classDef|style|linkStyle)\b/i.test(text)) {
@@ -470,8 +486,12 @@ function parseFlowchartBody(statements, errors, direction = 'TB', lang) {
       errors.push(warning('IGNORED_CONFIG', lang, line, '连线采用静态正交绘制', 'Edges use static orthogonal routes'));
     }
   }
-  if (stack.length) {
+  if (stack.length && !depthLimit) {
     addError(statements[statements.length - 1].line, 'subgraph 没有结束的 end', '补上 end');
+  }
+  for (const [id, view] of frameMetadata) {
+    const frame = subgraphs.get(id);
+    if (frame && ['collapsed', 'expanded'].includes(view)) frame.view = view;
   }
   for (const node of model.nodes) {
     if (subgraphs.has(node.id)) {
@@ -487,11 +507,14 @@ function parseFlowchartBody(statements, errors, direction = 'TB', lang) {
 function parseFlowchart(statements, errors, lang) {
   const head = statements[0].text;
   let direction = 'TB';
-  const header = /^(?:flowchart|graph)\b\s*([A-Za-z]*)/i.exec(head);
-  if (header && header[1]) {
-    const d = parseDirection(header[1]);
-    if (d.error) errors.push({ line: statements[0].line, message: d.error, fix: '方向用 TB、TD、BT、LR、RL（TD 等同 TB）' });
-    else direction = d.direction;
+  const header = /^(?:flowchart|graph)(?:-elk)?\b(?:\s+(.*))?$/.exec(head);
+  if (header?.[1]) {
+    const token = header[1];
+    const symbols = { '<': 'RL', '>': 'LR', '^': 'BT', v: 'TB', BR: 'TB' };
+    const d = Object.hasOwn(symbols, token) ? { direction: symbols[token] } : (token === token.toUpperCase() ? parseDirection(token) : null);
+    if (d?.direction) direction = d.direction;
+    else if (d?.error && /^[A-Z]+$/.test(token)) errors.push({ line: statements[0].line, message: d.error, fix: '方向用 TB、TD、BT、LR、RL（TD 等同 TB）' });
+    else statements = [statements[0], { text: token, line: statements[0].line }, ...statements.slice(1)];
   }
   return parseFlowchartBody(statements, errors, direction, lang);
 }
@@ -506,12 +529,17 @@ function parseStateDecl(rest) {
     kind = m[1].toLowerCase();
     text = text.slice(0, m.index).trim();
   }
+  m = /\[\[(choice|fork|join)\]\]\s*$/i.exec(text);
+  if (m) {
+    kind = m[1].toLowerCase();
+    text = text.slice(0, m.index).trim();
+  }
   m = /^"([\s\S]*)"\s+as\s+([^\s]+)$/.exec(text);
   if (m) return { id: m[2], label: normalizeLabel(m[1]), kind };
   return { id: text, label: null, kind };
 }
 
-function parseState(statements, errors) {
+function parseState(statements, errors, lang) {
   const head = statements[0].text;
   const model = {
     type: 'state', direction: 'TB', nodes: [], edges: [], subgraphs: [],
@@ -542,7 +570,12 @@ function parseState(statements, errors) {
   let edgeSeq = 0;
   let nodeLimit = false;
   let edgeLimit = false;
-  const currentParent = () => (stack.length ? stack[stack.length - 1].id : null);
+  const activeRegions = new Map();
+  const notes = [];
+  const currentParent = () => {
+    const id = stack.at(-1)?.id ?? null;
+    return activeRegions.get(id)?.id ?? id;
+  };
   const addError = (line, message, fix) => errors.push({ line, message, fix });
   const checkClass = (name, line) => {
     if (!CLASSES.includes(name)) {
@@ -603,7 +636,7 @@ function parseState(statements, errors) {
     return node;
   };
 
-  const addEdge = (from, to, label, line) => {
+  const addEdge = (from, to, label, line, note = false) => {
     model.edges.push({
       seq: edgeSeq++,
       from,
@@ -611,9 +644,9 @@ function parseState(statements, errors) {
       fromFrame: false,
       toFrame: false,
       label: label == null ? null : normalizeLabel(stripQuotes(label)),
-      style: 'solid',
+      style: note ? 'dashed' : 'solid',
       startArrow: false,
-      endArrow: true,
+      endArrow: !note,
       extra: 0,
       line,
     });
@@ -623,16 +656,21 @@ function parseState(statements, errors) {
     }
   };
 
+  const ignored = new Set();
+  let skipDepth = 0, depthLimit = false;
   for (const st of statements.slice(1)) {
     const text = st.text;
     const line = st.line;
+    if (skipDepth) {
+      if (/^state\s+.+\{\s*$/i.test(text)) skipDepth += 1;
+      else if (text === '}') skipDepth -= 1;
+      continue;
+    }
     if (/^direction\b/i.test(text)) {
-      if (!stack.length) {
-        const token = text.replace(/^direction\b/i, '').trim();
-        const d = parseDirection(token);
-        if (d.error) addError(line, d.error, '方向用 TB、TD、BT、LR、RL');
-        else direction = d.direction;
-      }
+      const d = parseDirection(text.replace(/^direction\b/i, '').trim());
+      if (d.error) addError(line, d.error, '方向用 TB、TD、BT、LR、RL');
+      else if (stack.length) (activeRegions.get(stack.at(-1).id) ?? stack.at(-1)).dir = d.direction;
+      else direction = d.direction;
       continue;
     }
     if (/^\}\s*$/.test(text)) {
@@ -644,11 +682,50 @@ function parseState(statements, errors) {
       continue;
     }
     if (text === '--') {
-      addError(line, '不支持 -- 并发分区', '拆成两张图，或用 fork/join');
+      const frame = stack.at(-1);
+      if (!frame) {
+        addError(line, '-- 只能放在复合状态中', '将分区放入 state A { … }');
+        continue;
+      }
+      const addRegion = () => {
+        const region = { id: `@@region:${seq}`, title: '', parent: frame.id, depth: frame.depth + 1, seq: seq++, line, kind: 'divider' };
+        model.subgraphs.push(region);
+        activeRegions.set(frame.id, region);
+        return region;
+      };
+      if (!activeRegions.has(frame.id)) {
+        const first = addRegion();
+        for (const item of [...model.nodes, ...model.subgraphs]) {
+          if (item !== first && item.parent === frame.id) item.parent = first.id;
+        }
+      }
+      addRegion();
       continue;
     }
     if (/^note\b/i.test(text)) {
-      addError(line, '状态图不支持 note', '说明写进 fig-note 或正文');
+      const note = /^note\s+(left|right)\s+of\s+([^\s:]+)(?:\s*:\s*([\s\S]*)|\n([\s\S]*))$/i.exec(text);
+      const floating = /^note\s+"([\s\S]*)"\s+as\s+(\S+)$/i.exec(text);
+      if (!note && !floating) {
+        addError(line, '无法解析状态图 note', '使用 note left of A: 说明，或用 end note 结束多行说明');
+        continue;
+      }
+      const id = floating ? floating[2] : `@@note:${seq}`;
+      if (note) ensureState(note[2], line);
+      const node = ensureState(id, line, { kind: 'note', label: normalizeLabel(note ? note[3] ?? note[4] : floating[1]) });
+      if (node && note) {
+        notes.push({ node, target: note[2] });
+        if (note[1].toLowerCase() === 'left') addEdge(id, note[2], null, line, true);
+        else addEdge(note[2], id, null, line, true);
+      }
+      continue;
+    }
+    const ignoredStatement = /^(hide\s+empty\s+description|scale\s+\d+(?:\.\d+)?\s+width)$/i.exec(text);
+    if (ignoredStatement) {
+      const key = text.split(/\s/)[0].toLowerCase();
+      if (!ignored.has(key)) {
+        ignored.add(key);
+        errors.push(warning('IGNORED_CONFIG', lang, line, `忽略状态图 ${key} 语句`, `Ignored state diagram ${key} statement`));
+      }
       continue;
     }
     if (/^(classDef|style|linkStyle)\b/i.test(text)) {
@@ -693,7 +770,9 @@ function parseState(statements, errors) {
           continue;
         }
         if (stack.length + 1 > LIMITS.stateDepth) {
-          addError(line, `复合状态嵌套 ${stack.length + 1} 层，超过上限 ${LIMITS.stateDepth} 层`, '拆成平级状态或拆成两张图');
+          if (!depthLimit) addError(line, `复合状态嵌套 ${stack.length + 1} 层，超过上限 ${LIMITS.stateDepth} 层`, '拆成平级状态或拆成两张图');
+          depthLimit = true;
+          skipDepth = 1;
           continue;
         }
         const placeholder = nodes.get(decl.id);
@@ -794,10 +873,17 @@ function parseState(statements, errors) {
       addError(line, '图类型只能声明一次', '删掉重复的声明');
       continue;
     }
-    addError(line, `无法解析的语句：${text}`, '检查状态名、转移箭头与 : 说明的写法');
+    if (/^[^\s:{}]+$/.test(text)) ensureState(text, line);
+    else addError(line, `无法解析的语句：${text}`, '检查状态名、转移箭头与 : 说明的写法');
+  }
+  for (const { node, target } of notes) node.parent = (nodes.get(target) ?? subgraphs.get(target))?.parent ?? null;
+  const occupied = new Set([...model.nodes, ...model.subgraphs].map(item => item.parent));
+  model.subgraphs = model.subgraphs.filter(frame => frame.kind !== 'divider' || occupied.has(frame.id));
+  for (const node of model.nodes) if (node.kind === 'state' && node.desc.length === 1 && node.label === node.id) {
+    node.label = node.desc.pop();
   }
 
-  if (stack.length) {
+  if (stack.length && !depthLimit) {
     addError(statements[statements.length - 1].line, '复合状态没有结束的 }', '补上 }');
   }
   for (const edge of model.edges) {
@@ -973,15 +1059,27 @@ function parseFlow(statements, { direction = 'TB' } = {}) {
   const model = parseFlowchartBody([{ text: 'flowchart', line: 0 }, ...statements], errors, safeDirection);
   return { ok: errors.length === 0, errors, model };
 }
-function statementsOf(body, firstLine) {
+function statementsOf(body, firstLine, state = false) {
   const rows = String(body ?? '').replace(/\r\n?/g, '\n').split('\n');
   const statements = [];
-  rows.forEach((row, index) => {
+  for (let index = 0; index < rows.length; index += 1) {
+    const row = rows[index];
+    const line = firstLine + index;
+    if (state && /^\s*note\s+(left|right)\s+of\s+[^\s:]+\s*$/i.test(row)) {
+      const end = rows.findIndex((value, i) => i > index && /^\s*end\s+note\s*$/i.test(value));
+      if (end !== -1) {
+        statements.push({ text: [row.trim(), ...rows.slice(index + 1, end).map(value => value.trim())].join('\n'), line });
+        index = end;
+        continue;
+      }
+    }
     for (const piece of splitStatements(row)) {
       const text = piece.trim();
-      if (text && !/^\s*%%/.test(text) && !/^acc(Title|Descr)\s*:/i.test(text)) statements.push({ text, line: firstLine + index });
+      if (state && /^state\s+.+?\{\s*\}\s*$/i.test(text)) {
+        statements.push({ text: text.slice(0, -1).trim(), line }, { text: '}', line });
+      } else if (text && !/^\s*%%/.test(text) && !/^acc(Title|Descr)\s*:/i.test(text)) statements.push({ text, line });
     }
-  });
+  }
   return statements;
 }
 function parseGraph(body, info = {}) {
@@ -989,7 +1087,7 @@ function parseGraph(body, info = {}) {
   const header = String(info.header || '');
   const headerLine = Number.isFinite(info.headerLine) ? info.headerLine : Math.max(1, (info.firstLine || 2) - 1);
   const firstLine = Number.isFinite(info.firstLine) ? info.firstLine : headerLine + 1;
-  const statements = [...statementsOf(header, headerLine), ...statementsOf(body, firstLine)];
+  const statements = [...statementsOf(header, headerLine), ...statementsOf(body, firstLine, kind.startsWith('statediagram'))];
   const errors = [];
   if (info.syntax === 'mermaid') {
     // 与逐行源码检查一致；分号连接的语句也不能绕过样式类约束。
@@ -1002,7 +1100,7 @@ function parseGraph(body, info = {}) {
   const first = statements[0].text;
   let model;
   if (kind === 'flowchart') model = parseFlowchart(statements, errors, info.lang);
-  else if (kind === 'statediagram-v2' || kind === 'statediagram') model = parseState(statements, errors);
+  else if (kind === 'statediagram-v2' || kind === 'statediagram') model = parseState(statements, errors, info.lang);
   else if (kind === 'erdiagram') model = parseEr(statements, errors);
   else errors.push({ line: statements[0].line, column: 1, message: '不支持的图类型：' + first.split(/\s+/)[0], fix: '使用 flowchart、stateDiagram-v2 或 erDiagram 图型' });
   return { model: model || null, errors: errors.map(item => ({ column: 1, ...item })) };
