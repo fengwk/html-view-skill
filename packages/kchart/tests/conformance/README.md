@@ -15,13 +15,15 @@ From the repository root (requires Node, npm, Git, tar, and Chrome/Chromium):
 node --test packages/kchart/tests/conformance/extract.node.mjs
 TMPDIR=/var/tmp node packages/kchart/conformance/extract.mjs mermaid@12.3.0 > corpus.json
 node packages/kchart/conformance/repo-examples.mjs > examples.json
-TMPDIR=/var/tmp node packages/kchart/conformance/validate.mjs examples.json > report.json
+TMPDIR=/var/tmp node packages/kchart/conformance/validate.mjs examples.json --allow-plugins > report.json
 ```
 
 Pass a local checkout after the tag to skip cloning. `validate.mjs` uses
 real Mermaid in headless Chrome via CDP and exits 1 if core rejects any
-record, including examples that require a plugin. See the
-[published-examples audit][audit] for the baseline results.
+record, including examples that require a plugin; `--allow-plugins` lists
+those separately instead. CI runs the last two commands on every change to
+the published examples. See the [published-examples audit][audit] for the
+current results.
 
 [syntax]: https://github.com/mermaid-js/mermaid/tree/mermaid%4012.3.0/packages/mermaid/src/docs/syntax
 [audit]: ../../conformance/published-report.json

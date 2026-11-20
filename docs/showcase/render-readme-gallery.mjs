@@ -83,7 +83,7 @@ window.draw = ({spec, source, syntax}, width, theme, prefix, lang) => {
   document.documentElement.lang = lang;
   const options = {width,theme,prefix,assets,measure,lang,frame:false};
   const result = spec ? KChart.render(spec, options) : KChart.diagram(source, {...options, syntax});
-  if (!result.svg || result.diagnostics?.length) throw new Error(prefix+': '+JSON.stringify(result.diagnostics));
+  if (!result.svg) throw new Error(prefix+': '+JSON.stringify(result.diagnostics));
   document.getElementById('scene').innerHTML = result.svg;
   const element = document.querySelector('#scene svg');
   const b = element.getBoundingClientRect();
@@ -91,8 +91,11 @@ window.draw = ({spec, source, syntax}, width, theme, prefix, lang) => {
     const t = text.getBoundingClientRect();
     return t.left < b.left - 2 || t.right > b.right + 2 || t.top < b.top - 2 || t.bottom > b.bottom + 2;
   }).map(text => text.textContent);
-  return {svg:result.svg, width:element.width.baseVal.value, height:element.height.baseVal.value, overflow};
+  const diagnostics = (result.diagnostics || []).map(d => d.code+': '+d.message);
+  return {svg:result.svg, width:element.width.baseVal.value, height:element.height.baseVal.value, overflow, diagnostics};
 };</script></body></html>`);
+// A diagram much wider than a cell warns LARGE_DIAGRAM at cell width; that only means it belongs in a wide row.
+const tooLarge = rendered => rendered.diagnostics.length > 0 && rendered.diagnostics.every(text => text.startsWith('LARGE_DIAGRAM:'));
 
 // Two cells in a row share one height, so pair compact samples of similar height: after sorting by height, neighbours
 // make the pairs with the least empty card space. With an odd count, the sample whose removal wastes least stays alone
@@ -161,7 +164,7 @@ try {
         const input = sample.spec ? { spec: sample.spec } : { syntax: sample.syntax, source: sample.source };
         let width = item.wide ? WIDE : CELL;
         let rendered = await draw(input, width, theme.id, `g-${item.id}`, lang);
-        if (width === CELL && (rendered.width > CELL - PAD * 2 || rendered.overflow.length)) {
+        if (width === CELL && (rendered.width > CELL - PAD * 2 || rendered.overflow.length || tooLarge(rendered))) {
           width = WIDE;
           rendered = await draw(input, width, theme.id, `g-${item.id}`, lang);
         } else if (width === CELL && rendered.height > TALL) {
@@ -172,6 +175,7 @@ try {
         assert.ok(Number.isFinite(rendered.height) && rendered.height > 0 && rendered.width <= width - PAD * 2,
           `${lang} ${item.id}: canvas ${rendered.width}×${rendered.height} does not fit the tile`);
         assert.deepEqual(rendered.overflow, [], `${lang} ${item.id}: glyphs fall outside the canvas`);
+        assert.deepEqual(rendered.diagnostics, [], `${lang} ${item.id}: a gallery sample must render without diagnostics`);
         entries.push({ item: { ...item, key: sample.key }, render: rendered, theme, width });
       }
       record.groups.push({ id: group.id, title: group.title, kind: group.kind, count: group.items.length, rows: await writeRows(dir, entries, lang) });
@@ -180,7 +184,7 @@ try {
     for (const themeItem of themes) {
       const id = `theme-${themeItem.id}`;
       const render = await draw({ spec: cases.themeSpec }, CELL, themeItem.id, id, lang);
-      assert.ok(render.width <= CELL - PAD * 2 && render.overflow.length === 0, `${lang} ${id} does not fit`);
+      assert.ok(render.width <= CELL - PAD * 2 && render.overflow.length === 0 && render.diagnostics.length === 0, `${lang} ${id} does not fit`);
       const key = lang === 'en' ? `${cases.words.scheme[themeItem.scheme]} theme` : `${themeItem.name} · ${cases.words.scheme[themeItem.scheme]}`;
       plates.push({ item: { id, title: themeItem.en, key, swatches: true }, theme: themeItem, render, width: CELL });
     }

@@ -3,9 +3,9 @@
 import { lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
-import { createRenderer } from '../../../vendor/kchart/esm/node.js';
+import { createRenderer, diagramTypes } from '../../../vendor/kchart/esm/node.js';
 import { KCHART_CASES } from '../../../../../packages/kchart/tests/kchart-cases.mjs';
-import { DIAGRAMS, MINDMAP_LAYOUTS } from './diagram-fixtures.mjs';
+import { galleryCases } from '../../../../../docs/showcase/gallery-cases.mjs';
 
 const GENERATOR_ID = 'html-view/scripts/lab/showcase/generate.mjs';
 const args = process.argv.slice(2);
@@ -42,6 +42,9 @@ function outputDirectory(path) {
 const out = args.length ? outputDirectory(resolve(args[1])) : mkdtempSync(join(tmpdir(), 'kchart-showcase-'));
 const renderer = createRenderer();
 const THEMES = Object.keys(renderer.themes);
+// Structure diagrams reuse the README gallery's Chinese samples, so both showcases cover the same catalog.
+const DIAGRAMS = Object.entries(galleryCases('zh-CN').diagrams).map(([id, [syntax, source]]) => ({ id, syntax, source }));
+const MINDMAP_LAYOUTS = renderer.catalog.mindmap.special.layout;
 const WIDTH = 560;
 const esc = value => String(value).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#39;');
 const safe = value => String(value).replace(/[^a-zA-Z0-9_-]/g, '-');
@@ -91,9 +94,11 @@ const diagramItems = [...DIAGRAMS, ...MINDMAP_LAYOUTS.map(layout => ({
   id: `diagram-mindmap-${layout}`, syntax: 'mermaid', layout,
   source: `---\nconfig:\n  layout: ${layout}\n---\nmindmap\n  root((示例计划))\n    设计\n      目标\n      约束\n    实施\n      图表\n      结构图`,
 }))];
-if (DIAGRAMS.length !== 30 || DIAGRAMS.filter(item => item.syntax === 'mermaid').length !== 27) {
-  throw new Error(`结构图输入预期 27 种 Mermaid + 3 种原生，实际 ${DIAGRAMS.length} 条`);
+const diagramKinds = DIAGRAMS.map(({ id, syntax }) => diagramTypes.find(type => type.syntax === syntax && [type.kind, ...type.aliases].includes(id))?.kind);
+if (diagramKinds.includes(undefined) || [...diagramKinds].sort().join() !== diagramTypes.map(type => type.kind).sort().join()) {
+  throw new Error(`结构图样例须恰好覆盖 ${diagramTypes.length} 种图型，实际 ${DIAGRAMS.length} 条`);
 }
+const mermaidCount = DIAGRAMS.filter(item => item.syntax === 'mermaid').length, nativeCount = DIAGRAMS.length - mermaidCount;
 const diagramRenderer = createRenderer({ sources: diagramItems.map(({ source, syntax }) => ({ source, syntax })) });
 const diagramRecords = diagramItems.map(item => ({
   id: item.id, family: item.id.startsWith('diagram-mindmap-') ? '脑图布局' : '结构图', title: item.id,
@@ -122,7 +127,7 @@ const families = [...new Set(records.map(item => item.family))].sort();
 const familyNames = families.map(family => `<option>${esc(family)}</option>`).join('');
 const html = `<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>KChart 图库</title><style>
 :root{color-scheme:light dark;font:15px/1.55 system-ui,-apple-system,"Segoe UI","Noto Sans SC",sans-serif}*{box-sizing:border-box}body{margin:0;background:#111318;color:#e7e9ef}main{max-width:1440px;margin:auto;padding:28px 24px 56px}h1{margin:0;font-size:30px}header.intro p{max-width:75ch;color:#aeb3c0}.filters{position:sticky;top:0;z-index:2;display:flex;gap:10px;flex-wrap:wrap;padding:12px 0;background:#111318}input,select{background:#1c2029;color:inherit;border:1px solid #424755;border-radius:8px;padding:9px 12px}input{flex:1;min-width:220px}.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,584px),1fr));gap:16px}.card{min-width:0;background:#191c23;border:1px solid #2b303b;border-radius:12px;overflow:hidden}.card>header{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:14px 16px}.card h2{margin:0;font-size:17px}.card p{margin:2px 0 0;color:#aeb3c0;font-size:12px}.card a{color:#9fbaff;font-size:12px;white-space:nowrap}.preview{padding:10px;background:#252a33;overflow:auto}.preview img{display:block;width:auto;max-width:none;height:auto}.card details{padding:10px 16px}.card summary{cursor:pointer;color:#c5c9d3}.card pre{max-height:360px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;background:#101218;padding:12px;border-radius:6px;font-size:12px}.count{color:#aeb3c0;font-size:13px}footer{margin-top:28px;color:#aeb3c0;font-size:13px}@media(max-width:600px){main{padding:18px 12px 36px}.card>header{flex-direction:column}}
-</style><main><header class="intro"><h1>KChart · 实际渲染图库</h1><p>由仓库内当前 KChart 源码即时导出。包含 45 种基础图、已登记受控变体、27 种 Mermaid 子集与 3 种原生结构图、8 种脑图布局；每个样例都可切换 ${THEMES.length} 套内置主题并单独打开 SVG。输入均为虚构合成数据，页面与图形无外网字体、脚本或资源请求。</p></header><section class="filters" aria-label="图库筛选"><input id="search" type="search" placeholder="搜索图型、分类或主题" aria-label="搜索"><select id="family" aria-label="分类"><option value="">全部分类</option>${familyNames}</select><select id="theme" aria-label="主题"><option value="">全部主题</option>${themeNames}</select></section><p class="count" id="count" aria-live="polite"></p><section class="grid">${cards.join('\n')}</section><footer>生成 ${records.length} 个场景 × ${THEMES.length} 个主题 = ${renders} 张 SVG。仅依赖 Node.js 22+ 与本地 KChart 源码。</footer><script>(()=>{const cards=[...document.querySelectorAll('.card')],q=document.querySelector('#search'),f=document.querySelector('#family'),t=document.querySelector('#theme'),count=document.querySelector('#count');function update(){let n=0;for(const card of cards){const shown=(!f.value||card.dataset.family===f.value)&&(!t.value||card.dataset.theme===t.value)&&(!q.value||card.dataset.search.includes(q.value.toLocaleLowerCase()));card.hidden=!shown;if(shown)n++}count.textContent='显示 '+n+' / '+cards.length+' 张图';}for(const control of [q,f,t])control.addEventListener('input',update);update()})();</script></main></html>`;
+</style><main><header class="intro"><h1>KChart · 实际渲染图库</h1><p>由仓库内当前 KChart 源码即时导出。包含 ${baseCharts.length} 种基础图、${variantItems.length} 项受控变体、${mermaidCount} 种 Mermaid 写法与 ${nativeCount} 种原生结构图、${MINDMAP_LAYOUTS.length} 种脑图布局；每个样例都可切换 ${THEMES.length} 套内置主题并单独打开 SVG。输入均为虚构合成数据，页面与图形无外网字体、脚本或资源请求。</p></header><section class="filters" aria-label="图库筛选"><input id="search" type="search" placeholder="搜索图型、分类或主题" aria-label="搜索"><select id="family" aria-label="分类"><option value="">全部分类</option>${familyNames}</select><select id="theme" aria-label="主题"><option value="">全部主题</option>${themeNames}</select></section><p class="count" id="count" aria-live="polite"></p><section class="grid">${cards.join('\n')}</section><footer>生成 ${records.length} 个场景 × ${THEMES.length} 个主题 = ${renders} 张 SVG。仅依赖 Node.js 22+ 与本地 KChart 源码。</footer><script>(()=>{const cards=[...document.querySelectorAll('.card')],q=document.querySelector('#search'),f=document.querySelector('#family'),t=document.querySelector('#theme'),count=document.querySelector('#count');function update(){let n=0;for(const card of cards){const shown=(!f.value||card.dataset.family===f.value)&&(!t.value||card.dataset.theme===t.value)&&(!q.value||card.dataset.search.includes(q.value.toLocaleLowerCase()));card.hidden=!shown;if(shown)n++}count.textContent='显示 '+n+' / '+cards.length+' 张图';}for(const control of [q,f,t])control.addEventListener('input',update);update()})();</script></main></html>`;
 writeOutput('index.html', html);
 
 // Lightweight all-theme contact sheet; actual chart geometry is reused verbatim.
@@ -179,6 +184,6 @@ for (const group of previewGroups) {
   writeOutput(`${group.id}.svg`, contactSheet);
 }
 const previewNames = ['theme-matrix.svg', 'diagram-matrix.svg', ...previewGroups.map(group => `${group.id}.svg`)];
-const manifest = { generator: GENERATOR_ID, engine: 'html-view/vendor/kchart/esm/node.js', width: WIDTH, themes: THEMES, baseChartCount: baseCharts.length, controlledVariantCount: variantItems.length, mermaidCount: 27, nativeDiagramCount: 3, mindmapLayoutCount: MINDMAP_LAYOUTS.length, records: records.length, renderedSvgCount: renders, curatedPreviews: previewNames };
+const manifest = { generator: GENERATOR_ID, engine: 'html-view/vendor/kchart/esm/node.js', width: WIDTH, themes: THEMES, baseChartCount: baseCharts.length, controlledVariantCount: variantItems.length, mermaidCount, nativeDiagramCount: nativeCount, mindmapLayoutCount: MINDMAP_LAYOUTS.length, records: records.length, renderedSvgCount: renders, curatedPreviews: previewNames };
 writeOutput('manifest.json', `${JSON.stringify(manifest, null, 2)}\n`);
 console.log(`KChart showcase: ${baseCharts.length} base chart types, ${variantItems.length} controlled variants, ${DIAGRAMS.length} diagrams, ${MINDMAP_LAYOUTS.length} mindmap layouts; ${renders} SVGs in ${out}`);

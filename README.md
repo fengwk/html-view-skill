@@ -8,7 +8,7 @@
 
 技能不只管排版。拿到零散笔记、会议记录或 JSON 时，Agent 先按读者要做的事重排内容；做 Dashboard 时，先定这一屏回答什么问题，再把强调色只留给需要处理的那一项。
 
-[快速开始](#quick-start) · [交付样张](#showcase) · [内置主题](#themes) · [**45 种数据图与 30 种结构图**](#gallery) · [安装说明](#install) · [更新与卸载](#update-uninstall)
+[快速开始](#quick-start) · [交付样张](#showcase) · [内置主题](#themes) · [**45 种数据图与 43 种结构图**](#gallery) · [安装说明](#install) · [更新与卸载](#update-uninstall)
 
 <p align="center"><a href="docs/showcase/previews/zh-CN/dashboard-hero.png"><picture><source media="(max-width: 600px)" srcset="docs/showcase/previews/zh-CN/dashboard-mobile.png"><img src="docs/showcase/previews/zh-CN/dashboard-hero.png" width="840" alt="Claude 暖白主题的虚构咖啡经营看板：四张指标卡、收入走势和渠道对比"></picture></a></p>
 
@@ -146,7 +146,7 @@ Agent 生成 HTML 后会运行 `htmlview audit` 检查内容和资源，再用 `
 
 ## KChart 图谱
 
-HTML View 的图表由自带的 KChart 库绘制。图谱展示 **45 种数据图、38 项受控变体、27 种 Mermaid 写法的图（含旧版兼容示例）、3 种原生结构图、8 种脑图布局**；完整入口见[图型索引](skills/html-view/SKILL.md#按读者要看什么选图)。下方样张均为实际渲染，统一使用 Claude 配色，其他主题见[内置主题](#themes)。每张图占一格，两列对齐；宽图占满一行，不为拼图缩小文字。手机上 GitHub 会把两列按屏宽缩小，点击图片可打开原尺寸 SVG。
+HTML View 的图表由自带的 KChart 库绘制。图谱展示 **45 种数据图、38 项受控变体、40 种 Mermaid 写法的图、3 种原生结构图、8 种脑图布局**；完整入口见[图型索引](skills/html-view/SKILL.md#按读者要看什么选图)。下方样张均为实际渲染，统一使用 Claude 配色，其他主题见[内置主题](#themes)。每张图占一格，两列对齐；宽图占满一行，不为拼图缩小文字。手机上 GitHub 会把两列按屏宽缩小，点击图片可打开原尺寸 SVG。每个 Mermaid 示例也能被 Mermaid 12.3.0 本身解析；ZenUML 需要 Mermaid 的外部插件。
 
 [生成可筛选的完整图库 →](docs/showcase/README.md#full-gallery)
 
@@ -324,7 +324,7 @@ HTML View 的图表由自带的 KChart 库绘制。图谱展示 **45 种数据�
 
 ### 结构图
 
-[流程、状态与旅程](#process) · [时序与数据模型](#model) · [排期、看板与协议](#planning) · [架构与分层](#architecture) · [C4 的五个视角](#c4) · [Mermaid 数值图](#mermaid-data) · [一棵树，八种脑图布局](#mindmaps)
+[流程、状态与旅程](#process) · [时序与数据模型](#model) · [四种写法的语法图](#grammar) · [排期、看板与协议](#planning) · [架构、分层与目录](#architecture) · [C4 的五个视角](#c4) · [Mermaid 数值图](#mermaid-data) · [分析与策略](#analysis) · [一棵树，八种脑图布局](#mindmaps)
 
 <a id="process"></a>
 
@@ -338,10 +338,17 @@ HTML View 的图表由自带的 KChart 库绘制。图谱展示 **45 种数据�
 <td colspan="2" align="center"><a href="docs/showcase/gallery/zh-CN/diagram-stateDiagram-v2.svg"><img src="docs/showcase/gallery/zh-CN/diagram-stateDiagram-v2.svg" width="360" alt="状态图"></a><br><b>状态图</b><br><sub><code>stateDiagram-v2</code></sub></td>
 </tr>
 <tr>
-<td colspan="2" align="center"><a href="docs/showcase/gallery/zh-CN/diagram-journey.svg"><img src="docs/showcase/gallery/zh-CN/diagram-journey.svg" width="780" alt="体验旅程"></a><br><b>体验旅程</b><br><sub><code>journey</code></sub></td>
+<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/zh-CN/diagram-journey.svg"><img src="docs/showcase/gallery/zh-CN/diagram-journey.svg" width="360" alt="体验旅程"></a><br><b>体验旅程</b><br><sub><code>journey</code></sub></td>
+<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/zh-CN/diagram-swimlane-beta.svg"><img src="docs/showcase/gallery/zh-CN/diagram-swimlane-beta.svg" width="360" alt="Mermaid 泳道图"></a><br><b>Mermaid 泳道图</b><br><sub><code>swimlane-beta</code></sub></td>
 </tr>
 <tr>
 <td colspan="2" align="center"><a href="docs/showcase/gallery/zh-CN/diagram-swimlane.svg"><img src="docs/showcase/gallery/zh-CN/diagram-swimlane.svg" width="780" alt="泳道图"></a><br><b>泳道图</b><br><sub><code>swimlane</code></sub></td>
+</tr>
+<tr>
+<td colspan="2" align="center"><a href="docs/showcase/gallery/zh-CN/diagram-agentflow-beta.svg"><img src="docs/showcase/gallery/zh-CN/diagram-agentflow-beta.svg" width="780" alt="Agent 流程"></a><br><b>Agent 流程</b><br><sub><code>agentflow-beta</code></sub></td>
+</tr>
+<tr>
+<td colspan="2" align="center"><a href="docs/showcase/gallery/zh-CN/diagram-eventmodeling.svg"><img src="docs/showcase/gallery/zh-CN/diagram-eventmodeling.svg" width="780" alt="事件建模"></a><br><b>事件建模</b><br><sub><code>eventmodeling</code></sub></td>
 </tr>
 </table>
 
@@ -354,14 +361,34 @@ HTML View 的图表由自带的 KChart 库绘制。图谱展示 **45 种数据�
 <td colspan="2" align="center"><a href="docs/showcase/gallery/zh-CN/diagram-sequenceDiagram.svg"><img src="docs/showcase/gallery/zh-CN/diagram-sequenceDiagram.svg" width="780" alt="时序图"></a><br><b>时序图</b><br><sub><code>sequenceDiagram</code></sub></td>
 </tr>
 <tr>
-<td colspan="2" align="center"><a href="docs/showcase/gallery/zh-CN/diagram-zenuml.svg"><img src="docs/showcase/gallery/zh-CN/diagram-zenuml.svg" width="360" alt="ZenUML"></a><br><b>ZenUML</b><br><sub><code>zenuml</code></sub></td>
+<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/zh-CN/diagram-zenuml.svg"><img src="docs/showcase/gallery/zh-CN/diagram-zenuml.svg" width="360" alt="ZenUML"></a><br><b>ZenUML</b><br><sub><code>zenuml</code></sub></td>
+<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/zh-CN/diagram-requirementDiagram.svg"><img src="docs/showcase/gallery/zh-CN/diagram-requirementDiagram.svg" width="360" alt="需求图"></a><br><b>需求图</b><br><sub><code>requirementDiagram</code></sub></td>
+</tr>
+<tr>
+<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/zh-CN/diagram-usecase-beta.svg"><img src="docs/showcase/gallery/zh-CN/diagram-usecase-beta.svg" width="360" alt="用例图"></a><br><b>用例图</b><br><sub><code>usecase-beta</code></sub></td>
+<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/zh-CN/diagram-classDiagram.svg"><img src="docs/showcase/gallery/zh-CN/diagram-classDiagram.svg" width="360" alt="类图"></a><br><b>类图</b><br><sub><code>classDiagram</code></sub></td>
 </tr>
 <tr>
 <td colspan="2" align="center"><a href="docs/showcase/gallery/zh-CN/diagram-erDiagram.svg"><img src="docs/showcase/gallery/zh-CN/diagram-erDiagram.svg" width="780" alt="ER 图"></a><br><b>ER 图</b><br><sub><code>erDiagram</code></sub></td>
 </tr>
+</table>
+
+<a id="grammar"></a>
+
+#### 四种写法的语法图
+
+<table>
 <tr>
-<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/zh-CN/diagram-classDiagram.svg"><img src="docs/showcase/gallery/zh-CN/diagram-classDiagram.svg" width="360" alt="类图"></a><br><b>类图</b><br><sub><code>classDiagram</code></sub></td>
-<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/zh-CN/diagram-requirementDiagram.svg"><img src="docs/showcase/gallery/zh-CN/diagram-requirementDiagram.svg" width="360" alt="需求图"></a><br><b>需求图</b><br><sub><code>requirementDiagram</code></sub></td>
+<td colspan="2" align="center"><a href="docs/showcase/gallery/zh-CN/diagram-railroad-beta.svg"><img src="docs/showcase/gallery/zh-CN/diagram-railroad-beta.svg" width="780" alt="函数式"></a><br><b>函数式</b><br><sub><code>railroad-beta</code></sub></td>
+</tr>
+<tr>
+<td colspan="2" align="center"><a href="docs/showcase/gallery/zh-CN/diagram-railroad-ebnf-beta.svg"><img src="docs/showcase/gallery/zh-CN/diagram-railroad-ebnf-beta.svg" width="780" alt="EBNF"></a><br><b>EBNF</b><br><sub><code>railroad-ebnf-beta</code></sub></td>
+</tr>
+<tr>
+<td colspan="2" align="center"><a href="docs/showcase/gallery/zh-CN/diagram-railroad-abnf-beta.svg"><img src="docs/showcase/gallery/zh-CN/diagram-railroad-abnf-beta.svg" width="780" alt="ABNF"></a><br><b>ABNF</b><br><sub><code>railroad-abnf-beta</code></sub></td>
+</tr>
+<tr>
+<td colspan="2" align="center"><a href="docs/showcase/gallery/zh-CN/diagram-railroad-peg-beta.svg"><img src="docs/showcase/gallery/zh-CN/diagram-railroad-peg-beta.svg" width="360" alt="PEG"></a><br><b>PEG</b><br><sub><code>railroad-peg-beta</code></sub></td>
 </tr>
 </table>
 
@@ -383,20 +410,18 @@ HTML View 的图表由自带的 KChart 库绘制。图谱展示 **45 种数据�
 <td colspan="2" align="center"><a href="docs/showcase/gallery/zh-CN/diagram-kanban.svg"><img src="docs/showcase/gallery/zh-CN/diagram-kanban.svg" width="780" alt="看板"></a><br><b>看板</b><br><sub><code>kanban</code></sub></td>
 </tr>
 <tr>
-<td colspan="2" align="center"><a href="docs/showcase/gallery/zh-CN/diagram-packet-beta.svg"><img src="docs/showcase/gallery/zh-CN/diagram-packet-beta.svg" width="780" alt="报文位域"></a><br><b>报文位域</b><br><sub><code>packet-beta</code></sub></td>
-</tr>
-<tr>
-<td colspan="2" align="center"><a href="docs/showcase/gallery/zh-CN/diagram-quadrantChart.svg"><img src="docs/showcase/gallery/zh-CN/diagram-quadrantChart.svg" width="780" alt="四象限"></a><br><b>四象限</b><br><sub><code>quadrantChart</code></sub></td>
+<td colspan="2" align="center"><a href="docs/showcase/gallery/zh-CN/diagram-packet.svg"><img src="docs/showcase/gallery/zh-CN/diagram-packet.svg" width="780" alt="报文位域"></a><br><b>报文位域</b><br><sub><code>packet</code></sub></td>
 </tr>
 </table>
 
 <a id="architecture"></a>
 
-#### 架构与分层
+#### 架构、分层与目录
 
 <table>
 <tr>
-<td colspan="2" align="center"><a href="docs/showcase/gallery/zh-CN/diagram-layers.svg"><img src="docs/showcase/gallery/zh-CN/diagram-layers.svg" width="360" alt="分层图"></a><br><b>分层图</b><br><sub><code>layers</code></sub></td>
+<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/zh-CN/diagram-layers.svg"><img src="docs/showcase/gallery/zh-CN/diagram-layers.svg" width="360" alt="分层图"></a><br><b>分层图</b><br><sub><code>layers</code></sub></td>
+<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/zh-CN/diagram-treeView-beta.svg"><img src="docs/showcase/gallery/zh-CN/diagram-treeView-beta.svg" width="360" alt="目录树"></a><br><b>目录树</b><br><sub><code>treeView-beta</code></sub></td>
 </tr>
 <tr>
 <td colspan="2" align="center"><a href="docs/showcase/gallery/zh-CN/diagram-blocks.svg"><img src="docs/showcase/gallery/zh-CN/diagram-blocks.svg" width="780" alt="能力块"></a><br><b>能力块</b><br><sub><code>blocks</code></sub></td>
@@ -405,7 +430,7 @@ HTML View 的图表由自带的 KChart 库绘制。图谱展示 **45 种数据�
 <td colspan="2" align="center"><a href="docs/showcase/gallery/zh-CN/diagram-architecture-beta.svg"><img src="docs/showcase/gallery/zh-CN/diagram-architecture-beta.svg" width="780" alt="架构图"></a><br><b>架构图</b><br><sub><code>architecture-beta</code></sub></td>
 </tr>
 <tr>
-<td colspan="2" align="center"><a href="docs/showcase/gallery/zh-CN/diagram-block-beta.svg"><img src="docs/showcase/gallery/zh-CN/diagram-block-beta.svg" width="780" alt="块图"></a><br><b>块图</b><br><sub><code>block-beta</code></sub></td>
+<td colspan="2" align="center"><a href="docs/showcase/gallery/zh-CN/diagram-block.svg"><img src="docs/showcase/gallery/zh-CN/diagram-block.svg" width="360" alt="块图"></a><br><b>块图</b><br><sub><code>block</code></sub></td>
 </tr>
 </table>
 
@@ -416,14 +441,14 @@ HTML View 的图表由自带的 KChart 库绘制。图谱展示 **45 种数据�
 <table>
 <tr>
 <td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/zh-CN/diagram-C4Context.svg"><img src="docs/showcase/gallery/zh-CN/diagram-C4Context.svg" width="360" alt="系统上下文"></a><br><b>系统上下文</b><br><sub><code>C4Context</code></sub></td>
-<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/zh-CN/diagram-C4Deployment.svg"><img src="docs/showcase/gallery/zh-CN/diagram-C4Deployment.svg" width="360" alt="部署"></a><br><b>部署</b><br><sub><code>C4Deployment</code></sub></td>
-</tr>
-<tr>
-<td colspan="2" align="center"><a href="docs/showcase/gallery/zh-CN/diagram-C4Container.svg"><img src="docs/showcase/gallery/zh-CN/diagram-C4Container.svg" width="360" alt="容器"></a><br><b>容器</b><br><sub><code>C4Container</code></sub></td>
-</tr>
-<tr>
-<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/zh-CN/diagram-C4Component.svg"><img src="docs/showcase/gallery/zh-CN/diagram-C4Component.svg" width="360" alt="组件"></a><br><b>组件</b><br><sub><code>C4Component</code></sub></td>
 <td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/zh-CN/diagram-C4Dynamic.svg"><img src="docs/showcase/gallery/zh-CN/diagram-C4Dynamic.svg" width="360" alt="动态"></a><br><b>动态</b><br><sub><code>C4Dynamic</code></sub></td>
+</tr>
+<tr>
+<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/zh-CN/diagram-C4Container.svg"><img src="docs/showcase/gallery/zh-CN/diagram-C4Container.svg" width="360" alt="容器"></a><br><b>容器</b><br><sub><code>C4Container</code></sub></td>
+<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/zh-CN/diagram-C4Component.svg"><img src="docs/showcase/gallery/zh-CN/diagram-C4Component.svg" width="360" alt="组件"></a><br><b>组件</b><br><sub><code>C4Component</code></sub></td>
+</tr>
+<tr>
+<td colspan="2" align="center"><a href="docs/showcase/gallery/zh-CN/diagram-C4Deployment.svg"><img src="docs/showcase/gallery/zh-CN/diagram-C4Deployment.svg" width="780" alt="部署"></a><br><b>部署</b><br><sub><code>C4Deployment</code></sub></td>
 </tr>
 </table>
 
@@ -434,14 +459,36 @@ HTML View 的图表由自带的 KChart 库绘制。图谱展示 **45 种数据�
 <table>
 <tr>
 <td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/zh-CN/diagram-pie.svg"><img src="docs/showcase/gallery/zh-CN/diagram-pie.svg" width="360" alt="饼图"></a><br><b>饼图</b><br><sub><code>pie</code></sub></td>
-<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/zh-CN/diagram-xychart-beta.svg"><img src="docs/showcase/gallery/zh-CN/diagram-xychart-beta.svg" width="360" alt="XY 图"></a><br><b>XY 图</b><br><sub><code>xychart-beta</code></sub></td>
+<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/zh-CN/diagram-treemap.svg"><img src="docs/showcase/gallery/zh-CN/diagram-treemap.svg" width="360" alt="矩形树图"></a><br><b>矩形树图</b><br><sub><code>treemap</code></sub></td>
 </tr>
 <tr>
-<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/zh-CN/diagram-sankey-beta.svg"><img src="docs/showcase/gallery/zh-CN/diagram-sankey-beta.svg" width="360" alt="桑基图"></a><br><b>桑基图</b><br><sub><code>sankey-beta</code></sub></td>
-<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/zh-CN/diagram-treemap-beta.svg"><img src="docs/showcase/gallery/zh-CN/diagram-treemap-beta.svg" width="360" alt="矩形树图"></a><br><b>矩形树图</b><br><sub><code>treemap-beta</code></sub></td>
+<td colspan="2" align="center"><a href="docs/showcase/gallery/zh-CN/diagram-xychart.svg"><img src="docs/showcase/gallery/zh-CN/diagram-xychart.svg" width="360" alt="XY 图"></a><br><b>XY 图</b><br><sub><code>xychart</code></sub></td>
 </tr>
 <tr>
-<td colspan="2" align="center"><a href="docs/showcase/gallery/zh-CN/diagram-radar-beta.svg"><img src="docs/showcase/gallery/zh-CN/diagram-radar-beta.svg" width="360" alt="雷达图"></a><br><b>雷达图</b><br><sub><code>radar-beta</code></sub></td>
+<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/zh-CN/diagram-sankey.svg"><img src="docs/showcase/gallery/zh-CN/diagram-sankey.svg" width="360" alt="桑基图"></a><br><b>桑基图</b><br><sub><code>sankey</code></sub></td>
+<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/zh-CN/diagram-radar-beta.svg"><img src="docs/showcase/gallery/zh-CN/diagram-radar-beta.svg" width="360" alt="雷达图"></a><br><b>雷达图</b><br><sub><code>radar-beta</code></sub></td>
+</tr>
+</table>
+
+<a id="analysis"></a>
+
+#### 分析与策略
+
+<table>
+<tr>
+<td colspan="2" align="center"><a href="docs/showcase/gallery/zh-CN/diagram-quadrantChart.svg"><img src="docs/showcase/gallery/zh-CN/diagram-quadrantChart.svg" width="780" alt="四象限"></a><br><b>四象限</b><br><sub><code>quadrantChart</code></sub></td>
+</tr>
+<tr>
+<td colspan="2" align="center"><a href="docs/showcase/gallery/zh-CN/diagram-ishikawa.svg"><img src="docs/showcase/gallery/zh-CN/diagram-ishikawa.svg" width="780" alt="鱼骨图"></a><br><b>鱼骨图</b><br><sub><code>ishikawa</code></sub></td>
+</tr>
+<tr>
+<td colspan="2" align="center"><a href="docs/showcase/gallery/zh-CN/diagram-cynefin-beta.svg"><img src="docs/showcase/gallery/zh-CN/diagram-cynefin-beta.svg" width="780" alt="Cynefin 框架"></a><br><b>Cynefin 框架</b><br><sub><code>cynefin-beta</code></sub></td>
+</tr>
+<tr>
+<td colspan="2" align="center"><a href="docs/showcase/gallery/zh-CN/diagram-venn-beta.svg"><img src="docs/showcase/gallery/zh-CN/diagram-venn-beta.svg" width="780" alt="韦恩图"></a><br><b>韦恩图</b><br><sub><code>venn-beta</code></sub></td>
+</tr>
+<tr>
+<td colspan="2" align="center"><a href="docs/showcase/gallery/zh-CN/diagram-wardley-beta.svg"><img src="docs/showcase/gallery/zh-CN/diagram-wardley-beta.svg" width="780" alt="Wardley 地图"></a><br><b>Wardley 地图</b><br><sub><code>wardley-beta</code></sub></td>
 </tr>
 </table>
 

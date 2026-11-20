@@ -8,7 +8,7 @@ Give your agent Markdown, pre-aggregated CSV/JSON or a product flow, and it hand
 
 The skill covers more than layout. Given loose notes, meeting minutes or JSON, the agent first reorders the content around what the reader has to do. For a dashboard, it settles the one question the screen answers, then saves the accent color for the item that needs attention.
 
-[Quick start](#quick-start) · [What you get](#showcase) · [Built-in themes](#themes) · [**45 data charts and 30 diagrams**](#gallery) · [Install details](#install) · [Update and uninstall](#update-uninstall)
+[Quick start](#quick-start) · [What you get](#showcase) · [Built-in themes](#themes) · [**45 data charts and 43 diagrams**](#gallery) · [Install details](#install) · [Update and uninstall](#update-uninstall)
 
 <p align="center"><a href="docs/showcase/previews/en/dashboard-hero.png"><picture><source media="(max-width: 600px)" srcset="docs/showcase/previews/en/dashboard-mobile.png"><img src="docs/showcase/previews/en/dashboard-hero.png" width="840" alt="Fictional coffee operations dashboard in the warm Claude theme: four KPI cards, a revenue trend and a channel comparison"></picture></a></p>
 
@@ -148,7 +148,7 @@ Use `htmlview style report.html --theme obsidian` to switch to a built-in theme,
 
 ## KChart gallery
 
-Charts in HTML View are drawn by its bundled KChart library: **45 data charts, 38 controlled variants, 27 Mermaid subset diagrams, 3 native diagrams and 8 mind-map layouts**. Every one of them appears below as a real render in the Claude palette (see [Built-in themes](#themes) for the others), one per cell in a two-column grid. Wide charts get a full row instead of shrinking their text to fit. On a phone GitHub scales both columns down to the screen; click an image to open the full-size SVG.
+Charts in HTML View are drawn by its bundled KChart library: **45 data charts, 38 controlled variants, 40 Mermaid diagram types, 3 native diagrams and 8 mind-map layouts**. Every one of them appears below as a real render in the Claude palette (see [Built-in themes](#themes) for the others), one per cell in a two-column grid. Wide charts get a full row instead of shrinking their text to fit. On a phone GitHub scales both columns down to the screen; click an image to open the full-size SVG. Each Mermaid example also parses in Mermaid 12.3.0 itself; ZenUML needs Mermaid's external plugin.
 
 [Build the full, filterable gallery →](docs/showcase/README.en.md#full-gallery)
 
@@ -328,7 +328,7 @@ Charts in HTML View are drawn by its bundled KChart library: **45 data charts, 3
 
 ### Diagrams
 
-[Flows, states and journeys](#process) · [Sequences and data models](#model) · [Plans, boards and protocols](#planning) · [Architecture](#architecture) · [Five C4 views](#c4) · [Mermaid charts](#mermaid-data) · [One tree, eight mind-map layouts](#mindmaps)
+[Flows, states and journeys](#process) · [Sequences and data models](#model) · [Railroad grammars in four notations](#grammar) · [Plans, boards and protocols](#planning) · [Architecture, layers and file trees](#architecture) · [Five C4 views](#c4) · [Mermaid charts](#mermaid-data) · [Analysis and strategy](#analysis) · [One tree, eight mind-map layouts](#mindmaps)
 
 <a id="process"></a>
 
@@ -339,13 +339,20 @@ Charts in HTML View are drawn by its bundled KChart library: **45 data charts, 3
 <td colspan="2" align="center"><a href="docs/showcase/gallery/en/diagram-flowchart.svg"><img src="docs/showcase/gallery/en/diagram-flowchart.svg" width="780" alt="Flowchart"></a><br><b>Flowchart</b><br><sub><code>flowchart</code></sub></td>
 </tr>
 <tr>
-<td colspan="2" align="center"><a href="docs/showcase/gallery/en/diagram-stateDiagram-v2.svg"><img src="docs/showcase/gallery/en/diagram-stateDiagram-v2.svg" width="360" alt="State diagram"></a><br><b>State diagram</b><br><sub><code>stateDiagram-v2</code></sub></td>
-</tr>
-<tr>
-<td colspan="2" align="center"><a href="docs/showcase/gallery/en/diagram-journey.svg"><img src="docs/showcase/gallery/en/diagram-journey.svg" width="780" alt="Customer journey"></a><br><b>Customer journey</b><br><sub><code>journey</code></sub></td>
+<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/en/diagram-stateDiagram-v2.svg"><img src="docs/showcase/gallery/en/diagram-stateDiagram-v2.svg" width="360" alt="State diagram"></a><br><b>State diagram</b><br><sub><code>stateDiagram-v2</code></sub></td>
+<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/en/diagram-journey.svg"><img src="docs/showcase/gallery/en/diagram-journey.svg" width="360" alt="Customer journey"></a><br><b>Customer journey</b><br><sub><code>journey</code></sub></td>
 </tr>
 <tr>
 <td colspan="2" align="center"><a href="docs/showcase/gallery/en/diagram-swimlane.svg"><img src="docs/showcase/gallery/en/diagram-swimlane.svg" width="780" alt="Swimlanes"></a><br><b>Swimlanes</b><br><sub><code>swimlane</code></sub></td>
+</tr>
+<tr>
+<td colspan="2" align="center"><a href="docs/showcase/gallery/en/diagram-swimlane-beta.svg"><img src="docs/showcase/gallery/en/diagram-swimlane-beta.svg" width="780" alt="Mermaid swimlanes"></a><br><b>Mermaid swimlanes</b><br><sub><code>swimlane-beta</code></sub></td>
+</tr>
+<tr>
+<td colspan="2" align="center"><a href="docs/showcase/gallery/en/diagram-agentflow-beta.svg"><img src="docs/showcase/gallery/en/diagram-agentflow-beta.svg" width="780" alt="Agent flow"></a><br><b>Agent flow</b><br><sub><code>agentflow-beta</code></sub></td>
+</tr>
+<tr>
+<td colspan="2" align="center"><a href="docs/showcase/gallery/en/diagram-eventmodeling.svg"><img src="docs/showcase/gallery/en/diagram-eventmodeling.svg" width="780" alt="Event model"></a><br><b>Event model</b><br><sub><code>eventmodeling</code></sub></td>
 </tr>
 </table>
 
@@ -358,14 +365,34 @@ Charts in HTML View are drawn by its bundled KChart library: **45 data charts, 3
 <td colspan="2" align="center"><a href="docs/showcase/gallery/en/diagram-sequenceDiagram.svg"><img src="docs/showcase/gallery/en/diagram-sequenceDiagram.svg" width="780" alt="Sequence"></a><br><b>Sequence</b><br><sub><code>sequenceDiagram</code></sub></td>
 </tr>
 <tr>
-<td colspan="2" align="center"><a href="docs/showcase/gallery/en/diagram-zenuml.svg"><img src="docs/showcase/gallery/en/diagram-zenuml.svg" width="360" alt="ZenUML"></a><br><b>ZenUML</b><br><sub><code>zenuml</code></sub></td>
+<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/en/diagram-zenuml.svg"><img src="docs/showcase/gallery/en/diagram-zenuml.svg" width="360" alt="ZenUML"></a><br><b>ZenUML</b><br><sub><code>zenuml</code></sub></td>
+<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/en/diagram-requirementDiagram.svg"><img src="docs/showcase/gallery/en/diagram-requirementDiagram.svg" width="360" alt="Requirements"></a><br><b>Requirements</b><br><sub><code>requirementDiagram</code></sub></td>
+</tr>
+<tr>
+<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/en/diagram-usecase-beta.svg"><img src="docs/showcase/gallery/en/diagram-usecase-beta.svg" width="360" alt="Use cases"></a><br><b>Use cases</b><br><sub><code>usecase-beta</code></sub></td>
+<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/en/diagram-classDiagram.svg"><img src="docs/showcase/gallery/en/diagram-classDiagram.svg" width="360" alt="Class diagram"></a><br><b>Class diagram</b><br><sub><code>classDiagram</code></sub></td>
 </tr>
 <tr>
 <td colspan="2" align="center"><a href="docs/showcase/gallery/en/diagram-erDiagram.svg"><img src="docs/showcase/gallery/en/diagram-erDiagram.svg" width="780" alt="ER diagram"></a><br><b>ER diagram</b><br><sub><code>erDiagram</code></sub></td>
 </tr>
+</table>
+
+<a id="grammar"></a>
+
+#### Railroad grammars in four notations
+
+<table>
 <tr>
-<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/en/diagram-classDiagram.svg"><img src="docs/showcase/gallery/en/diagram-classDiagram.svg" width="360" alt="Class diagram"></a><br><b>Class diagram</b><br><sub><code>classDiagram</code></sub></td>
-<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/en/diagram-requirementDiagram.svg"><img src="docs/showcase/gallery/en/diagram-requirementDiagram.svg" width="360" alt="Requirements"></a><br><b>Requirements</b><br><sub><code>requirementDiagram</code></sub></td>
+<td colspan="2" align="center"><a href="docs/showcase/gallery/en/diagram-railroad-beta.svg"><img src="docs/showcase/gallery/en/diagram-railroad-beta.svg" width="780" alt="Function style"></a><br><b>Function style</b><br><sub><code>railroad-beta</code></sub></td>
+</tr>
+<tr>
+<td colspan="2" align="center"><a href="docs/showcase/gallery/en/diagram-railroad-ebnf-beta.svg"><img src="docs/showcase/gallery/en/diagram-railroad-ebnf-beta.svg" width="780" alt="EBNF"></a><br><b>EBNF</b><br><sub><code>railroad-ebnf-beta</code></sub></td>
+</tr>
+<tr>
+<td colspan="2" align="center"><a href="docs/showcase/gallery/en/diagram-railroad-abnf-beta.svg"><img src="docs/showcase/gallery/en/diagram-railroad-abnf-beta.svg" width="780" alt="ABNF"></a><br><b>ABNF</b><br><sub><code>railroad-abnf-beta</code></sub></td>
+</tr>
+<tr>
+<td colspan="2" align="center"><a href="docs/showcase/gallery/en/diagram-railroad-peg-beta.svg"><img src="docs/showcase/gallery/en/diagram-railroad-peg-beta.svg" width="360" alt="PEG"></a><br><b>PEG</b><br><sub><code>railroad-peg-beta</code></sub></td>
 </tr>
 </table>
 
@@ -387,16 +414,13 @@ Charts in HTML View are drawn by its bundled KChart library: **45 data charts, 3
 <td colspan="2" align="center"><a href="docs/showcase/gallery/en/diagram-kanban.svg"><img src="docs/showcase/gallery/en/diagram-kanban.svg" width="780" alt="Kanban"></a><br><b>Kanban</b><br><sub><code>kanban</code></sub></td>
 </tr>
 <tr>
-<td colspan="2" align="center"><a href="docs/showcase/gallery/en/diagram-packet-beta.svg"><img src="docs/showcase/gallery/en/diagram-packet-beta.svg" width="780" alt="Packet layout"></a><br><b>Packet layout</b><br><sub><code>packet-beta</code></sub></td>
-</tr>
-<tr>
-<td colspan="2" align="center"><a href="docs/showcase/gallery/en/diagram-quadrantChart.svg"><img src="docs/showcase/gallery/en/diagram-quadrantChart.svg" width="780" alt="Quadrant chart"></a><br><b>Quadrant chart</b><br><sub><code>quadrantChart</code></sub></td>
+<td colspan="2" align="center"><a href="docs/showcase/gallery/en/diagram-packet.svg"><img src="docs/showcase/gallery/en/diagram-packet.svg" width="780" alt="Packet layout"></a><br><b>Packet layout</b><br><sub><code>packet</code></sub></td>
 </tr>
 </table>
 
 <a id="architecture"></a>
 
-#### Architecture
+#### Architecture, layers and file trees
 
 <table>
 <tr>
@@ -409,7 +433,10 @@ Charts in HTML View are drawn by its bundled KChart library: **45 data charts, 3
 <td colspan="2" align="center"><a href="docs/showcase/gallery/en/diagram-architecture-beta.svg"><img src="docs/showcase/gallery/en/diagram-architecture-beta.svg" width="780" alt="Architecture"></a><br><b>Architecture</b><br><sub><code>architecture-beta</code></sub></td>
 </tr>
 <tr>
-<td colspan="2" align="center"><a href="docs/showcase/gallery/en/diagram-block-beta.svg"><img src="docs/showcase/gallery/en/diagram-block-beta.svg" width="780" alt="Block diagram"></a><br><b>Block diagram</b><br><sub><code>block-beta</code></sub></td>
+<td colspan="2" align="center"><a href="docs/showcase/gallery/en/diagram-block.svg"><img src="docs/showcase/gallery/en/diagram-block.svg" width="780" alt="Block diagram"></a><br><b>Block diagram</b><br><sub><code>block</code></sub></td>
+</tr>
+<tr>
+<td colspan="2" align="center"><a href="docs/showcase/gallery/en/diagram-treeView-beta.svg"><img src="docs/showcase/gallery/en/diagram-treeView-beta.svg" width="360" alt="File tree"></a><br><b>File tree</b><br><sub><code>treeView-beta</code></sub></td>
 </tr>
 </table>
 
@@ -423,10 +450,8 @@ Charts in HTML View are drawn by its bundled KChart library: **45 data charts, 3
 <td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/en/diagram-C4Dynamic.svg"><img src="docs/showcase/gallery/en/diagram-C4Dynamic.svg" width="360" alt="Dynamic"></a><br><b>Dynamic</b><br><sub><code>C4Dynamic</code></sub></td>
 </tr>
 <tr>
-<td colspan="2" align="center"><a href="docs/showcase/gallery/en/diagram-C4Container.svg"><img src="docs/showcase/gallery/en/diagram-C4Container.svg" width="360" alt="Containers"></a><br><b>Containers</b><br><sub><code>C4Container</code></sub></td>
-</tr>
-<tr>
-<td colspan="2" align="center"><a href="docs/showcase/gallery/en/diagram-C4Component.svg"><img src="docs/showcase/gallery/en/diagram-C4Component.svg" width="780" alt="Components"></a><br><b>Components</b><br><sub><code>C4Component</code></sub></td>
+<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/en/diagram-C4Container.svg"><img src="docs/showcase/gallery/en/diagram-C4Container.svg" width="360" alt="Containers"></a><br><b>Containers</b><br><sub><code>C4Container</code></sub></td>
+<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/en/diagram-C4Component.svg"><img src="docs/showcase/gallery/en/diagram-C4Component.svg" width="360" alt="Components"></a><br><b>Components</b><br><sub><code>C4Component</code></sub></td>
 </tr>
 <tr>
 <td colspan="2" align="center"><a href="docs/showcase/gallery/en/diagram-C4Deployment.svg"><img src="docs/showcase/gallery/en/diagram-C4Deployment.svg" width="780" alt="Deployment"></a><br><b>Deployment</b><br><sub><code>C4Deployment</code></sub></td>
@@ -440,14 +465,36 @@ Charts in HTML View are drawn by its bundled KChart library: **45 data charts, 3
 <table>
 <tr>
 <td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/en/diagram-pie.svg"><img src="docs/showcase/gallery/en/diagram-pie.svg" width="360" alt="Pie"></a><br><b>Pie</b><br><sub><code>pie</code></sub></td>
-<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/en/diagram-xychart-beta.svg"><img src="docs/showcase/gallery/en/diagram-xychart-beta.svg" width="360" alt="XY chart"></a><br><b>XY chart</b><br><sub><code>xychart-beta</code></sub></td>
+<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/en/diagram-treemap.svg"><img src="docs/showcase/gallery/en/diagram-treemap.svg" width="360" alt="Treemap"></a><br><b>Treemap</b><br><sub><code>treemap</code></sub></td>
 </tr>
 <tr>
-<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/en/diagram-sankey-beta.svg"><img src="docs/showcase/gallery/en/diagram-sankey-beta.svg" width="360" alt="Sankey"></a><br><b>Sankey</b><br><sub><code>sankey-beta</code></sub></td>
+<td colspan="2" align="center"><a href="docs/showcase/gallery/en/diagram-xychart.svg"><img src="docs/showcase/gallery/en/diagram-xychart.svg" width="360" alt="XY chart"></a><br><b>XY chart</b><br><sub><code>xychart</code></sub></td>
+</tr>
+<tr>
+<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/en/diagram-sankey.svg"><img src="docs/showcase/gallery/en/diagram-sankey.svg" width="360" alt="Sankey"></a><br><b>Sankey</b><br><sub><code>sankey</code></sub></td>
 <td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/en/diagram-radar-beta.svg"><img src="docs/showcase/gallery/en/diagram-radar-beta.svg" width="360" alt="Radar"></a><br><b>Radar</b><br><sub><code>radar-beta</code></sub></td>
 </tr>
+</table>
+
+<a id="analysis"></a>
+
+#### Analysis and strategy
+
+<table>
 <tr>
-<td colspan="2" align="center"><a href="docs/showcase/gallery/en/diagram-treemap-beta.svg"><img src="docs/showcase/gallery/en/diagram-treemap-beta.svg" width="360" alt="Treemap"></a><br><b>Treemap</b><br><sub><code>treemap-beta</code></sub></td>
+<td colspan="2" align="center"><a href="docs/showcase/gallery/en/diagram-quadrantChart.svg"><img src="docs/showcase/gallery/en/diagram-quadrantChart.svg" width="780" alt="Quadrant chart"></a><br><b>Quadrant chart</b><br><sub><code>quadrantChart</code></sub></td>
+</tr>
+<tr>
+<td colspan="2" align="center"><a href="docs/showcase/gallery/en/diagram-ishikawa.svg"><img src="docs/showcase/gallery/en/diagram-ishikawa.svg" width="780" alt="Fishbone"></a><br><b>Fishbone</b><br><sub><code>ishikawa</code></sub></td>
+</tr>
+<tr>
+<td colspan="2" align="center"><a href="docs/showcase/gallery/en/diagram-cynefin-beta.svg"><img src="docs/showcase/gallery/en/diagram-cynefin-beta.svg" width="780" alt="Cynefin"></a><br><b>Cynefin</b><br><sub><code>cynefin-beta</code></sub></td>
+</tr>
+<tr>
+<td colspan="2" align="center"><a href="docs/showcase/gallery/en/diagram-venn-beta.svg"><img src="docs/showcase/gallery/en/diagram-venn-beta.svg" width="780" alt="Venn"></a><br><b>Venn</b><br><sub><code>venn-beta</code></sub></td>
+</tr>
+<tr>
+<td colspan="2" align="center"><a href="docs/showcase/gallery/en/diagram-wardley-beta.svg"><img src="docs/showcase/gallery/en/diagram-wardley-beta.svg" width="780" alt="Wardley map"></a><br><b>Wardley map</b><br><sub><code>wardley-beta</code></sub></td>
 </tr>
 </table>
 

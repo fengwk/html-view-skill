@@ -7,13 +7,15 @@ on:
       - '.github/workflows/kchart.yml'
       - 'packages/kchart/**'
       - 'skills/html-view/**'
-      - 'docs/showcase/**'
+      - 'docs/**'
+      - 'README*.md'
   pull_request:
     paths:
       - '.github/workflows/kchart.yml'
       - 'packages/kchart/**'
       - 'skills/html-view/**'
-      - 'docs/showcase/**'
+      - 'docs/**'
+      - 'README*.md'
 
 permissions:
   contents: read
@@ -45,3 +47,10 @@ jobs:
           export CHROME_PATH="$(command -v google-chrome)"
           "$CHROME_PATH" --version
           node --test skills/html-view/scripts/tests/*.test.mjs
+      # Every Mermaid example the repository publishes must parse in real Mermaid; ZenUML needs Mermaid's plugin.
+      - name: Parse published Mermaid examples with Mermaid 12.3.0
+        run: |
+          export CHROME_PATH="$(command -v google-chrome)"
+          node packages/kchart/conformance/repo-examples.mjs > "$RUNNER_TEMP/examples.json"
+          node packages/kchart/conformance/validate.mjs "$RUNNER_TEMP/examples.json" --allow-plugins > "$RUNNER_TEMP/report.json" \
+            || { cat "$RUNNER_TEMP/report.json"; exit 1; }

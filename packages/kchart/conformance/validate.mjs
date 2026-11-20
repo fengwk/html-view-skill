@@ -1,6 +1,7 @@
-// Usage: TMPDIR=/var/tmp node validate.mjs records.json [mermaid-version] > report.json
+// Usage: TMPDIR=/var/tmp node validate.mjs records.json [mermaid-version] [--allow-plugins] > report.json
 // Input: JSON array of { id, source, ... }. JSON report on stdout; exit 1 for any
-// core rejection (including external plugins). Defaults to Mermaid 12.3.0.
+// core rejection, including examples that need an external plugin unless --allow-plugins
+// lists them separately. Defaults to Mermaid 12.3.0.
 // Requires npm, tar and Chrome/Chromium (CHROME_PATH can override its location).
 import { execFileSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -67,10 +68,13 @@ window.parseAll = async (list) => {
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  const [, , input, version = VERSION] = process.argv;
-  if (!input) throw new Error('Usage: node validate.mjs records.json [mermaid-version]');
+  const args = process.argv.slice(2), allowPlugins = args.includes('--allow-plugins');
+  const [input, version = VERSION] = args.filter(arg => arg !== '--allow-plugins');
+  if (!input) throw new Error('Usage: node validate.mjs records.json [mermaid-version] [--allow-plugins]');
   const results = await validate(JSON.parse(readFileSync(input, 'utf8')), version);
-  const rejected = results.filter(r => r.mermaid !== 'valid');
-  console.log(JSON.stringify({ version, total: results.length, valid: results.length - rejected.length, rejected }, null, 2));
+  const plugins = allowPlugins ? results.filter(r => r.mermaid === 'plugin') : [];
+  const rejected = results.filter(r => r.mermaid !== 'valid' && !plugins.includes(r));
+  const valid = results.length - rejected.length - plugins.length;
+  console.log(JSON.stringify({ version, total: results.length, valid, ...(allowPlugins && { plugins }), rejected }, null, 2));
   if (rejected.length) process.exitCode = 1;
 }

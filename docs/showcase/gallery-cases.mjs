@@ -346,61 +346,94 @@ export function galleryCases(lang) {
       'erDiagram\n  CUSTOMER ||--o{ ORDER : 下单\n  ORDER ||--|{ ORDER_ITEM : 包含\n  PRODUCT ||--o{ ORDER_ITEM : 售出\n  CUSTOMER {\n    string id PK\n    string nickname\n  }\n  ORDER {\n    string id PK\n    string status\n  }\n  ORDER_ITEM {\n    int quantity\n  }\n  PRODUCT {\n    string name\n    int price\n  }',
       'erDiagram\n  CUSTOMER ||--o{ ORDER : places\n  ORDER ||--|{ ORDER_ITEM : contains\n  PRODUCT ||--o{ ORDER_ITEM : "sold as"\n  CUSTOMER {\n    string id PK\n    string nickname\n  }\n  ORDER {\n    string id PK\n    string status\n  }\n  ORDER_ITEM {\n    int quantity\n  }\n  PRODUCT {\n    string name\n    int price\n  }')],
     classDiagram: ['mermaid', L(
-      'classDiagram\n  class Order {\n    +id: string\n    +status: OrderStatus\n    +total(): Money\n  }\n  class OrderItem {\n    +size: CupSize\n    +quantity: int\n  }\n  class Drink {\n    +name: string\n  }\n  Order "1" *-- "1..*" OrderItem : 包含\n  OrderItem "*" --> "1" Drink : 指向',
-      'classDiagram\n  class Order {\n    +id: string\n    +status: OrderStatus\n    +total(): Money\n  }\n  class OrderItem {\n    +size: CupSize\n    +quantity: int\n  }\n  class Drink {\n    +name: string\n  }\n  Order "1" *-- "1..*" OrderItem : contains\n  OrderItem "*" --> "1" Drink : refers to')],
+      'classDiagram\n  class Order {\n    +id: string\n    +status: OrderStatus\n    +total() Money\n  }\n  class OrderItem {\n    +size: CupSize\n    +quantity: int\n  }\n  class Drink {\n    +name: string\n  }\n  Order "1" *-- "1..*" OrderItem : 包含\n  OrderItem "*" --> "1" Drink : 指向',
+      'classDiagram\n  class Order {\n    +id: string\n    +status: OrderStatus\n    +total() Money\n  }\n  class OrderItem {\n    +size: CupSize\n    +quantity: int\n  }\n  class Drink {\n    +name: string\n  }\n  Order "1" *-- "1..*" OrderItem : contains\n  OrderItem "*" --> "1" Drink : refers to')],
     requirementDiagram: ['mermaid', L(
-      'requirementDiagram\n  performanceRequirement peak {\n    id: REQ-12\n    text: 高峰期 3 分钟内出杯\n    risk: medium\n    verifymethod: test\n  }\n  element BarScreen {\n    docref: 制作屏 v2\n  }\n  BarScreen - satisfies -> peak',
-      'requirementDiagram\n  performanceRequirement peak {\n    id: REQ-12\n    text: Serve within 3 minutes at peak\n    risk: medium\n    verifymethod: test\n  }\n  element BarScreen {\n    docref: Bar screen v2\n  }\n  BarScreen - satisfies -> peak')],
+      'requirementDiagram\n  performanceRequirement peak {\n    id: "REQ-12"\n    text: "高峰期 3 分钟内出杯"\n    risk: medium\n    verifymethod: test\n  }\n  element BarScreen {\n    docref: "制作屏 v2"\n  }\n  BarScreen - satisfies -> peak',
+      'requirementDiagram\n  performanceRequirement peak {\n    id: "REQ-12"\n    text: "Serve within 3 minutes at peak"\n    risk: medium\n    verifymethod: test\n  }\n  element BarScreen {\n    docref: "Bar screen v2"\n  }\n  BarScreen - satisfies -> peak')],
     gantt: ['mermaid', L(
       'gantt\n  dateFormat YYYY-MM-DD\n  section 筹备\n  选址签约 :done, site, 2026-03-02, 2026-03-20\n  装修施工 :active, build, 2026-03-16, 2026-04-24\n  section 开业\n  员工培训 :crit, train, 2026-04-13, 2026-05-01\n  试营业 :milestone, soft, 2026-05-06, 0d\n  会员活动 :promo, 2026-05-08, 2026-05-22',
       'gantt\n  dateFormat YYYY-MM-DD\n  section Prepare\n  Sign the lease :done, site, 2026-03-02, 2026-03-20\n  Build-out :active, build, 2026-03-16, 2026-04-24\n  section Open\n  Staff training :crit, train, 2026-04-13, 2026-05-01\n  Soft launch :milestone, soft, 2026-05-06, 0d\n  Member offer :promo, 2026-05-08, 2026-05-22')],
     timeline: ['mermaid', L(
       'timeline\n  section 起步\n    2019 : 第一家店 : 只做手冲\n    2021 : 上线小程序\n  section 扩张\n    2026 : 门店达到 62 家 : 进入成都和深圳',
       'timeline\n  section Early days\n    2019 : First store : Pour-over only\n    2021 : Ordering app\n  section Growth\n    2026 : 62 stores : Now in Chengdu and Shenzhen')],
-    gitGraph: ['mermaid', 'gitGraph\n  commit id: "v2.3"\n  branch summer-menu\n  checkout summer-menu\n  commit id: "cold-brew"\n  commit id: "oat-latte"\n  checkout main\n  commit id: "fix-refund"\n  merge summer-menu id: "v2.4"'],
+    gitGraph: ['mermaid', 'gitGraph\n  commit id: "v2.3"\n  branch summer-menu\n  checkout summer-menu\n  commit id: "cold-brew"\n  checkout main\n  commit id: "fix-refund"\n  checkout summer-menu\n  commit id: "oat-latte"\n  checkout main\n  merge summer-menu id: "v2.4"'],
     kanban: ['mermaid', L(
       'kanban\ntodo[待评估]\n  oat[燕麦拿铁减糖版]\n  lid[可回收杯盖]\ndoing[试做中]\n  osmanthus[桂花冷萃]\ndone[已上架]\n  yunnan[云南手冲]',
       'kanban\ntodo[To review]\n  oat[Less-sugar oat latte]\n  lid[Recyclable lids]\ndoing[In testing]\n  osmanthus[Osmanthus cold brew]\ndone[On the menu]\n  yunnan[Yunnan pour-over]')],
-    'packet-beta': ['mermaid', L(
-      'packet-beta\n  0-3: "版本"\n  4-7: "类型"\n  8-23: "门店编号"\n  24-31: "队列序号"\n  32-47: "取餐码"\n  48-63: "校验和"',
-      'packet-beta\n  0-3: "Version"\n  4-7: "Type"\n  8-23: "Store ID"\n  24-31: "Queue no."\n  32-47: "Pickup code"\n  48-63: "Checksum"')],
+    packet: ['mermaid', L(
+      'packet\n  0-3: "版本"\n  4-7: "类型"\n  8-23: "门店编号"\n  24-31: "队列序号"\n  32-47: "取餐码"\n  48-63: "校验和"',
+      'packet\n  0-3: "Version"\n  4-7: "Type"\n  8-23: "Store ID"\n  24-31: "Queue no."\n  32-47: "Pickup code"\n  48-63: "Checksum"')],
     quadrantChart: ['mermaid', L(
-      'quadrantChart\n  x-axis 低毛利 --> 高毛利\n  y-axis 低销量 --> 高销量\n  quadrant-1 明星\n  quadrant-2 引流款\n  quadrant-3 待淘汰\n  quadrant-4 潜力款\n  拿铁: 0.62, 0.86\n  美式: 0.78, 0.66\n  桂花冷萃: 0.84, 0.30\n  热可可: 0.24, 0.20\n  柠檬茶: 0.33, 0.62',
-      'quadrantChart\n  x-axis Low margin --> High margin\n  y-axis Low volume --> High volume\n  quadrant-1 Stars\n  quadrant-2 Crowd-pleasers\n  quadrant-3 Retire\n  quadrant-4 Hidden gems\n  Latte: 0.62, 0.86\n  Americano: 0.78, 0.66\n  Osmanthus: 0.84, 0.30\n  Hot cocoa: 0.24, 0.20\n  Lemon tea: 0.33, 0.62')],
+      'quadrantChart\n  x-axis 低毛利 --> 高毛利\n  y-axis 低销量 --> 高销量\n  quadrant-1 明星\n  quadrant-2 引流款\n  quadrant-3 待淘汰\n  quadrant-4 潜力款\n  拿铁: [0.62, 0.86]\n  美式: [0.78, 0.66]\n  桂花冷萃: [0.84, 0.30]\n  热可可: [0.24, 0.20]\n  柠檬茶: [0.33, 0.62]',
+      'quadrantChart\n  x-axis Low margin --> High margin\n  y-axis Low volume --> High volume\n  quadrant-1 Stars\n  quadrant-2 Crowd-pleasers\n  quadrant-3 Retire\n  quadrant-4 Hidden gems\n  Latte: [0.62, 0.86]\n  Americano: [0.78, 0.66]\n  Osmanthus: [0.84, 0.30]\n  Hot cocoa: [0.24, 0.20]\n  Lemon tea: [0.33, 0.62]')],
     C4Context: ['mermaid', L(
-      'C4Context\n  Person(guest, "顾客", "用小程序点单")\n  System(order, "点单系统", "下单、支付与取餐")\n  System_Ext(pay, "支付平台")\n  Rel(guest, order, "下单")\n  Rel(order, pay, "扣款")',
-      'C4Context\n  Person(guest, "Guest", "Orders in the app")\n  System(order, "Ordering", "Orders, payment, pickup")\n  System_Ext(pay, "Payments")\n  Rel(guest, order, "orders")\n  Rel(order, pay, "charges")')],
+      'C4Context\n  Person(guest, "顾客", "用小程序点单")\n  System(order, "点单系统", "下单、支付与取餐")\n  System_Ext(pay, "支付平台")\n  Rel(guest, order, "下单")\n  Rel(order, pay, "扣款")\n  UpdateLayoutConfig($c4ShapeInRow="1")',
+      'C4Context\n  Person(guest, "Guest", "Orders in the app")\n  System(order, "Ordering", "Orders, payment, pickup")\n  System_Ext(pay, "Payments")\n  Rel(guest, order, "orders")\n  Rel(order, pay, "charges")\n  UpdateLayoutConfig($c4ShapeInRow="1")')],
     C4Container: ['mermaid', L(
-      'C4Container\n  System_Boundary(sys, "点单系统") {\n    Container(app, "小程序", "微信")\n    Container(api, "订单服务", "Node.js")\n    ContainerDb(db, "订单库", "PostgreSQL")\n  }\n  Rel(app, api, "HTTPS")\n  Rel(api, db, "读写")',
-      'C4Container\n  System_Boundary(sys, "Ordering") {\n    Container(app, "App", "WeChat")\n    Container(api, "Order API", "Node.js")\n    ContainerDb(db, "Orders", "PostgreSQL")\n  }\n  Rel(app, api, "HTTPS")\n  Rel(api, db, "reads, writes")')],
+      'C4Container\n  System_Boundary(sys, "点单系统") {\n    Container(app, "小程序", "微信")\n    Container(api, "订单服务", "Node.js")\n    ContainerDb(db, "订单库", "PostgreSQL")\n  }\n  Rel(app, api, "HTTPS")\n  Rel(api, db, "读写")\n  UpdateLayoutConfig($c4ShapeInRow="1")',
+      'C4Container\n  System_Boundary(sys, "Ordering") {\n    Container(app, "App", "WeChat")\n    Container(api, "Order API", "Node.js")\n    ContainerDb(db, "Orders", "PostgreSQL")\n  }\n  Rel(app, api, "HTTPS")\n  Rel(api, db, "reads, writes")\n  UpdateLayoutConfig($c4ShapeInRow="1")')],
     C4Component: ['mermaid', L(
-      'C4Component\n  System_Boundary(api, "订单服务") {\n    Component(ctrl, "下单接口", "REST")\n    Component(price, "计价", "会员价与优惠")\n    Component(stock, "库存检查", "门店原料")\n  }\n  Rel(ctrl, price, "计算")\n  Rel(ctrl, stock, "校验")',
-      'C4Component\n  System_Boundary(api, "Order API") {\n    Component(ctrl, "Checkout", "REST")\n    Component(price, "Pricing", "Member prices, offers")\n    Component(stock, "Stock check", "Store ingredients")\n  }\n  Rel(ctrl, price, "prices")\n  Rel(ctrl, stock, "checks")')],
+      'C4Component\n  System_Boundary(api, "订单服务") {\n    Component(price, "计价", "会员价与优惠")\n    Component(ctrl, "下单接口", "REST")\n    Component(stock, "库存检查", "门店原料")\n  }\n  Rel(ctrl, price, "计算")\n  Rel(ctrl, stock, "校验")\n  UpdateLayoutConfig($c4ShapeInRow="1")',
+      'C4Component\n  System_Boundary(api, "Order API") {\n    Component(price, "Pricing", "Member prices, offers")\n    Component(ctrl, "Checkout", "REST")\n    Component(stock, "Stock check", "Store ingredients")\n  }\n  Rel(ctrl, price, "prices")\n  Rel(ctrl, stock, "checks")\n  UpdateLayoutConfig($c4ShapeInRow="1")')],
     C4Dynamic: ['mermaid', L(
-      'C4Dynamic\n  Person(guest, "顾客")\n  System(order, "点单系统")\n  System(bar, "制作屏")\n  Rel(guest, order, "提交订单")\n  Rel(order, bar, "推送制作单")',
-      'C4Dynamic\n  Person(guest, "Guest")\n  System(order, "Ordering")\n  System(bar, "Bar screen")\n  Rel(guest, order, "places order")\n  Rel(order, bar, "sends ticket")')],
+      'C4Dynamic\n  Person(guest, "顾客")\n  System(order, "点单系统")\n  System(bar, "制作屏")\n  Rel(guest, order, "提交订单")\n  Rel(order, bar, "推送制作单")\n  UpdateLayoutConfig($c4ShapeInRow="1")',
+      'C4Dynamic\n  Person(guest, "Guest")\n  System(order, "Ordering")\n  System(bar, "Bar screen")\n  Rel(guest, order, "places order")\n  Rel(order, bar, "sends ticket")\n  UpdateLayoutConfig($c4ShapeInRow="1")')],
     C4Deployment: ['mermaid', L(
       'C4Deployment\n  Deployment_Node(cloud, "华东云区域", "Kubernetes") {\n    Container(api, "订单服务", "Node.js")\n  }\n  Deployment_Node(shop, "门店", "平板") {\n    Container(bar, "制作屏", "Web")\n  }\n  Rel(api, bar, "WebSocket")',
       'C4Deployment\n  Deployment_Node(cloud, "Cloud region", "Kubernetes") {\n    Container(api, "Order API", "Node.js")\n  }\n  Deployment_Node(shop, "Store", "Tablet") {\n    Container(bar, "Bar screen", "Web")\n  }\n  Rel(api, bar, "WebSocket")')],
+    // Mermaid 12.3.0 detects `architecture` but parses only `architecture-beta`.
     'architecture-beta': ['mermaid', L(
       'architecture-beta\n  group cloud(cloud)[云端]\n  service api(server)[订单服务] in cloud\n  service db(database)[订单库] in cloud\n  service app(browser)[小程序]\n  app:R --> L:api\n  api:R --> L:db',
       'architecture-beta\n  group cloud(cloud)[Cloud]\n  service api(server)[Order API] in cloud\n  service db(database)[Orders] in cloud\n  service app(browser)[App]\n  app:R --> L:api\n  api:R --> L:db')],
-    'block-beta': ['mermaid', L(
-      'block-beta\n  columns 3\n  app["小程序"]\n  api["订单服务"]\n  db["订单库"]\n  app --> api\n  api --> db',
-      'block-beta\n  columns 3\n  app["App"]\n  api["Order API"]\n  db["Orders"]\n  app --> api\n  api --> db')],
+    block: ['mermaid', L(
+      'block\n  columns 3\n  app["小程序"]\n  api["订单服务"]\n  db["订单库"]\n  app --> api\n  api --> db',
+      'block\n  columns 3\n  app["App"]\n  api["Order API"]\n  db["Orders"]\n  app --> api\n  api --> db')],
     pie: ['mermaid', L('pie\n  "门店" : 46\n  "外卖" : 31\n  "小程序自提" : 23', 'pie\n  "In-store" : 46\n  "Delivery" : 31\n  "App pickup" : 23')],
-    'xychart-beta': ['mermaid', L(
-      'xychart-beta\n  x-axis [周一, 周二, 周三, 周四, 周五, 周六, 周日]\n  y-axis "杯" 0 --> 1600\n  bar [980, 1020, 1060, 1100, 1240, 1480, 1390]',
-      'xychart-beta\n  x-axis [Mon, Tue, Wed, Thu, Fri, Sat, Sun]\n  y-axis "Cups" 0 --> 1600\n  bar [980, 1020, 1060, 1100, 1240, 1480, 1390]')],
-    'sankey-beta': ['mermaid', L(
-      'sankey-beta\n门店,拿铁,420\n门店,美式,260\n外卖,拿铁,240\n外卖,冷萃,180\n小程序,美式,150\n小程序,冷萃,120',
-      'sankey-beta\nIn-store,Latte,420\nIn-store,Americano,260\nDelivery,Latte,240\nDelivery,Cold brew,180\nApp,Americano,150\nApp,Cold brew,120')],
+    xychart: ['mermaid', L(
+      'xychart\n  x-axis ["周一", "周二", "周三", "周四", "周五", "周六", "周日"]\n  y-axis "杯" 0 --> 1600\n  bar [980, 1020, 1060, 1100, 1240, 1480, 1390]',
+      'xychart\n  x-axis [Mon, Tue, Wed, Thu, Fri, Sat, Sun]\n  y-axis "Cups" 0 --> 1600\n  bar [980, 1020, 1060, 1100, 1240, 1480, 1390]')],
+    // Mermaid 12.3.0 rejects CJK text in Sankey fields, quoted or not, so both languages share English labels.
+    sankey: ['mermaid', 'sankey\nIn-store,Latte,420\nIn-store,Americano,260\nDelivery,Latte,240\nDelivery,Cold brew,180\nApp,Americano,150\nApp,Cold brew,120'],
     'radar-beta': ['mermaid', L(
-      'radar-beta\n  axis 酸度, 醇厚, 甜感, 香气, 余韵\n  max 5\n  curve 埃塞俄比亚{5, 2, 4, 5, 3}\n  curve 巴西{2, 5, 3, 3, 4}',
+      'radar-beta\n  axis acid["酸度"], body["醇厚"], sweet["甜感"], aroma["香气"], finish["余韵"]\n  max 5\n  curve eth["埃塞俄比亚"]{5, 2, 4, 5, 3}\n  curve bra["巴西"]{2, 5, 3, 3, 4}',
       'radar-beta\n  axis Acidity, Body, Sweet, Aroma, Finish\n  max 5\n  curve Ethiopia{5, 2, 4, 5, 3}\n  curve Brazil{2, 5, 3, 3, 4}')],
-    'treemap-beta': ['mermaid', L(
-      'treemap-beta\n"单杯成本"\n  "原料"\n    "咖啡豆" : 4.2\n    "牛奶" : 2.6\n    "杯具" : 1.1\n  "人工" : 3.4\n  "租金" : 2.8',
-      'treemap-beta\n"Cost per cup"\n  "Ingredients"\n    "Beans" : 4.2\n    "Milk" : 2.6\n    "Cup and lid" : 1.1\n  "Staff" : 3.4\n  "Rent" : 2.8')],
+    treemap: ['mermaid', L(
+      'treemap\n"单杯成本"\n  "原料"\n    "咖啡豆" : 4.2\n    "牛奶" : 2.6\n    "杯具" : 1.1\n  "人工" : 3.4\n  "租金" : 2.8',
+      'treemap\n"Cost per cup"\n  "Ingredients"\n    "Beans" : 4.2\n    "Milk" : 2.6\n    "Cup and lid" : 1.1\n  "Staff" : 3.4\n  "Rent" : 2.8')],
+    'agentflow-beta': ['mermaid', L(
+      'agentflow-beta TB\n  brief["新品简报"]@{ shape: input }\n  flow writer["文案 Agent"]\n    draft["起草菜单文案"]@{ shape: task }\n    search["menu_search"]@{ shape: tool }\n    voice["品牌语气"]@{ shape: refdoc }\n    draft --> search\n    draft -.- voice\n  end\n  flow reviewer["审核 Agent"]\n    check["核对配料与过敏原"]@{ shape: task }\n    ok["通过吗"]@{ shape: decision }\n    check --> ok\n  end\n  publish["上架小程序"]@{ shape: action }\n  brief --> writer\n  writer --> reviewer\n  ok --> publish',
+      'agentflow-beta TB\n  brief["Launch brief"]@{ shape: input }\n  flow writer["Copy agent"]\n    draft["Draft menu copy"]@{ shape: task }\n    search["menu_search"]@{ shape: tool }\n    voice["Brand voice"]@{ shape: refdoc }\n    draft --> search\n    draft -.- voice\n  end\n  flow reviewer["Review agent"]\n    check["Check allergens"]@{ shape: task }\n    ok["Approved?"]@{ shape: decision }\n    check --> ok\n  end\n  publish["Publish to the app"]@{ shape: action }\n  brief --> writer\n  writer --> reviewer\n  ok --> publish')],
+    // Event-model names are identifiers; Mermaid 12.3.0 rejects CJK in them.
+    eventmodeling: ['mermaid', 'eventmodeling\ntf 01 ui OrderScreen\ntf 02 cmd PlaceOrder\ntf 03 evt OrderPlaced'],
+    'swimlane-beta': ['mermaid', L(
+      'swimlane-beta TB\n  subgraph guest[顾客]\n    ask[申请退款]\n    reason[查看拒绝原因]\n    done[收到退款]\n  end\n  subgraph manager[店长]\n    review{同意吗}\n  end\n  subgraph system[系统]\n    refund[原路退回]\n  end\n  ask --> review\n  review -->|拒绝| reason\n  review -->|同意| refund --> done',
+      'swimlane-beta TB\n  subgraph guest[Guest]\n    ask[Request a refund]\n    reason[See the reason]\n    done[Refund received]\n  end\n  subgraph manager[Store manager]\n    review{Approve?}\n  end\n  subgraph system[System]\n    refund[Refund to card]\n  end\n  ask --> review\n  review -->|no| reason\n  review -->|yes| refund --> done')],
+    'usecase-beta': ['mermaid', L(
+      'usecase-beta\ndirection LR\nactor guest("顾客")\nactor barista("咖啡师")\nsystemBoundary "点单系统"\n  order("下单")\n  pay("支付")\n  pickup("取餐")\n  make("制作饮品")\nend\nguest --> order\nguest --> pay\nguest --> pickup\nbarista --> make',
+      'usecase-beta\ndirection LR\nactor guest("Guest")\nactor barista("Barista")\nsystemBoundary "Ordering"\n  order("Place order")\n  pay("Pay")\n  pickup("Pick up")\n  make("Make drinks")\nend\nguest --> order\nguest --> pay\nguest --> pickup\nbarista --> make')],
+    // Grammar rule names are identifiers in every notation; only quoted terminals are localized.
+    'railroad-beta': ['mermaid', L(
+      'railroad-beta\norder = sequence(\n    nonterminal("size"),\n    choice(terminal("拿铁"), terminal("美式")),\n    zeroOrMore(sequence(terminal("+"), nonterminal("extra")))\n) ;\nsize = choice(terminal("中杯"), terminal("大杯")) ;\nextra = choice(terminal("浓缩"), terminal("燕麦奶")) ;',
+      'railroad-beta\norder = sequence(\n    nonterminal("size"),\n    choice(terminal("latte"), terminal("americano")),\n    zeroOrMore(sequence(terminal("+"), nonterminal("extra")))\n) ;\nsize = choice(terminal("small"), terminal("large")) ;\nextra = choice(terminal("shot"), terminal("oat milk")) ;')],
+    'railroad-ebnf-beta': ['mermaid', 'railroad-ebnf-beta\ncoupon = ( "NEW" | "VIP" ) "-" amount ;\namount = "5" | "10" | "20" ;'],
+    'railroad-abnf-beta': ['mermaid', 'railroad-abnf-beta\npickup-code = counter 3DIGIT [ "-" table ] ;\ncounter = "A" / "B" / "C" ;\ntable = "T" 1*2DIGIT ;'],
+    'railroad-peg-beta': ['mermaid', L(
+      'railroad-peg-beta\nOrder <- Size Milk? ;\nSize <- "中杯" / "大杯" ;\nMilk <- "燕麦奶" / "豆奶" ;',
+      'railroad-peg-beta\nOrder <- Size Milk? ;\nSize <- "small" / "large" ;\nMilk <- "oat" / "soy" ;')],
+    'wardley-beta': ['mermaid', L(
+      'wardley-beta\nsize [720, 480]\nanchor "顾客" [0.95, 0.72]\ncomponent "一杯拿铁" [0.80, 0.60]\ncomponent "咖啡师" [0.62, 0.35]\ncomponent "浓缩咖啡" [0.60, 0.66]\ncomponent "咖啡机" [0.40, 0.52]\ncomponent "咖啡豆" [0.42, 0.82]\ncomponent "电力" [0.12, 0.94]\n"顾客" -> "一杯拿铁"\n"一杯拿铁" -> "咖啡师"\n"一杯拿铁" -> "浓缩咖啡"\n"浓缩咖啡" -> "咖啡机"\n"浓缩咖啡" -> "咖啡豆"\n"咖啡机" -> "电力"\nevolve "咖啡机" 0.78',
+      'wardley-beta\nsize [720, 480]\nanchor Guest [0.95, 0.72]\ncomponent Latte [0.80, 0.60]\ncomponent Barista [0.62, 0.35]\ncomponent Espresso [0.60, 0.66]\ncomponent Espresso machine [0.40, 0.52]\ncomponent Beans [0.42, 0.82]\ncomponent Power [0.12, 0.94]\nGuest -> Latte\nLatte -> Barista\nLatte -> Espresso\nEspresso -> Espresso machine\nEspresso -> Beans\nEspresso machine -> Power\nevolve Espresso machine 0.78')],
+    ishikawa: ['mermaid', L(
+      'ishikawa\n    浓缩咖啡发苦\n    咖啡豆\n        烘焙过深\n        开封太久\n    研磨\n        磨得太细\n    设备\n        水温过高\n    操作\n        萃取时间过长',
+      'ishikawa\n    Bitter espresso\n    Beans\n        Roasted too dark\n        Opened too long ago\n    Grind\n        Too fine\n    Machine\n        Water too hot\n    Method\n        Pulled too long')],
+    'cynefin-beta': ['mermaid', L(
+      'cynefin-beta\n  complex\n    "试推季节新品"\n  complicated\n    "调校磨豆机"\n  clear\n    "补充牛奶"\n  chaotic\n    "门店突然停电"\n  confusion\n    "销量下滑原因不明"',
+      'cynefin-beta\n  complex\n    "Trial a seasonal drink"\n  complicated\n    "Tune the grinder"\n  clear\n    "Restock milk"\n  chaotic\n    "Sudden power cut"\n  confusion\n    "Unexplained sales dip"')],
+    'venn-beta': ['mermaid', L(
+      'venn-beta\n  set morning["早高峰顾客"]\n  set members["会员"]\n  set delivery["外卖用户"]\n  union morning,members["通勤常客"]\n  union members,delivery["线上复购"]\n  union morning,members,delivery["核心客群"]',
+      'venn-beta\n  set morning["Morning rush"]\n  set members["Members"]\n  set delivery["Delivery"]\n  union morning,members["Commuters"]\n  union members,delivery["Online regulars"]\n  union morning,members,delivery["Core guests"]')],
+    'treeView-beta': ['mermaid', 'treeView-beta\n    menu/\n        drinks/\n            latte.json\n            cold-brew.json\n        seasonal/\n            osmanthus.json\n    prices.csv\n    README.md'],
     mindmap: ['mermaid', L(
       'mindmap\n  root((新店开业))\n    选址\n      客流\n      租金\n    筹备\n      装修\n      招聘\n    开业\n      试营业\n      会员活动',
       'mindmap\n  root((New store))\n    Site\n      Traffic\n      Rent\n    Prep\n      Build\n      Hiring\n    Launch\n      Soft open\n      Promo')],
@@ -446,22 +479,32 @@ export function galleryCases(lang) {
     ]) },
     { id: 'process', kind: 'diagram', title: L('流程、状态与旅程', 'Flows, states and journeys'), items: diagramCards([
       ['flowchart', '流程图', 'Flowchart'], ['stateDiagram-v2', '状态图', 'State diagram'], ['journey', '体验旅程', 'Customer journey'], ['swimlane', '泳道图', 'Swimlanes', true],
+      ['swimlane-beta', 'Mermaid 泳道图', 'Mermaid swimlanes'], ['agentflow-beta', 'Agent 流程', 'Agent flow'], ['eventmodeling', '事件建模', 'Event model'],
     ]) },
     { id: 'model', kind: 'diagram', title: L('时序与数据模型', 'Sequences and data models'), items: diagramCards([
-      ['sequenceDiagram', '时序图', 'Sequence'], ['zenuml', 'ZenUML', 'ZenUML'], ['erDiagram', 'ER 图', 'ER diagram'], ['classDiagram', '类图', 'Class diagram'], ['requirementDiagram', '需求图', 'Requirements'],
+      ['sequenceDiagram', '时序图', 'Sequence'], ['zenuml', 'ZenUML', 'ZenUML'], ['usecase-beta', '用例图', 'Use cases'], ['erDiagram', 'ER 图', 'ER diagram'], ['classDiagram', '类图', 'Class diagram'],
+      ['requirementDiagram', '需求图', 'Requirements'],
+    ]) },
+    { id: 'grammar', kind: 'diagram', title: L('四种写法的语法图', 'Railroad grammars in four notations'), items: diagramCards([
+      ['railroad-beta', '函数式', 'Function style'], ['railroad-ebnf-beta', 'EBNF', 'EBNF'], ['railroad-abnf-beta', 'ABNF', 'ABNF'], ['railroad-peg-beta', 'PEG', 'PEG'],
     ]) },
     { id: 'planning', kind: 'diagram', title: L('排期、看板与协议', 'Plans, boards and protocols'), items: diagramCards([
       ['gantt', '甘特图', 'Gantt', true], ['timeline', '时间线', 'Timeline', true], ['gitGraph', 'Git 分支', 'Git graph'], ['kanban', '看板', 'Kanban', true],
-      ['packet-beta', '报文位域', 'Packet layout'], ['quadrantChart', '四象限', 'Quadrant chart'],
+      ['packet', '报文位域', 'Packet layout'],
     ]) },
-    { id: 'architecture', kind: 'diagram', title: L('架构与分层', 'Architecture'), items: diagramCards([
-      ['layers', '分层图', 'Layers'], ['blocks', '能力块', 'Blocks', true], ['architecture-beta', '架构图', 'Architecture'], ['block-beta', '块图', 'Block diagram'],
+    { id: 'architecture', kind: 'diagram', title: L('架构、分层与目录', 'Architecture, layers and file trees'), items: diagramCards([
+      ['layers', '分层图', 'Layers'], ['blocks', '能力块', 'Blocks', true], ['architecture-beta', '架构图', 'Architecture'], ['block', '块图', 'Block diagram'],
+      ['treeView-beta', '目录树', 'File tree'],
     ]) },
     { id: 'c4', kind: 'diagram', title: L('C4 的五个视角', 'Five C4 views'), items: diagramCards([
       ['C4Context', '系统上下文', 'Context'], ['C4Container', '容器', 'Containers'], ['C4Component', '组件', 'Components'], ['C4Dynamic', '动态', 'Dynamic'], ['C4Deployment', '部署', 'Deployment'],
     ]) },
     { id: 'mermaid-data', kind: 'diagram', title: L('Mermaid 数值图', 'Mermaid charts'), items: diagramCards([
-      ['pie', '饼图', 'Pie'], ['xychart-beta', 'XY 图', 'XY chart'], ['sankey-beta', '桑基图', 'Sankey'], ['radar-beta', '雷达图', 'Radar'], ['treemap-beta', '矩形树图', 'Treemap'],
+      ['pie', '饼图', 'Pie'], ['xychart', 'XY 图', 'XY chart'], ['sankey', '桑基图', 'Sankey'], ['radar-beta', '雷达图', 'Radar'], ['treemap', '矩形树图', 'Treemap'],
+    ]) },
+    { id: 'analysis', kind: 'diagram', title: L('分析与策略', 'Analysis and strategy'), items: diagramCards([
+      ['quadrantChart', '四象限', 'Quadrant chart'], ['ishikawa', '鱼骨图', 'Fishbone'], ['cynefin-beta', 'Cynefin 框架', 'Cynefin'], ['venn-beta', '韦恩图', 'Venn'],
+      ['wardley-beta', 'Wardley 地图', 'Wardley map'],
     ]) },
     { id: 'mindmaps', kind: 'diagram', title: L('一棵树，八种脑图布局', 'One tree, eight mind-map layouts'), items: [
       ...diagramCards([['mindmap', 'Mermaid 脑图', 'Mermaid mind map']]),
