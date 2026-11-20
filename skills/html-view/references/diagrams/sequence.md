@@ -4,7 +4,12 @@
 
 ## sequenceDiagram
 
-声明 `participant` 或 `actor`，消息使用受控箭头表达同步、返回、异步或丢失；支持自调用、激活、`Note`、`box` 分组及 `rect` 区段。组合片段 `alt/else`、`opt`、`loop`、`par/and`、`critical/option`、`break` 都以 `end` 结束，最多嵌套两层。最多 8 个参与者、40 条消息，标签最多 3 行。激活必须配对；`rect` 不接受颜色，外观由主题控制；不支持的语句会报错，不得当作已绘制。
+- 使用 `participant`、`actor` 声明参与者，可用 `as` 设置别名，或用 `@{ type: database, alias: 订单库 }` 设置类型与别名。类型包括 `participant`、`actor`、`boundary`、`control`、`entity`、`database`、`queue`、`collections`。支持 `create` / `destroy`；下一条消息必须发给新建参与者，或涉及即将销毁的参与者。
+- 支持实线和虚线的普通、双向、无箭头、叉形、异步和半箭头，以及 `()` 中心连接与自调用。`activate` / `deactivate` 或消息箭头后的 `+` / `-` 控制激活条；结束激活必须有对应的开始，未结束的激活持续到生命线终点。`autonumber [起始值 [步长]]` 为消息编号，`autonumber off` 停止编号。
+- `Note left of`、`Note right of` 和 `Note over` 可添加注释；`Note over A,B` 横跨两条生命线及其间的参与者。`alt/else`、`opt`、`loop`、`par/and`（含 `par_over`）、`critical/option`、`break`、`box` 和 `rect` 以 `end` 结束。`box` 与 `rect` 可使用 `rgb()` 等颜色，映射为主题状态色；无法映射的颜色显示为中性色并给出警告。
+- 支持前言区 `title` 或正文 `title:`。可用 `config.sequence.mirrorActors: false` 隐藏底部参与者卡片，或用 `config.sequence.showSequenceNumbers: true` 默认开启编号。`classDef`、`class`、`style`、`linkStyle` 和内联 `:::类名` 可设置主题状态色，不保留任意 CSS。支持内置图标；未知图标只告警，不绘制占位符。
+- `link A: 文档 @ https://example.com` 与 `links A: {"文档":"/help"}` 为参与者卡片保留第一个安全 URL；省略弹出菜单并给出 `IGNORED_INTERACTION`。通用 `click` 链接也可用，回调不会执行。
+- 最多 20 个参与者、200 条消息、4 层嵌套；参与者名称、消息和注释换行后最多 4 行。图过宽时在图框内横向滚动，不缩小字号。
 
 ```mermaid
 ---
