@@ -136,7 +136,11 @@
         "aliases": [
           "stateDiagram"
         ]
-      },
+      }
+    }
+  },
+  "diagram/er": {
+    "diagrams": {
       "erDiagram": {
         "topic": "data-model"
       }
