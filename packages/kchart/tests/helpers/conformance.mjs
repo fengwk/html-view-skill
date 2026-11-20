@@ -12,12 +12,12 @@ const fixture = new URL('../conformance/mermaid-12.3.0.json', import.meta.url);
 export const expectedPassFile = new URL('../conformance/expected-pass.json', import.meta.url);
 export const widths = [800, 360];
 
-export function inspectDiagram(source, options) {
+export function inspectDiagram(source, options, type) {
   const { svg, scene, diagnostics } = diagram(source, options);
   return {
     ...(!svg || !scene ? { noRender: true } : {}),
     diagnostics: diagnostics.filter(d => d.severity !== 'warning' && d.severity !== 'info'),
-    geometry: scene ? checkScene(scene, { measure: options.measure, source }) : [],
+    geometry: scene ? checkScene(scene, { measure: options.measure, source, orthogonal: type === 'block' }) : [],
   };
 }
 
@@ -33,7 +33,7 @@ export function runCorpus() {
     if (!summary.has(type)) summary.set(type, { valid: 0, passing: 0 });
     const counts = summary.get(type);
     counts.valid++;
-    const result = widths.map(width => ({ width, ...inspectDiagram(source, { syntax: 'mermaid', width }) })).filter(failed);
+    const result = widths.map(width => ({ width, ...inspectDiagram(source, { syntax: 'mermaid', width }, type) })).filter(failed);
     if (result.length) failures.set(id, result);
     else { counts.passing++; passing.push(id); }
   }

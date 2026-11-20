@@ -1,4 +1,4 @@
-import { placeGraphLabels, repairRoutes } from './graph-route.js';
+import { repairRoutes } from './graph-route.js';
 
 const center = box => ({ x: box.x + box.w / 2, y: box.y + box.h / 2 });
 const straight = (a, b) => ({ p0: a, c1: a, c2: b, p1: b });
@@ -16,9 +16,9 @@ export function routeBoard({ width, height, nodes, frames, blockers = [], edges 
   const routed = edges.map(edge => {
     const a = center(boxes.get(edge.from)), b = center(boxes.get(edge.to));
     const segments = [straight(a, b)];
-    // An unplaced label must not block anything until the router finds it a run.
+    // Pending labels supply dimensions only; a repaired edge reserves its placed plate.
     return { id: edge.id, from: edge.from, to: edge.to, start: a, end: b, segments, initial: segments,
-      ...(edge.label ? { labelRect: { x: -1e4, y: -1e4, w: edge.label.w, h: edge.label.h } } : {}) };
+      ...(edge.label ? { labelRect: { w: edge.label.w, h: edge.label.h } } : {}) };
   });
   const geometry = {
     type: 'board', width, height, labels: [], edges: routed,
@@ -26,8 +26,7 @@ export function routeBoard({ width, height, nodes, frames, blockers = [], edges 
     frames: frames.map(frame => ({ ...frame })),
   };
   // A redirect makes the router replace every route instead of repairing a drawn one.
-  repairRoutes(geometry, new Map(routed.map(edge => [edge.id, { from: edge.from, to: edge.to }])));
-  placeGraphLabels(geometry, () => 0);
+  repairRoutes(geometry, new Map(routed.map(edge => [edge.id, { from: edge.from, to: edge.to }])), { board: true });
   const failed = routed.filter(edge => edge.segments === edge.initial).map(edge => edge.id);
   return {
     failed,

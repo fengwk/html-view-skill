@@ -4,6 +4,7 @@ import { implementations } from '../src/diagram/blocks.js';
 import { createContext } from '../src/core/context.js';
 import { renderScene } from '../src/core/svg.js';
 import { fallbackMeasure } from '../src/diagram/support.js';
+import { checkScene } from './helpers/geometry.mjs';
 
 const implementation = implementations.blocks;
 const info = { kind: 'blocks', syntax: 'blocks', header: 'blocks', headerLine: 1, firstLine: 2, options: {}, lang: 'zh' };
@@ -42,6 +43,7 @@ test('blocks 保留容器与能力标记，并将异步关系输出为正交纯 
   assert.deepEqual(Array.from(result.geometry.nodes, (node) => node.tone), ['new', 'ok', 'info']);
   assert.equal(result.geometry.edges[0].async, true);
   assert.match(result.geometry.edges[0].path, /[HV]\d/);
+  assert.deepEqual(checkScene(result.scene, { orthogonal: true }), []);
   const rendered = renderScene(result.scene, { theme: 'paper', frame: false });
   assert.match(rendered, /<marker id="kc-[^"]+-blocks-arrow-async"/);
   assert.match(rendered, /stroke-dasharray="5 4"/);

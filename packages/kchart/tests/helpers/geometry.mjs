@@ -228,7 +228,7 @@ const textOf = node => `${node.text ?? ''}${(node.children || []).filter(child =
 
 // Text is checked in every family. Structural checks require roles: an
 // unmarked frame, lifeline, grid line or decoration isn't a node or route.
-export function checkScene(scene, { measure = fallbackMeasure, source } = {}) {
+export function checkScene(scene, { measure = fallbackMeasure, source, orthogonal = false } = {}) {
   const issues = [], texts = [], nodes = [], edges = [], labels = [], frames = [], leaders = [], covers = [];
   const issue = (kind, items, coordinates) => issues.push({ kind, elements: items.map(item => item.id), coordinates });
   const authored = source?.replace(/\s+/g, ' ');
@@ -356,6 +356,9 @@ export function checkScene(scene, { measure = fallbackMeasure, source } = {}) {
     if (crossing) issue('edge-crosses-text', [edge, text], crossing);
   }
   edges.forEach((edge, i) => {
+    if (orthogonal) for (const [a, b] of edge.segments) {
+      if (Math.abs(a[0] - b[0]) > 1e-7 && Math.abs(a[1] - b[1]) > 1e-7) issue('diagonal-edge', [edge], [a, b]);
+    }
     const tips = [edge.lines[0][0], edge.lines.at(-1).at(-1)];
     const endpoints = [edge.from, edge.to].map((id, i) => {
       const node = nodes.find(node => node.endpointId === id || node.id === id);
