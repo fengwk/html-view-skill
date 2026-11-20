@@ -21,7 +21,9 @@ function createContext(options = {}) {
     : size === 16 && weight === 650 ? { size: 14, weight: 600 }
       : { size: size === 14 ? 13 : Math.max(12, Math.min(14, size ?? 12)), weight };
   // Scene bounds read already-mapped SVG attributes; do not apply the type scale twice.
-  const measureText = options.measure || fallbackMeasure;
+  // The legacy fallback counts fullwidth forms (e.g. ：) as Latin. Tight crops can clip them.
+  const compactFallback = (value, size, weight) => fallbackMeasure(String(value ?? '').replace(/[\uff01-\uff60\uffe0-\uffe6]/gu, '\u3000'), size, weight);
+  const measureText = options.measure || (compact ? compactFallback : fallbackMeasure);
   const measureRendered = (value, size, weight) => measureText(value, size, weight, fontFamily);
   const measure = (value, size, weight) => {
     const mapped = font(size, weight);

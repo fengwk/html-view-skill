@@ -63,7 +63,7 @@ const NUMBER = /[-+]?(?:\d*\.\d+|\d+\.?\d*)(?:e[-+]?\d+)?/gi;
 const radians = (degrees) => degrees * Math.PI / 180;
 function parseTransform(value, ink = false) {
   let matrix = IDENTITY;
-  const commands = ink ? /(translate|scale|matrix|rotate|skewX|skewY)\(([^)]*)\)/g : /(translate|scale|matrix)\(([^)]*)\)/g;
+  const commands = ink ? /(translate|scale|matrix|rotate|skewX|skewY)\s*\(([^)]*)\)/g : /(translate|scale|matrix)\(([^)]*)\)/g;
   for (const [, name, body] of String(value || '').matchAll(commands)) {
     const n = ink ? (body.match(NUMBER) || []).map(Number) : body.split(/[\s,]+/).filter(Boolean).map(Number);
     if (name === 'translate') matrix = multiply(matrix, [1, 0, 0, 1, n[0] || 0, n[1] || 0]);
