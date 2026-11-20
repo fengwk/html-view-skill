@@ -1,7 +1,11 @@
 import { DIRECTIONS, labelText, statusMarks, warning } from './support.js';
 import { shapeName } from './shapes.js';
+import { presentation } from './presentation.js';
+import { normalizeLabel as sharedLabel } from './label.js';
+import { resolveIconRef } from '../core/icons.js';
 
-const LIMITS = { nodes: 30, edges: 50, subgraphDepth: 3, stateDepth: 2 };
+const LIMITS = { nodes: 30, edges: 50, subgraphDepth: 3, stateDepth: 3 };
+const MERMAID_LIMITS = { ...LIMITS, nodes: 300, edges: 420 };
 const CLASSES = Object.keys(statusMarks);
 const stripQuotes = (raw) => {
   let text = String(raw ?? '').trim();
@@ -59,7 +63,7 @@ function findClose(text, start, close) {
   return -1;
 }
 
-function parseShapeAt(text, index) {
+function parseShapeAt(text, index, normalizeLabel) {
   const read = (openLen, close, shape, lean = false) => {
     const end = findClose(text, index + openLen, close);
     if (end < 0) return { error: 'unterminated', end: text.length };
@@ -96,7 +100,7 @@ function parseShapeAt(text, index) {
   return null;
 }
 
-function parseFlowNodeToken(text, start) {
+function parseFlowNodeToken(text, start, normalizeLabel) {
   let i = start;
   while (i < text.length && /\s/.test(text[i])) i += 1;
   if (i >= text.length) return null;
@@ -131,7 +135,7 @@ function parseFlowNodeToken(text, start) {
   let shape = null;
   let label = null;
   let error = null;
-  const shapePart = parseShapeAt(text, i);
+  const shapePart = parseShapeAt(text, i, normalizeLabel);
   if (shapePart) {
     if (shapePart.error) error = shapePart.error;
     else {
@@ -153,13 +157,13 @@ function parseFlowNodeToken(text, start) {
   };
 }
 
-function parseFlowGroup(text, start) {
+function parseFlowGroup(text, start, normalizeLabel) {
   const tokens = [];
   let i = start;
   for (;;) {
     while (i < text.length && /\s/.test(text[i])) i += 1;
     if (i >= text.length) break;
-    const token = parseFlowNodeToken(text, i);
+    const token = parseFlowNodeToken(text, i, normalizeLabel);
     if (!token) return null;
     tokens.push(token);
     i = token.end;
@@ -177,7 +181,7 @@ const marks = { '<': 'point', '>': 'point', o: 'circle', x: 'cross' };
 const linkToken = /^([<ox]?)(-{2,}|={2,}|-?\.+-|~{3,})([>ox]?)/;
 const labelToken = /"(?:\\.|[^"\\])*"|[^|]*/y;
 
-function parseOperator(text, start) {
+function parseOperator(text, start, normalizeLabel) {
   const identifier = /^[^\s"\[\](){}|@]+@(?=[<xo.\-=~])/.exec(text.slice(start));
   const id = identifier?.[0].slice(0, -1) ?? null;
   const offset = start + (identifier?.[0].length ?? 0);
@@ -222,7 +226,7 @@ function parseOperator(text, start) {
   };
 }
 
-function parseSubgraphDecl(rest, anonymousId) {
+function parseSubgraphDecl(rest, anonymousId, normalizeLabel) {
   const text = rest.trim();
   let m = /^([^\s[\]]+)\s*\[([\s\S]*)\]\s*$/.exec(text);
   if (m) return { id: m[1], title: normalizeLabel(stripQuotes(m[2])) || m[1] };
@@ -233,7 +237,9 @@ function parseSubgraphDecl(rest, anonymousId) {
   return { id: text && !/\s/.test(text) ? text : anonymousId, title: normalizeLabel(text) };
 }
 
-function parseFlowchartBody(statements, errors, direction = 'TB', lang) {
+function parseFlowchartBody(statements, errors, direction = 'TB', lang, look) {
+  const limits = look ? MERMAID_LIMITS : LIMITS;
+  const cleanLabel = look ? value => String(value).trim() : normalizeLabel;
   const model = {
     type: 'flowchart', direction: 'TB', nodes: [], edges: [], subgraphs: [],
   };
@@ -245,7 +251,7 @@ function parseFlowchartBody(statements, errors, direction = 'TB', lang) {
   for (const st of statements) {
     const m = /^subgraph\b\s*(.*)$/.exec(st.text);
     if (!m) continue;
-    const decl = parseSubgraphDecl(m[1], `subGraph${declarations.size}`);
+    const decl = parseSubgraphDecl(m[1], `subGraph${declarations.size}`, cleanLabel);
     declarations.set(st, decl);
     knownFrames.add(decl.id);
   }
@@ -284,8 +290,12 @@ function parseFlowchartBody(statements, errors, direction = 'TB', lang) {
           return null;
         }
       }
-      if (label !== undefined) token.label = normalizeLabel(label);
-      const asset = 'img' in other || 'icon' in other;
+      if (label !== undefined) token.label = cleanLabel(label);
+      if (look && 'icon' in other) {
+        token.iconRef = other.icon;
+        token.iconPosition = other.pos;
+      }
+      const asset = 'img' in other || (!look && 'icon' in other);
       if (asset && !warned.has('asset')) {
         warned.add('asset');
         errors.push(warning('IGNORED_ASSET', lang, line, '忽略图标或远程图片', 'Ignored icon or remote image'));
@@ -300,6 +310,7 @@ function parseFlowchartBody(statements, errors, direction = 'TB', lang) {
       addError(line, `节点 ${token.id} 的形状没有结束的括号`, '补上缺少的 ]、) 或 }');
       return null;
     }
+    if (look && token.cls) look.addClasses(token.id, token.cls.split(','), line);
     if (token.props && !warned.has('node-props')) {
       warned.add('node-props');
       errors.push(warning('IGNORED_CONFIG', lang, line, '忽略方框内的属性', 'Ignored bracketed node properties'));
@@ -321,19 +332,24 @@ function parseFlowchartBody(statements, errors, direction = 'TB', lang) {
       };
       nodes.set(token.id, node);
       model.nodes.push(node);
-      if (model.nodes.length === LIMITS.nodes + 1 && !nodeLimit) {
+      if (model.nodes.length === limits.nodes + 1 && !nodeLimit) {
         nodeLimit = true;
-        addError(line, `节点 ${model.nodes.length} 个，超过上限 ${LIMITS.nodes}`, '拆成总图和局部图');
+        addError(line, `节点 ${model.nodes.length} 个，超过上限 ${limits.nodes}`, '拆成总图和局部图');
       }
     } else if (node.parent == null && currentParent() != null) {
       node.parent = currentParent();
     }
     if (token.shape) node.shape = token.shape;
+    if (token.iconRef) {
+      node.iconRef = token.iconRef;
+      node.iconPosition = token.iconPosition;
+      if (token.label == null && !node.explicitLabel) node.label = '';
+    }
     if (token.label != null) {
       node.label = token.label;
       node.explicitLabel = true;
     }
-    if (token.cls) {
+    if (!look && token.cls) {
       const cls = checkClass(token.cls, line);
       if (cls) node.class = cls;
     }
@@ -366,9 +382,9 @@ function parseFlowchartBody(statements, errors, direction = 'TB', lang) {
     };
     if (id) edgeIds.set(id, edge);
     model.edges.push(edge);
-    if (model.edges.length === LIMITS.edges + 1 && !edgeLimit) {
+    if (model.edges.length === limits.edges + 1 && !edgeLimit) {
       edgeLimit = true;
-      addError(line, `连线 ${model.edges.length} 条，超过上限 ${LIMITS.edges}`, '拆成总图和局部图');
+      addError(line, `连线 ${model.edges.length} 条，超过上限 ${limits.edges}`, '拆成总图和局部图');
     }
   };
 
@@ -423,6 +439,7 @@ function parseFlowchartBody(statements, errors, direction = 'TB', lang) {
       else direction = d.direction;
       continue;
     }
+    if (look?.accept(text, line)) continue;
     if (/^(classDef|style|linkStyle)\b/i.test(text)) {
       addError(line, `不支持 ${text.split(/\s+/)[0]}`, '颜色由主题决定，删掉这一行；节点分类用 :::new 等');
       continue;
@@ -456,7 +473,7 @@ function parseFlowchartBody(statements, errors, direction = 'TB', lang) {
       continue;
     }
 
-    let group = parseFlowGroup(text, 0);
+    let group = parseFlowGroup(text, 0, cleanLabel);
     if (!group) {
       addError(line, `无法解析的语句：${text}`, '检查节点 id、形状括号与连线写法');
       continue;
@@ -472,13 +489,13 @@ function parseFlowchartBody(statements, errors, direction = 'TB', lang) {
     while (cursor < text.length) {
       while (cursor < text.length && /\s/.test(text[cursor])) cursor += 1;
       if (cursor >= text.length) break;
-      const op = parseOperator(text, cursor);
+      const op = parseOperator(text, cursor, cleanLabel);
       if (!op) {
         addError(line, `无法解析的连线：${text.slice(cursor)}`, '连线写成 -->、-.->、==>、--- 等；标签用 |文字| 或 -- 文字 -->');
         break;
       }
       cursor = op.end;
-      const next = parseFlowGroup(text, cursor);
+      const next = parseFlowGroup(text, cursor, cleanLabel);
       if (!next) {
         addError(line, '连线后面缺少节点', '在连线运算符后写节点 id');
         break;
@@ -523,8 +540,10 @@ function parseFlowchartBody(statements, errors, direction = 'TB', lang) {
   return model;
 }
 
-function parseFlowchart(statements, errors, lang) {
-  const head = statements[0].text;
+function parseFlowchart(statements, errors, lang, look) {
+  const { text: head, line } = statements[0];
+  if (/^flowchart-elk\b/.test(head)) errors.push(warning('IGNORED_CONFIG', lang, line,
+    '使用 KChart 布局代替 ELK', 'Using KChart layout instead of ELK'));
   let direction = 'TB';
   const header = /^(?:flowchart|graph)(?:-elk)?\b(?:\s+(.*))?$/.exec(head);
   if (header?.[1]) {
@@ -534,12 +553,12 @@ function parseFlowchart(statements, errors, lang) {
     if (d?.direction) direction = d.direction;
     else statements = [statements[0], { text: token, line: statements[0].line }, ...statements.slice(1)];
   }
-  return parseFlowchartBody(statements, errors, direction, lang);
+  return parseFlowchartBody(statements, errors, direction, lang, look);
 }
 
 /* ───────────────────────── stateDiagram 解析 ───────────────────────── */
 
-function parseStateDecl(rest) {
+function parseStateDecl(rest, normalizeLabel) {
   let text = rest.trim();
   let kind = 'state';
   let m = /<<(choice|fork|join)>>\s*$/i.exec(text);
@@ -557,7 +576,9 @@ function parseStateDecl(rest) {
   return { id: text, label: null, kind };
 }
 
-function parseState(statements, errors, lang) {
+function parseState(statements, errors, lang, look) {
+  const limits = look ? MERMAID_LIMITS : LIMITS;
+  const cleanLabel = look ? value => String(value).trim() : normalizeLabel;
   const head = statements[0].text;
   const model = {
     type: 'state', direction: 'TB', nodes: [], edges: [], subgraphs: [],
@@ -581,7 +602,7 @@ function parseState(statements, errors, lang) {
   for (const st of statements) {
     const m = /^state\s+(.+?)\s*\{\s*$/i.exec(st.text);
     if (!m) continue;
-    const decl = parseStateDecl(m[1]);
+    const decl = parseStateDecl(m[1], cleanLabel);
     if (decl.id) knownComposite.add(decl.id);
   }
   let seq = 0;
@@ -620,9 +641,9 @@ function parseState(statements, errors, lang) {
       };
       nodes.set(id, node);
       model.nodes.push(node);
-      if (countStates() === LIMITS.nodes + 1 && !nodeLimit) {
+      if (countStates() === limits.nodes + 1 && !nodeLimit) {
         nodeLimit = true;
-        addError(line, `状态 ${countStates()} 个，超过上限 ${LIMITS.nodes}`, '拆成总图和局部图');
+        addError(line, `状态 ${countStates()} 个，超过上限 ${limits.nodes}`, '拆成总图和局部图');
       }
     } else {
       if (label != null) node.label = label;
@@ -661,7 +682,7 @@ function parseState(statements, errors, lang) {
       to,
       fromFrame: false,
       toFrame: false,
-      label: label == null ? null : normalizeLabel(stripQuotes(label)),
+      label: label == null ? null : cleanLabel(stripQuotes(label)),
       style: note ? 'dashed' : 'solid',
       startArrow: false,
       endArrow: !note,
@@ -669,9 +690,9 @@ function parseState(statements, errors, lang) {
       extra: 0,
       line,
     });
-    if (model.edges.length === LIMITS.edges + 1 && !edgeLimit) {
+    if (model.edges.length === limits.edges + 1 && !edgeLimit) {
       edgeLimit = true;
-      addError(line, `连线 ${model.edges.length} 条，超过上限 ${LIMITS.edges}`, '拆成总图和局部图');
+      addError(line, `连线 ${model.edges.length} 条，超过上限 ${limits.edges}`, '拆成总图和局部图');
     }
   };
 
@@ -730,7 +751,7 @@ function parseState(statements, errors, lang) {
       }
       const id = floating ? floating[2] : `@@note:${seq}`;
       if (note) ensureState(note[2], line);
-      const node = ensureState(id, line, { kind: 'note', label: normalizeLabel(note ? note[3] ?? note[4] : floating[1]) });
+      const node = ensureState(id, line, { kind: 'note', label: cleanLabel(note ? note[3] ?? note[4] : floating[1]) });
       if (node && note) {
         notes.push({ node, target: note[2] });
         if (note[1].toLowerCase() === 'left') addEdge(id, note[2], null, line, true);
@@ -747,6 +768,7 @@ function parseState(statements, errors, lang) {
       }
       continue;
     }
+    if (look?.accept(text, line)) continue;
     if (/^(classDef|style|linkStyle)\b/i.test(text)) {
       addError(line, `不支持 ${text.split(/\s+/)[0]}`, '颜色由主题决定，删掉这一行；节点分类用 :::warn 等');
       continue;
@@ -779,7 +801,7 @@ function parseState(statements, errors, lang) {
     if (/^state\b/i.test(text)) {
       const block = /^state\s+(.+?)\s*\{\s*$/i.exec(text);
       if (block) {
-        const decl = parseStateDecl(block[1]);
+        const decl = parseStateDecl(block[1], cleanLabel);
         if (!decl.id) {
           addError(line, 'state { 缺少 id', '写成 state A {');
           continue;
@@ -819,7 +841,7 @@ function parseState(statements, errors, lang) {
         stack.push(sg);
         continue;
       }
-      const decl = parseStateDecl(text.replace(/^state\b/i, ''));
+      const decl = parseStateDecl(text.replace(/^state\b/i, ''), cleanLabel);
       if (!decl.id) {
         addError(line, 'state 缺少 id', '写成 state A 或 state "名称" as A');
         continue;
@@ -853,8 +875,9 @@ function parseState(statements, errors, lang) {
         addError(line, '状态转移缺少起点或终点', '写成 A --> B : 说明');
         continue;
       }
-      const leftClass = leftTok.cls ? checkClass(leftTok.cls, line) : null;
-      const rightClass = rightTok.cls ? checkClass(rightTok.cls, line) : null;
+      if (look) for (const token of [leftTok, rightTok]) if (token.cls) look.addClasses(token.id, token.cls.split(','), line);
+      const leftClass = !look && leftTok.cls ? checkClass(leftTok.cls, line) : null;
+      const rightClass = !look && rightTok.cls ? checkClass(rightTok.cls, line) : null;
       let from;
       let to;
       if (leftTok.id === '[*]') from = ensurePseudo('start', line).id;
@@ -876,7 +899,7 @@ function parseState(statements, errors, lang) {
     const desc = /^([^\s:]+)\s*:\s*(.+)$/.exec(text);
     if (desc) {
       const id = desc[1];
-      const value = normalizeLabel(desc[2]);
+      const value = cleanLabel(desc[2]);
       if (subgraphs.has(id)) subgraphs.get(id).desc.push(value);
       else if (knownComposite.has(id)) metaFor(id).desc.push(value);
       else {
@@ -889,7 +912,11 @@ function parseState(statements, errors, lang) {
       addError(line, '图类型只能声明一次', '删掉重复的声明');
       continue;
     }
-    if (/^[^\s:{}]+$/.test(text)) ensureState(text, line);
+    const styled = look && /^([^\s:{}]+):::(\S+)$/.exec(text);
+    if (styled) {
+      ensureState(styled[1], line);
+      look.addClasses(styled[1], styled[2].split(','), line);
+    } else if (/^[^\s:{}]+$/.test(text)) ensureState(text, line);
     else addError(line, `无法解析的语句：${text}`, '检查状态名、转移箭头与 : 说明的写法');
   }
   for (const { node, target } of notes) node.parent = (nodes.get(target) ?? subgraphs.get(target))?.parent ?? null;
@@ -1119,20 +1146,43 @@ function parseGraph(body, info = {}) {
   const firstLine = Number.isFinite(info.firstLine) ? info.firstLine : headerLine + 1;
   const statements = [...statementsOf(header, headerLine), ...statementsOf(body, firstLine, kind)];
   const errors = [];
-  if (info.syntax === 'mermaid') {
-    // 与逐行源码检查一致；分号连接的语句也不能绕过样式类约束。
-    for (const item of statements.slice(1)) if (/^class\s+\S+\s+\S+/i.test(item.text)) {
-      errors.push({ line: item.line, column: 1, message: '不支持 Mermaid 样式类声明', fix: '改用 ::: 状态分类' });
-    }
-    if (errors.length) return { model: null, errors };
-  }
+  const look = info.syntax === 'mermaid' && kind !== 'erdiagram' ? presentation(info) : null;
   if (!statements.length) return { model: null, errors: [{ line: headerLine, column: 1, message: '图源码为空', fix: '写 flowchart、stateDiagram-v2 或 erDiagram 开头的图' }] };
   const first = statements[0].text;
   let model;
-  if (kind === 'flowchart') model = parseFlowchart(statements, errors, info.lang);
-  else if (kind === 'statediagram-v2' || kind === 'statediagram') model = parseState(statements, errors, info.lang);
+  if (kind === 'flowchart') model = parseFlowchart(statements, errors, info.lang, look);
+  else if (kind === 'statediagram-v2' || kind === 'statediagram') model = parseState(statements, errors, info.lang, look);
   else if (kind === 'erdiagram') model = parseEr(statements, errors);
   else errors.push({ line: statements[0].line, column: 1, message: '不支持的图类型：' + first.split(/\s+/)[0], fix: '使用 flowchart、stateDiagram-v2 或 erDiagram 图型' });
+  if (model && look) {
+    const seen = new Set();
+    const warn = diagnostic => {
+      const key = `${diagnostic.code}:${diagnostic.message}`;
+      if (!seen.has(key)) { seen.add(key); errors.push(diagnostic); }
+    };
+    const normalize = (value, line, item) => {
+      const result = sharedLabel(value, { lang: info.lang, line });
+      result.diagnostics.forEach(warn);
+      if (item && result.icon) item.icon ??= result.icon;
+      return result.text;
+    };
+    for (const item of [...model.nodes, ...model.subgraphs]) {
+      item.class = look.statusOf(item.id);
+      item.link = look.linkOf(item.id);
+      if (item.iconRef) {
+        item.icon = resolveIconRef(item.iconRef);
+        if (!item.icon) warn(warning('IGNORED_ASSET', info.lang, item.line, `未知图标 ${item.iconRef}`, `Unknown icon ${item.iconRef}`));
+      }
+      const key = Object.hasOwn(item, 'title') ? 'title' : 'label';
+      item[key] = normalize(item[key], item.line, item);
+      if (item.desc) item.desc = item.desc.map(value => normalize(value, item.line));
+    }
+    for (const edge of model.edges) {
+      edge.status = look.edgeStatusOf(edge.seq) ?? (edge.id ? look.statusOf(edge.id) : null);
+      if (edge.label != null) edge.label = normalize(edge.label, edge.line, edge);
+    }
+    errors.push(...look.diagnostics());
+  }
   return { model: model || null, errors: errors.map(item => ({ column: 1, ...item })) };
 }
 

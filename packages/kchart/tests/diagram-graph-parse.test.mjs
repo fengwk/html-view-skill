@@ -141,7 +141,8 @@ test('flow/state/ER 复杂样例保留结构并报告不支持语法', () => {
   const depth = parseGraph('subgraph a [A]\nsubgraph b [B]\nsubgraph c [C]\nsubgraph d [D]\nA', { kind: 'flowchart', header: 'flowchart TB', headerLine: 1, firstLine: 2 });
   assert.ok(depth.errors.length > 0);
   const nested = parseGraph('state A {\nstate B {\nstate C {\n[*] --> X\n}\n}\n}', { kind: 'stateDiagram-v2', header: 'stateDiagram-v2', headerLine: 1, firstLine: 2 });
-  assert.equal(nested.model.subgraphs.length, 2);
+  assert.deepEqual(nested.errors, []);
+  assert.equal(nested.model.subgraphs.length, 3);
 });
 
 
