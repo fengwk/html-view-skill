@@ -36,8 +36,8 @@ mindmap
 
 ## ishikawa
 
-也接受 `ishikawa-beta`。鱼骨图用缩进表达：第一行是要分析的问题，下一级是原因类别（如 Process、User、Equipment），再下级是具体原因，可继续细分。用于原因分类，不表达时间或流程。
+也接受 `ishikawa-beta`。鱼骨图用缩进表达：第一行是要分析的问题，下一级是原因类别（如 Process、User、Equipment），再下级是具体原因，可继续细分。用于原因分类，不表达时间或流程。共享样式与安全链接可按节点 ID 指定：问题为 `root`，原因按源码顺序依次为 `n1`、`n2`……。
 
 ## treeView-beta
 
-目录树：用 `├──`、`└──`、`│` 画出的文件树，或按缩进逐行写名称；以 `/` 结尾的名称是目录。适合展示代码库或文档结构。
+目录树：用 `├──`、`└──`、`│` 画出的文件树，或按缩进逐行写名称；以 `/` 结尾的名称是目录。适合展示代码库或文档结构。名称后可写 `:::highlight` 或状态类、`icon(名称)` 及 `## 描述`（描述放在最后）。默认给目录和文件绘制内置图标；`icon(none)` 隐藏当前图标，未知图标省略并提示。前置 `config.treeView` 支持 `showIcons: false`（全图隐藏）、`filenameIcons`、`extensionIcons`（键带点，如 `.ts`）、`rowIndent`、`paddingX`、`paddingY`、`lineThickness`；间距和线宽保持在可读范围内。共享样式与安全链接以显示名称为目标（目录名不带末尾 `/`）。

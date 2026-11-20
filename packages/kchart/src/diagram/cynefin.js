@@ -2,6 +2,9 @@
    confusion ellipse and quadratic transition arcs that flow around the centre. KChart draws clean seams
    instead of Mermaid's seeded wobble, so the same source always serialises to the same bytes. */
 
+import { labelIcon } from './tree-family-icon.js';
+import { normalizeLabel } from './label.js';
+import { presentation } from './presentation.js';
 import { FONT, appearance as appearanceOf, error as issueAt, fallbackMeasure, labelText, warning, wrapText } from './support.js';
 
 const DOMAINS = ['complex', 'complicated', 'clear', 'chaotic', 'confusion'];
@@ -82,7 +85,15 @@ function parse(source, info = {}) {
   const errors = [];
   const domains = Object.fromEntries(DOMAINS.map(name => [name, []]));
   const transitions = [];
-  const model = { kind: 'cynefin-beta', title: '', accTitle: '', accDescr: '', domains, transitions };
+  const look = presentation({ lang });
+  const model = { kind: 'cynefin-beta', title: '', accTitle: '', accDescr: '', domains, transitions,
+    showDomainDescriptions: info.config?.cynefin?.showDomainDescriptions !== false };
+  const assets = new Set();
+  const normalize = (raw, line) => {
+    const value = normalizeLabel(raw, { lang, line });
+    for (const issue of value.diagnostics) if (!assets.has(issue.message)) { assets.add(issue.message); errors.push(issue); }
+    return { label: value.text, icon: value.icon };
+  };
   const unknownDomain = (value, line) => issueAt(lang, line,
     `未知的 Cynefin 域「${value}」`, `Unknown Cynefin domain "${value}"`,
     `使用 ${DOMAINS.join(' / ')}`, `Use one of ${DOMAINS.join(' / ')}`);
@@ -91,7 +102,7 @@ function parse(source, info = {}) {
       errors.push(issueAt(lang, line, '标题重复', 'Duplicate title', '只保留一个 title', 'Keep only one title'));
       return;
     }
-    model.title = labelText(value.trim());
+    model.title = normalize(value.trim(), line).label;
   };
   // Mermaid also accepts `cynefin-beta: title …` because the TITLE terminal follows the header keyword.
   const header = String(info.params ?? '').replace(/^:/, '').trim();
@@ -116,6 +127,7 @@ function parse(source, info = {}) {
       continue;
     }
     if (!text) continue;
+    if (look.accept(text, line)) continue;
     const accTitle = /^accTitle\s*:\s*([\s\S]*)$/i.exec(text);
     if (accTitle) { model.accTitle = labelText(accTitle[1].trim()); continue; }
     const accDescr = /^accDescr\s*:\s*([\s\S]*)$/i.exec(text);
@@ -153,7 +165,7 @@ function parse(source, info = {}) {
             '一个转移只写一个引号标签', 'Use one quoted label per transition'));
           continue;
         }
-        label = labelText(read.items[0]);
+        label = normalize(read.items[0], line).label;
       }
       if (from === to) {
         errors.push(warning('DIAGRAM_HINT', lang, line, `自环转移「${from}」已省略`, `The self-loop on "${from}" was dropped`,
@@ -172,7 +184,7 @@ function parse(source, info = {}) {
         errors.push(issueAt(lang, line, `域「${domain}」之后多出「${read.rest}」`, `Unexpected text after domain "${domain}": "${read.rest}"`,
           '每个条目写成一行引号字符串', 'Put each item on its own line as a quoted string'));
       }
-      for (const item of read.items) domains[domain].push({ label: labelText(item), line });
+      for (const item of read.items) domains[domain].push({ ...normalize(item, line), line });
       continue;
     }
     if (!current) {
@@ -190,13 +202,20 @@ function parse(source, info = {}) {
         '每个条目只写一个引号字符串', 'Use one quoted string per item'));
       continue;
     }
-    for (const item of read.items) domains[current].push({ label: labelText(item), line });
+    for (const item of read.items) domains[current].push({ ...normalize(item, line), line });
   }
   if (block) {
     errors.push(issueAt(lang, firstLine, 'accDescr 缺少结束的 }', 'accDescr is missing its closing }',
       '补齐 accDescr 的右花括号', 'Close the accDescr block'));
     model.accDescr = labelText(block.lines.join('\n').trim());
   }
+  errors.push(...look.diagnostics());
+  transitions.forEach((transition, index) => { transition.status = look.edgeStatusOf(index); });
+  for (const name of DOMAINS) domains[name].forEach((item, index) => {
+    item.id = `${name}-${index}`;
+    item.status = look.statusOf(item.id) ?? look.statusOf(name);
+    item.link = look.linkOf(item.id) ?? look.linkOf(name);
+  });
   return { model, errors };
 }
 
@@ -266,11 +285,11 @@ function layout(model, options = {}) {
   const plotW = clamp(width - MARGIN * 2, MIN_PLOT, MAX_PLOT);
   const chipCap = Math.max(96, Math.min(CHIP_CAP, plotW / 2 - PANEL_PAD * 2 - 8));
 
-  const chipOf = (label, cap, minW = 0) => {
+  const chipOf = (label, cap, icon) => {
     const lines = wrap(label, cap, bodyFont);
     return {
       lines,
-      w: Math.max(minW, widest(lines, bodyFont) + CHIP_PAD_X * 2),
+      w: widest(lines, bodyFont) + CHIP_PAD_X * 2 + (icon ? 18 : 0),
       h: Math.max(CHIP_MIN_H, lines.length * CHIP_LINE + CHIP_PAD_Y * 2),
     };
   };
@@ -280,13 +299,13 @@ function layout(model, options = {}) {
   for (const name of QUADRANTS) {
     const rows = model.domains[name];
     count += rows.length;
-    const chips = rows.map((item, index) => ({ id: `${name}-${index}`, line: item.line, ...chipOf(item.label, chipCap) }));
+    const chips = rows.map((item, index) => ({ ...item, id: `${name}-${index}`, line: item.line, ...chipOf(item.label, chipCap, item.icon) }));
     if (rows.length > QUADRANT_HINT) {
       errors.push(warning('DIAGRAM_HINT', lang, rows[QUADRANT_HINT].line,
         `「${TITLES[name]}」有 ${rows.length} 个条目，面板会变高`, `"${TITLES[name]}" holds ${rows.length} items and makes a tall panel`,
         `每个域保留 ${QUADRANT_HINT} 个条目以内`, `Keep at most ${QUADRANT_HINT} items per domain`));
     }
-    const subs = NOTES[name];
+    const subs = model.showDomainDescriptions ? NOTES[name] : [NOTES[name][1]];
     const blockW = Math.ceil(Math.max(widest([TITLES[name]], nameFont), widest(subs, bodyFont), ...chips.map(chip => chip.w), 0));
     const chipsH = chips.reduce((sum, chip) => sum + chip.h + CHIP_GAP, -CHIP_GAP);
     const blockH = NAME_LINE + NAME_GAP + subs.length * SUB_PITCH + (chips.length ? ITEM_GAP + chipsH : 0);
@@ -296,9 +315,9 @@ function layout(model, options = {}) {
   const confusionRows = model.domains.confusion;
   count += confusionRows.length;
   const confCap = Math.max(80, plotW * 0.15 * 2 - 56);
-  const confusionChips = confusionRows.map((item, index) => ({ id: `confusion-${index}`, line: item.line, ...chipOf(item.label, confCap) }));
+  const confusionChips = confusionRows.map((item, index) => ({ ...item, id: `confusion-${index}`, line: item.line, ...chipOf(item.label, confCap, item.icon) }));
   const confusionChipsH = confusionChips.reduce((sum, chip) => sum + chip.h + CHIP_GAP, -CHIP_GAP);
-  const confusionBlockH = NAME_LINE + NAME_GAP + SUB_PITCH + (confusionChips.length ? ITEM_GAP + confusionChipsH : 0);
+  const confusionBlockH = NAME_LINE + NAME_GAP + (model.showDomainDescriptions ? SUB_PITCH : 0) + (confusionChips.length ? ITEM_GAP + confusionChipsH : 0);
   const rx = Math.max(plotW * 0.15, Math.ceil(Math.max(0, ...confusionChips.map(chip => chip.w)) / 2) + 18);
   const requiredRy = confusionBlockH * .68 + 12;
   const plotH = Math.ceil(Math.max(clamp(plotW * .72, 380, 620), 2 * (PANEL_PAD + maxBlockH + CORRIDOR), 2 * (requiredRy + CORRIDOR)));
@@ -341,8 +360,11 @@ function layout(model, options = {}) {
     let cursor = centre.y - confusionBlockH / 2;
     confusionTexts.push({ kind: 'name', text: TITLES.confusion, x: centre.x, y: cursor + NAME_LINE / 2, font: nameFont });
     cursor += NAME_LINE + NAME_GAP;
-    confusionTexts.push({ kind: 'sub', text: NOTES.confusion[1], x: centre.x, y: cursor + SUB_PITCH / 2, font: bodyFont });
-    cursor += SUB_PITCH + ITEM_GAP;
+    if (model.showDomainDescriptions) {
+      confusionTexts.push({ kind: 'sub', text: NOTES.confusion[1], x: centre.x, y: cursor + SUB_PITCH / 2, font: bodyFont });
+      cursor += SUB_PITCH;
+    }
+    cursor += ITEM_GAP;
     for (const chip of confusionChips) {
       chip.x = centre.x - chip.w / 2;
       chip.y = cursor;
@@ -460,23 +482,26 @@ function scene(plan, ctx) {
   // 5. Item chips: surface fill with a hairline border; the confusion overflow chip is dashed and muted.
   const chip = (item, extra = {}) => ctx.el('g', {}, [
     ctx.rect(item.x, item.y, item.w, item.h, {
-      rx: look.smallRadius, fill: extra.fill || ctx.design.surface,
-      stroke: extra.dashed ? ink.line2 : ctx.design.line2, 'stroke-width': 1,
+      rx: look.smallRadius, fill: extra.fill || (item.status ? ctx.tint(ctx.design.surface, ink[item.status], 0.1) : ctx.design.surface),
+      stroke: extra.dashed ? ink.line2 : item.status ? ink[item.status] : ctx.design.line2, 'stroke-width': 1,
       ...(extra.dashed ? { 'stroke-dasharray': '4 3' } : {}),
       ...(extra.meta ? { meta: extra.meta } : {}),
     }),
-    ...item.lines.map((line, index) => label(line, { size: FONT.label.size, weight: 400 }, extra.dashed ? ctx.color('muted') : ink.fg2,
-      item.x + item.w / 2, item.y + item.h / 2 + (index - (item.lines.length - 1) / 2) * LABEL_LINE)),
+    ...(item.icon ? [labelIcon(ctx, item.icon, item.x + CHIP_PAD_X + 6, item.y + item.h / 2, 12, ink.fg3)] : []),
+    ...item.lines.map((line, index) => label(line, FONT.label, ink.fg2,
+      item.x + item.w / 2 + (item.icon ? 9 : 0), item.y + item.h / 2 + (index - (item.lines.length - 1) / 2) * LABEL_LINE)),
   ]);
-  for (const panel of plan.quadrants) {
-    for (const item of panel.chips) children.push(chip(item, { meta: { kind: 'node', id: item.id } }));
-  }
-  for (const item of plan.confusion.chips) children.push(chip(item, { meta: { kind: 'node', id: item.id } }));
+  const addChip = item => {
+    const drawing = chip(item, { meta: { kind: 'node', id: item.id } });
+    children.push(item.link ? ctx.link(item.link.href, [drawing], item.link) : drawing);
+  };
+  for (const panel of plan.quadrants) for (const item of panel.chips) addChip(item);
+  for (const item of plan.confusion.chips) addChip(item);
 
   // 6. Transition arcs: quadratic, hairline, 8 px arrowhead, label in a paper chip at the curve's apex.
   for (const arc of plan.arcs) {
     children.push(path(ctx, `M${arc.a.x} ${arc.a.y} Q${arc.ctrl.x} ${arc.ctrl.y} ${arc.b.x} ${arc.b.y}`, {
-      fill: 'none', stroke: ink.fg4, 'stroke-width': 1.5, 'marker-end': 'url(#cynefin-arrow)',
+      fill: 'none', stroke: arc.status ? ctx.frameTone(ink[arc.status]) : ink.fg4, 'stroke-width': 1.5, 'marker-end': 'url(#cynefin-arrow)',
     }, { kind: 'edge', from: arc.from, to: arc.to }));
   }
   for (const arc of plan.arcs) {
@@ -508,6 +533,7 @@ function scene(plan, ctx) {
 }
 
 // The header carries no options; KChart reads Mermaid's `title …` continuation after the keyword.
-const implementations = { 'cynefin-beta': { optionMode: 'raw', parse, layout, scene } };
+const implementations = { 'cynefin-beta': { optionMode: 'raw', parse, layout, scene, acceptsPresentation: true,
+  honoredConfig: ['cynefin.showDomainDescriptions'] } };
 
 export { implementations, DOMAINS, NOTES };

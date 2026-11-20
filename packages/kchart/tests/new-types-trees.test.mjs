@@ -77,12 +77,32 @@ test('Venn region fallbacks', () => {
   assert.ok(long.diagnostics.some(d => d.code === 'DIAGRAM_HINT'));
 });
 
-// Missing members and orphan labels fail; deferred multi-target styles are reported once at the parser boundary.
-test('Venn parser ownership, member checks and phase-2 style notice', () => {
+// Missing members and orphan labels fail; neutral multi-member styles warn without blocking.
+test('Venn parser ownership, member checks and neutral style notice', () => {
   assert.ok(check('venn-beta\ntext A["Orphan"]').some(d => d.severity === 'error'));
   assert.ok(check('venn-beta\nset A\nunion A,B').some(d => d.severity === 'error'));
   const { errors } = parseVenn('set A\nset B\nstyle A,B color:#333');
   assert.deepEqual(errors.map(d => [d.code, d.line]), [['IGNORED_STYLE', 4]]);
+});
+
+// Built-in icons are on by default, an explicit `none` suppresses one, and showIcons disables all.
+test('treeView default icons, branded icon override and showIcons', () => {
+  const source = 'treeView-beta\nsrc/\n  app.tsx icon(logos:react)\n  notes.txt icon(none)';
+  const icons = svg => [...svg.matchAll(/data-kc-kind="icon"/g)].length;
+  assert.equal(icons(draw(source, 360).svg), 3);
+  assert.equal(icons(draw(`---\nconfig:\n  treeView:\n    showIcons: false\n---\n${source}`, 360).svg), 0);
+});
+
+// A sorted multi-member style sets the intersection role, and links remain on the labelled set.
+test('Venn applies shared presentation to set, region and item', () => {
+  const source = 'set A["A &amp; B"]\n  text T["fa:fa-home Item"]\nset B\nunion A,B["Overlap"]\nstyle B, A fill:#d22\nstyle T fill:#2700cc\nclick A href "https://example.com"';
+  const { errors, model } = parseVenn(source);
+  assert.deepEqual(errors, []);
+  assert.equal(model.unions[0].status, 'danger');
+  const { svg } = draw(`venn-beta\n${source}`, 360);
+  assert.match(svg, /href="https:\/\/example.com"/);
+  assert.match(svg, /data-kc-kind="icon"/);
+  assert.match(svg, /A &amp; B/);
 });
 
 // Cynefin keeps all central items instead of collapsing the last two into a count.
@@ -91,11 +111,9 @@ test('Cynefin confusion grows without hiding items', () => {
   for (const item of ['First', 'Second', 'Third', 'Fourth', 'Fifth']) assert.match(svg, new RegExp(item));
 });
 
-// Quadrants are fixed, and the current family parser accepts a colon remainder once source detection is wired.
+// The public entry accepts the glued colon header and draws the four fixed quadrants.
 test('Cynefin empty quadrants and colon remainder', () => {
-  const { errors } = cynefin['cynefin-beta'].parse('', { params: ':', lang: 'en' });
-  assert.deepEqual(errors, []);
-  const { svg } = draw('cynefin-beta', 360);
+  const { svg } = draw('cynefin-beta:', 360);
   for (const domain of ['Complex', 'Complicated', 'Chaotic', 'Clear']) assert.match(svg, new RegExp(domain));
 });
 
