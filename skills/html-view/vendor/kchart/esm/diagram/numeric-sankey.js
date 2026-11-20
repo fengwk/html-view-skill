@@ -4,7 +4,7 @@ import { numericLabel, renderWith, validateWith } from "./numeric-model.js";
 import { presentation } from "./presentation.js";
 import { sankeyPresentation } from "../chart/relations.js";
 import { createRegistry, layouts } from "../chart/registry.js";
-import { validate as validate$1 } from "../chart/spec.js";
+import { sizeBudget, validate as validate$1 } from "../chart/spec.js";
 // src/diagram/numeric-sankey.js
 var numeric_sankey_exports = /* @__PURE__ */ __exportAll({
 	honoredConfig: () => honoredConfig,
@@ -129,6 +129,10 @@ function toSpec(model) {
 		chart: "sankey",
 		tolerant: true,
 		[sankeyPresentation]: true,
+		[sizeBudget]: {
+			nodes: MAX_NODES,
+			edges: MAX_EDGES
+		},
 		data: {
 			nodes: model.nodes,
 			edges: model.edges.map(({ line, ...edge }) => edge)
@@ -175,13 +179,7 @@ function validate(model, info) {
 	return errors;
 }
 var sankeyRegistry = createRegistry(validate$1);
-var sankeyLayout = layouts.get("sankey");
-sankeyRegistry.register("sankey", (spec, ctx) => sankeyLayout(spec, {
-	...ctx,
-	fit(message, fix) {
-		if (message !== "sankey超过60个节点或120条边") ctx.fit(message, fix);
-	}
-}));
+sankeyRegistry.register("sankey", layouts.get("sankey"));
 var layout = (model, options, info) => {
 	const result = renderWith(toSpec(model), options, info, (detail) => lineFor(model, detail), sankeyRegistry.layout);
 	if (result.scene && (result.width > options.width * 2 || model.nodes.length > LARGE_NODES || model.edges.length > LARGE_EDGES)) result.errors.push(warning("LARGE_DIAGRAM", info.lang, info.headerLine, "桑基图较大，可滚动查看", "Large Sankey diagram; scroll to view it", "考虑拆分图表", "Consider splitting the diagram"));

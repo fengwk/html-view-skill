@@ -6,7 +6,7 @@ import { presentation } from './presentation.js';
 import { normalizeLabel } from './label.js';
 import { resolveIconRef } from '../core/icons.js';
 import { createRegistry, layouts as chartLayouts } from '../chart/registry.js';
-import { validate as validateSpec } from '../chart/spec.js';
+import { sizeBudget, validate as validateSpec } from '../chart/spec.js';
 import { mindmapPresentation } from '../chart/mindmap.js';
 
 const MAX_NODES = 2000, MAX_DEPTH = 100;
@@ -163,12 +163,12 @@ function parse(body, info = {}) {
     if (status) node.status = status;
     node[mindmapPresentation] = { icon, link: look.linkOf(id) };
   }
-  const spec = { chart: 'mindmap', data, layout, [mindmapPresentation]: true };
+  // The parser above enforces the Mermaid caps with its own diagnostics; the native chart checks only what is left.
+  const spec = { chart: 'mindmap', data, layout, [mindmapPresentation]: true, [sizeBudget]: { nodes: MAX_NODES + 1, depth: MAX_DEPTH + 1 } };
   Object.defineProperties(spec, { nodeCount: { value: nodeCount }, maxDepth: { value: maxDepth } });
   if (info.title) spec.title = info.title;
   const checked = validateSpec(spec);
   for (const issue of checked.errors) {
-    if (issue.message === '超过80节点上限' || issue.message === '超过树深度上限') continue;
     let path = '', line = firstLine;
     for (const part of issue.path.split('/').slice(1)) {
       path += `/${part}`;
@@ -179,11 +179,7 @@ function parse(body, info = {}) {
   return { model: spec, errors };
 }
 
-const mindmapRegistry = createRegistry(spec => {
-  const result = validateSpec(spec);
-  const errors = result.errors.filter(issue => !['超过80节点上限', '超过树深度上限'].includes(issue.message));
-  return { errors, data: errors.length ? null : result.data ?? spec };
-});
+const mindmapRegistry = createRegistry(validateSpec);
 mindmapRegistry.register('mindmap', chartLayouts.get('mindmap'));
 
 function layout(model, options = {}, info = {}) {

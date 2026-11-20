@@ -44,6 +44,10 @@ const safeDate = (v, type) => {
   }
   return true;
 };
+// Mermaid adapters accept larger trees and flows than native JSON charts. They pass an explicit size budget under this
+// symbol, which a JSON spec cannot carry, so the native limits stay in force for every other caller.
+const sizeBudget = Symbol('size budget');
+
 function validate(spec) {
   const errors = [];
   if (!obj(spec)) {
@@ -116,7 +120,7 @@ function validate(spec) {
     }
     if (['rungs','pictorial'].includes(spec.variant)&&spec.unitMark===undefined) err(errors,'/unitMark','该变体必须声明unitMark');
     if (spec.unitMark!==undefined&&!['bar','column','dumbbell','waterfall','histogram'].includes(c.name)) err(errors,'/unitMark','该图型不支持unitMark');
-    if (shapeOk && c.shape === 'tree') checkTree(spec.data, c.name, errors);
+    if (shapeOk && c.shape === 'tree') checkTree(spec.data, c.name, errors, spec[sizeBudget]);
     if (shapeOk&&c.shape==='network') checkNetwork(spec.data,spec.chart,errors,spec.tolerant===true);
     if (shapeOk&&c.shape==='paths') checkPaths(spec.data,errors);
     if (c.shape==='geo' && spec.data?.map) {
@@ -546,7 +550,8 @@ function checkStats(s, e) {
     }
   }
 }
-function checkTree(rootNode, chart, e) {
+function checkTree(rootNode, chart, e, budget = {}) {
+  const maxDepth = budget.depth ?? 5, maxNodes = budget.nodes ?? 80;
   const ids = new Set(), seen = new Set();
   let count = 0;
   const walk = (node, path, depth) => {
@@ -559,7 +564,7 @@ function checkTree(rootNode, chart, e) {
       return finite(node.value) ? node.value : 0;
     }
     seen.add(node);
-    if (depth > 5) {
+    if (depth > maxDepth) {
       err(e, path, '超过树深度上限');
       return finite(node.value) ? node.value : 0;
     }
@@ -596,7 +601,7 @@ function checkTree(rootNode, chart, e) {
     return finite(node.value) ? node.value : sum;
   };
   walk(rootNode, '/data', 1);
-  if (count > 80) err(e, '/data', '超过80节点上限');
+  if (count > maxNodes) err(e, '/data', `超过${maxNodes}节点上限`);
 }
 function checkNetwork(d,chart,e,tolerant=false) {
   const rawNodes=d.nodes||[],rawEdges=d.edges||[];
@@ -760,4 +765,4 @@ function schema(chart){
   return schema;
 }
 
-export { parse, validate, schema };
+export { parse, validate, schema, sizeBudget };

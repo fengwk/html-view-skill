@@ -10,7 +10,7 @@ import { numericLabel, renderWith, validateWith } from './numeric-model.js';
 import { presentation } from './presentation.js';
 import { sankeyPresentation } from '../chart/relations.js';
 import { createRegistry, layouts as chartLayouts } from '../chart/registry.js';
-import { validate as validateSpec } from '../chart/spec.js';
+import { sizeBudget, validate as validateSpec } from '../chart/spec.js';
 
 const MAX_NODES = 600, MAX_EDGES = 500;
 const LARGE_NODES = 60, LARGE_EDGES = 120;
@@ -126,6 +126,8 @@ function toSpec(model) {
     chart: 'sankey',
     tolerant: true,
     [sankeyPresentation]: true,
+    // parseSankey enforces the Mermaid caps with its own diagnostics; the native chart keeps its smaller default budget.
+    [sizeBudget]: { nodes: MAX_NODES, edges: MAX_EDGES },
     data: { nodes: model.nodes, edges: model.edges.map(({ line, ...edge }) => edge) },
     layout: 'right',
     showValues: model.showValues,
@@ -174,16 +176,8 @@ function validate(model, info) {
   }
   return errors;
 }
-// The native chart keeps its smaller budget. Only ignore that specific guard in the
-// Mermaid adapter; syntax, graph validity and other fit diagnostics remain in force.
 const sankeyRegistry = createRegistry(validateSpec);
-const sankeyLayout = chartLayouts.get('sankey');
-sankeyRegistry.register('sankey', (spec, ctx) => sankeyLayout(spec, {
-  ...ctx,
-  fit(message, fix) {
-    if (message !== 'sankey超过60个节点或120条边') ctx.fit(message, fix);
-  },
-}));
+sankeyRegistry.register('sankey', chartLayouts.get('sankey'));
 const layout = (model, options, info) => {
   const result = renderWith(toSpec(model), options, info, detail => lineFor(model, detail), sankeyRegistry.layout);
   if (result.scene && (result.width > options.width * 2 || model.nodes.length > LARGE_NODES || model.edges.length > LARGE_EDGES)) {

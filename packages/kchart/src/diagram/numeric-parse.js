@@ -6,7 +6,7 @@ import { compositionPresentation } from '../chart/composition.js';
 const issue = (info, line, text, en) => error(info.lang, line, text, en, '修正图表语法', 'Correct the chart syntax');
 const unquote = text => text.replace(/^(["'])(.*)\1$/, '$2');
 const numeric = value => /^[-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[-+]?\d+)?$/i.test(value) && Number.isFinite(Number(value));
-const TREEMAP_MAX_NODES = 201, TREEMAP_MAX_DEPTH = 100;
+export const TREEMAP_MAX_NODES = 201, TREEMAP_MAX_DEPTH = 100;
 const linesOf = (source, firstLine) => source.split('\n').map((raw, i) => ({ raw, text: raw.trim(), line: firstLine + i })).filter(x => x.text && !x.text.startsWith('%%'));
 
 export function parsePie(source, info) {

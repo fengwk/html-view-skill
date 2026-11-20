@@ -3,7 +3,7 @@ import { parsePie, parseTreemap } from "./numeric-parse.js";
 import { diagnostics, renderWith, validateWith } from "./numeric-model.js";
 import { compositionPresentation } from "../chart/composition.js";
 import { createRegistry, layouts } from "../chart/registry.js";
-import { validate } from "../chart/spec.js";
+import { sizeBudget, validate } from "../chart/spec.js";
 import { warning } from "./support.js";
 // src/diagram/numeric-composition.js
 var numeric_composition_exports = /* @__PURE__ */ __exportAll({ implementations: () => implementations });
@@ -41,6 +41,10 @@ var treemapSpec = (model, info) => ({
 		showValues: info.config?.treemap?.showValues !== false,
 		prefix: model.prefix,
 		namedRoot: model.namedRoot
+	},
+	[sizeBudget]: {
+		nodes: 202,
+		depth: 101
 	}
 });
 var treemapLine = (model, path) => {
@@ -51,15 +55,7 @@ var treemapLine = (model, path) => {
 	}
 	return null;
 };
-function validateTree(spec) {
-	const result = validate(spec);
-	const errors = result.errors.filter((issue) => !["超过80节点上限", "超过树深度上限"].includes(issue.message));
-	return {
-		errors,
-		data: errors.length ? null : result.data ?? spec
-	};
-}
-var treemapRegistry = createRegistry(validateTree);
+var treemapRegistry = createRegistry(validate);
 treemapRegistry.register("treemap", layouts.get("treemap"));
 var implementations = {
 	pie,
@@ -69,7 +65,7 @@ var implementations = {
 		honoredConfig: ["treemap.showValues", "treemap.valueFormat"],
 		validate(model, info) {
 			const spec = treemapSpec(model, info);
-			return diagnostics(validateTree(spec).errors, info, (detail) => treemapLine(model, detail.path));
+			return diagnostics(validate(spec).errors, info, (detail) => treemapLine(model, detail.path));
 		},
 		layout(model, options, info) {
 			const spec = treemapSpec(model, info), lineFor = (detail) => treemapLine(model, detail.path);

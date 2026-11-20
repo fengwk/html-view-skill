@@ -4,7 +4,7 @@ import { presentation } from "./presentation.js";
 import { normalizeLabel } from "./label.js";
 import { resolveIconRef } from "../core/icons.js";
 import { createRegistry, layouts } from "../chart/registry.js";
-import { validate } from "../chart/spec.js";
+import { sizeBudget, validate } from "../chart/spec.js";
 import { mindmapPresentation } from "../chart/mindmap.js";
 // src/diagram/mindmap.js
 var mindmap_exports = /* @__PURE__ */ __exportAll({ implementations: () => implementations });
@@ -221,7 +221,11 @@ function parse(body, info = {}) {
 		chart: "mindmap",
 		data,
 		layout,
-		[mindmapPresentation]: true
+		[mindmapPresentation]: true,
+		[sizeBudget]: {
+			nodes: 2001,
+			depth: 101
+		}
 	};
 	Object.defineProperties(spec, {
 		nodeCount: { value: nodeCount },
@@ -230,7 +234,6 @@ function parse(body, info = {}) {
 	if (info.title) spec.title = info.title;
 	const checked = validate(spec);
 	for (const issue of checked.errors) {
-		if (issue.message === "超过80节点上限" || issue.message === "超过树深度上限") continue;
 		let path = "", line = firstLine;
 		for (const part of issue.path.split("/").slice(1)) {
 			path += `/${part}`;
@@ -247,14 +250,7 @@ function parse(body, info = {}) {
 		errors
 	};
 }
-var mindmapRegistry = createRegistry((spec) => {
-	const result = validate(spec);
-	const errors = result.errors.filter((issue) => !["超过80节点上限", "超过树深度上限"].includes(issue.message));
-	return {
-		errors,
-		data: errors.length ? null : result.data ?? spec
-	};
-});
+var mindmapRegistry = createRegistry(validate);
 mindmapRegistry.register("mindmap", layouts.get("mindmap"));
 function layout(model, options = {}, info = {}) {
 	const radial = model.nodeCount > 80 && model.layout !== "radial";

@@ -5,6 +5,8 @@ import { numericLabel } from "./numeric-model.js";
 import { compositionPresentation } from "../chart/composition.js";
 // src/diagram/numeric-parse.js
 var numeric_parse_exports = /* @__PURE__ */ __exportAll({
+	TREEMAP_MAX_DEPTH: () => 100,
+	TREEMAP_MAX_NODES: () => 201,
 	parsePie: () => parsePie,
 	parseTreemap: () => parseTreemap
 });
@@ -119,7 +121,7 @@ function parseTreemap(source, info) {
 			continue;
 		}
 		nodeCount += 1;
-		if (nodeCount === 202) errors.push(issue(info, line, `treemap 超过安全上限 ${TREEMAP_MAX_NODES} 个节点`, `Treemap exceeds the safety cap of ${TREEMAP_MAX_NODES} nodes; split the diagram`));
+		if (nodeCount === 202) errors.push(issue(info, line, `treemap 超过安全上限 201 个节点`, `Treemap exceeds the safety cap of 201 nodes; split the diagram`));
 		const node = {
 			label: numericLabel(name, info, line, errors),
 			children: [],
@@ -154,8 +156,8 @@ function parseTreemap(source, info) {
 	const clean = (node, path, depth) => {
 		maxDepth = Math.max(maxDepth, depth);
 		treeLines[path] = node.line;
-		if (depth > TREEMAP_MAX_DEPTH) {
-			errors.push(issue(info, node.line, `treemap 超过安全深度上限 ${TREEMAP_MAX_DEPTH} 层`, `Treemap exceeds the safety depth cap of ${TREEMAP_MAX_DEPTH}; split the diagram`));
+		if (depth > 100) {
+			errors.push(issue(info, node.line, `treemap 超过安全深度上限 100 层`, `Treemap exceeds the safety depth cap of 100; split the diagram`));
 			return;
 		}
 		node.children.forEach((child, i) => clean(child, `${path}/children/${i}`, depth + 1));
@@ -200,4 +202,4 @@ function parseTreemap(source, info) {
 		errors
 	};
 }
-export { numeric_parse_exports, parsePie, parseTreemap };
+export { TREEMAP_MAX_DEPTH, TREEMAP_MAX_NODES, numeric_parse_exports, parsePie, parseTreemap };

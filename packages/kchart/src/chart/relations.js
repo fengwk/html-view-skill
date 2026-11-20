@@ -1,6 +1,7 @@
 /* KChart network, sankey and complete-path layouts. Deterministic scene-only renderer. */
 
 import { register } from './registry.js';
+import { sizeBudget } from './spec.js';
 
 const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, n));
 const idOf = (record, fallback) => String(record.id ?? fallback);
@@ -347,7 +348,8 @@ function orderSankeyStages(stages, grouped, edges, stageMap) {
 export const sankeyPresentation = Symbol('sankey presentation');
 function sankey(spec, ctx) {
   const { nodes, edges } = spec.data;
-  if (nodes.length > 60 || edges.length > 120) ctx.fit('sankey超过60个节点或120条边', '缩小数据范围后重试');
+  const budget = spec[sizeBudget] ?? {}, maxNodes = budget.nodes ?? 60, maxEdges = budget.edges ?? 120;
+  if (nodes.length > maxNodes || edges.length > maxEdges) ctx.fit(`sankey超过${maxNodes}个节点或${maxEdges}条边`, '缩小数据范围后重试');
   const stageMap = nodes.every((n) => Number.isInteger(n.stage)) ? new Map(nodes.map((n) => [n.id, n.stage])) : networkStages(spec.data);
   const stages = [...new Set(nodes.map((n) => stageMap.get(n.id)))].sort((a, b) => a - b);
   const vertical = spec.layout === 'down';

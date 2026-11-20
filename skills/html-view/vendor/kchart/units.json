@@ -79,16 +79,17 @@
   "chart/relations": {
     "file": "units/chart/relations.js",
     "deps": [
-      "chart/registry"
+      "chart/registry",
+      "chart/spec"
     ],
-    "bytes": 20675
+    "bytes": 20764
   },
   "chart/spec": {
     "file": "units/chart/spec.js",
     "deps": [
       "chart/catalog"
     ],
-    "bytes": 40159
+    "bytes": 40236
   },
   "chart/stat-compare": {
     "file": "units/chart/stat-compare.js",
@@ -440,7 +441,7 @@
       "chart/spec",
       "chart/mindmap"
     ],
-    "bytes": 6685
+    "bytes": 6483
   },
   "diagram/numeric-composition": {
     "file": "units/diagram/numeric-composition.js",
@@ -452,7 +453,7 @@
       "chart/spec",
       "diagram/support"
     ],
-    "bytes": 2087
+    "bytes": 2002
   },
   "diagram/numeric-model": {
     "file": "units/diagram/numeric-model.js",
@@ -473,7 +474,7 @@
       "diagram/numeric-model",
       "chart/composition"
     ],
-    "bytes": 6376
+    "bytes": 6418
   },
   "diagram/numeric-radar": {
     "file": "units/diagram/numeric-radar.js",
@@ -494,7 +495,7 @@
       "chart/registry",
       "chart/spec"
     ],
-    "bytes": 5836
+    "bytes": 5784
   },
   "diagram/numeric-xy": {
     "file": "units/diagram/numeric-xy.js",

@@ -4,6 +4,7 @@ import { catalog } from "./catalog.js";
 var spec_exports = /* @__PURE__ */ __exportAll({
 	parse: () => parse,
 	schema: () => schema,
+	sizeBudget: () => sizeBudget,
 	validate: () => validate
 });
 var TOP = /* @__PURE__ */ new Set([
@@ -152,6 +153,7 @@ var safeDate = (v, type) => {
 	if (type === "datetime") return /^\d{4}-\d\d-\d\dT.*(?:Z|[+-]\d\d:\d\d)$/.test(v) && safeDate(v.slice(0, 10), "date") && Number.isFinite(Date.parse(v));
 	return true;
 };
+var sizeBudget = Symbol("size budget");
 function validate(spec) {
 	const errors = [];
 	if (!obj(spec)) {
@@ -263,7 +265,7 @@ function validate(spec) {
 			"waterfall",
 			"histogram"
 		].includes(c.name)) err(errors, "/unitMark", "该图型不支持unitMark");
-		if (shapeOk && c.shape === "tree") checkTree(spec.data, c.name, errors);
+		if (shapeOk && c.shape === "tree") checkTree(spec.data, c.name, errors, spec[sizeBudget]);
 		if (shapeOk && c.shape === "network") checkNetwork(spec.data, spec.chart, errors, spec.tolerant === true);
 		if (shapeOk && c.shape === "paths") checkPaths(spec.data, errors);
 		if (c.shape === "geo" && spec.data?.map) {
@@ -864,7 +866,8 @@ function checkStats(s, e) {
 		if (!(integral > 0)) err(e, `/data/${i}/${en.density}`, "violin密度积分必须大于0");
 	}
 }
-function checkTree(rootNode, chart, e) {
+function checkTree(rootNode, chart, e, budget = {}) {
+	const maxDepth = budget.depth ?? 5, maxNodes = budget.nodes ?? 80;
 	const ids = /* @__PURE__ */ new Set(), seen = /* @__PURE__ */ new Set();
 	let count = 0;
 	const walk = (node, path, depth) => {
@@ -877,7 +880,7 @@ function checkTree(rootNode, chart, e) {
 			return finite(node.value) ? node.value : 0;
 		}
 		seen.add(node);
-		if (depth > 5) {
+		if (depth > maxDepth) {
 			err(e, path, "超过树深度上限");
 			return finite(node.value) ? node.value : 0;
 		}
@@ -914,7 +917,7 @@ function checkTree(rootNode, chart, e) {
 		return finite(node.value) ? node.value : sum;
 	};
 	walk(rootNode, "/data", 1);
-	if (count > 80) err(e, "/data", "超过80节点上限");
+	if (count > maxNodes) err(e, "/data", `超过${maxNodes}节点上限`);
 }
 function checkNetwork(d, chart, e, tolerant = false) {
 	const rawNodes = d.nodes || [], rawEdges = d.edges || [];
@@ -1405,4 +1408,4 @@ function schema(chart) {
 	}
 	return schema;
 }
-export { parse, schema, spec_exports, validate };
+export { parse, schema, sizeBudget, spec_exports, validate };
