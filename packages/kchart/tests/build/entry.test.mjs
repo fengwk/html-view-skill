@@ -6,6 +6,8 @@ import * as node from '../../dist/esm/node.js';
 
 const families = JSON.parse(readFileSync(new URL('../../src/families.json', import.meta.url), 'utf8'));
 const gallery = galleryCases('en');
+// New railroad family fixture stays in the tests until the showcase is updated.
+const railroad = ['mermaid', 'railroad-beta\nword = terminal("hello");'];
 const chartKeys = ['catalog', 'dataTable', 'layouts', 'parse', 'render', 'schema', 'theme', 'themes', 'validate'];
 const diagramKeys = ['check', 'diagram', 'diagramTypes'];
 const page = (script) => {
@@ -41,7 +43,7 @@ for (const [family, entry] of Object.entries(families)) {
       expect(browser.render(spec, { ...options, assets: renderer.assets(spec) }).svg).toBe(svg);
     } else {
       const keys = [kind, ...(entry.diagrams[kind].aliases ?? [])];
-      const [syntax, source] = keys.map(key => gallery.diagrams[key]).find(Boolean);
+      const [syntax, source] = keys.map(key => key === 'railroad-beta' ? railroad : gallery.diagrams[key]).find(Boolean);
       const declaration = { syntax, source };
       const renderer = node.createRenderer({ specs: [declaration] });
       const browser = page(node.browserSource([declaration]));
