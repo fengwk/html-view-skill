@@ -658,6 +658,10 @@ export function finishCards(model, look, lang) {
 
 const overlaps = (a, b) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
 
+// The graph engine measures the icon slot alongside the first line, before routing around labels.
+const iconSlot = '\ufffc';
+const withIconSlot = (text, icon) => icon ? `${iconSlot} ${text}` : text;
+
 const markerId = (name, tone) => `uml-${name}${tone ? `-${tone}` : ''}`;
 
 function drawIcon(ctx, icon, x, y, ink) {
@@ -711,10 +715,11 @@ export function layoutCards(model, { ctx, width, lang, measure = (s, f) => ctx.m
       ...(card.hidden ? { kind: 'start' } : {}) };
   });
   const graph = layoutGraph({ type: 'flowchart', direction, nodes,
-    subgraphs: frames.map((frame, seq) => ({ ...frame, seq, title: frame.label })),
-    edges: edges.map((edge, seq) => ({ ...edge, seq, style: edge.dashed ? 'dashed' : 'solid',
+    subgraphs: frames.map((frame, seq) => ({ ...frame, seq, title: withIconSlot(frame.label, frame.icon) })),
+    edges: edges.map((edge, seq) => ({ ...edge, seq, label: withIconSlot(edge.label, edge.icon), style: edge.dashed ? 'dashed' : 'solid',
       startArrow: Boolean(edge.start), endArrow: Boolean(edge.end) })),
-  }, { measure, lang });
+  }, { lang, measure: (s, font) => s.startsWith(iconSlot) ? 18 + measure(s.slice(1), font) : measure(s, font) });
+  const frameById = new Map(frames.map(frame => [frame.id, frame]));
   const text = (x, y, value, opts = {}) => ctx.text(x, y, value, { 'dominant-baseline': 'central', fill: a.fg3, ...opts });
   const outlines = [], titles = [], paths = [], boxes = [], labels = [];
   const obstacles = [...graph.nodes, ...graph.frames.map(frame => frame.titleRect).filter(Boolean),
@@ -732,7 +737,13 @@ export function layoutCards(model, { ctx, width, lang, measure = (s, f) => ctx.m
     if (!f.titleRect) continue;
     const r = f.titleRect;
     titles.push(ctx.rect(r.x - 3, r.y, r.w + 6, r.h, { rx: 3, fill: a.surface }));
-    f.lines.forEach((line, i) => titles.push(text(r.x, r.y + (i + .5) * 17, line, { size: 13, weight: 600 })));
+    f.lines.forEach((line, i) => {
+      const y = r.y + (i + .5) * 17, icon = frameById.get(f.id)?.icon;
+      if (icon && line.startsWith(iconSlot)) {
+        titles.push(drawIcon(ctx, icon, r.x + 7, y, a.fg3));
+        titles.push(text(r.x + 18, y, line.slice(1).trimStart(), { size: 13, weight: 600 }));
+      } else titles.push(text(r.x, y, line, { size: 13, weight: 600 }));
+    });
   }
   for (const route of graph.edges) {
     if (!route.segments?.length) continue;
@@ -746,8 +757,15 @@ export function layoutCards(model, { ctx, width, lang, measure = (s, f) => ctx.m
     const r = route.labelRect;
     if (r && route.labelLines.length) {
       const children = [ctx.rect(r.x, r.y, r.w, r.h, { rx: 4, fill: a.surface, stroke: a.line1, 'stroke-width': .6 })];
-      route.labelLines.forEach((line, i) => children.push(text(r.x + r.w / 2,
-        r.y + r.h / 2 + (i - (route.labelLines.length - 1) / 2) * 16, line, { size: 12, anchor: 'middle' })));
+      route.labelLines.forEach((line, i) => {
+        const x = r.x + r.w / 2, y = r.y + r.h / 2 + (i - (route.labelLines.length - 1) / 2) * 16;
+        if (edge.icon && line.startsWith(iconSlot)) {
+          const caption = line.slice(1).trimStart();
+          const left = x - (ctx.measure(caption, 12, 400) + 18) / 2;
+          children.push(drawIcon(ctx, edge.icon, left + 7, y, a.fg3));
+          if (caption) children.push(text(left + 18, y, caption, { size: 12 }));
+        } else children.push(text(x, y, line, { size: 12, anchor: 'middle' }));
+      });
       labels.push({ ...ctx.el('g', {}, children), meta: { kind: 'edge-label-group', from: edge.from, to: edge.to } });
     }
     for (const [value, start] of [[edge.c1, true], [edge.c2, false]]) {

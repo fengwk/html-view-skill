@@ -5,6 +5,16 @@ import { checkScene } from './helpers/geometry.mjs';
 
 const flatten = nodes => nodes.flatMap(node => [node, ...flatten(node.children || [])]);
 
+// Intent: node, namespace and edge icons are resolved to geometry, not shown as icon syntax or placeholders.
+test('class scene reserves icon slots in cards, frames and edge labels', () => {
+  const result = diagram(`classDiagram\nnamespace Books["fa:fa-book Shelf"] {\nclass A["fa:fa-book Book"]\nclass B\nA --> B : fa:fa-book reads\n}`, { width: 360 });
+  assert.ok(result.svg, JSON.stringify(result.diagnostics));
+  assert.ok(!result.svg.includes('fa:fa-book') && !result.svg.includes('\ufffc'));
+  const icons = flatten(result.scene.children).filter(item => item.tag === 'g' && /scale\(/.test(item.attrs?.transform || ''));
+  assert.equal(icons.length, 3);
+  assert.deepEqual(checkScene(result.scene), []);
+});
+
 // Intent: wrapped members survive intact and fit next to short cards without shrinking or clipping.
 test('class cards reserve different heights and preserve a long member', () => {
   const member = '+veryLongMemberNameThatMustWrapAcrossMultipleVisibleRowsWithoutLosingAnyCharacters:string';
