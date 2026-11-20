@@ -6,6 +6,7 @@ import { prepareSource } from './src/diagram/source.js';
 import families from './src/families.json';
 
 export { structureRoles } from './src/core/context.js';
+export { registerIcons } from './src/core/icons.js';
 export { catalog } from './src/chart/catalog.js';
 export { theme, themes, resolveThemeConfig, validateThemeSnapshot, DEFAULT_THEME, FONT_FAMILY, defaultStyle } from './src/core/theme.js';
 

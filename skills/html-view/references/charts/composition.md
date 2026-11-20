@@ -46,6 +46,10 @@
 
 - `data` 与 treemap 相同：嵌套树、叶节点非负有限 `value`、最多 80 节点与 5 层。不要为树形数据添加表格 `encode`。
 
+## venn-beta
+
+Mermaid 维恩图：`set 名称` 或 `set id["标签"]` 声明集合，`union A,B["标签"]` 标注交集，`text` 在区域内添加文字；可用正文 `title`。
+
 ## 可运行示例
 
 ```kchart

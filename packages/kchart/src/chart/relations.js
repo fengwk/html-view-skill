@@ -344,6 +344,7 @@ function orderSankeyStages(stages, grouped, edges, stageMap) {
   }
   return best;
 }
+export const sankeyPresentation = Symbol('sankey presentation');
 function sankey(spec, ctx) {
   const { nodes, edges } = spec.data;
   if (nodes.length > 60 || edges.length > 120) ctx.fit('sankey超过60个节点或120条边', '缩小数据范围后重试');
@@ -356,11 +357,13 @@ function sankey(spec, ctx) {
   const labelCap = vertical ? 160 : 120;
   // 节点名下加一行节点总量（中间节点守恒，取流入、流出较大者）。太细、放不下读数的流带，
   // 读者仍能从两端节点总量和已标的流带读出它的值。与流带读数共用 edge.value 的格式和单位。
+  // showValues:false 是 Mermaid 的隐藏开关：去掉总量行和流带读数，只留名称。
+  const showValues = spec.showValues !== false;
   const sum = (list) => list.reduce((total, e) => total + e.value, 0);
   const wrapped = new Map(nodes.map((n) => {
     const name = ctx.wrap(textOf(n), labelCap, labelSize, 400);
     const total = Math.max(sum(edges.filter((e) => e.target === n.id)), sum(edges.filter((e) => e.source === n.id)));
-    const lines = name.length ? [...name, ctx.format(total, 'edge.value')] : name;
+    const lines = showValues && name.length ? [...name, ctx.format(total, 'edge.value')] : name;
     const width = Math.max(12, ...lines.map((line) => ctx.measure(line, labelSize, 400)));
     return [n.id, { lines, width, height: lines.length * 14, totalIndex: name.length ? name.length : -1 }];
   }));
@@ -507,10 +510,11 @@ function sankey(spec, ctx) {
       const along = cubic(prev.a1, mid, mid, cur.a0, t), cross = cubic(prev.c, prev.c, cur.c, cur.c, t) + thick / 2;
       return vertical ? [cross, along + 4] : [along, cross + 4];
     };
+    const ribbonColor = ctx.design[e[sankeyPresentation]] || ctx.color('tone2');
     children.push(ctx.path(d, {
-      fill: ctx.color('tone2'),
+      fill: ribbonColor,
       'fill-opacity': '.32',
-      stroke: ctx.color('tone2'),
+      stroke: ribbonColor,
       'stroke-opacity': '.18',
       'stroke-width': '.6',
       meta: {
@@ -519,9 +523,10 @@ function sankey(spec, ctx) {
         source: String(e.source),
         target: String(e.target),
         value: e.value,
+        ...(spec[sankeyPresentation] ? { from: String(e.source), to: String(e.target) } : {}),
       },
     }));
-    if (thick >= 16) readouts.push({ edge: e, text: ctx.format(e.value, 'edge.value'), labelAt });
+    if (showValues && thick >= 16) readouts.push({ edge: e, text: ctx.format(e.value, 'edge.value'), labelAt });
   }
   if (!vertical) for (const stage of stages) {
     const labels = nodes.filter(node => stageMap.get(node.id) === stage).map(node => ({
@@ -568,8 +573,8 @@ function sankey(spec, ctx) {
   }
   for (const n of nodes) {
     const p = pos.get(n.id), box = wrapped.get(n.id), related = edges.filter((e) => e.source === n.id || e.target === n.id).map((e) => String(e.id ?? `${e.source}-${e.target}`));
-    children.push(ctx.rect(p.x, p.y, p.w, p.h, { rx: 3, fill: ctx.color('tone1'), 'fill-opacity': '.85', meta: { kind: 'node', node: String(n.id), stage: stageMap.get(n.id), related } }));
-    if (!box.lines.length) continue;
+    const appearance = n[sankeyPresentation], start = children.length;
+    children.push(ctx.rect(p.x, p.y, p.w, p.h, { rx: 3, fill: ctx.design[appearance?.status] || ctx.color('tone1'), 'fill-opacity': '.85', meta: { kind: 'node', node: String(n.id), stage: stageMap.get(n.id), related, ...(spec[sankeyPresentation] ? { id: String(n.id) } : {}) } }));
     if (vertical) {
       // 标签写在节点右侧的实测槽位里，不穿过下一阶段的节点和流量读数。
       const lines = box.lines;
@@ -592,6 +597,8 @@ function sankey(spec, ctx) {
         meta: { kind: i === box.totalIndex ? 'node-total' : 'label', node: String(n.id) },
       })));
     }
+    const link = appearance?.link;
+    if (link) children.push(ctx.link(link.href, children.splice(start), link));
   }
   return withDescription(ctx, H, children, spec, W);
 }

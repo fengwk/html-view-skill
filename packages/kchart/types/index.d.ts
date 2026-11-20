@@ -123,3 +123,11 @@ export function theme(idOrObject?: string | Theme, options?: { media?: Media }):
 export const themes: Readonly<Record<string, Theme>>;
 export const catalog: Readonly<Record<string, ChartType>>;
 export const diagramTypes: readonly DiagramType[];
+
+/** Register Iconify geometry process-wide; a later registration replaces the same prefix:name. */
+export function registerIcons(iconifyJson: {
+  prefix: string;
+  icons: Record<string, { body: string; width?: number; height?: number }>;
+  width?: number;
+  height?: number;
+}): void;

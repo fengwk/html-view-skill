@@ -57,17 +57,17 @@ quadrantChart
 
 也接受 `xychart-beta`。写 `x-axis [分类…]`、可选 `y-axis` 与 `line [数值…]` 或 `bar [数值…]`；数值长度须等于分类数。混用线和柱时按同一量纲读取。见 [趋势](../charts/trend.md)。
 
-## sankey-beta
+## sankey
 
-逐行写 `来源,目的,权重`，权重必须为正并满足流向图校验。见[网络](../charts/network.md)。
+也接受 `sankey-beta`。逐行写 `来源,目的,权重`（CSV，可加引号），权重必须为正；中间节点流入与流出不必相等，节点按两者较大值绘制。见[网络](../charts/network.md)。
 
 ## radar-beta
 
 `axis A, B, C` 定义轴，`curve 名称{4, 3, 5}` 定义序列；每条序列与轴数一致。见[矩阵](../charts/matrix.md)。
 
-## treemap-beta
+## treemap
 
-以缩进表达层级，叶子写 `"名称" : 数值`；留一棵树，叶权重非负。见[构成](../charts/composition.md)。
+也接受 `treemap-beta`。以缩进表达层级，叶子写 `"名称" : 数值`；留一棵树，叶权重非负。见[构成](../charts/composition.md)。
 
 ```mermaid
 pie showData

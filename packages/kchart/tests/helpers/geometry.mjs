@@ -79,7 +79,7 @@ function outline(node, map) {
 
 // Clip a segment to the inset convex outline. Using the actual outline avoids
 // calling a line through the empty corners of diamonds/rounded cards a hit.
-function inside([a, b], polygon, inset) {
+function clip([a, b], polygon, inset) {
   let lo = 0, hi = 1;
   const sides = sidesOf(polygon);
   const sign = Math.sign(sides.reduce((sum, [p, q]) => sum + cross(p, q), 0));
@@ -92,7 +92,11 @@ function inside([a, b], polygon, inset) {
     if (y < 0) hi = Math.min(hi, x / (x - y));
     if (lo >= hi) return;
   }
-  return [at(a, b, lo), at(a, b, hi)];
+  return [lo, hi];
+}
+
+function inside(segment, polygon, inset) {
+  return clip(segment, polygon, inset)?.map(t => at(...segment, t));
 }
 
 // Real routes have port rounding, 1–2px strokes and small curve chords. A
@@ -128,6 +132,72 @@ function sharedTrunk(a, b) {
   return shared;
 }
 
+// Unlike node outlines, a UML package frame has a concave corner below its tab.
+function frameSide(p, sides) {
+  let enclosed = false;
+  for (const [a, b] of sides) {
+    const v = sub(b, a), t = Math.max(0, Math.min(1, dot(sub(p, a), v) / dot(v, v)));
+    // Ignore the 1px band around rounded/stroked borders: touching a port
+    // or skimming a corner isn't entering the frame.
+    if (length(sub(p, at(a, b, t))) <= 1) return 0;
+    if ((a[1] > p[1]) !== (b[1] > p[1]) && p[0] < at(a, b, (p[1] - a[1]) / v[1])[0]) enclosed = !enclosed;
+  }
+  return enclosed ? 1 : -1;
+}
+
+function frameCrossing(line, sides) {
+  let previous = 0, border;
+  for (const [a, b] of segments(line)) {
+    const v = sub(b, a), cuts = [0, 1];
+    for (const [p, q] of sides) {
+      const w = sub(q, p), d = cross(v, w);
+      if (Math.abs(d) < 1e-7) continue;
+      const t = cross(sub(p, a), w) / d, u = cross(sub(p, a), v) / d;
+      if (t >= 0 && t <= 1 && u >= 0 && u <= 1) cuts.push(t);
+    }
+    cuts.sort((x, y) => x - y);
+    for (let i = 1; i < cuts.length; i++) {
+      const p = at(a, b, (cuts[i - 1] + cuts[i]) / 2), side = frameSide(p, sides);
+      if (side && previous && side !== previous) return border ?? a;
+      if (side) { previous = side; border = undefined; }
+      if (i < cuts.length - 1) border = at(a, b, cuts[i]);
+    }
+  }
+}
+
+// The core of the measured ink box avoids advance/ascent rounding and the
+// empty outskirts of glyphs. Require >3px of continuous visible stroke: a
+// corner graze is not overprint, but Wardley's Auth Service leader still is.
+function textCrossing(edge, text, covers) {
+  for (const line of edge.lines) {
+    let start, end, span = 0;
+    for (const segment of segments(line)) {
+      const interval = clip(segment, text.polygon, 1.5);
+      if (!interval) { start = end = undefined; span = 0; continue; }
+      let visible = [interval];
+      for (const cover of covers) {
+        const hidden = clip(segment, cover.polygon, 0);
+        if (!hidden) continue;
+        visible = visible.flatMap(([a, b]) => hidden[1] <= a || hidden[0] >= b ? [[a, b]] : [
+          ...(a < hidden[0] ? [[a, hidden[0]]] : []), ...(b > hidden[1] ? [[hidden[1], b]] : []),
+        ]);
+      }
+      if (!visible.length) { start = end = undefined; span = 0; }
+      for (const [a, b] of visible) {
+        const p = at(...segment, a), q = at(...segment, b);
+        if (!end || length(sub(p, end)) > 1e-7) { start = p; span = 0; }
+        end = q;
+        span += length(sub(q, p));
+        if (span > 3) return [start, end];
+      }
+    }
+  }
+}
+
+const shapeTags = ['rect', 'polygon', 'circle', 'ellipse', 'path'];
+const near = (a, b) => a.x1 >= b.x0 && a.x0 <= b.x1 && a.y1 >= b.y0 && a.y0 <= b.y1;
+const center = ({ x0, x1, y0, y1 }) => [(x0 + x1) / 2, (y0 + y1) / 2];
+const within = ([x, y], { x0, x1, y0, y1 }) => x0 <= x && x <= x1 && y0 <= y && y <= y1;
 const edgeLabel = new Set(['edge-label', 'edge-description', 'cardinality', 'message-label']);
 const fontKeys = ['font-size', 'font-weight', 'font-family', 'text-anchor', 'dominant-baseline', 'letter-spacing'];
 const textOf = node => `${node.text ?? ''}${(node.children || []).filter(child => child.tag === 'tspan').map(textOf).join('')}`;
@@ -135,10 +205,10 @@ const textOf = node => `${node.text ?? ''}${(node.children || []).filter(child =
 // Text is checked in every family. Structural checks require roles: an
 // unmarked frame, lifeline, grid line or decoration isn't a node or route.
 export function checkScene(scene, { measure = fallbackMeasure } = {}) {
-  const issues = [], texts = [], nodes = [], edges = [], labels = [];
+  const issues = [], texts = [], nodes = [], edges = [], labels = [], frames = [], leaders = [], covers = [];
   const issue = (kind, items, coordinates) => issues.push({ kind, elements: items.map(item => item.id), coordinates });
   let ordinal = 0;
-  function visit(node, parent, inherited, group) {
+  function visit(node, parent, inherited, group, opaque = true) {
     const { tag, attrs: a = {}, meta: m = {} } = node;
     if (nonRendered.has(tag) || Number(a.opacity) === 0) return;
     const map = transform(a.transform, parent);
@@ -147,7 +217,7 @@ export function checkScene(scene, { measure = fallbackMeasure } = {}) {
     const index = ++ordinal, pair = m.from != null && `${m.from}→${m.to}`;
     const id = m.id ?? m.node ?? m.edge ?? a.id ?? (pair || `${tag}#${index}`);
     if (tag === 'g' && (['relation', 'edge-label-group'].includes(m.kind) || (!m.kind && m.label != null))) {
-      group = { ...m, id: pair || m.label || id };
+      group = { ...m, index, id: pair || m.label || id };
       const plate = node.children?.find(child => child.tag === 'rect');
       const plateOutline = plate && outline(plate, transform(plate.attrs?.transform, map));
       if (plateOutline) labels.push({ id: group.id, polygon: plateOutline.polygon, box: bounds(plateOutline.polygon) });
@@ -155,19 +225,39 @@ export function checkScene(scene, { measure = fallbackMeasure } = {}) {
     }
     const nodeKind = ['node', 'participant', 'capability'].includes(m.kind) ||
       (m.node != null && (m.shape || ['mindmap', 'tree'].includes(m.kind)) && m.from == null && !m.role);
-    if (nodeKind) {
-      const shape = tag === 'g' ? node.children?.find(child => ['rect', 'polygon', 'circle', 'ellipse', 'path'].includes(child.tag)) : node;
+    const frameKind = ['frame', 'container', 'group'].includes(m.kind) || m.lane != null || (m.kind === 'layers' && m.role === 'group');
+    if (nodeKind || frameKind) {
+      const shape = tag === 'g' ? node.children?.find(child => shapeTags.includes(child.tag)) : node;
       const body = shape && outline(shape, shape === node ? map : transform(shape.attrs?.transform, map));
-      if (body) nodes.push({ ...body, id: m.label ?? id, box: bounds(body.polygon) });
+      if (body && nodeKind) nodes.push({ ...body, id: m.label ?? id, endpointId: id, box: bounds(body.polygon) });
+      if (body && frameKind && !(shape !== node && shape.meta?.kind === 'frame')) {
+        frames.push({ id: m.group ?? m.name ?? m.lane ?? id, lane: m.lane != null, sides: sidesOf(body.polygon), box: bounds(body.polygon) });
+      }
+    }
+    opaque = opaque && Number(a.opacity ?? 1) === 1 && !a['clip-path'] && !a.mask;
+    // KChart uses solid hex fills for its node cards and label plates. Respect
+    // paint order: an earlier card can't hide a route drawn over its label.
+    if (opaque && ['rect', 'polygon', 'circle', 'ellipse'].includes(tag) && /^#(?:[\da-f]{3}|[\da-f]{6})$/i.test(a.fill) && Number(a['fill-opacity'] ?? 1) === 1) {
+      const body = outline(node, map);
+      if (body) covers.push({ index, polygon: body.polygon, box: bounds(body.polygon) });
     }
     // Filled Sankey ribbons share boundaries and terminate flush against nodes;
     // their outlines are not routed edge centerlines. Their text still counts.
     const ribbon = m.kind === 'edge' && m.value != null && a.fill && a.fill !== 'none';
-    if (!ribbon && ['path', 'line', 'polyline'].includes(tag) && (['edge', 'message'].includes(m.kind) || (!m.kind && m.edge != null) || m.from != null || group?.kind === 'relation')) {
+    // Wardley leaders predate metadata. Their unclassed 1px 2/3 dash is
+    // distinct from map guides and the chart waterfall's classed connectors.
+    const leader = m.kind === 'leader' || (tag === 'line' && !m.kind && !a.class && a['stroke-dasharray'] === '2 3' && Number(a['stroke-width']) === 1);
+    if (!ribbon && ['path', 'line', 'polyline'].includes(tag) && (leader || ['edge', 'message'].includes(m.kind) || (!m.kind && m.edge != null) || m.from != null || group?.kind === 'relation')) {
       const lines = tag === 'path' ? pathLines(a.d, map) : [tag === 'line'
         ? [[number(a.x1), number(a.y1)], [number(a.x2), number(a.y2)]].map(map) : points(a.points).map(map)];
       const ps = lines.flat();
-      if (ps.length) edges.push({ id: group?.kind === 'relation' ? group.id : id, from: m.from ?? m.source ?? group?.from, to: m.to ?? m.target ?? group?.to, box: bounds(ps), lines, segments: lines.flatMap(segments), tree: ['mindmap', 'tree'].includes(m.kind) ? m.kind : null, inferEndpoints: !m.kind && m.edge != null });
+      if (ps.length) (leader ? leaders : edges).push({
+        id: group?.kind === 'relation' ? group.id : id, key: m.edge ?? m.id, group: group?.index,
+        from: m.from ?? m.source ?? group?.from, to: m.to ?? m.target ?? group?.to,
+        kind: m.kind, clip: a['clip-path'], marker: a['marker-end'], index,
+        box: bounds(ps), lines, segments: lines.flatMap(segments),
+        tree: ['mindmap', 'tree'].includes(m.kind) ? m.kind : null, inferEndpoints: !m.kind && m.edge != null,
+      });
     }
     if (tag === 'text') {
       const text = textOf(node);
@@ -182,7 +272,8 @@ export function checkScene(scene, { measure = fallbackMeasure } = {}) {
       // alignment but the em box includes non-ink ascent/descent in both cases.
       // Use its middle 70% for collision, and the full em for canvas clipping.
       const polygon = rect(x, top + size * .15, width, size * .7).map(map);
-      const item = { id: text, box: bounds(polygon), polygon };
+      const owner = group || (edgeLabel.has(m.kind) ? m : null);
+      const item = { id: text, box: bounds(polygon), polygon, owner, kind: m.kind, index };
       const scaled = size * length(sub(map([0, 1]), map([0, 0])));
       if (scaled < 12 - 1e-7) issue('small-text', [item], { ...full, size: scaled });
       // Match containText's half-pixel viewport allowance; do not suppress real clipping.
@@ -191,7 +282,7 @@ export function checkScene(scene, { measure = fallbackMeasure } = {}) {
       if (!group?.hasPlate && (group || edgeLabel.has(m.kind))) labels.push(item);
       return;
     }
-    for (const child of node.children || []) visit(child, map, font, group);
+    for (const child of node.children || []) visit(child, map, font, group, opaque);
   }
   for (const node of scene.children) visit(node, identity, {}, null);
 
@@ -208,13 +299,48 @@ export function checkScene(scene, { measure = fallbackMeasure } = {}) {
   for (const label of labels) for (const node of nodes) {
     if (overlaps(label, node)) issue('edge-label-node-overlap', [label, node], { label: label.box, node: node.box });
   }
+  for (const edge of [...edges, ...leaders]) for (const text of texts) {
+    if (!near(edge.box, text.box)) continue;
+    const { owner } = text;
+    if (owner && ((owner.index != null && owner.index === edge.group) ||
+      ((owner.edge ?? owner.label) != null ? (owner.edge ?? owner.label) === edge.key :
+        owner.from != null && owner.from === edge.from && owner.to === edge.to))) continue;
+    // Relations explicitly cut group titles out of the route with an SVG clip.
+    if (text.kind === 'group-label' && edge.clip?.includes('#group-titles')) continue;
+    const masks = covers.filter(cover => cover.index > edge.index && cover.index < text.index && near(cover.box, text.box));
+    const crossing = textCrossing(edge, text, masks);
+    if (crossing) issue('edge-crosses-text', [edge, text], crossing);
+  }
   edges.forEach((edge, i) => {
+    const tips = [edge.lines[0][0], edge.lines.at(-1).at(-1)];
+    const endpoints = [edge.from, edge.to].map((id, i) => {
+      const node = nodes.find(node => node.endpointId === id || node.id === id);
+      return node ? center(node.box) : tips[i];
+    });
+    const isLane = frame => frame.lane || (edge.marker === 'url(#em-arrow)' && /^lane-\d+$/.test(frame.id));
+    const laneAt = p => frames.find(frame => isLane(frame) && within(p, frame.box) && frameSide(p, frame.sides) >= 0);
+    const [firstLane, lastLane] = endpoints.map(laneAt);
+    const betweenLanes = firstLane && lastLane && firstLane !== lastLane && bounds([center(firstLane.box), center(lastLane.box)]);
+    for (const frame of frames) {
+      if (!near(edge.box, frame.box) || frame.id === edge.from || frame.id === edge.to) continue;
+      // In lane-based layouts, a transition between different bands must
+      // traverse the bands in between. Nested group boxes are not bands.
+      if (isLane(frame) && betweenLanes && within(center(frame.box), betweenLanes)) continue;
+      // Cynefin quadrants are the map background, not obstacle containers.
+      if (edge.marker === 'url(#cynefin-arrow)' && ['complex', 'complicated', 'chaotic', 'clear'].includes(frame.id)) continue;
+      // Sequence fragment/participant boxes are crossed by messages by design.
+      if (edge.kind === 'message' && String(frame.id).startsWith('sequence-frame-')) continue;
+      if (endpoints.some(p => frameSide(p, frame.sides) >= 0)) continue;
+      for (const line of edge.lines) {
+        const crossing = frameCrossing(line, frame.sides);
+        if (crossing) { issue('edge-crosses-frame', [edge, frame], crossing); break; }
+      }
+    }
     for (const node of nodes) {
       const { box: b } = node, { box: e } = edge;
       if (e.x1 < b.x0 - 1 || e.x0 > b.x1 + 1 || e.y1 < b.y0 - 1 || e.y0 > b.y1 + 1) continue;
       // Exclusively for swimlane (no endpoint IDs), infer attachment from the
       // path tips and actual outline, not merely any point close to the box.
-      const tips = [edge.lines[0][0], edge.lines.at(-1).at(-1)];
       const attached = node.id === edge.from || node.id === edge.to || (edge.inferEndpoints &&
         tips.some(p => inside([p, p], node.polygon, -1)));
       if (!attached) {
