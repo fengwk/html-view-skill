@@ -428,13 +428,14 @@ function drawItem(ctx, item, look) {
 		fill: look.fg,
 		"dominant-baseline": "central"
 	};
+	const mapped = ctx.font(font.size, font.weight);
 	parts.push(mark ? ctx.el("text", {
 		x: left + lead,
 		y: cy,
 		"text-anchor": "start",
 		"dominant-baseline": "central",
-		"font-size": font.size,
-		"font-weight": font.weight,
+		"font-size": mapped.size,
+		"font-weight": mapped.weight,
 		fill: look.fg
 	}, [{
 		...ctx.el("tspan", { fill: s.mark }),

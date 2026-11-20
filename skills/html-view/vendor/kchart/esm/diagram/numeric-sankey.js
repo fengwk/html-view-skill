@@ -2,7 +2,7 @@ import { __exportAll } from "../_virtual/_rolldown/runtime.js";
 import { error, warning } from "./support.js";
 import { numericLabel, renderWith, validateWith } from "./numeric-model.js";
 import { presentation } from "./presentation.js";
-import { sankeyPresentation } from "../chart/relations.js";
+import { sankeyCompact, sankeyPresentation } from "../chart/relations.js";
 import { createRegistry, layouts } from "../chart/registry.js";
 import { sizeBudget, validate as validate$1 } from "../chart/spec.js";
 // src/diagram/numeric-sankey.js
@@ -124,11 +124,12 @@ function unitOf(info) {
 	const [pre, post] = [text(prefix), text(suffix)];
 	return /^[\p{L}\p{Sc}%‰°]*\p{Sc}?[\p{L}\p{Sc}%‰°]*$/u.test(`${pre}${post}`) && `${pre}${post}` ? `${pre}${post}` : void 0;
 }
-function toSpec(model) {
+function toSpec(model, compact = false) {
 	return {
 		chart: "sankey",
 		tolerant: true,
 		[sankeyPresentation]: true,
+		...compact ? { [sankeyCompact]: true } : {},
 		[sizeBudget]: {
 			nodes: MAX_NODES,
 			edges: MAX_EDGES
@@ -181,7 +182,7 @@ function validate(model, info) {
 var sankeyRegistry = createRegistry(validate$1);
 sankeyRegistry.register("sankey", layouts.get("sankey"));
 var layout = (model, options, info) => {
-	const result = renderWith(toSpec(model), options, info, (detail) => lineFor(model, detail), sankeyRegistry.layout);
+	const result = renderWith(toSpec(model, options.compact === true), options, info, (detail) => lineFor(model, detail), sankeyRegistry.layout);
 	if (result.scene && (result.width > options.width * 2 || model.nodes.length > LARGE_NODES || model.edges.length > LARGE_EDGES)) result.errors.push(warning("LARGE_DIAGRAM", info.lang, info.headerLine, "桑基图较大，可滚动查看", "Large Sankey diagram; scroll to view it", "考虑拆分图表", "Consider splitting the diagram"));
 	return result;
 };

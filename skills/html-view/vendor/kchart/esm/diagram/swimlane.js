@@ -318,7 +318,7 @@ function findCycle(runs, orders) {
 	}
 	return cycle;
 }
-function layout(model, { measure, width, lang }) {
+function layout(model, { measure, width, lang, compact }) {
 	const horizontal = model.direction === "LR";
 	const crossOf = (node) => horizontal ? node.h : node.w;
 	const alongOf = (node) => horizontal ? node.w : node.h;
@@ -842,7 +842,7 @@ function layout(model, { measure, width, lang }) {
 		return alongCursor;
 	});
 	const alongTotal = alongAt[maxStep] + steps[maxStep] + (bandTracks.has(maxStep) ? bands[maxStep] : 0);
-	const canvasW = horizontal ? Math.max(snap(width), alongTotal) : crossTotal;
+	const canvasW = horizontal ? Math.max(compact ? 0 : snap(width), alongTotal) : crossTotal;
 	const canvasH = horizontal ? crossTotal : alongTotal;
 	const bandStart = (band) => alongAt[band] + steps[band];
 	const trackAt = (band, track) => bandStart(band) + CLEAR + track * TRACK;

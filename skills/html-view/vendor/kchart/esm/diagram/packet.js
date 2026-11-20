@@ -83,7 +83,7 @@ function parse(body, { lang, firstLine = 2, title = "", config, options = {} }) 
 		errors
 	};
 }
-function layout(model, { width, ctx, renderOptions }, info = {}) {
+function layout(model, { width, ctx, renderOptions, compact }, info = {}) {
 	const { title, fields, config } = model, t = appearance(ctx);
 	const perRow = Number.isInteger(config.bitsPerRow) && config.bitsPerRow >= 1 && config.bitsPerRow <= 128 ? config.bitsPerRow : 32;
 	const showBits = config.showBits !== false, descending = config.bitOrder === "descending";
@@ -106,8 +106,8 @@ function layout(model, { width, ctx, renderOptions }, info = {}) {
 	const minimumRow = dimension("rowHeight", 34, 26, 240);
 	const pad = 18, range = (f) => f.start === f.end ? String(f.start) : `${f.start}–${f.end}`;
 	const needed = Math.ceil(rows.flat().reduce((min, f) => Math.max(min, ...f.label.split(/\s+/).map((word) => (ctx.measure(word, FONT.body.size) + 10 + gap) / f.bits), showBits ? (ctx.measure(range(f), FONT.label.size) + 6) / f.bits : 0), 12));
-	const pitch = Math.max(needed, Math.floor((width - 36) / perRow), dimension("bitWidth", 12, 12, 96));
-	const w = Math.max(width, perRow * pitch + 36), left = (w - perRow * pitch) / 2;
+	const pitch = Math.max(needed, compact ? 0 : Math.floor((width - 36) / perRow), dimension("bitWidth", 12, 12, 96));
+	const w = Math.max(compact ? 0 : width, perRow * pitch + 36), left = (w - perRow * pitch) / 2;
 	const children = [];
 	let y = pad;
 	if (title && !renderOptions?.frame) {

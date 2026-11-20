@@ -96,13 +96,14 @@ function pieLayout(spec, ctx, isDonut = false) {
 		color: ctx.color(`tone${i % 6 + 1}`),
 		meta: pointMeta(row, String(row[table.categoryField]), values[i], spec.chart)
 	}));
-	const sideLegend = width > 560;
-	const legendWidth = sideLegend ? Math.min(320, Math.max(180, width * .34)) : Math.min(width - 32, 270);
+	const compact = spec[compositionPresentation]?.compact === true;
+	const sideLegend = width > 560 || compact && rows.length >= 4;
+	const legendWidth = sideLegend ? compact ? Math.max(154, width * .42) : Math.min(320, Math.max(180, width * .34)) : Math.min(width - 32, 270);
 	const chartSpan = sideLegend ? Math.min(width - legendWidth - 36, 460) : width;
 	const groupWidth = sideLegend ? chartSpan + 28 + legendWidth : width;
 	const groupX = sideLegend ? (width - groupWidth) / 2 : 0;
 	const cx = sideLegend ? groupX + chartSpan / 2 : width / 2;
-	const r = width <= 360 ? Math.min(112, width * .275) : Math.min(sideLegend ? 168 : 112, Math.max(60, chartSpan * .32));
+	const r = compact ? Math.min(92, Math.max(60, chartSpan * (sideLegend ? .44 : .26))) : width <= 360 ? Math.min(112, width * .275) : Math.min(sideLegend ? 168 : 112, Math.max(60, chartSpan * .32));
 	const cy = r + 36, inner = isDonut ? r * .58 : 0;
 	const labelRadius = r * (spec[compositionPresentation]?.labelRadius ?? .72);
 	const children = [], sectors = [], sliceLabels = [], ticksVariant = isDonut && spec.variant === "ticks";
@@ -532,7 +533,7 @@ function fallbackLegend(children, entries, x, y, width, ctx, kind, format = (val
 function treemap(spec, ctx) {
 	const root = spec.data, tree = treeNodes(root), leaves = tree.filter((x) => !x.children.length);
 	const diagram = spec[compositionPresentation];
-	let width = Math.min(ctx.width - 48, 752), mapHeight = 242, needWidth = false, needHeight = false;
+	let width = Math.min(ctx.width - 48, 752), mapHeight = diagram?.compact ? leaves.length === 1 ? 120 : Math.min(280, 190 + leaves.length * 8) : 242, needWidth = false, needHeight = false;
 	const tones = new Map(leaves.map((leaf, i) => [leaf, `tone${i % 6 + 1}`])), children = [], fallback = [];
 	const statusOf = (entry) => ctx.design[entry.node[compositionPresentation]?.status];
 	const colorOf = (leaf) => statusOf(leaf) || ctx.color(tones.get(leaf));
@@ -699,7 +700,8 @@ function treemap(spec, ctx) {
 			leading: 18,
 			fill: ctx.color("fg")
 		}));
-		place(tree[0], 24, top, width, mapHeight, 0);
+		const inset = diagram?.compact && leaves.length === 1 ? .02 : 0;
+		place(tree[0], 24 + width * inset, top + mapHeight * inset, width * (1 - inset * 2), mapHeight * (1 - inset * 2), 0);
 		if (!needWidth && !needHeight) break;
 		if (attempt === 6) ctx.fit("矩形树图的最小分块无法容纳编号", "拆分图表或缩小权重差距");
 		if (needWidth) width *= 1.5;

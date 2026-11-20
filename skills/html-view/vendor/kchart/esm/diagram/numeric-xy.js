@@ -2,7 +2,7 @@ import { __exportAll } from "../_virtual/_rolldown/runtime.js";
 import { error, warning } from "./support.js";
 import { numericLabel, renderWith, validateWith } from "./numeric-model.js";
 import { diagramLine } from "../chart/basic.js";
-import { diagramCombo } from "../chart/multivariate.js";
+import { compactNumeric, diagramCombo } from "../chart/multivariate.js";
 // src/diagram/numeric-xy.js
 var numeric_xy_exports = /* @__PURE__ */ __exportAll({ implementations: () => implementations });
 var NUMBER = "[+-]?(?:\\d+(?:\\.\\d+)?|\\.\\d+)";
@@ -391,7 +391,17 @@ function panelsOf(model, info) {
 }
 var validate = (model, info) => panelsOf(model, info).flatMap((panel) => validateWith(specOf(panel, info), info, (detail) => lineFor(panel, detail)));
 var layout = (model, options, info) => {
-	const results = panelsOf(model, info).map((panel, index) => renderWith(specOf(panel, info, index), options, info, (detail) => lineFor(panel, detail)));
+	const panels = panelsOf(model, info);
+	const width = options.compact ? Math.min(720, Math.max(360, 180 + model.categories.length * 52)) : options.width;
+	const renderOptions = width === options.width ? options : {
+		...options,
+		width
+	};
+	const results = panels.map((panel, index) => {
+		const spec = specOf(panel, info, index);
+		if (options.compact === true) spec[compactNumeric] = true;
+		return renderWith(spec, renderOptions, info, (detail) => lineFor(panel, detail));
+	});
 	if (results.some((result) => !result.scene)) return results.find((result) => !result.scene);
 	const result = results[0];
 	if (results.length > 1) {

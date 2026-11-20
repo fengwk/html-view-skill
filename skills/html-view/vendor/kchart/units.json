@@ -16,7 +16,7 @@
     "deps": [
       "chart/registry"
     ],
-    "bytes": 17121
+    "bytes": 17340
   },
   "chart/context": {
     "file": "units/chart/context.js",
@@ -55,7 +55,7 @@
       "chart/registry",
       "core/theme"
     ],
-    "bytes": 11672
+    "bytes": 11906
   },
   "chart/multivariate": {
     "file": "units/chart/multivariate.js",
@@ -64,7 +64,7 @@
       "core/geometry",
       "core/color"
     ],
-    "bytes": 28462
+    "bytes": 29274
   },
   "chart/registry": {
     "file": "units/chart/registry.js",
@@ -83,14 +83,14 @@
       "chart/registry",
       "chart/spec"
     ],
-    "bytes": 20764
+    "bytes": 21077
   },
   "chart/spec": {
     "file": "units/chart/spec.js",
     "deps": [
       "chart/catalog"
     ],
-    "bytes": 40455
+    "bytes": 40522
   },
   "chart/stat-compare": {
     "file": "units/chart/stat-compare.js",
@@ -152,7 +152,7 @@
       "core/geometry",
       "core/diagnostics"
     ],
-    "bytes": 4623
+    "bytes": 4957
   },
   "core/diagnostics": {
     "file": "units/core/diagnostics.js",
@@ -191,7 +191,7 @@
   "core/scene": {
     "file": "units/core/scene.js",
     "deps": [],
-    "bytes": 4546
+    "bytes": 8574
   },
   "core/svg": {
     "file": "units/core/svg.js",
@@ -204,7 +204,7 @@
   "core/text": {
     "file": "units/core/text.js",
     "deps": [],
-    "bytes": 2940
+    "bytes": 2966
   },
   "core/theme": {
     "file": "units/core/theme.js",
@@ -249,7 +249,7 @@
       "diagram/presentation",
       "diagram/support"
     ],
-    "bytes": 15402
+    "bytes": 17177
   },
   "diagram/blocks": {
     "file": "units/diagram/blocks.js",
@@ -259,7 +259,7 @@
       "diagram/board-paint",
       "diagram/board-route"
     ],
-    "bytes": 17008
+    "bytes": 17022
   },
   "diagram/board-paint": {
     "file": "units/diagram/board-paint.js",
@@ -267,7 +267,7 @@
       "core/color",
       "diagram/support"
     ],
-    "bytes": 10082
+    "bytes": 10108
   },
   "diagram/board-route": {
     "file": "units/diagram/board-route.js",
@@ -285,7 +285,7 @@
       "diagram/presentation",
       "diagram/support"
     ],
-    "bytes": 17938
+    "bytes": 18446
   },
   "diagram/class": {
     "file": "units/diagram/class.js",
@@ -297,7 +297,7 @@
       "diagram/graph-layout",
       "core/geometry"
     ],
-    "bytes": 21978
+    "bytes": 22063
   },
   "diagram/cynefin": {
     "file": "units/diagram/cynefin.js",
@@ -307,7 +307,7 @@
       "diagram/presentation",
       "diagram/support"
     ],
-    "bytes": 13863
+    "bytes": 14665
   },
   "diagram/emphasis": {
     "file": "units/diagram/emphasis.js",
@@ -332,7 +332,7 @@
       "diagram/support",
       "diagram/map-label"
     ],
-    "bytes": 19875
+    "bytes": 19963
   },
   "diagram/gantt-date": {
     "file": "units/diagram/gantt-date.js",
@@ -348,7 +348,7 @@
       "diagram/support",
       "diagram/gantt-date"
     ],
-    "bytes": 16035
+    "bytes": 16515
   },
   "diagram/gitgraph": {
     "file": "units/diagram/gitgraph.js",
@@ -357,7 +357,7 @@
       "diagram/presentation",
       "diagram/support"
     ],
-    "bytes": 10324
+    "bytes": 10651
   },
   "diagram/graph-layout": {
     "file": "units/diagram/graph-layout.js",
@@ -366,7 +366,7 @@
       "diagram/graph-route",
       "diagram/shapes"
     ],
-    "bytes": 70295
+    "bytes": 71382
   },
   "diagram/graph-parse": {
     "file": "units/diagram/graph-parse.js",
@@ -384,7 +384,7 @@
     "deps": [
       "diagram/shapes"
     ],
-    "bytes": 10888
+    "bytes": 14317
   },
   "diagram/graph": {
     "file": "units/diagram/graph.js",
@@ -396,6 +396,13 @@
       "diagram/shapes"
     ],
     "bytes": 11487
+  },
+  "diagram/info": {
+    "file": "units/diagram/info.js",
+    "deps": [
+      "diagram/support"
+    ],
+    "bytes": 783
   },
   "diagram/ishikawa": {
     "file": "units/diagram/ishikawa.js",
@@ -416,7 +423,7 @@
       "diagram/label",
       "diagram/presentation"
     ],
-    "bytes": 12321
+    "bytes": 12343
   },
   "diagram/kanban": {
     "file": "units/diagram/kanban.js",
@@ -426,7 +433,7 @@
       "diagram/presentation",
       "diagram/support"
     ],
-    "bytes": 6694
+    "bytes": 6708
   },
   "diagram/label": {
     "file": "units/diagram/label.js",
@@ -442,7 +449,7 @@
     "deps": [
       "diagram/support"
     ],
-    "bytes": 9881
+    "bytes": 9932
   },
   "diagram/map-label": {
     "file": "units/diagram/map-label.js",
@@ -462,7 +469,7 @@
       "chart/spec",
       "chart/mindmap"
     ],
-    "bytes": 6483
+    "bytes": 6518
   },
   "diagram/numeric-composition": {
     "file": "units/diagram/numeric-composition.js",
@@ -474,7 +481,7 @@
       "chart/spec",
       "diagram/support"
     ],
-    "bytes": 2002
+    "bytes": 2394
   },
   "diagram/numeric-model": {
     "file": "units/diagram/numeric-model.js",
@@ -502,9 +509,10 @@
     "deps": [
       "diagram/support",
       "diagram/numeric-model",
+      "chart/spec",
       "chart/multivariate"
     ],
-    "bytes": 9990
+    "bytes": 10490
   },
   "diagram/numeric-sankey": {
     "file": "units/diagram/numeric-sankey.js",
@@ -516,7 +524,7 @@
       "chart/registry",
       "chart/spec"
     ],
-    "bytes": 5784
+    "bytes": 5835
   },
   "diagram/numeric-xy": {
     "file": "units/diagram/numeric-xy.js",
@@ -526,7 +534,7 @@
       "chart/basic",
       "chart/multivariate"
     ],
-    "bytes": 13434
+    "bytes": 13602
   },
   "diagram/packet": {
     "file": "units/diagram/packet.js",
@@ -535,7 +543,7 @@
       "diagram/presentation",
       "diagram/support"
     ],
-    "bytes": 4066
+    "bytes": 4084
   },
   "diagram/presentation": {
     "file": "units/diagram/presentation.js",
@@ -552,7 +560,7 @@
       "diagram/presentation",
       "diagram/support"
     ],
-    "bytes": 6874
+    "bytes": 7207
   },
   "diagram/railroad-parse": {
     "file": "units/diagram/railroad-parse.js",
@@ -562,7 +570,7 @@
       "diagram/presentation",
       "diagram/support"
     ],
-    "bytes": 9823
+    "bytes": 11303
   },
   "diagram/railroad": {
     "file": "units/diagram/railroad.js",
@@ -571,7 +579,7 @@
       "diagram/support",
       "diagram/railroad-parse"
     ],
-    "bytes": 6620
+    "bytes": 6732
   },
   "diagram/registry": {
     "file": "units/diagram/registry.js",
@@ -581,19 +589,10 @@
       "core/context",
       "core/scene",
       "core/svg",
+      "core/text",
       "core/diagnostics"
     ],
-    "bytes": 7379
-  },
-  "diagram/relations": {
-    "file": "units/diagram/relations.js",
-    "deps": [
-      "diagram/support",
-      "diagram/graph-parse",
-      "diagram/graph-layout",
-      "core/geometry"
-    ],
-    "bytes": 20623
+    "bytes": 8276
   },
   "diagram/requirement": {
     "file": "units/diagram/requirement.js",
@@ -612,7 +611,7 @@
       "diagram/presentation",
       "diagram/support"
     ],
-    "bytes": 27298
+    "bytes": 27823
   },
   "diagram/shapes": {
     "file": "units/diagram/shapes.js",
@@ -650,7 +649,7 @@
       "diagram/support",
       "diagram/graph-parse"
     ],
-    "bytes": 27168
+    "bytes": 27186
   },
   "diagram/time": {
     "file": "units/diagram/time.js",
@@ -667,7 +666,7 @@
       "diagram/presentation",
       "diagram/support"
     ],
-    "bytes": 7844
+    "bytes": 7862
   },
   "diagram/tree-family-icon": {
     "file": "units/diagram/tree-family-icon.js",
@@ -683,7 +682,7 @@
       "core/icons",
       "diagram/tree-family-icon"
     ],
-    "bytes": 6427
+    "bytes": 6508
   },
   "diagram/usecase": {
     "file": "units/diagram/usecase.js",
@@ -707,7 +706,7 @@
       "diagram/presentation",
       "diagram/tree-family-icon"
     ],
-    "bytes": 18478
+    "bytes": 19138
   },
   "diagram/wardley": {
     "file": "units/diagram/wardley.js",
@@ -715,7 +714,16 @@
       "diagram/support",
       "diagram/map-label"
     ],
-    "bytes": 17995
+    "bytes": 20921
+  },
+  "diagram/zenuml": {
+    "file": "units/diagram/zenuml.js",
+    "deps": [
+      "diagram/support",
+      "diagram/emphasis",
+      "diagram/sequence"
+    ],
+    "bytes": 8012
   },
   "interaction": {
     "file": "units/interaction.js",

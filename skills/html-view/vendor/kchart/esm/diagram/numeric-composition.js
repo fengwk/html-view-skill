@@ -12,10 +12,16 @@ function bind(parse, toSpec, lineFor, options) {
 		...options,
 		parse,
 		validate: (model, info) => validateWith(toSpec(model, info), info, (detail) => lineFor(model, detail.path)),
-		layout: (model, options, info) => renderWith(toSpec(model, info), options, info, (detail) => lineFor(model, detail.path))
+		layout(model, options, info) {
+			const width = options.compact ? Math.min(560, Math.max(360, 290 + model.rows.length * 24)) : options.width;
+			return renderWith(toSpec(model, info, options.compact === true), {
+				...options,
+				width
+			}, info, (detail) => lineFor(model, detail.path));
+		}
 	};
 }
-var pie = bind(parsePie, (model) => ({
+var pie = bind(parsePie, (model, _info, compact) => ({
 	chart: "pie",
 	title: model.title || void 0,
 	sliceLabels: true,
@@ -27,7 +33,10 @@ var pie = bind(parsePie, (model) => ({
 		category: "category",
 		value: "value"
 	},
-	[compositionPresentation]: { labelRadius: model.labelRadius }
+	[compositionPresentation]: {
+		labelRadius: model.labelRadius,
+		...compact ? { compact: true } : {}
+	}
 }), (model, path) => path === "/title" ? model.titleLine : model.rows[Number(path?.split("/")[2])]?.line || model.rows[0]?.line, {
 	optionMode: "raw",
 	honoredConfig: ["pie.textPosition"]
@@ -68,8 +77,19 @@ var implementations = {
 			return diagnostics(validate(spec).errors, info, (detail) => treemapLine(model, detail.path));
 		},
 		layout(model, options, info) {
+			const compact = options.compact === true;
 			const spec = treemapSpec(model, info), lineFor = (detail) => treemapLine(model, detail.path);
-			const result = renderWith(spec, options, info, lineFor, treemapRegistry.layout);
+			if (compact) spec[compositionPresentation] = {
+				...spec[compositionPresentation],
+				compact: true
+			};
+			const singleLeaf = model.data.children?.length === 1 && !model.data.children[0]?.children?.length;
+			const width = compact ? singleLeaf ? 256 : Math.min(640, 480 + Math.max(0, model.nodeCount - 1) * 10) : options.width;
+			const renderOptions = compact ? {
+				...options,
+				width
+			} : options;
+			const result = renderWith(spec, renderOptions, info, lineFor, treemapRegistry.layout);
 			if (result.scene && (model.nodeCount > 60 || model.depth > 5 || result.width > options.width * 2)) result.errors.push(warning("LARGE_DIAGRAM", info.lang, info.headerLine, "矩形树图较大，可滚动查看", "Large treemap; scroll to view it", "考虑拆分图表", "Consider splitting the chart"));
 			return result;
 		}

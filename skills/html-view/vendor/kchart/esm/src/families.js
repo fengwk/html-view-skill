@@ -99,6 +99,11 @@ var families_default = {
 		"topic": "architecture",
 		"aliases": []
 	} } },
+	"diagram/info": { "diagrams": { "info": {
+		"syntax": "mermaid",
+		"topic": "mermaid",
+		"aliases": []
+	} } },
 	"diagram/eventmodeling": { "diagrams": { "eventmodeling": {
 		"syntax": "mermaid",
 		"topic": "flow",
@@ -166,7 +171,7 @@ var families_default = {
 		"topic": "data-model",
 		"aliases": ["requirement"]
 	} } },
-	"diagram/relations": { "diagrams": { "zenuml": { "topic": "sequence" } } },
+	"diagram/zenuml": { "diagrams": { "zenuml": { "topic": "sequence" } } },
 	"diagram/architecture": { "diagrams": { "architecture-beta": {
 		"aliases": ["architecture"],
 		"topic": "architecture"

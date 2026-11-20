@@ -3,6 +3,7 @@ import { __exportAll } from "../_virtual/_rolldown/runtime.js";
 var scene_exports = /* @__PURE__ */ __exportAll({
 	allowedTags: () => allowedTags,
 	containText: () => containText,
+	cropInk: () => cropInk,
 	el: () => el,
 	escapeXml: () => escapeXml,
 	hash: () => hash,
@@ -136,10 +137,13 @@ var multiply = (m, n) => [
 	m[0] * n[4] + m[2] * n[5] + m[4],
 	m[1] * n[4] + m[3] * n[5] + m[5]
 ];
-function parseTransform(value) {
+var NUMBER = /[-+]?(?:\d*\.\d+|\d+\.?\d*)(?:e[-+]?\d+)?/gi;
+var radians = (degrees) => degrees * Math.PI / 180;
+function parseTransform(value, ink = false) {
 	let matrix = IDENTITY;
-	for (const [, name, body] of String(value || "").matchAll(/(translate|scale|matrix)\(([^)]*)\)/g)) {
-		const n = body.split(/[\s,]+/).filter(Boolean).map(Number);
+	const commands = ink ? /(translate|scale|matrix|rotate|skewX|skewY)\s*\(([^)]*)\)/g : /(translate|scale|matrix)\(([^)]*)\)/g;
+	for (const [, name, body] of String(value || "").matchAll(commands)) {
+		const n = ink ? (body.match(NUMBER) || []).map(Number) : body.split(/[\s,]+/).filter(Boolean).map(Number);
 		if (name === "translate") matrix = multiply(matrix, [
 			1,
 			0,
@@ -156,6 +160,33 @@ function parseTransform(value) {
 			0,
 			0
 		]);
+		else if (name === "rotate") {
+			const [angle, x = 0, y = 0] = n;
+			const c = Math.cos(radians(angle)), s = Math.sin(radians(angle));
+			matrix = multiply(matrix, [
+				c,
+				s,
+				-s,
+				c,
+				x - c * x + s * y,
+				y - s * x - c * y
+			]);
+		} else if (name === "skewX") matrix = multiply(matrix, [
+			1,
+			0,
+			Math.tan(radians(n[0])),
+			1,
+			0,
+			0
+		]);
+		else if (name === "skewY") matrix = multiply(matrix, [
+			1,
+			Math.tan(radians(n[0])),
+			0,
+			1,
+			0,
+			0
+		]);
 		else if (n.length === 6) matrix = multiply(matrix, n);
 	}
 	return matrix;
@@ -166,9 +197,108 @@ var NON_RENDERED = /* @__PURE__ */ new Set([
 	"clipPath",
 	"title",
 	"desc",
-	"linearGradient"
+	"linearGradient",
+	"stop"
 ]);
-function textExtent(scene, measure, blockPadding) {
+var textContent = (node) => `${node.text ?? ""}${(node.children || []).filter((child) => child.tag === "tspan" && Number(child.attrs?.opacity) !== 0).map(textContent).join("")}`;
+var paintKeys = [
+	"fill",
+	"fill-opacity",
+	"stroke",
+	"stroke-width",
+	"stroke-opacity",
+	"font-size",
+	"font-weight",
+	"text-anchor",
+	"dominant-baseline",
+	"letter-spacing"
+];
+function arcExtent(x, y, endX, endY, [rx, ry, angle, large, sweep], point, [a, b, c, d]) {
+	rx = Math.abs(rx);
+	ry = Math.abs(ry);
+	if (!rx || !ry || x === endX && y === endY) return;
+	const cos = Math.cos(radians(angle)), sin = Math.sin(radians(angle));
+	const dx = (x - endX) / 2, dy = (y - endY) / 2;
+	const u = cos * dx + sin * dy, v = -sin * dx + cos * dy;
+	const radiusScale = Math.max(1, Math.hypot(u / rx, v / ry));
+	rx *= radiusScale;
+	ry *= radiusScale;
+	const len = (u / rx) ** 2 + (v / ry) ** 2;
+	const factor = (large === sweep ? -1 : 1) * Math.sqrt(Math.max(0, 1 / len - 1));
+	const cu = factor * rx * (v / ry), cv = -factor * ry * (u / rx);
+	const cx = cos * cu - sin * cv + (x + endX) / 2, cy = sin * cu + cos * cv + (y + endY) / 2;
+	const start = Math.atan2((v - cv) / ry, (u - cu) / rx);
+	const end = Math.atan2((-v - cv) / ry, (-u - cu) / rx);
+	const turn = 2 * Math.PI, mod = (value) => (value % turn + turn) % turn;
+	const sign = sweep ? 1 : -1, span = mod(sign * (end - start));
+	const ux = rx * cos, uy = rx * sin, vx = -ry * sin, vy = ry * cos;
+	for (const theta of [Math.atan2(a * vx + c * vy, a * ux + c * uy), Math.atan2(b * vx + d * vy, b * ux + d * uy)]) for (const t of [theta, theta + Math.PI]) if (mod(sign * (t - start)) <= span) point(cx + ux * Math.cos(t) + vx * Math.sin(t), cy + uy * Math.cos(t) + vy * Math.sin(t));
+}
+var pathArity = {
+	M: 2,
+	L: 2,
+	H: 1,
+	V: 1,
+	C: 6,
+	S: 4,
+	Q: 4,
+	T: 2,
+	A: 7,
+	Z: 0
+};
+function pathExtent(value, point, matrix) {
+	const source = String(value || "");
+	const number = new RegExp(NUMBER.source, "iy"), flag = /[01]/y, sep = /[\s,]*/y;
+	let i = 0, command, previous, control, x = 0, y = 0, startX = 0, startY = 0;
+	const skip = () => {
+		sep.lastIndex = i;
+		sep.exec(source);
+		i = sep.lastIndex;
+	};
+	while (i < source.length) {
+		skip();
+		if (/[MLHVCSQTAZ]/i.test(source[i] || "")) command = source[i++];
+		if (!command || i === source.length && command.toUpperCase() !== "Z") break;
+		const kind = command.toUpperCase(), relative = command !== kind;
+		const args = [];
+		for (let j = 0; j < pathArity[kind]; j++) {
+			skip();
+			const token = kind === "A" && (j === 3 || j === 4) ? flag : number;
+			token.lastIndex = i;
+			const match = token.exec(source);
+			if (!match) return;
+			args.push(Number(match[0]));
+			i = token.lastIndex;
+		}
+		const px = (n) => args[n] + (relative ? x : 0), py = (n) => args[n] + (relative ? y : 0);
+		const end = args.length - 2;
+		const nx = kind === "Z" ? startX : kind === "V" ? x : px(kind === "H" ? 0 : end);
+		const ny = kind === "Z" ? startY : kind === "H" ? y : py(kind === "V" ? 0 : end + 1);
+		if (kind === "M") {
+			startX = nx;
+			startY = ny;
+			command = relative ? "l" : "L";
+		} else {
+			point(x, y);
+			point(nx, ny);
+			if (kind === "S" || kind === "T") {
+				control = (kind === "S" ? ["C", "S"] : ["Q", "T"]).includes(previous) ? [2 * x - control[0], 2 * y - control[1]] : [x, y];
+				point(...control);
+			}
+			if (kind === "C") point(px(0), py(1));
+			if (kind === "C" || kind === "S" || kind === "Q") {
+				control = [px(end - 2), py(end - 1)];
+				point(...control);
+			}
+			if (kind === "A") arcExtent(x, y, nx, ny, args, point, matrix);
+			if (kind === "Z") command = null;
+		}
+		previous = kind;
+		x = nx;
+		y = ny;
+	}
+}
+function sceneExtent(scene, measure, blockPadding, ink = false, fullText = false) {
 	let box = null;
 	const grow = (x, y) => {
 		box = box ? {
@@ -183,31 +313,88 @@ function textExtent(scene, measure, blockPadding) {
 			y1: y
 		};
 	};
-	const visit = (node, parent) => {
+	let stroke = 0;
+	const visit = (node, parent, inherited = {}) => {
 		if (!node || NON_RENDERED.has(node.tag) || Number(node.attrs?.opacity) === 0) return;
-		const matrix = multiply(parent, parseTransform(node.attrs?.transform));
-		if (node.tag === "text" && String(node.text ?? "").trim()) {
-			const attrs = node.attrs || {}, size = Number(attrs["font-size"]) || 12;
-			const width = measure(String(node.text), size, Number(attrs["font-weight"]) || 400);
+		const matrix = multiply(parent, parseTransform(node.attrs?.transform, ink));
+		const attrs = ink ? {
+			...inherited,
+			...node.attrs
+		} : node.attrs || {};
+		const [a, b, c, d, e, f] = matrix;
+		const point = (x, y) => grow(a * x + c * y + e, b * x + d * y + f);
+		const rect = (x0, y0, x1, y1) => {
+			point(x0, y0);
+			point(x1, y0);
+			point(x0, y1);
+			point(x1, y1);
+		};
+		const text = node.tag === "text" ? ink ? textContent(node) : String(node.text ?? "") : "";
+		const hasStroke = ink && attrs.stroke != null && !["none", "transparent"].includes(attrs.stroke) && Number(attrs["stroke-opacity"]) !== 0;
+		const hasFill = !ink || !["none", "transparent"].includes(attrs.fill) && Number(attrs["fill-opacity"]) !== 0;
+		let drawn = false;
+		if (text.trim() && (hasFill || hasStroke)) {
+			const size = Number(attrs["font-size"]) || 12;
+			const width = ink && attrs.textLength != null ? Number(attrs.textLength) : measure(text, size, Number(attrs["font-weight"]) || 400) + (ink ? (Number(attrs["letter-spacing"]) || 0) * [...text].length : 0);
 			const x = (Number(attrs.x) || 0) + (Number(attrs.dx) || 0), y = (Number(attrs.y) || 0) + (Number(attrs.dy) || 0);
 			const left = attrs["text-anchor"] === "middle" ? x - width / 2 : attrs["text-anchor"] === "end" ? x - width : x;
 			const baseline = attrs["dominant-baseline"];
 			const [top, bottom] = ["middle", "central"].includes(baseline) ? [y - size / 2, y + size / 2] : ["hanging", "text-before-edge"].includes(baseline) ? [y, y + size] : [y - size * .8, y + size * .2];
-			const y0 = top - blockPadding, y1 = bottom + blockPadding;
-			for (const [px, py] of [
-				[left, y0],
-				[left + width, y0],
-				[left, y1],
-				[left + width, y1]
-			]) grow(matrix[0] * px + matrix[2] * py + matrix[4], matrix[1] * px + matrix[3] * py + matrix[5]);
+			const extraY = fullText ? size * .22 : 0, extraX = fullText ? 1 : 0;
+			rect(left - extraX, top - blockPadding - extraY, left + width + extraX, bottom + blockPadding + extraY);
+			drawn = true;
+		} else if (ink && (hasFill || hasStroke || attrs["marker-start"] || attrs["marker-end"] || attrs["marker-mid"])) {
+			const n = (key) => Number(attrs[key]) || 0;
+			drawn = true;
+			switch (node.tag) {
+				case "rect":
+					rect(n("x"), n("y"), n("x") + n("width"), n("y") + n("height"));
+					break;
+				case "line":
+					drawn = hasStroke || !!(attrs["marker-start"] || attrs["marker-end"]);
+					if (drawn) {
+						point(n("x1"), n("y1"));
+						point(n("x2"), n("y2"));
+					}
+					break;
+				case "circle":
+				case "ellipse": {
+					const x = n("cx"), y = n("cy"), rx = n(node.tag === "circle" ? "r" : "rx"), ry = n(node.tag === "circle" ? "r" : "ry");
+					const cx = a * x + c * y + e, cy = b * x + d * y + f;
+					const w = Math.hypot(a * rx, c * ry), h = Math.hypot(b * rx, d * ry);
+					grow(cx - w, cy - h);
+					grow(cx + w, cy + h);
+					break;
+				}
+				case "polygon":
+				case "polyline": {
+					const points = (String(attrs.points || "").match(NUMBER) || []).map(Number);
+					for (let i = 1; i < points.length; i += 2) point(points[i - 1], points[i]);
+					break;
+				}
+				case "path":
+					pathExtent(attrs.d, point, matrix);
+					break;
+				default: drawn = false;
+			}
 		}
-		for (const child of node.children || []) visit(child, matrix);
+		if (drawn && hasStroke) {
+			const scale = attrs["vector-effect"] === "non-scaling-stroke" ? 1 : (Math.hypot(a + d, b - c) + Math.hypot(a - d, b + c)) / 2;
+			stroke = Math.max(stroke, (Number(attrs["stroke-width"] ?? 1) || 0) * scale);
+		}
+		if (!ink || node.tag !== "text") {
+			const paint = ink ? Object.fromEntries(paintKeys.filter((key) => key in attrs).map((key) => [key, attrs[key]])) : inherited;
+			for (const child of node.children || []) visit(child, matrix, paint);
+		}
 	};
 	for (const child of scene.children) visit(child, IDENTITY);
-	return box;
+	return ink && box ? {
+		...box,
+		stroke
+	} : box;
 }
 function containText(scene, measure, { blockPadding = 0 } = {}) {
-	const box = textExtent(scene, measure, blockPadding);
+	const box = sceneExtent(scene, measure, blockPadding);
 	if (!box) return scene;
 	const beyond = (value) => value > .5 ? Math.ceil(value) : 0;
 	const left = beyond(-box.x0), top = beyond(-box.y0), right = beyond(box.x1 - scene.width), bottom = beyond(box.y1 - scene.height);
@@ -231,4 +418,34 @@ function containText(scene, measure, { blockPadding = 0 } = {}) {
 		}
 	};
 }
-export { allowedTags, containText, el, escapeXml, hash, link, linkTargets, primitive, safeAttrs, safeHref, scene_exports, validateAttribute, validateLink, validateTag };
+function cropInk(scene, measure, { fullText = false, heading } = {}) {
+	const body = sceneExtent(scene, measure, 0, true, fullText);
+	const header = heading && sceneExtent({ children: [heading] }, measure, 0, true, fullText);
+	if (!body && !header) return scene;
+	const box = body || header;
+	let children = scene.children;
+	if (header) {
+		const gap = 8;
+		const dx = box.x0 - header.x0, dy = body ? body.y0 - header.y1 - gap : 0;
+		children = [el("g", { transform: `translate(${dx} ${dy})` }, [heading]), ...children];
+		if (body) {
+			box.x1 = Math.max(box.x1, header.x1 + dx);
+			box.y0 = header.y0 + dy;
+		}
+	}
+	const pad = 1 + box.stroke / 2;
+	const x = pad - box.x0, y = pad - box.y0;
+	const anchor = scene.anchor;
+	return {
+		...scene,
+		width: box.x1 - box.x0 + 2 * pad,
+		height: box.y1 - box.y0 + 2 * pad,
+		children: [el("g", { transform: `translate(${x} ${y})` }, children)],
+		...anchor ? { anchor: {
+			...anchor,
+			x: anchor.x + x,
+			y: anchor.y + y
+		} } : {}
+	};
+}
+export { allowedTags, containText, cropInk, el, escapeXml, hash, link, linkTargets, primitive, safeAttrs, safeHref, scene_exports, validateAttribute, validateLink, validateTag };

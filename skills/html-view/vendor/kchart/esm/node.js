@@ -46,6 +46,7 @@ import { graph_layout_exports } from "./diagram/graph-layout.js";
 import { graph_parse_exports } from "./diagram/graph-parse.js";
 import { graph_route_exports } from "./diagram/graph-route.js";
 import { graph_exports } from "./diagram/graph.js";
+import { info_exports } from "./diagram/info.js";
 import { ishikawa_exports } from "./diagram/ishikawa.js";
 import { journey_exports } from "./diagram/journey.js";
 import { kanban_exports } from "./diagram/kanban.js";
@@ -65,7 +66,6 @@ import { quadrant_exports } from "./diagram/quadrant.js";
 import { railroad_parse_exports } from "./diagram/railroad-parse.js";
 import { railroad_exports } from "./diagram/railroad.js";
 import { registry_exports as registry_exports$1 } from "./diagram/registry.js";
-import { relations_exports as relations_exports$1 } from "./diagram/relations.js";
 import { requirement_exports } from "./diagram/requirement.js";
 import { sequence_exports } from "./diagram/sequence.js";
 import { shapes_exports } from "./diagram/shapes.js";
@@ -80,6 +80,7 @@ import { treeview_exports } from "./diagram/treeview.js";
 import { usecase_exports } from "./diagram/usecase.js";
 import { venn_exports } from "./diagram/venn.js";
 import { wardley_exports } from "./diagram/wardley.js";
+import { zenuml_exports } from "./diagram/zenuml.js";
 import { interaction_exports } from "./interaction.js";
 import { createPageApi } from "./page-api.js";
 import families_default from "./src/families.js";
@@ -134,6 +135,7 @@ var modulesByPath = /* #__PURE__ */ Object.assign({
 	"./src/diagram/graph-parse.js": graph_parse_exports,
 	"./src/diagram/graph-route.js": graph_route_exports,
 	"./src/diagram/graph.js": graph_exports,
+	"./src/diagram/info.js": info_exports,
 	"./src/diagram/ishikawa.js": ishikawa_exports,
 	"./src/diagram/journey.js": journey_exports,
 	"./src/diagram/kanban.js": kanban_exports,
@@ -153,7 +155,6 @@ var modulesByPath = /* #__PURE__ */ Object.assign({
 	"./src/diagram/railroad-parse.js": railroad_parse_exports,
 	"./src/diagram/railroad.js": railroad_exports,
 	"./src/diagram/registry.js": registry_exports$1,
-	"./src/diagram/relations.js": relations_exports$1,
 	"./src/diagram/requirement.js": requirement_exports,
 	"./src/diagram/sequence.js": sequence_exports,
 	"./src/diagram/shapes.js": shapes_exports,
@@ -168,6 +169,7 @@ var modulesByPath = /* #__PURE__ */ Object.assign({
 	"./src/diagram/usecase.js": usecase_exports,
 	"./src/diagram/venn.js": venn_exports,
 	"./src/diagram/wardley.js": wardley_exports,
+	"./src/diagram/zenuml.js": zenuml_exports,
 	"./src/interaction.js": interaction_exports
 });
 var dist = new URL(

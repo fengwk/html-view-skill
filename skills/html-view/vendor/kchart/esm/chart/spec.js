@@ -552,7 +552,10 @@ function checkTable(s, c, e) {
 	if (c.encodeForms.length && !c.encodeForms.some((form) => form.length === Object.keys(enc).filter((k) => k === "value" || k === "panel").length && form.every((k) => Object.hasOwn(enc, k)))) err(e, "/encode", "small-multiples须使用value[]宽表或value+panel长表");
 	if (s.chart === "small-multiples" && (enc.panel ? Array.isArray(enc.value) : !Array.isArray(enc.value))) err(e, "/encode", "宽表value须为字段数组；长表value须为单个字段并配panel");
 	if (Array.isArray(enc.value) && enc.value.length > 6) err(e, "/encode/value", "最多支持6个度量系列");
-	if (["radar", "parallel"].includes(s.chart) && (enc.dimensions?.length < 3 || enc.dimensions?.length > 6)) err(e, "/encode/dimensions", "radar至少3维，parallel为3至6维");
+	if (["radar", "parallel"].includes(s.chart)) {
+		const { minDimensions = 3, maxDimensions = 6 } = s.chart === "radar" ? s[sizeBudget] ?? {} : {};
+		if (enc.dimensions?.length < minDimensions || enc.dimensions?.length > maxDimensions) err(e, "/encode/dimensions", `${s.chart}需要${minDimensions}至${maxDimensions}维`);
+	}
 	if (s.chart === "radar") {
 		for (const name of enc.dimensions || []) if (!fields[name]?.domain) err(e, `/fields/${name}/domain`, `${s.chart}的每个维度都必须显式声明domain`);
 	}

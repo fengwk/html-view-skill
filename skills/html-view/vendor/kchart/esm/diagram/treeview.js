@@ -149,7 +149,7 @@ function parse(body, { firstLine = 2, headerLine = 1, lang, params, config }) {
 		errors: [...errors, ...look.diagnostics()]
 	};
 }
-function layout(model, { width, measure, lang }) {
+function layout(model, { width, measure, lang, embedHeading }) {
 	const available = Math.max(120, width - 48);
 	const { settings } = model;
 	const step = clamp(clamp(settings.rowIndent, 10, 4, 90) + clamp(settings.paddingX, 14, 4, 24), STEP, 12, 96);
@@ -187,7 +187,7 @@ function layout(model, { width, measure, lang }) {
 	}
 	const noteWidth = Math.max(0, ...rows.map((row) => maxWidthOf(row.notes, FONT.label, measure)));
 	const inline = !noteWidth || end + 16 + noteWidth + MARGIN <= width + 240;
-	const title = model.title ? wrapText(model.title, available, FONT.title, measure) : [];
+	const title = !embedHeading && model.title ? wrapText(model.title, available, FONT.title, measure) : [];
 	let y = MARGIN + (title.length ? title.length * 19 + 12 : 0);
 	let right = Math.max(end, MARGIN + maxWidthOf(title, FONT.title, measure));
 	for (const row of rows) {
@@ -206,6 +206,7 @@ function layout(model, { width, measure, lang }) {
 	return {
 		rows,
 		title,
+		...embedHeading ? { heading: model.title } : {},
 		width: naturalWidth,
 		height: y + MARGIN,
 		right,
@@ -279,7 +280,8 @@ function scene(plan, ctx) {
 	return {
 		width: plan.width,
 		height: plan.height,
-		children: [...edges, ...labels]
+		children: [...edges, ...labels],
+		...plan.heading ? { heading: plan.heading } : {}
 	};
 }
 var implementations = { "treeView-beta": {

@@ -2,8 +2,9 @@ import { __exportAll } from "../_virtual/_rolldown/runtime.js";
 import { ignoredConfigWarning, inferLang, parseOptions, prepareSource, siteConfig } from "./source.js";
 import { blocking, error, measureOf } from "./support.js";
 import { createContext } from "../core/context.js";
-import { containText, el } from "../core/scene.js";
+import { containText, cropInk, el } from "../core/scene.js";
 import { renderScene } from "../core/svg.js";
+import { wrapText } from "../core/text.js";
 import { ExpectedDiagnostic } from "../core/diagnostics.js";
 // src/diagram/registry.js
 var registry_exports = /* @__PURE__ */ __exportAll({ createDiagramApi: () => createDiagramApi });
@@ -159,7 +160,10 @@ function createDiagramApi(implementations, types) {
 				diagnostics: preparedDiagnostics
 			};
 			const shown = prepared.kind || prepared.body.trim().split(/\s+/)[0].slice(0, 40) || syntax;
-			const unknown = error(options.lang, headerLineOf(prepared), `未知结构图类型「${shown}」`, `Unknown diagram type "${shown}"`, "使用已声明的结构图类型", "Use a supported diagram type");
+			const near = rawKind.endsWith("-beta") ? rawKind.slice(0, -5) : `${rawKind}-beta`;
+			const candidate = syntax === "mermaid" && rawKind && byAlias.get(near);
+			const keyword = candidate?.syntax === "mermaid" && [candidate.kind, ...candidate.aliases].find((alias) => alias.toLowerCase() === near);
+			const unknown = error(options.lang, headerLineOf(prepared), `未知结构图类型「${shown}」`, `Unknown diagram type "${shown}"`, keyword ? `将头行关键字改为「${keyword}」` : "使用已声明的结构图类型", keyword ? `Use "${keyword}" as the header keyword` : "Use a supported diagram type");
 			return {
 				info,
 				type: null,
@@ -230,9 +234,12 @@ function createDiagramApi(implementations, types) {
 			const implementation = implementations[parsed.type.kind];
 			if (typeof implementation.layout !== "function") throw new TypeError(`Missing layout for diagram: ${parsed.type.kind}`);
 			const width = Math.max(1, Number(options.width) || 800);
+			const compact = options.compact === true;
+			const layoutWidth = compact ? Math.min(width, 720) : width;
 			const ctx = createContext({
 				...options,
-				width,
+				width: layoutWidth,
+				compact,
 				lang: parsed.info.lang
 			});
 			const measure = measureOf(ctx);
@@ -240,12 +247,19 @@ function createDiagramApi(implementations, types) {
 				...options,
 				frame: options.frame ?? true
 			};
+			const embedHeading = compact && renderOptions.frame === false;
+			const layoutOptions = embedHeading ? {
+				...renderOptions,
+				frame: true
+			} : renderOptions;
 			const geometry = implementation.layout(parsed.model, {
-				width,
+				width: layoutWidth,
+				compact,
+				embedHeading,
 				lang: ctx.lang,
 				measure,
 				ctx,
-				renderOptions
+				renderOptions: layoutOptions
 			}, parsed.info);
 			const diagnostics = merge(parsed.diagnostics, normalize(geometry?.errors, parsed.type));
 			if (diagnostics.some(blocking)) return {
@@ -255,8 +269,31 @@ function createDiagramApi(implementations, types) {
 			};
 			const laid = geometry?.scene || (typeof implementation.scene === "function" ? implementation.scene(geometry, ctx, parsed.info) : null);
 			if (!laid || !Number.isFinite(laid.width) || !Number.isFinite(laid.height) || !Array.isArray(laid.children)) throw new TypeError(`Invalid scene for diagram: ${parsed.type.kind}`);
-			const contained = containText(laid, ctx.measure, { blockPadding: 4 });
-			const sceneWidth = Math.max(width, contained.width);
+			const heading = parsed.info.title || laid.heading;
+			const header = [];
+			if (embedHeading && (heading || laid.subtitle)) {
+				const wrap = (value, size, weight) => wrapText(value, Math.max(14, layoutWidth - 4), ctx.font(size, weight), (text, font) => ctx.measureInk(text, font.size, font.weight), { bounded: true });
+				const lines = heading ? wrap(heading, 16, 650) : [];
+				if (lines.length) header.push(ctx.textLines(0, 0, lines, {
+					size: 16,
+					weight: 650,
+					leading: 22,
+					fill: ctx.color("fg"),
+					meta: { kind: "diagram-title" }
+				}));
+				if (laid.subtitle) header.push(ctx.textLines(0, lines.length * 22, wrap(laid.subtitle, 12, 400), {
+					size: 12,
+					weight: 400,
+					leading: 18,
+					fill: ctx.color("muted")
+				}));
+			}
+			const headingNode = header.length ? el("g", {}, header) : null;
+			const contained = compact ? cropInk(laid, embedHeading ? ctx.measureInk : ctx.measureRendered, {
+				fullText: embedHeading,
+				heading: headingNode
+			}) : containText(laid, ctx.measure, { blockPadding: 4 });
+			const sceneWidth = compact ? contained.width : Math.max(width, contained.width);
 			const offset = Math.max(0, (sceneWidth - contained.width) / 2);
 			const children = offset ? [el("g", { transform: `translate(${offset} 0)` }, contained.children)] : contained.children;
 			const anchor = contained.anchor ? {
@@ -271,7 +308,7 @@ function createDiagramApi(implementations, types) {
 				...anchor ? { anchor } : {},
 				title,
 				...parsed.info.accDescr !== void 0 ? { description: parsed.info.accDescr } : {},
-				heading: parsed.info.title || contained.heading
+				heading
 			};
 			return {
 				svg: renderScene(scene, renderOptions),

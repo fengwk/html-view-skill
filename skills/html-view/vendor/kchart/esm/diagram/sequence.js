@@ -475,7 +475,7 @@ var ICON_SPACE = 20;
 var MESSAGE_PADDING = 36;
 var MESSAGE_END_GAP = 12;
 var iconSpace = (item) => item.icon ? ICON_SPACE : 0;
-function layout(model, { measure, width, lang }, info = {}) {
+function layout(model, { measure, width, lang, compact }, info = {}) {
 	const config = info.config?.sequence;
 	const mirrorActors = config?.mirrorActors !== false;
 	const errors = [];
@@ -768,7 +768,7 @@ function layout(model, { measure, width, lang }, info = {}) {
 	};
 	let xs = xsOf();
 	let geometry = geometryOf(xs);
-	for (let pass = 0; pass < 4; pass += 1) {
+	for (let pass = 0; !compact && pass < 4; pass += 1) {
 		const slack = Math.floor(width) - 16 - (geometry.right - geometry.left);
 		if (slack < 1) break;
 		const add = Math.min(slack / (count + 1), 128);
@@ -855,7 +855,17 @@ function layout(model, { measure, width, lang }, info = {}) {
 		if (event.deactivateOn && event.destroy !== event.deactivateOn) stop(event.deactivateOn, y + 8);
 		if (event.destroy) while (active.get(event.destroy).length) stop(event.destroy, y, 0);
 	}
-	const barsByX = [...activations].sort((a, b) => a.x - b.x);
+	const labelObstacles = [...activations];
+	if (model.zenuml) for (const actor of actors) {
+		const created = creations.get(actor.id);
+		const y = created == null ? top - 4 : created + actor.head.h / 2;
+		labelObstacles.push({
+			x: actor.x - 1,
+			y,
+			h: bottom - y
+		});
+	}
+	const barsByX = labelObstacles.sort((a, b) => a.x - b.x);
 	const labelXOf = (box, y, width) => {
 		let x = box.x + 8;
 		for (const bar of barsByX) {
@@ -901,7 +911,7 @@ function layout(model, { measure, width, lang }, info = {}) {
 		for (const bar of active.get(actor.id)) bar.h = Math.max(0, actor.life.y2 - bar.y);
 	}
 	const naturalWidth = snap(contentRight + 8);
-	const canvas = naturalWidth <= width ? Math.floor(width) : naturalWidth;
+	const canvas = !compact && naturalWidth <= width ? Math.floor(width) : naturalWidth;
 	if (naturalWidth > width * 2 || actors.length > 60 || model.messages > 200) errors.push(warning("LARGE_DIAGRAM", lang, actors[0].line, "时序图较大，可滚动查看", "Large sequence diagram; scroll to view it", "可将时序图拆分", "Consider splitting the diagram"));
 	return {
 		type: "sequence",
@@ -911,7 +921,8 @@ function layout(model, { measure, width, lang }, info = {}) {
 		events,
 		activations,
 		errors,
-		title: model.title
+		title: model.title,
+		...model.zenuml ? { zenuml: true } : {}
 	};
 }
 function scene(layout, ctx) {
@@ -1042,7 +1053,8 @@ function scene(layout, ctx) {
 		});
 	};
 	for (const event of layout.events) if (event.kind === "open") paintFrame(event);
-	for (const actor of layout.actors) children.push(line(actor.life.x, actor.life.y1, actor.life.x, actor.life.y2, {
+	const lifelineIndex = children.length, labelGaps = [];
+	if (!layout.zenuml) for (const actor of layout.actors) children.push(line(actor.life.x, actor.life.y1, actor.life.x, actor.life.y2, {
 		stroke: theme.line2,
 		"stroke-width": 1
 	}));
@@ -1138,6 +1150,12 @@ function scene(layout, ctx) {
 		const labelRight = labelLeft + event.textW;
 		const labelTop = (event.ordinal ? ordinalY : labelY - (event.lines.length - 1) * 8) - 7;
 		const labelBottom = (event.lines.length ? labelY + (event.lines.length - 1) * 8 : ordinalY) + 7;
+		if (layout.zenuml && event.textW) labelGaps.push({
+			left: labelLeft - 2,
+			right: labelRight + 2,
+			top: labelTop - 2,
+			bottom: labelBottom + 2
+		});
 		if (event.textW && boxes.some((box) => box.y < labelBottom && box.y + box.h > labelTop && [box.x, box.x + box.w].some((edge) => labelLeft - 2 < edge && edge < labelRight + 2))) children.push(ctx.rect(labelLeft - 4, labelTop, event.textW + 8, labelBottom - labelTop, {
 			fill: theme.bg,
 			rx: theme.smallRadius
@@ -1210,6 +1228,25 @@ function scene(layout, ctx) {
 		children.push(actor.link ? ctx.link(actor.link.href, [card], actor.link) : card);
 	}
 	children.push(...creationRoutes);
+	if (layout.zenuml) {
+		const lifelines = [];
+		for (const { life: { x, y1, y2 } } of layout.actors) {
+			let start = y1;
+			const segment = (end) => {
+				if (end > start) lifelines.push(line(x, start, x, end, {
+					stroke: theme.fg3,
+					"stroke-width": 1,
+					"stroke-dasharray": "4 4"
+				}));
+			};
+			for (const gap of labelGaps) if (x >= gap.left && x <= gap.right && gap.bottom > start && gap.top < y2) {
+				segment(gap.top);
+				start = gap.bottom;
+			}
+			segment(y2);
+		}
+		children.splice(lifelineIndex, 0, ...lifelines);
+	}
 	return {
 		width: layout.width,
 		height: layout.height,

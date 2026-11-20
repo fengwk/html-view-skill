@@ -109,7 +109,7 @@ function parse(source, info) {
 		errors
 	};
 }
-function layout(model, { measure, width, lang }) {
+function layout(model, { measure, width, lang, compact }) {
 	const errors = [], groups = [], layers = [], nodes = [];
 	const all = model.layered ? model.layers.flatMap((l) => l.groups) : model.groups;
 	for (const group of all) for (const item of group.items) if (measure(item.label.replace(/^[+~=]\s*/, ""), FONT.body) > LIMITS.labelWidth) errors.push(issue(lang, item.line, `能力项「${item.label}」过长`, `Capability label is too long: ${item.label}`, "把说明移到图外，名称缩短至约 16 个汉字", "Move descriptions outside; shorten the label to about 16 CJK characters"));
@@ -180,7 +180,7 @@ function layout(model, { measure, width, lang }) {
 					line: row.line
 				}, x + PAD, ny, labelW, ih, true);
 				const mins = row.items.map((item) => snap(Math.max(64, measure(item.label, FONT.body) + 16)));
-				const ws = distribute(mins, mins.map((n) => n + 8), inside - labelW - ITEM_GAP * row.items.length);
+				const ws = compact ? mins : distribute(mins, mins.map((n) => n + 8), inside - labelW - ITEM_GAP * row.items.length);
 				let nx = x + PAD + labelW + ITEM_GAP;
 				row.items.forEach((item, i) => {
 					makeNode(item, nx, ny, ws[i], ih);
@@ -194,11 +194,11 @@ function layout(model, { measure, width, lang }) {
 			for (let ri = 0; ri < countRows; ri += 1) {
 				const items = g.items.slice(ri * cols, (ri + 1) * cols);
 				const db = g.flag === "db";
-				const count = db ? cols : items.length;
-				const cw = Math.floor((inside - (count - 1) * ITEM_GAP) / count / 4) * 4;
+				const count = db || compact ? cols : items.length;
+				const cw = compact ? cellW(g, 16) : Math.floor((inside - (count - 1) * ITEM_GAP) / count / 4) * 4;
 				let nx = x + PAD + (db ? Math.floor((inside - (items.length * cw + (items.length - 1) * ITEM_GAP)) / 8) * 4 : 0);
 				items.forEach((item, ci) => {
-					const nw = !db && ci === items.length - 1 ? x + w - PAD - nx : cw;
+					const nw = !db && !compact && ci === items.length - 1 ? x + w - PAD - nx : cw;
 					makeNode(item, nx, top + ri * (ih + ITEM_GAP), nw, ih);
 					nx += cw + ITEM_GAP;
 				});
@@ -220,7 +220,8 @@ function layout(model, { measure, width, lang }) {
 		for (const layer of model.layers) {
 			let rows = 1;
 			while (rows < LIMITS.items * 2 && total(layer.groups, rows, 16) > available) rows += 1;
-			const widths = distribute(layer.groups.map((g) => groupW(g, rows, 16)), layer.groups.map((g) => groupW(g, rows, 24)), available - GAP * (layer.groups.length - 1));
+			const mins = layer.groups.map((g) => groupW(g, rows, 16)), ideals = layer.groups.map((g) => groupW(g, rows, 24));
+			const widths = compact ? mins : distribute(mins, ideals, available - GAP * (layer.groups.length - 1));
 			const descriptionLines = layer.description ? wrapText(layer.description, nameWidth - 8, FONT.label, measure) : [];
 			const h = Math.max(...layer.groups.map((g) => groupH(g, rows)), 32 + descriptionLines.length * 16);
 			const color = layers.length % 6 + 1;
@@ -261,7 +262,8 @@ function layout(model, { measure, width, lang }) {
 		}
 		if (current.length) lines.push(current);
 		for (const line of lines) {
-			const ws = distribute(line.map((g) => groupW(g, rowCount(g), 16)), line.map((g) => groupW(g, rowCount(g), 24)), available - GAP * (line.length - 1));
+			const mins = line.map((g) => groupW(g, rowCount(g), 16));
+			const ws = compact ? mins : distribute(mins, line.map((g) => groupW(g, rowCount(g), 24)), available - GAP * (line.length - 1));
 			const h = Math.max(...line.map((g) => groupH(g, rowCount(g))));
 			let x = 4;
 			line.forEach((g, i) => {

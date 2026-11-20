@@ -2,21 +2,35 @@
 
 ## 0.2.0
 
-Boards change visibly in this release, with additional Mermaid compatibility fixes.
+This release adds an opt-in compact embedding mode, one-page overview boards, native ZenUML rendering and clearer diagnostics. Outside boards and the layout fixes listed below, diagrams render as in 0.1.1.
 
-- `diagram()` and the Mermaid facade accept opt-in `compact: true` for left-aligned, content-sized diagrams with a 720px layout cap and 12–14px text. Structure diagrams use their natural geometry instead of filling the host width. Compact diagrams without an outer frame show one left-aligned title above the drawing.
-- Size compact Mermaid charts from their data instead of the host width. Keep CJK quadrant y-axis labels upright, remove the halo from Mermaid Sankey labels, and draw single-leaf compact treemaps as small tiles.
-- Give class member text clearance from compartment dividers, keep C4 relationship captions off boundary borders, prefer explicit word breaks in Git commit captions, and balance bilateral mindmap branches by subtree weight. The fallback text measurer now counts fullwidth forms as fullwidth glyphs.
+### Compact embedding
+
+- `diagram()` and the Mermaid facade accept opt-in `compact: true` for diagrams placed inline with text. The layout is capped at 720px, the SVG is cropped to the drawing and left-aligned instead of centered, and text uses 12–14px, so output is the same for every host width of 720px or more.
+- Structure diagrams keep their natural size instead of spreading to fill the host width. Mermaid charts (pie, XY, quadrant, radar, Sankey, treemap, Venn, Gantt, Wardley, Cynefin) are sized from their data; a single-leaf treemap is a small tile.
+- Without an outer frame (`frame: false`), a compact diagram shows its title once, as a left-aligned heading above the drawing.
+
+### Boards
+
 - Native `blocks` draws one-page overview boards. New `card` (a title plus description lines), `note`, `legend` and `grid N` lines join `row`, `col` and `box`. Braces at the end of a `box` or `card` line take a style word (`accent`, `new`, `info`, `ok`, `warn`, `danger`, `ext`), `db`, a `#01` badge, an `@id` reference or a `"tag"`. Relations `->`, `=>` (main flow) and `~>` (dashed) connect groups and cards by `@id` or exact title.
 - Limits rise to 8 nesting levels, 400 groups and cards, 1,000 capability items and 200 relations. Larger boards still render, scroll inside the figure and warn once with `LARGE_DIAGRAM`.
 - Breaking for `blocks` sources: an indented item line that starts with `card `, `note ` or `grid N`, or is exactly `legend`, is now a structure line. Groups are neutral dashed frames instead of cycling the series colors; plain cards and capability items are borderless tiles; styled cards are outlined in the style's theme color.
 - Mermaid `block` and native `blocks` share one router. Relations run orthogonally around cards, group borders and titles, and leave each side through ports ordered by destination. Gaps widen to fit relations and labels, but rows, columns and spans stay as written. Mermaid `block` groups are dashed frames with the title at the top left.
 - Styles used together on one board stay distinguishable in every built-in theme. `accent` follows the chart accent (`tones[1]`); if the board also uses a status color too close to it, `accent` is drawn in ink.
 
+### Mermaid compatibility
+
+- Render the ZenUML examples from Mermaid 12.3.0 as native KChart sequence diagrams, including participant annotations, aliases, nested calls and activations, replies, creation, comments, and fragments. No runtime plugin is required.
 - Mermaid `radar-beta` supports 1–24 axes with measured label spacing and hints for degenerate or scrolling charts. Native radar remains limited to 3–6 dimensions. Mermaid `info` displays the current KChart package version.
-- Mermaid header near misses suggest the supported keyword, and Gantt reports tasks accidentally combined on one line.
+- Header near misses suggest the supported keyword (for example `eventmodeling` for `eventmodeling-beta`), and Gantt reports tasks accidentally combined on one line.
 - Block, railroad, Wardley, and ZenUML diagnostics give localized, specific fixes, including examples of valid syntax.
-- Render the ZenUML examples from Mermaid 12.3.0 as native KChart sequence diagrams, including participant annotations, nested calls and activations, replies, creation, comments, and fragments. No runtime plugin is required.
+
+### Layout fixes
+
+- Flowcharts with subgraphs stack their stages on a shared axis. Edges leave and enter nodes without hooking around the endpoint, with fewer jogs and crossings.
+- Class member text keeps clear of compartment dividers. C4 relationship captions stay off boundary borders, and a caption moved aside never has a leader line crossing a card or title.
+- Git commit captions prefer breaking at spaces and punctuation. Bilateral mindmaps move branches between sides only when that strictly improves the balance.
+- Sankey labels lose their halo, and CJK quadrant y-axis labels stand upright. The fallback text measurer counts fullwidth forms as fullwidth glyphs.
 
 ## 0.1.1
 

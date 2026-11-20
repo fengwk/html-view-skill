@@ -6,7 +6,7 @@ KChart 将声明式图表和结构图渲染为确定性的 SVG，不依赖 DOM�
 
 ## Mermaid 兼容性
 
-[兼容性语料](https://github.com/fengwk/html-view-skill/tree/main/packages/kchart/tests/conformance)中 Mermaid 12.3.0 接受的 525 个核心示例，均能在 800 px 和 360 px 下无错误诊断地渲染，并通过图形几何检查。KChart 使用自己的布局与主题：可识别的样式颜色按色相映射为主题状态色，不复刻不支持的外观。安全链接会保留，回调不会执行。ZenUML 是 Mermaid 外部插件，KChart 不支持该插件；仅保留 `zenuml` 简单调用图的旧版读法。
+[兼容性语料](https://github.com/fengwk/html-view-skill/tree/main/packages/kchart/tests/conformance)中 Mermaid 12.3.0 接受的 525 个核心示例，均能在 800 px 和 360 px 下无错误诊断地渲染，并通过图形几何检查。KChart 使用自己的布局与主题：可识别的样式颜色按色相映射为主题状态色，不复刻不支持的外观。安全链接会保留，回调不会执行。ZenUML 在 Mermaid 中需要外部插件；KChart 自己解析并把它画成时序图，Mermaid 12.3.0 文档中的 16 个 ZenUML 示例全部可以渲染。
 
 ## 浏览器和 Node 异步 API
 

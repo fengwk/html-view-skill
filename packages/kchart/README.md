@@ -6,7 +6,7 @@ KChart renders declarative charts and diagrams to deterministic SVG without a DO
 
 ## Mermaid compatibility
 
-All 525 core examples accepted by Mermaid 12.3.0 in the [conformance corpus](https://github.com/fengwk/html-view-skill/tree/main/packages/kchart/tests/conformance) render at both 800 px and 360 px without error diagnostics and pass the geometry checks. KChart uses its own layout and theme: supported style colors map by hue to theme status colors; unsupported presentation is not reproduced. Safe links are kept, but callbacks are not executed. ZenUML is an external Mermaid plugin and is not supported; the legacy `zenuml` reader only handles simple call diagrams.
+All 525 core examples accepted by Mermaid 12.3.0 in the [conformance corpus](https://github.com/fengwk/html-view-skill/tree/main/packages/kchart/tests/conformance) render at both 800 px and 360 px without error diagnostics and pass the geometry checks. KChart uses its own layout and theme: supported style colors map by hue to theme status colors; unsupported presentation is not reproduced. Safe links are kept, but callbacks are not executed. ZenUML needs an external plugin in Mermaid; KChart parses it natively and draws it as a sequence diagram, covering all 16 ZenUML examples in the Mermaid 12.3.0 documentation.
 
 ## Browser and async Node API
 

@@ -113,7 +113,7 @@ function parse(body, { lang, firstLine = 2, params = "", header = "block" }) {
 	const note = (issue) => {
 		if (!notices.has(issue.message)) notices.set(issue.message, issue);
 	};
-	const ignoreStyle = (at, zh, en) => note(warning("IGNORED_STYLE", lang, at, zh, en, "使用支持的状态样式", "Use supported status styling"));
+	const ignoreStyle = (at, zh, en) => note(warning("IGNORED_STYLE", lang, at, zh, en, "移除此样式；普通块可使用 A:::ok 标记状态", "Remove this style; use A:::ok to mark the status of an ordinary block"));
 	const resolveIcon = (ref, at) => {
 		const icon = resolveIconRef(ref);
 		if (!icon) note(warning("IGNORED_ASSET", lang, at, `未知图标 ${ref}`, `Unknown icon ${ref}`, "使用内置图标", "Use a supported icon"));
@@ -137,9 +137,9 @@ function parse(body, { lang, firstLine = 2, params = "", header = "block" }) {
 		};
 	};
 	let anonymous = 0, reserved = 0, line = firstLine, column = 1;
-	const bad = (zh, en) => errors.push(error(lang, line, zh, en, "检查 block 语法或拆分图", "Check block syntax or split the diagram", column));
+	const bad = (zh, en, fixZh, fixEn) => errors.push(error(lang, line, zh, en, fixZh, fixEn, column));
 	if (body.length + params.length > 2e5) {
-		bad("块图源码过长", "Block source is too long");
+		bad("块图源码过长", "Block source is too long", "拆分块图，使每张图的源码不超过 200,000 个字符", "Split the source into diagrams of at most 200,000 characters");
 		return {
 			model: null,
 			errors
@@ -275,7 +275,7 @@ function parse(body, { lang, firstLine = 2, params = "", header = "block" }) {
 				take(cols[0].length);
 				const count = cols[1] === "auto" ? 0 : Number(cols[1]);
 				if (count > 2e3 || count === 0 && cols[1] !== "auto") {
-					bad("无效的列数", "Invalid column count");
+					bad("无效的列数", "Invalid column count", "使用 columns auto 或指定 1–2000 列", "Use columns auto or set a count from 1 to 2000");
 					break;
 				}
 				group.columns = count;
@@ -283,12 +283,12 @@ function parse(body, { lang, firstLine = 2, params = "", header = "block" }) {
 				take(space[0].length);
 				const span = readSpan();
 				if (span > 2e3) {
-					bad("占位过宽", "Space span is too large");
+					bad("占位过宽", "Space span is too large", "将 space:N 中的 N 减至 2000 以内", "Reduce N in space:N to at most 2000");
 					break;
 				}
 				reserved += span;
 				if (reserved > 2e4) {
-					bad("占位单元格过多", "Too many space cells");
+					bad("占位单元格过多", "Too many space cells", "减少 space:N 占位，使总数不超过 20,000", "Reduce space:N placeholders to at most 20,000 cells in total");
 					return {
 						model: null,
 						errors
@@ -308,7 +308,9 @@ function parse(body, { lang, firstLine = 2, params = "", header = "block" }) {
 					span: readSpan()
 				};
 				if (!node || !node.span || node.span > 2e3 || stack.length > 32 || nodes.has(node.id)) {
-					bad("无效、重复或嵌套过深的复合块", "Invalid, duplicate or excessively nested composite block");
+					if (!node || !node.span || node.span > 2e3) bad("无效的复合块声明", "Invalid composite block declaration", "使用 block:Group 并用 end 结束；跨度须为 1–2000", "Use block:Group with a matching end; keep the span between 1 and 2000");
+					else if (stack.length > 32) bad("复合块嵌套过深", "Composite blocks are nested too deeply", "将嵌套层数减至 32 层以内", "Reduce nesting to at most 32 levels");
+					else bad(`复合块标识符「${node.id}」已使用`, `Composite block ID "${node.id}" is already in use`, "为 block: 后的标识符换一个未使用的名称", "Use a unique ID after block:");
 					break;
 				}
 				node.children = [];
@@ -317,14 +319,14 @@ function parse(body, { lang, firstLine = 2, params = "", header = "block" }) {
 			} else if (end) {
 				take(end[0].length);
 				if (stack.length === 1) {
-					bad("end 没有对应的 block", "No matching block for end");
+					bad("end 没有对应的 block", "No matching block for end", "删除多余的 end，或在对应的子块前添加 block:Group", "Remove the stray end or open a group with block:Group before its children");
 					break;
 				}
 				stack.pop();
 			} else {
 				let from = readNode();
 				if (!from) {
-					bad("无法识别块图语句", "Unrecognized block statement");
+					bad("无法识别块图语句", "Unrecognized block statement", "使用块声明 A[\"名称\"]、占位 space 或连线 A --> B", "Use a block such as A[\"Label\"], a space placeholder, or an edge such as A --> B");
 					break;
 				}
 				insert(from, group);
@@ -337,7 +339,7 @@ function parse(body, { lang, firstLine = 2, params = "", header = "block" }) {
 					ws();
 					const to = readNode();
 					if (!to) {
-						bad("连线缺少终点", "Missing edge endpoint");
+						bad("连线缺少终点", "Missing edge endpoint", "在箭头后添加目标块标识符，例如 A --> B", "Add a destination block ID after the arrow, as in A --> B");
 						break;
 					}
 					insert(to, group);
@@ -355,7 +357,7 @@ function parse(body, { lang, firstLine = 2, params = "", header = "block" }) {
 						pattern: symbol.includes(".-") ? "dotted" : "solid"
 					});
 					if (nodes.size > 2e3 || edges.length > 500) {
-						bad("块或连线过多", "Too many blocks or edges");
+						bad("块或连线过多", "Too many blocks or edges", "拆分为每张最多 2000 个块、500 条连线的图", "Split into diagrams of at most 2000 blocks and 500 edges each");
 						return {
 							model: null,
 							errors
@@ -366,7 +368,7 @@ function parse(body, { lang, firstLine = 2, params = "", header = "block" }) {
 				}
 			}
 			if (nodes.size > 2e3) {
-				bad("块过多", "Too many blocks");
+				bad("块过多", "Too many blocks", "拆分为每张最多 2000 个块的图", "Split into diagrams of at most 2000 blocks each");
 				return {
 					model: null,
 					errors
@@ -377,12 +379,12 @@ function parse(body, { lang, firstLine = 2, params = "", header = "block" }) {
 	if (stack.length > 1) {
 		line = stack.at(-1).line;
 		column = 1;
-		bad("复合块缺少 end", "Composite block is missing end");
+		bad("复合块缺少 end", "Composite block is missing end", "在子块之后单独写一行 end；如果它是普通块，去掉 block: 前缀", "Put end on its own line after the children, or remove the block: prefix for an ordinary block");
 	}
 	if (!nodes.size && !root.children.length && !errors.length) {
 		line = firstLine - 1;
 		column = 1;
-		bad("块图为空", "Empty block diagram");
+		bad("块图为空", "Empty block diagram", "在头行后添加块，例如 A[\"名称\"]", "Add a block after the header, for example A[\"Label\"]");
 	}
 	errors.push(...look.diagnostics());
 	for (const node of nodes.values()) {

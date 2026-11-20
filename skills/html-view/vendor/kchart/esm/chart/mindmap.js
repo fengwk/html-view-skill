@@ -229,11 +229,25 @@ function arrange(spec, ctx, mode, { cap, gap }) {
 		for (let d = 0; d < maxDepth; d++) col[d + 1] = col[d] + levelW[d] + gap;
 		stack(root, 0, (n) => mode === "left" ? -col[n.depth] - n.w : col[n.depth]);
 	} else if (mode === "bilateral") {
-		const sides = [[], []], mass = [0, 0];
-		for (const child of root.children) {
-			const side = mass[0] <= mass[1] ? 0 : 1;
-			sides[side].push(child);
-			mass[side] += leaves(child);
+		const partition = (branches) => {
+			const sides = [[], []], mass = [0, 0];
+			for (const child of branches) {
+				const side = mass[0] <= mass[1] ? 0 : 1;
+				sides[side].push(child);
+				mass[side] += leaves(child);
+			}
+			return {
+				sides,
+				mass
+			};
+		};
+		const original = partition(root.children);
+		const ranked = partition([...root.children].sort((a, b) => leaves(b) - leaves(a)));
+		const imbalance = ({ mass }) => Math.abs(mass[0] - mass[1]);
+		const { sides, mass } = imbalance(ranked) < imbalance(original) ? ranked : original;
+		for (let i = 0; i < sides.length; i++) {
+			const members = new Set(sides[i]);
+			sides[i] = root.children.filter((child) => members.has(child));
 		}
 		const subtree = (n) => [n, ...n.children.flatMap(subtree)];
 		place(root, 0, -root.h / 2);

@@ -596,11 +596,17 @@ function layoutBlock(region) {
 		y: itemTop + (index + .5) * ITEM_LINE
 	}));
 }
-function planRings(model, { measure, width, lang }) {
-	const available = Math.max(240, width - 48);
+function planRings(model, { measure, width, lang, compact, embedHeading }) {
+	const available = compact ? 560 : Math.max(240, width - 48);
 	const preferred = canonicalSpread(model.sets, 1);
 	const unit = boundsOf(ringsAt(model.sets, 1, preferred));
-	let R = Math.max(56, Math.min(available / Math.max(1, unit.w), PLOT_H / Math.max(1, unit.h)));
+	const maxLabel = Math.max(0, ...[
+		...model.sets.map((set) => set.label || set.id),
+		...model.unions.map((union) => union.label),
+		...model.texts.map((text) => text.label)
+	].map((label) => measure(label, SET_FONT)));
+	const preferredPlotWidth = Math.min(520, 260 + Math.min(100, (model.unions.length + model.texts.length) * 8) + Math.min(80, Math.max(0, model.sets.length - 2) * 30) + Math.min(80, maxLabel * .25));
+	let R = compact ? Math.max(56, Math.min(preferredPlotWidth / Math.max(1, unit.w), 320 / Math.max(1, unit.h))) : Math.max(56, Math.min(available / Math.max(1, unit.w), PLOT_H / Math.max(1, unit.h)));
 	const regions = regionList(ringsAt(model.sets, R, preferred), model);
 	let chosen = null;
 	for (let pass = 0; pass <= MAX_GROWTH; pass += 1) {
@@ -658,10 +664,12 @@ function planRings(model, { measure, width, lang }) {
 		notes
 	}, model, {
 		measure,
-		width
+		width,
+		compact,
+		embedHeading
 	});
 }
-function planGrid(model, { measure, width, lang }) {
+function planGrid(model, { measure, width, lang, compact, embedHeading }) {
 	const groups = /* @__PURE__ */ new Map();
 	for (const text of model.texts) {
 		const list = groups.get(text.key) || [];
@@ -739,9 +747,9 @@ function planGrid(model, { measure, width, lang }) {
 		panel.h = 28 + panel.header.length * HEAD_LINE + (panel.captionLines.length ? 4 + panel.captionLines.length * ITEM_LINE : 0) + (panel.itemLines.length ? 6 + panel.itemLines.length * ITEM_LINE : 0);
 	}
 	const cellW = Math.max(...panels.map((panel) => panel.w));
-	const available = Math.max(240, width - 48);
+	const available = compact ? 520 : Math.max(240, width - 48);
 	let cols = Math.min(GRID_COLS, panels.length);
-	while (cols > 1 && cols * cellW + (cols - 1) * GRID_GAP > available * 2) cols -= 1;
+	if (!compact) while (cols > 1 && cols * cellW + (cols - 1) * GRID_GAP > available * 2) cols -= 1;
 	const rowCount = Math.ceil(panels.length / cols);
 	const rowHeights = [];
 	panels.forEach((panel, index) => {
@@ -811,12 +819,14 @@ function planGrid(model, { measure, width, lang }) {
 		notes
 	}, model, {
 		measure,
-		width
+		width,
+		compact,
+		embedHeading
 	});
 }
-function finish(plan, model, { measure, width }) {
-	const titleLines = model.title ? wrapText(model.title, Math.max(160, Math.min(width - 48, 480)), TITLE_FONT, (piece, spec) => measure(piece, spec)) : [];
-	const titleH = titleLines.length ? titleLines.length * TITLE_LINE + TITLE_GAP : 0;
+function finish(plan, model, { measure, width, compact, embedHeading }) {
+	const titleLines = model.title ? wrapText(model.title, compact ? 480 : Math.max(160, Math.min(width - 48, 480)), TITLE_FONT, (piece, spec) => measure(piece, spec)) : [];
+	const titleH = !embedHeading && titleLines.length ? titleLines.length * TITLE_LINE + TITLE_GAP : 0;
 	const shelf = [];
 	let shelfRight = plan.plot.x + plan.plot.w;
 	let shelfBottom = plan.plot.y + plan.plot.h;
@@ -862,7 +872,7 @@ function finish(plan, model, { measure, width }) {
 		}
 	}
 	const spanW = Math.max(plan.plot.x + plan.plot.w, shelfRight) - plan.plot.x;
-	const contentW = Math.max(spanW, ...titleLines.map((row) => measure(row, TITLE_FONT)));
+	const contentW = Math.max(spanW, ...(embedHeading ? [] : titleLines).map((row) => measure(row, TITLE_FONT)));
 	const dx = MARGIN + (contentW - spanW) / 2 - plan.plot.x;
 	const dy = MARGIN + titleH - plan.plot.y;
 	const height = Math.ceil(shelfBottom - plan.plot.y + titleH + 48);
@@ -906,6 +916,10 @@ function finish(plan, model, { measure, width }) {
 			x: MARGIN + contentW / 2,
 			top: 34
 		} : null,
+		...embedHeading ? {
+			embedHeading,
+			heading: model.title
+		} : {},
 		rings: plan.rings || [],
 		regions: plan.regions || [],
 		panels: plan.panels || [],
@@ -922,6 +936,7 @@ function layout(model, options = {}) {
 	const measure = options.measure || fallbackMeasure;
 	const width = Math.max(1, Number(options.width) || 800);
 	const lang = options.lang || "zh";
+	const compact = options.compact === true, { embedHeading } = options;
 	if (!model.sets.length) return {
 		width,
 		height: 0,
@@ -930,11 +945,15 @@ function layout(model, options = {}) {
 	const plan = model.sets.length <= RING_MAX ? planRings(model, {
 		measure,
 		width,
-		lang
+		lang,
+		compact,
+		embedHeading
 	}) : planGrid(model, {
 		measure,
 		width,
-		lang
+		lang,
+		compact,
+		embedHeading
 	});
 	const errors = [...plan.notes];
 	const parts = model.sets.length + model.unions.length + model.texts.length;
@@ -1014,7 +1033,7 @@ function scene(plan, ctx) {
 		}));
 		for (const item of panel.rows) children.push(row(item));
 	}
-	if (plan.title) plan.title.lines.forEach((line, index) => children.push(ctx.text(plan.title.x, plan.title.top + index * TITLE_LINE, line, {
+	if (!plan.embedHeading && plan.title) plan.title.lines.forEach((line, index) => children.push(ctx.text(plan.title.x, plan.title.top + index * TITLE_LINE, line, {
 		anchor: "middle",
 		size: TITLE_FONT.size,
 		weight: TITLE_FONT.weight,
@@ -1025,6 +1044,7 @@ function scene(plan, ctx) {
 		width: plan.width,
 		height: plan.height,
 		title: plan.title ? plan.title.lines.join(" ") : void 0,
+		...plan.embedHeading ? { heading: plan.heading } : {},
 		children,
 		anchor: plan.anchor
 	};

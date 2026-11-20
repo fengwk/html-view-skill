@@ -254,10 +254,14 @@ var mindmapRegistry = createRegistry(validate);
 mindmapRegistry.register("mindmap", layouts.get("mindmap"));
 function layout(model, options = {}, info = {}) {
 	const radial = model.nodeCount > 80 && model.layout !== "radial";
+	const renderOptions = options.renderOptions || options;
 	const scene = mindmapRegistry.layout(radial ? {
 		...model,
 		layout: "radial"
-	} : model, options.renderOptions || options);
+	} : model, options.compact ? {
+		...renderOptions,
+		width: options.width
+	} : renderOptions);
 	const requested = options.width || 800;
 	const errors = model.nodeCount > 60 || model.maxDepth > 5 || scene.width > requested * 2 ? [warning("LARGE_DIAGRAM", info.lang || options.lang || "zh", info.firstLine || 1, radial ? "大型脑图使用径向布局以避免重叠" : "脑图较大，可在图内滚动查看", radial ? "Large mindmap uses radial layout to avoid overlaps" : "Large mindmap; scroll within the figure", "拆分脑图以便阅读", "Split the mindmap for readability")] : [];
 	return {

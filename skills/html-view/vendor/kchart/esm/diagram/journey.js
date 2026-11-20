@@ -271,7 +271,7 @@ function drawIcon(ctx, icon, x, y, size = ICON_SIZE, color = ctx.color("fg")) {
 	}, icon.elements.map(({ tag, attrs }) => ctx.shape(tag, attrs)));
 }
 function layout(model, options = {}) {
-	const { width = 800, ctx, renderOptions = {} } = options;
+	const { width = 800, ctx, renderOptions = {}, compact } = options;
 	if (!ctx) throw new TypeError("journey layout needs a theme context");
 	const look = appearance(ctx);
 	const measure = options.measure || ((value, font) => ctx.measure(value, font.size, font.weight));
@@ -311,9 +311,9 @@ function layout(model, options = {}) {
 	const sectionWidth = Math.max(0, ...groups.flatMap((group) => group.name.split("\n").map((line, index) => widthOf(line, sectionFont) + (index === 0 ? iconSlot(group.icon) : 0))));
 	const pitch = bodyFont.size + 5;
 	const left = Math.max(config.leftMargin || 0, LAYOUT.labelX + Math.max(labelWidth, sectionWidth, widthOf(scoreCaption, labelFont)) + LAYOUT.labelPad + FACE_R + LAYOUT.plotGap);
-	const plotW = Math.max(140, width - left - LAYOUT.right);
+	const plotW = compact ? 140 : Math.max(140, width - left - LAYOUT.right);
 	const x0 = left, x1 = left + plotW, step = plotW / 4;
-	const sceneWidth = Math.ceil(Math.max(width, x1 + LAYOUT.right));
+	const sceneWidth = Math.ceil(Math.max(compact ? 0 : width, x1 + LAYOUT.right));
 	const inSceneTitle = Boolean(model.title) && !renderOptions?.frame;
 	if (inSceneTitle) {
 		const titleText = ctx.text(LAYOUT.labelX + iconSlot(model.titleIcon), titleSize + 12, model.title, {

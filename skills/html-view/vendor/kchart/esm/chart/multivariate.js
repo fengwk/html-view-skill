@@ -4,10 +4,12 @@ import { columnHeaders } from "../core/geometry.js";
 import { contrast, pushContrast } from "../core/color.js";
 // src/chart/multivariate.js
 var multivariate_exports = /* @__PURE__ */ __exportAll({
+	compactNumeric: () => compactNumeric,
 	diagramCombo: () => diagramCombo,
 	install: () => install
 });
 var diagramCombo = Symbol("diagram combo");
+var compactNumeric = Symbol("compact numeric geometry");
 var finite = Number.isFinite;
 var number = (ctx, field, values, zero = false) => {
 	const result = ctx.ticks(values.filter(finite), field, { zero });
@@ -269,7 +271,7 @@ var chart = (spec, ctx) => {
 		const leftGutter = Math.max(36, ...(axisTicks.left?.labels || ["0"]).map((label) => ctx.measure(label, 12))) + 16;
 		const rightGutter = Math.max(28, ...(axisTicks.right?.labels || [""]).map((label) => ctx.measure(label, 12))) + 16;
 		const annotationRows = (spec.annotations || []).filter((annotation) => annotation.label || annotation.text).length;
-		const p = plot(36 + annotationRows * 16, 302, leftGutter, width - rightGutter);
+		const p = plot(36 + annotationRows * 16, spec[compactNumeric] ? 252 : 302, leftGutter, width - rightGutter);
 		reserveEdgeCategories(cats, p);
 		const yFor = (field, v) => p.y + p.h - (v - scales[field].min) / (scales[field].max - scales[field].min || 1) * p.h;
 		const y0 = (field) => yFor(field, Math.max(scales[field].min, Math.min(scales[field].max, 0)));
@@ -896,14 +898,46 @@ var chart = (spec, ctx) => {
 			range: rangeText(field, domains[i])
 		}));
 		const chord = 2 * Math.sin(Math.PI / dimensions.length);
-		const labelRoom = dimensions.length >= 6 ? Math.max(48, Math.min(96, Math.ceil(width * chord * .42))) : Math.max(84, Math.min(140, Math.ceil(Math.max(72, width * .2) * chord)));
+		const dense = dimensions.length > 6;
+		const labelRoom = dense ? 96 : dimensions.length === 6 ? Math.max(48, Math.min(96, Math.ceil(width * chord * .42))) : Math.max(84, Math.min(140, Math.ceil(Math.max(72, width * .2) * chord)));
 		const wrapped = axisLabels.map((item) => ({
 			name: ctx.wrap(item.name, labelRoom, 12, 600),
 			range: ctx.wrap(item.range, labelRoom, 12, 400)
 		}));
 		const textWidth = Math.max(0, ...wrapped.flatMap((item) => [...item.name.map((line) => ctx.measure(line, 12, 600)), ...item.range.map((line) => ctx.measure(line, 12, 400))]));
 		const labelDepth = Math.max(...wrapped.map((item) => (item.name.length + item.range.length) * 16));
-		const radius = Math.min(180, Math.max(72, (width - textWidth * 2 - 24) / 2));
+		const positionLabel = (angle, i, radius) => {
+			const cos = Math.cos(angle), sin = Math.sin(angle);
+			const horizontal = Math.abs(cos) >= Math.abs(sin);
+			const anchor = horizontal ? cos < 0 ? "end" : "start" : "middle";
+			const tx = horizontal ? cos * (radius + 10) : cos * radius;
+			const ty = horizontal ? sin * radius : sin * (radius + 10);
+			const block = wrapped[i].name.length + wrapped[i].range.length;
+			return {
+				anchor,
+				tx,
+				firstY: horizontal ? ty - (block - 1) * 8 : sin < 0 ? ty - block * 16 - 4 : ty + 16,
+				block
+			};
+		};
+		let radius = Math.min(spec[compactNumeric] ? 132 : 180, Math.max(72, (width - textWidth * 2 - 24) / 2));
+		if (dense) {
+			const widths = wrapped.map((item) => Math.max(...item.name.map((line) => ctx.measure(line, 12, 600)), ...item.range.map((line) => ctx.measure(line, 12, 400))));
+			const labelsOverlap = () => {
+				const boxes = angles.map((angle, i) => {
+					const { anchor, tx, firstY, block } = positionLabel(angle, i, radius);
+					const x = tx - widths[i] * (anchor === "end" ? 1 : anchor === "middle" ? .5 : 0);
+					return {
+						l: x - 3,
+						r: x + widths[i] + 3,
+						t: firstY - 15,
+						b: firstY + (block - 1) * 16 + 6
+					};
+				});
+				return boxes.some((a, i) => boxes.slice(i + 1).some((b) => a.l < b.r && b.l < a.r && a.t < b.b && b.t < a.b));
+			};
+			while (labelsOverlap()) radius += Math.max(8, radius * .05);
+		}
 		const cx = Math.max(width / 2, textWidth + radius + 12);
 		const cy = radius + labelDepth + 24;
 		const chartWidth = Math.max(width, cx + radius + textWidth + 12);
@@ -921,7 +955,9 @@ var chart = (spec, ctx) => {
 				continue;
 			}
 			const points = angles.map((angle) => [cx + Math.cos(angle) * radius * ring / rings, cy + Math.sin(angle) * radius * ring / rings]);
-			children.push(ctx.el("polygon", {
+			if (points.length === 1) children.push(ctx.circle(...points[0], 1, { fill: ctx.color("grid") }));
+			else if (points.length === 2) children.push(ctx.line(...points[0], ...points[1], { stroke: ctx.color("grid") }));
+			else children.push(ctx.el("polygon", {
 				points: points.map((point) => point.join(",")).join(" "),
 				fill: "none",
 				stroke: ctx.color("grid")
@@ -930,19 +966,14 @@ var chart = (spec, ctx) => {
 		angles.forEach((angle, i) => {
 			const cos = Math.cos(angle), sin = Math.sin(angle);
 			children.push(ctx.line(cx, cy, cx + cos * radius, cy + sin * radius, { stroke: ctx.color("axis") }));
-			const horizontal = Math.abs(cos) >= Math.abs(sin);
-			const anchor = horizontal ? cos < 0 ? "end" : "start" : "middle";
-			const tx = horizontal ? cx + cos * (radius + 10) : cx + cos * radius;
-			const ty = horizontal ? cy + sin * radius : cy + sin * (radius + 10);
-			const block = wrapped[i].name.length + wrapped[i].range.length;
-			const firstY = horizontal ? ty - (block - 1) * 8 : sin < 0 ? ty - block * 16 - 4 : ty + 16;
-			children.push(ctx.textLines(tx, firstY, wrapped[i].name, {
+			const { anchor, tx, firstY } = positionLabel(angle, i, radius);
+			children.push(ctx.textLines(cx + tx, cy + firstY, wrapped[i].name, {
 				anchor,
 				size: 12,
 				weight: 600,
 				fill: ctx.color("fg")
 			}));
-			children.push(ctx.textLines(tx, firstY + wrapped[i].name.length * 16, wrapped[i].range, {
+			children.push(ctx.textLines(cx + tx, cy + firstY + wrapped[i].name.length * 16, wrapped[i].range, {
 				anchor,
 				size: 12,
 				weight: 400,
@@ -952,7 +983,11 @@ var chart = (spec, ctx) => {
 		data.forEach((row, rowIndex) => {
 			const points = dimensions.map((field, i) => [cx + Math.cos(angles[i]) * radiusAt(i, row[field]), cy + Math.sin(angles[i]) * radiusAt(i, row[field])]);
 			const color = ctx.color(`tone${rowIndex % 6 + 1}`);
-			children.push(ctx.el("polygon", {
+			if (points.length === 2) children.push(ctx.line(...points[0], ...points[1], {
+				stroke: color,
+				"stroke-width": 2
+			}));
+			else if (points.length >= 3) children.push(ctx.el("polygon", {
 				points: points.map((point) => point.join(",")).join(" "),
 				fill: color,
 				"fill-opacity": .14,
@@ -1226,4 +1261,4 @@ function install({ register }) {
 	], chart);
 }
 install({ register });
-export { diagramCombo, install, multivariate_exports };
+export { compactNumeric, diagramCombo, install, multivariate_exports };

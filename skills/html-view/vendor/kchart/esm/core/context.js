@@ -34,7 +34,24 @@ function createContext(options = {}) {
 	const palette = paletteOf(resolved);
 	const fontFamily = resolved.fontFamily || "system-ui, -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Noto Sans SC\", \"Microsoft YaHei\", sans-serif";
 	if (typeof fontFamily !== "string" || !fontFamily.trim()) throw new TypeError("Invalid theme font family");
-	const measure = options.measure || fallbackMeasure;
+	const compact = options.compact === true;
+	const font = (size, weight) => !compact ? {
+		size,
+		weight
+	} : size === 16 && weight === 650 ? {
+		size: 14,
+		weight: 600
+	} : {
+		size: size === 14 ? 13 : Math.max(12, Math.min(14, size ?? 12)),
+		weight
+	};
+	const measureText = options.measure || fallbackMeasure;
+	const measureRendered = (value, size, weight) => measureText(value, size, weight, fontFamily);
+	const measureInk = options.measure ? measureRendered : (value, size, weight) => measureRendered(value, size, weight) + (String(value).match(/[mMwW@]/g)?.length || 0) * size * .38;
+	const measure = (value, size, weight) => {
+		const mapped = font(size, weight);
+		return measureRendered(value, mapped.size, mapped.weight);
+	};
 	const color = (role) => {
 		if (!roles.includes(role)) throw new TypeError(`Unknown color role: ${role}`);
 		const value = palette[role];
@@ -42,10 +59,7 @@ function createContext(options = {}) {
 		return value;
 	};
 	const frameTone = (value, prominent = false) => resolved.frameInk ? prominent ? resolved.fg1 : resolved.frameInk : value;
-	const wrap = (value, maxWidth, size = 12, weight = 400, options) => wrapText(String(value ?? ""), maxWidth, {
-		size,
-		weight
-	}, (text, font) => measure(text, font.size, font.weight, fontFamily), options);
+	const wrap = (value, maxWidth, size = 12, weight = 400, options) => wrapText(String(value ?? ""), maxWidth, font(size, weight), (text, spec) => measureRendered(text, spec.size, spec.weight), options);
 	const text = (x, y, value, opts = {}) => {
 		const { anchor = "start", size = 12, weight = 400, fill = color("muted"), meta, ...attrs } = opts;
 		if (![
@@ -53,14 +67,15 @@ function createContext(options = {}) {
 			"middle",
 			"end"
 		].includes(anchor)) throw new TypeError("Invalid text anchor");
+		const mapped = font(size, weight);
 		return {
 			...primitive("text", {
 				x,
 				y,
 				...attrs,
 				"text-anchor": anchor,
-				"font-size": size,
-				"font-weight": weight,
+				"font-size": mapped.size,
+				"font-weight": mapped.weight,
 				fill
 			}, meta),
 			text: String(value ?? "")
@@ -73,9 +88,9 @@ function createContext(options = {}) {
 	const flow = (items, maxWidth, size = 12, weight = 400) => {
 		const rows = [];
 		let row = [], rowWidth = 0;
-		const gap = measure(" · ", size, weight, fontFamily);
+		const gap = measure(" · ", size, weight);
 		for (const item of items || []) {
-			const value = String(item), itemWidth = measure(value, size, weight, fontFamily);
+			const value = String(item), itemWidth = measure(value, size, weight);
 			if (itemWidth > maxWidth) {
 				if (row.length) rows.push(row);
 				row = [];
@@ -153,7 +168,11 @@ function createContext(options = {}) {
 		scheme: resolved.scheme,
 		design: resolved,
 		assets: options.assets || null,
-		measure: (value, size, weight) => measure(value, size, weight, fontFamily),
+		compact,
+		font,
+		measure,
+		measureRendered,
+		measureInk,
 		el,
 		shape: primitive,
 		text,

@@ -149,7 +149,8 @@ function arrangeGraph(source, options, info, allowCompact = true, hints = null) 
 	};
 	const all = [...nodes, ...model.subgraphs];
 	const occupied = new Set(all.map((item) => item.parent));
-	const compact = allowCompact && model.type === "flowchart" && nodes.length > 0 && nodes.every((item) => item.parent != null);
+	const mixedStages = model.variant !== "agentflow" && model.subgraphs.filter((frame) => !frame.parent).length >= 2 && !edges.some((edge) => edge.fromFrame || edge.toFrame);
+	const compact = allowCompact && model.type === "flowchart" && nodes.length > 0 && (mixedStages || nodes.every((item) => item.parent != null));
 	const flowConfig = Object.entries(info.config ?? {}).find(([key]) => key.toLowerCase() === "flowchart")?.[1];
 	const inheritDir = Object.entries(flowConfig ?? {}).some(([key, value]) => key.toLowerCase() === "inheritdir" && value === true);
 	const projected = /* @__PURE__ */ new Map();
@@ -253,6 +254,42 @@ function arrangeGraph(source, options, info, allowCompact = true, hints = null) 
 		subgraphs: model.subgraphs.filter((frame) => !hidden.has(frame.id) && !proxy(frame.id)),
 		edges: outerEdges
 	}, options);
+	if (compact && mixedStages && outerEdges.length && outerEdges.every((edge) => redirects.has(edge.seq))) {
+		const axis = horizontal ? "y" : "x", span = horizontal ? "h" : "w";
+		const cross = horizontal ? "x" : "y", size = horizontal ? "w" : "h";
+		const ordered = [...outer.nodes].sort((a, b) => a[axis] - b[axis]);
+		const links = new Map(ordered.map((node) => [node.id, /* @__PURE__ */ new Set()]));
+		for (const edge of outerEdges) links.get(edge.from)?.add(edge.to);
+		const reverse = model.direction === "BT" || model.direction === "RL";
+		if (ordered.length > 1 && ordered.slice(1).every((node, i) => {
+			const before = ordered[i];
+			return node[axis] >= before[axis] + before[span] && (reverse ? links.get(node.id).has(before.id) : links.get(before.id).has(node.id));
+		})) {
+			const middle = (horizontal ? outer.width : outer.height) / 2;
+			for (const [i, node] of ordered.entries()) {
+				let center = middle;
+				if (!blocks.has(node.id) && (i === 0 || i === ordered.length - 1)) {
+					const incident = outerEdges.filter((edge) => edge.from === node.id || edge.to === node.id);
+					const block = blocks.get(ordered[i === 0 ? 1 : i - 1].id);
+					if (block && incident.length === 1) {
+						const original = redirects.get(incident[0].seq);
+						const member = block.inner.nodes.find((item) => item.id === (original.from === node.id ? original.to : original.from));
+						if (member) {
+							const aligned = middle - (horizontal ? block.inner.width / 2 : block.h / 2 - block.titleBand) + member[cross] + member[size] / 2;
+							const limit = MARGIN + node[size] / 2;
+							if (aligned >= limit && aligned <= 2 * middle - limit) center = aligned;
+						}
+					}
+				}
+				const at = center - node[size] / 2, delta = at - node[cross];
+				node[cross] = at;
+				if (!horizontal && !blocks.has(node.id)) {
+					node.titleY += delta;
+					if (node.descY != null) node.descY += delta;
+				}
+			}
+		}
+	}
 	const retained = [];
 	for (const node of outer.nodes) {
 		const block = blocks.get(node.id);
@@ -643,7 +680,7 @@ function layoutCore(model, { measure = fallbackMeasure, lang, ctx, renderOptions
 	const rank = new Map(realItems.map((item) => [item, 0]));
 	for (const item of topo) for (const le of out.get(item)) rank.set(le.toItem, Math.max(rank.get(le.toItem), rank.get(item) + le.minlen));
 	const LABELLED_RANK_WEIGHT = 2;
-	const edgeRankWeight = (le) => le.edge.label ? LABELLED_RANK_WEIGHT : 1;
+	const edgeRankWeight = (le) => (le.edge.label ? LABELLED_RANK_WEIGHT : 1) * (model.type === "flowchart" && model.variant !== "agentflow" && le.fromItem.cluster !== root && le.fromItem.cluster === le.toItem.cluster ? 2 : 1);
 	/** 加权中位数；累计权重正好落在中点时取两侧值的平均，等权时即普通中位数；调用方再四舍五入为整数层号。 */
 	const weightedRankMedian = (entries) => {
 		if (!entries.length) return 0;

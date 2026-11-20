@@ -340,8 +340,8 @@ export function galleryCases(lang) {
       'sequenceDiagram\n  participant App as 小程序\n  participant API as 订单服务\n  participant Pay as 支付平台\n  participant Bar as 制作屏\n  App->>API: 提交订单\n  API->>Pay: 发起扣款\n  Pay-->>API: 支付成功\n  API->>Bar: 推送制作单\n  API-->>App: 返回取餐码',
       'sequenceDiagram\n  participant App as App\n  participant API as Order API\n  participant Pay as Payments\n  participant Bar as Bar screen\n  App->>API: Place order\n  API->>Pay: Charge card\n  Pay-->>API: Paid\n  API->>Bar: Send ticket\n  API-->>App: Pickup code')],
     zenuml: ['mermaid', L(
-      'zenuml\n  App\n  OrderAPI\n  App->OrderAPI: 查询进度\n  OrderAPI.estimateWait()',
-      'zenuml\n  App\n  OrderAPI\n  App->OrderAPI: check status\n  OrderAPI.estimateWait()')],
+      'zenuml\n  @Actor 顾客\n  顾客->OrderAPI.查询进度(订单号) {\n    分钟 = Kitchen.估算等待()\n    return 进度\n  }',
+      'zenuml\n  @Actor Guest\n  Guest->OrderAPI.status(id) {\n    minutes = Kitchen.estimate()\n    return status\n  }')],
     erDiagram: ['mermaid', L(
       'erDiagram\n  CUSTOMER ||--o{ ORDER : 下单\n  ORDER ||--|{ ORDER_ITEM : 包含\n  PRODUCT ||--o{ ORDER_ITEM : 售出\n  CUSTOMER {\n    string id PK\n    string nickname\n  }\n  ORDER {\n    string id PK\n    string status\n  }\n  ORDER_ITEM {\n    int quantity\n  }\n  PRODUCT {\n    string name\n    int price\n  }',
       'erDiagram\n  CUSTOMER ||--o{ ORDER : places\n  ORDER ||--|{ ORDER_ITEM : contains\n  PRODUCT ||--o{ ORDER_ITEM : "sold as"\n  CUSTOMER {\n    string id PK\n    string nickname\n  }\n  ORDER {\n    string id PK\n    string status\n  }\n  ORDER_ITEM {\n    int quantity\n  }\n  PRODUCT {\n    string name\n    int price\n  }')],
