@@ -25,6 +25,8 @@ const bars = await render({
 
 渲染选项包括 `width`、`lang`、`theme`、`media`、`frame`、`prefix` 和 `measure(text, size, weight, fontFamily)`。宿主已有图框时可设置 `frame: false`。每个内联 SVG 应使用不同的 `prefix`；结构图可能宽于请求值，建议让容器可以横向滚动。
 
+嵌入页面时，可在异步或同步 `diagram()`、或 Mermaid 适配器的 `render()` 中传入 `compact: true`。布局宽度上限为 720px，画布贴合可见内容、不再居中，文字使用 12–14px。可同时设置 `frame: false` 去掉 KChart 的外层图框。`compact` 默认关闭。
+
 不传 `lang` 时，结构图会根据源码推断语言：英文词至少有一个，且数量不少于中日韩字符的两倍时用英文，否则用中文。显式指定 `lang` 可覆盖推断结果。
 
 在 Vite 生产构建中，数据图和结构图的各个族通过动态导入拆分。如果也要延迟加载适配器，请动态导入 Markdown 组件（例如使用 `React.lazy`）。不同族可复用公共依赖。地图只在地图图表需要时加载相应的内置数据（`world` 或 `us-states`），也可通过 `options.assets` 注入自有地图。渲染不依赖在线服务；将 JavaScript 分块和地图资源放在本地即可离线使用。浏览器部署时，动态导入仍可能从宿主加载分块。

@@ -55,7 +55,7 @@ export interface RenderOptions {
 }
 
 export interface CheckOptions { syntax?: Syntax; lang?: string }
-export interface DiagramOptions extends RenderOptions { syntax?: Syntax }
+export interface DiagramOptions extends RenderOptions { syntax?: Syntax; compact?: boolean }
 export interface ChartDiagnostic {
   code: string;
   message: string;

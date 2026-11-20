@@ -202,8 +202,9 @@ function drawItem(ctx, item, look) {
   const parts = [ctx.rect(x, y, w, h, { rx: look.smallRadius, fill: s.fill, ...outline(s, 1) })];
   if (icon) parts.push(iconGlyph(ctx, icon, left, cy, look.muted));
   const font = { size: ITEM.font.size, weight: ITEM.font.weight, fill: look.fg, 'dominant-baseline': 'central' };
+  const mapped = ctx.font(font.size, font.weight);
   parts.push(mark
-    ? ctx.el('text', { x: left + lead, y: cy, 'text-anchor': 'start', 'dominant-baseline': 'central', 'font-size': font.size, 'font-weight': font.weight, fill: look.fg },
+    ? ctx.el('text', { x: left + lead, y: cy, 'text-anchor': 'start', 'dominant-baseline': 'central', 'font-size': mapped.size, 'font-weight': mapped.weight, fill: look.fg },
       [{ ...ctx.el('tspan', { fill: s.mark }), text: mark }, { ...ctx.el('tspan'), text: ` ${name}` }])
     : ctx.text(left + lead, cy, label, font));
   return ctx.el('g', {}, parts);

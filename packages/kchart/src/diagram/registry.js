@@ -1,7 +1,7 @@
 import { ignoredConfigWarning, inferLang, parseOptions, prepareSource, siteConfig } from './source.js';
 import { blocking, error, measureOf } from './support.js';
 import { createContext } from '../core/context.js';
-import { containText, el } from '../core/scene.js';
+import { containText, cropInk, el } from '../core/scene.js';
 import { renderScene } from '../core/svg.js';
 import { ExpectedDiagnostic } from '../core/diagnostics.js';
 
@@ -166,17 +166,19 @@ function createDiagramApi(implementations, types) {
       const implementation = implementations[parsed.type.kind];
       if (typeof implementation.layout !== 'function') throw new TypeError(`Missing layout for diagram: ${parsed.type.kind}`);
       const width = Math.max(1, Number(options.width) || 800);
-      const ctx = createContext({ ...options, width, lang: parsed.info.lang });
+      const compact = options.compact === true;
+      const layoutWidth = compact ? Math.min(width, 720) : width;
+      const ctx = createContext({ ...options, width: layoutWidth, compact, lang: parsed.info.lang });
       const measure = measureOf(ctx);
       const renderOptions = { ...options, frame: options.frame ?? true };
-      const geometry = implementation.layout(parsed.model, { width, lang: ctx.lang, measure, ctx, renderOptions }, parsed.info);
+      const geometry = implementation.layout(parsed.model, { width: layoutWidth, compact, lang: ctx.lang, measure, ctx, renderOptions }, parsed.info);
       const diagnostics = merge(parsed.diagnostics, normalize(geometry?.errors, parsed.type));
       if (diagnostics.some(blocking)) return { svg: null, scene: null, diagnostics };
       const laid = geometry?.scene || (typeof implementation.scene === 'function' ? implementation.scene(geometry, ctx, parsed.info) : null);
       if (!laid || !Number.isFinite(laid.width) || !Number.isFinite(laid.height) || !Array.isArray(laid.children)) throw new TypeError(`Invalid scene for diagram: ${parsed.type.kind}`);
       // 裸 SVG 在宿主图框内可能被裁切；保留字体 ascent/descent 超出 em 估算的余量。
-      const contained = containText(laid, ctx.measure, { blockPadding: 4 });
-      const sceneWidth = Math.max(width, contained.width);
+      const contained = compact ? cropInk(laid, ctx.measureRendered) : containText(laid, ctx.measure, { blockPadding: 4 });
+      const sceneWidth = compact ? contained.width : Math.max(width, contained.width);
       const offset = Math.max(0, (sceneWidth - contained.width) / 2);
       const children = offset ? [el('g', { transform: `translate(${offset} 0)` }, contained.children)] : contained.children;
       const anchor = contained.anchor ? { ...contained.anchor, x: contained.anchor.x + offset } : contained.anchor;

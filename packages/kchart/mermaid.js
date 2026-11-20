@@ -4,7 +4,7 @@ import { prepareSource, siteConfig } from './src/diagram/source.js';
 let config = {};
 
 // KChart's own render options, plus `theme` when it names a KChart theme or is a theme object.
-const RENDER_OPTIONS = new Set(['width', 'lang', 'media', 'frame', 'prefix', 'measure']);
+const RENDER_OPTIONS = new Set(['width', 'lang', 'media', 'frame', 'prefix', 'measure', 'compact']);
 
 // Every other setting is Mermaid site configuration, checked exactly like a `config` in the diagram's front matter,
 // which overrides it: settings the diagram type honors (such as `c4.c4ShapeInRow`) apply, runtime settings such as

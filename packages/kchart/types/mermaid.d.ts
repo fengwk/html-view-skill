@@ -6,7 +6,7 @@ import type { DiagramDiagnostic, RenderOptions } from './index.js';
  * `startOnLoad` pass silently, and the rest, such as `themeVariables` or the theme name `dark`, produce one
  * `IGNORED_CONFIG` warning.
  */
-export type MermaidOptions = Omit<RenderOptions, 'assets'> & { [setting: string]: unknown };
+export type MermaidOptions = Omit<RenderOptions, 'assets'> & { compact?: boolean; [setting: string]: unknown };
 export interface MermaidError extends Error { diagnostics: DiagramDiagnostic[] }
 /** `diagnostics` holds only warnings: any error rejects instead. */
 export interface MermaidParseResult { diagramType: string; diagnostics: DiagramDiagnostic[] }

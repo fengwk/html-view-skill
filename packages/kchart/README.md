@@ -25,6 +25,8 @@ const bars = await render({
 
 Render options include `width`, `lang`, `theme`, `media`, `frame`, `prefix`, and `measure(text, size, weight, fontFamily)`. Set `frame: false` if your host already supplies a figure frame. Give each inline SVG a unique `prefix`; allow horizontal scrolling if a diagram needs more room than the requested width.
 
+For embedding, set `compact: true` in `diagram()` (async or sync) or in the Mermaid facade’s `render()` options. It caps layout width at 720px, crops the scene to its visible content instead of centering it, and uses 12–14px text. Use `frame: false` to omit KChart’s outer frame. The default is `compact: false`.
+
 If `lang` is omitted, diagrams infer English or Chinese from the source: English when there are at least twice as many English words as CJK characters and at least one English word; otherwise Chinese. Set `lang` explicitly to override this.
 
 A production Vite build splits chart and diagram families at dynamic imports. Make the Markdown component itself a dynamic import (for example with `React.lazy`) to defer the facade as well. Shared dependencies can be reused between families. For a map chart, only the requested built-in map (`world` or `us-states`) is loaded; `options.assets` can supply your own map data instead. The renderer needs no network service at runtime; serve the JavaScript chunks and map assets locally for offline use. In a hosted browser build on-demand imports may still load chunks from your own host.
