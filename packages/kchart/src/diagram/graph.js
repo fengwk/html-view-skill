@@ -2,6 +2,7 @@ import { FONT, appearance } from './support.js';
 import { parseGraph } from './graph-parse.js';
 import { layoutGraph } from './graph-layout.js';
 import { cubicPath } from '../core/geometry.js';
+import { flowOutlineName, shapeOutline } from './shapes.js';
 
 const path = (ctx, d, attrs = {}, meta) => ({ ...ctx.path(d, attrs), ...(meta ? { meta } : {}) });
 const text = (ctx, x, y, value, opts, meta) => ctx.text(x, y, value, { 'dominant-baseline': 'central', ...opts, meta });
@@ -66,12 +67,52 @@ function edgePath(edge, modelNodes, ctx, a) {
   return group(ctx, [titleNode(ctx, tip), path(ctx, d, attrs, { kind: 'edge', from: edge.from, to: edge.to })], { kind: 'edge-group' });
 }
 
+function drawFlowShape(ctx, name, { x, y, w, h }, common, a) {
+  const poly = (shape, dx, dy, width, height, attrs) => ctx.shape('polygon', {
+    points: points(shapeOutline(shape, width, height).map(([px, py]) => [dx + px, dy + py])), ...attrs,
+  });
+  const outlineAttrs = name === 'text' || name === 'icon' || ['brace', 'brace-r', 'braces'].includes(name)
+    ? { fill: 'none', stroke: 'none' } : name === 'datastore' ? { ...common, 'stroke-dasharray': '5 3' } : common;
+  const children = [poly(name, x, y, w, h, outlineAttrs)];
+  const at = (u, v) => `${x + w * u} ${y + h * v}`;
+  const detail = (d) => children.push(path(ctx, d, { fill: 'none', stroke: common.stroke, 'stroke-width': 1.25 }));
+  const line = (u, v, s, t) => `M${at(u, v)} L${at(s, t)}`;
+  if (name === 'fr-rect') detail(line(.1,0,.1,1) + line(.9,0,.9,1));
+  if (['win-pane', 'lin-rect', 'lin-doc'].includes(name)) detail(line(.11,0,.11,name === 'lin-doc' ? .95 : 1));
+  if (['win-pane', 'div-rect', 'browser', 'console'].includes(name)) detail(line(0,.22,1,.22));
+  if (name === 'browser') for (const dx of [10, 16, 22]) children.push(ctx.circle(x + dx, y + h * .11, 1.4, { fill: common.stroke }));
+  if (name === 'console') detail(`M${at(.08,.06)} L${at(.13,.11)} L${at(.08,.16)} ${line(.15,.16,.21,.16)}`);
+  if (['cyl', 'lin-cyl', 'bucket'].includes(name)) {
+    detail(`M${at(0,.12)} A${w / 2} ${h * .12} 0 0 0 ${at(1,.12)}`);
+    if (name === 'lin-cyl') detail(`M${at(0,.19)} A${w / 2} ${h * .12} 0 0 0 ${at(1,.19)}`);
+  }
+  if (name === 'h-cyl') detail(`M${at(.12,0)} A${w * .12} ${h / 2} 0 0 1 ${at(.12,1)}`);
+  if (name === 'tag-rect' || name === 'tag-doc') detail(line(.75,0,1,.24) + line(.75,0,.75,.24) + line(.75,.24,1,.24));
+  if (name === 'docs' || name === 'st-rect') {
+    const page = name === 'docs' ? 'doc' : 'rect';
+    children.push(poly(page, x + 5, y + 5, w - 5, h - 5, common), poly(page, x, y, w - 5, h - 5, common));
+  }
+  if (name === 'dbl-circ' || name === 'fr-circ') {
+    children.push(ctx.circle(x + w / 2, y + h / 2, w / 2 - 5, { fill: name === 'fr-circ' ? a.fg4 : 'none', stroke: common.stroke }));
+  }
+  if (name === 'cross-circ') detail(line(.16,.16,.84,.84) + line(.84,.16,.16,.84));
+  const brace = side => {
+    const b = side ? 1 : 0, c = side ? .11 : -.11;
+    detail(`M${at(b-c,.04)} Q${at(b,.04)} ${at(b,.25)} Q${at(b,.5)} ${at(b+c,.5)} Q${at(b,.5)} ${at(b,.75)} Q${at(b,.96)} ${at(b-c,.96)}`);
+  };
+  if (name === 'brace' || name === 'braces') brace(false);
+  if (name === 'brace-r' || name === 'braces') brace(true);
+  return children;
+}
+
 function drawShape(ctx, item, n, a) {
   const { x, y, w, h } = n;
   const node = item.node;
   const stroke = node.class === 'ext' ? a.line2 : node.class && a[node.class] ? a[node.class] : a.line2;
   const fill = node.class === 'ext' ? 'none' : node.class && a[node.class] ? ctx.mix(a.node, a[node.class], a.soft) : a.node;
   const common = { fill, stroke, 'stroke-width': 1.25, ...(node.class === 'ext' ? { 'stroke-dasharray': '4 3' } : {}) };
+  const flowShape = item.flowchart && flowOutlineName(node.shape);
+  if (flowShape) return drawFlowShape(ctx, flowShape, n, common, a);
   if (node.kind === 'start') return [ctx.circle(x + w / 2, y + h / 2, Math.min(w, h) / 2, { fill: a.fg2, stroke: 'none' })];
   if (node.kind === 'end') return [
     ctx.circle(x + w / 2, y + h / 2, Math.min(w, h) / 2, { fill: a.node, stroke: a.fg2, 'stroke-width': 1.5 }),
@@ -153,7 +194,7 @@ function scene(geometry, ctx, info = {}) {
   }
   for (const n of geometry.nodes || []) {
     const item = modelNodes.get(n.id);
-    if (item) nodeLayer.push(drawNode(ctx, { node: item, titleLines: n.lines, descLines: n.descLines }, n, a));
+    if (item) nodeLayer.push(drawNode(ctx, { node: item, flowchart: model.type === 'flowchart', titleLines: n.lines, descLines: n.descLines }, n, a));
   }
   const children = [defs(ctx, a), ...framesLayer,
     group(ctx, edgeLayer, { kind: 'edges' }), group(ctx, nodeLayer, { kind: 'nodes' }),

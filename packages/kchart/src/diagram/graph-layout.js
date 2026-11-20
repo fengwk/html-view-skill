@@ -1,4 +1,5 @@
 import { DIRECTIONS, FONT as BASE_FONT, fallbackMeasure, maxWidthOf, wrapText } from './support.js';
+import { flowOutlineName, shapeSize, shapeOutline, outlinePort } from './shapes.js';
 
 const FONT = { ...BASE_FONT, frame: { size: 13, weight: 600 }, erHead: { size: 14, weight: 600 }, erAttr: { size: 13, weight: 400 }, erKey: { size: 12, weight: 400 } };
 const FRAME_PAD = 14;
@@ -115,7 +116,10 @@ function layoutGraph(model, { measure = fallbackMeasure, lang, ctx, renderOption
       tw = Math.max(64, Math.max(titleW, descW) + 28);
       th = 20 + titleLines.length * 19 + (descLines.length ? 5 + descLines.length * 17 : 0);
       th = Math.max(40, th);
-      if (node.shape === 'diamond') {
+      const flowShape = model.type === 'flowchart' && flowOutlineName(node.shape);
+      if (flowShape) {
+        [tw, th] = shapeSize(flowShape, tw, th);
+      } else if (node.shape === 'diamond') {
         tw *= 1.7;
         th *= 1.7;
       } else if (node.shape === 'circle') {
@@ -1433,12 +1437,33 @@ function layoutGraph(model, { measure = fallbackMeasure, lang, ctx, renderOption
       const node = item.node || {};
       if (node.kind === 'choice') return 'diamond';
       if (node.kind === 'start' || node.kind === 'end') return 'circle';
-      return node.shape || 'rect';
+      const flowShape = model.type === 'flowchart' && flowOutlineName(node.shape);
+      return flowShape ? `flow:${flowShape}` : node.shape || 'rect';
     };
-    const isDiamondNode = (item) => Boolean(item) && shapeOf(item) === 'diamond';
+    const isDiamondNode = (item) => Boolean(item) && ['diamond', 'flow:diam', 'flow:choice'].includes(shapeOf(item));
+    const outlines = new Map();
+    const routedOutline = (shape, w, h) => {
+      const key = `${shape}:${w}:${h}`;
+      if (!outlines.has(key)) {
+        const outline = shapeOutline(shape, isLR ? h : w, isLR ? w : h);
+        // Undo the final direction transform so asymmetric shapes stay upright.
+        outlines.set(key, outline.map(([x, y]) => {
+          if (direction === 'BT') return [x, h - y];
+          if (direction === 'LR') return [y, x];
+          if (direction === 'RL') return [y, h - x];
+          return [x, y];
+        }));
+      }
+      return outlines.get(key);
+    };
 
     /** 端口落在边框上；上下边的 cross 是绝对 x，左右边的 cross 是相对 cy 的偏移。 */
     const borderPort = (rect, shape, side, cross) => {
+      if (shape.startsWith('flow:')) {
+        const offset = isFlowSide(side) ? cross - rect.x : cross + rect.h / 2;
+        const port = outlinePort(routedOutline(shape.slice(5), rect.w, rect.h), side, offset);
+        return { x: rect.x + port.x, y: rect.y + port.y };
+      }
       const cx = rect.x + rect.w / 2;
       const cy = rect.y + rect.h / 2;
       const hw = rect.w / 2;

@@ -1,4 +1,5 @@
-import { DIRECTIONS, labelText, statusMarks } from './support.js';
+import { DIRECTIONS, labelText, statusMarks, warning } from './support.js';
+import { shapeName } from './shapes.js';
 
 const LIMITS = { nodes: 30, edges: 50, subgraphDepth: 3, stateDepth: 2 };
 const CLASSES = Object.keys(statusMarks);
@@ -56,11 +57,16 @@ function findClose(text, start, close) {
 }
 
 function parseShapeAt(text, index) {
-  const read = (openLen, close, shape, slashStrip = false) => {
+  const read = (openLen, close, shape, lean = false) => {
     const end = findClose(text, index + openLen, close);
     if (end < 0) return { error: 'unterminated', end: text.length };
     let raw = text.slice(index + openLen, end);
-    if (slashStrip) raw = raw.replace(/^[/\\]/, '').replace(/[/\\]$/, '');
+    if (lean) {
+      const forms = { '//': 'lean-r', '\\\\': 'lean-l', '/\\': 'trap-b', '\\/': 'trap-t' };
+      shape = forms[raw[0] + raw.at(-1)];
+      if (!shape) return { error: 'unterminated', end: end + 1 };
+      raw = raw.slice(1, -1);
+    }
     return { shape, label: normalizeLabel(stripQuotes(raw)), end: end + close.length };
   };
   const ch = text[index];
@@ -71,6 +77,8 @@ function parseShapeAt(text, index) {
     return read(1, ']', 'rect');
   }
   if (ch === '(') {
+    if (text.startsWith('(((', index)) return read(3, ')))', 'dbl-circ');
+    if (text.startsWith('(-', index)) return read(2, '-)', 'circle');
     if (text[index + 1] === '(') return read(2, '))', 'circle');
     if (text[index + 1] === '[') return read(2, '])', 'stadium');
     return read(1, ')', 'round');
@@ -79,7 +87,7 @@ function parseShapeAt(text, index) {
     if (text[index + 1] === '{') return read(2, '}}', 'hexagon');
     return read(1, '}', 'diamond');
   }
-  if (ch === '>') return read(1, ']', 'rect');
+  if (ch === '>') return read(1, ']', 'odd');
   return null;
 }
 
@@ -100,7 +108,19 @@ function parseFlowNodeToken(text, start) {
   }
   const id = text.slice(idStart, i);
   if (!id) return null;
-  if (text.startsWith('@{', i)) return { id, error: 'shape', end: text.length };
+  if (text.startsWith('@{', i)) {
+    const close = findClose(text, i + 2, '}');
+    if (close < 0) return { id, error: 'unterminated', end: text.length };
+    const metadata = Object.create(null);
+    const payload = text.slice(i + 2, close);
+    const fields = /\s*([\w-]+)\s*:\s*("(?:\\.|[^"\\])*"|'(?:''|[^'])*'|[^,]*?)\s*(?:,|$)/gy;
+    while (fields.lastIndex < payload.length && payload.slice(fields.lastIndex).trim()) {
+      const field = fields.exec(payload);
+      if (!field) return { id, error: 'metadata', end: close + 1 };
+      metadata[field[1]] = stripQuotes(field[2]);
+    }
+    return { id, metadata, end: close + 1 };
+  }
   let shape = null;
   let label = null;
   let error = null;
@@ -245,7 +265,7 @@ function parseSubgraphDecl(rest) {
   return { id: parts[0], title: normalizeLabel(text) || parts[0] };
 }
 
-function parseFlowchartBody(statements, errors, direction = 'TB') {
+function parseFlowchartBody(statements, errors, direction = 'TB', lang) {
   const model = {
     type: 'flowchart', direction: 'TB', nodes: [], edges: [], subgraphs: [],
   };
@@ -272,10 +292,32 @@ function parseFlowchartBody(statements, errors, direction = 'TB') {
     return name;
   };
 
+  const warned = new Set();
   const resolveToken = (token, line) => {
-    if (token.error === 'shape') {
-      addError(line, '不支持 A@{ shape: … } 写法', '用 [ ]、( )、{ } 等形状写法');
+    if (token.error === 'shape' || token.error === 'metadata') {
+      addError(line, '无法解析形状属性', '使用 A@{ shape: rect, label: "文字" }');
       return null;
+    }
+    if (token.metadata) {
+      const { shape, label, ...other } = token.metadata;
+      if (shape !== undefined) {
+        token.shape = shapeName(shape);
+        if (!token.shape) {
+          addError(line, `No such shape: ${shape}`, '使用 Mermaid 的小写形状名称');
+          return null;
+        }
+      }
+      if (label !== undefined) token.label = normalizeLabel(label);
+      const asset = 'img' in other || 'icon' in other;
+      if (asset && !warned.has('asset')) {
+        warned.add('asset');
+        errors.push(warning('IGNORED_ASSET', lang, line, '忽略图标或远程图片', 'Ignored icon or remote image'));
+      }
+      const keys = Object.keys(other).filter(key => !['img', 'icon', 'form', 'pos', 'w', 'h', 'constraint'].includes(key));
+      for (const key of keys) if (!warned.has(key)) {
+        warned.add(key);
+        errors.push(warning('IGNORED_CONFIG', lang, line, `忽略属性 ${key}`, `Ignored property ${key}`));
+      }
     }
     if (token.error === 'unterminated') {
       addError(line, `节点 ${token.id} 的形状没有结束的括号`, '补上缺少的 ]、) 或 }');
@@ -459,7 +501,7 @@ function parseFlowchartBody(statements, errors, direction = 'TB') {
   return model;
 }
 
-function parseFlowchart(statements, errors) {
+function parseFlowchart(statements, errors, lang) {
   const head = statements[0].text;
   let direction = 'TB';
   const header = /^(?:flowchart|graph)\b\s*([A-Za-z]*)/i.exec(head);
@@ -468,7 +510,7 @@ function parseFlowchart(statements, errors) {
     if (d.error) errors.push({ line: statements[0].line, message: d.error, fix: '方向用 TB、TD、BT、LR、RL（TD 等同 TB）' });
     else direction = d.direction;
   }
-  return parseFlowchartBody(statements, errors, direction);
+  return parseFlowchartBody(statements, errors, direction, lang);
 }
 
 /* ───────────────────────── stateDiagram 解析 ───────────────────────── */
@@ -976,7 +1018,7 @@ function parseGraph(body, info = {}) {
   if (!statements.length) return { model: null, errors: [{ line: headerLine, column: 1, message: '图源码为空', fix: '写 flowchart、stateDiagram-v2 或 erDiagram 开头的图' }] };
   const first = statements[0].text;
   let model;
-  if (kind === 'flowchart') model = parseFlowchart(statements, errors);
+  if (kind === 'flowchart') model = parseFlowchart(statements, errors, info.lang);
   else if (kind === 'statediagram-v2' || kind === 'statediagram') model = parseState(statements, errors);
   else if (kind === 'erdiagram') model = parseEr(statements, errors);
   else errors.push({ line: statements[0].line, column: 1, message: '不支持的图类型：' + first.split(/\s+/)[0], fix: '使用 flowchart、stateDiagram-v2 或 erDiagram 图型' });
