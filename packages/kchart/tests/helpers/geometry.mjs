@@ -103,17 +103,17 @@ function inside(segment, polygon, inset) {
 // 1px transverse allowance catches actual stroke contact (architecture.md:237
 // slides 0.384px off the node boundary). Require >4px of sustained contact so
 // normal port touches and brief grazing of rounded corners don't count.
-function along([a, b], [p, q]) {
+function along([a, b], [p, q], clearance = 1, minimum = 4) {
   const v = sub(b, a), span = length(v);
-  if (span <= 4 || length(sub(q, p)) <= 4) return;
+  if (span <= minimum || length(sub(q, p)) <= minimum) return;
   const t = v.map(n => n / span);
   const [u0, u1] = [dot(t, sub(p, a)), dot(t, sub(q, a))].sort((x, y) => x - y);
   const lo = Math.max(0, u0), hi = Math.min(span, u1);
-  if (hi - lo <= 4) return;
+  if (hi - lo <= minimum) return;
   const w = sub(q, p), dir = dot(t, w);
   if (Math.abs(cross(t, w)) > Math.abs(dir) * .1) return;
   for (const d of [lo, hi]) {
-    if (Math.abs(cross(t, sub(at(p, q, (d - dot(t, sub(p, a))) / dir), a))) > 1) return;
+    if (Math.abs(cross(t, sub(at(p, q, (d - dot(t, sub(p, a))) / dir), a))) > clearance) return;
   }
   return [at(a, b, lo / span), at(a, b, hi / span)];
 }
@@ -194,6 +194,25 @@ function textCrossing(edge, text, covers) {
   }
 }
 
+// Flowchart.md:117 leaves only 0.75px of ink-to-ink whitespace between
+// routes 2px apart for 29px. Use 4px over >8px to also catch the crowded
+// 12px approach in C4. The same flowchart's node clearance is 5.9236px
+// over 18px: allow up to 6px, but require >12px to ignore short corners.
+const edgeClearance = 4, nodeClearance = 6;
+
+function portFan(a, i, b, j, run) {
+  // Allow only a short run on the port-adjacent segments, not a later
+  // rejoin or an incoming/outgoing pair. GitGraph's shared departure is
+  // 24.3px; C4 uses nominally the same port with a 3.28px tip offset.
+  for (const [end, index, tip] of [['from', 0, 0], ['to', -1, 1]]) {
+    if (a[end] == null || a[end] !== b[end]) continue;
+    if (i !== (index === 0 ? 0 : a.segments.length - 1) || j !== (index === 0 ? 0 : b.segments.length - 1)) continue;
+    const p = a.segments.at(index)[tip], q = b.segments.at(index)[tip];
+    if (length(sub(p, q)) <= edgeClearance && run.every(r => length(sub(r, p)) <= 26 && length(sub(r, q)) <= 26)) return true;
+  }
+  return false;
+}
+const nearBoxes = (a, b, gap) => a.x1 >= b.x0 - gap && a.x0 <= b.x1 + gap && a.y1 >= b.y0 - gap && a.y0 <= b.y1 + gap;
 const shapeTags = ['rect', 'polygon', 'circle', 'ellipse', 'path'];
 const near = (a, b) => a.x1 >= b.x0 && a.x0 <= b.x1 && a.y1 >= b.y0 && a.y0 <= b.y1;
 const center = ({ x0, x1, y0, y1 }) => [(x0 + x1) / 2, (y0 + y1) / 2];
@@ -338,17 +357,25 @@ export function checkScene(scene, { measure = fallbackMeasure } = {}) {
     }
     for (const node of nodes) {
       const { box: b } = node, { box: e } = edge;
-      if (e.x1 < b.x0 - 1 || e.x0 > b.x1 + 1 || e.y1 < b.y0 - 1 || e.y0 > b.y1 + 1) continue;
+      if (!nearBoxes(e, b, nodeClearance)) continue;
       // Exclusively for swimlane (no endpoint IDs), infer attachment from the
       // path tips and actual outline, not merely any point close to the box.
       const attached = node.id === edge.from || node.id === edge.to || (edge.inferEndpoints &&
         tips.some(p => inside([p, p], node.polygon, -1)));
-      if (!attached) {
+      const nearBorder = nearBoxes(e, b, 1);
+      if (!attached && nearBorder) {
         for (const segment of edge.segments) {
           const crossing = inside(segment, node.polygon, 1);
           if (crossing) { issue('edge-crosses-node', [edge, node], crossing); break; }
         }
       }
+      if (!attached && node.endpointId !== edge.from && node.endpointId !== edge.to) {
+        hug: for (const segment of edge.segments) for (const side of node.borders) {
+          const run = along(segment, side, nodeClearance, 12);
+          if (run && !along(segment, side)) { issue('edge-hugs-node', [edge, node], run); break hug; }
+        }
+      }
+      if (!nearBorder) continue;
       border: for (const segment of edge.segments) for (const side of node.borders) {
         const slide = along(segment, side);
         if (slide) { issue('edge-along-border', [edge, node], slide); break border; }
@@ -356,12 +383,20 @@ export function checkScene(scene, { measure = fallbackMeasure } = {}) {
     }
     for (let j = i + 1; j < edges.length; j++) {
       const other = edges[j], a = edge.box, b = other.box;
-      if (a.x1 < b.x0 - 1 || a.x0 > b.x1 + 1 || a.y1 < b.y0 - 1 || a.y0 > b.y1 + 1) continue;
+      if (!nearBoxes(a, b, edgeClearance)) continue;
       const trunk = sharedTrunk(edge, other);
+      const nearRoute = nearBoxes(a, b, 1);
+      let close;
       routes: for (const [i, s] of edge.segments.entries()) for (const [j, t] of other.segments.entries()) {
-        const overlap = along(s, t);
-        if (overlap && !trunk.has(`${i}:${j}`)) { issue('collinear-edges', [edge, other], overlap); break routes; }
+        const overlap = nearRoute && along(s, t);
+        if (trunk.has(`${i}:${j}`)) continue;
+        if (overlap) { issue('collinear-edges', [edge, other], overlap); close = undefined; break routes; }
+        if (!close) {
+          const run = along(s, t, edgeClearance, 8);
+          if (run && !portFan(edge, i, other, j, run)) close = run;
+        }
       }
+      if (close) issue('near-parallel-overlap', [edge, other], close);
     }
   });
   return issues;
