@@ -686,7 +686,7 @@
       "diagram/support",
       "diagram/map-label"
     ],
-    "bytes": 16395
+    "bytes": 17659
   },
   "interaction": {
     "file": "units/interaction.js",
