@@ -85,6 +85,27 @@ test('ER renders lone and quoted entities, aliases and visible annotated rows', 
   assert.deepEqual(checkScene(scene), []);
 });
 
+// 意图：字段各列只在空白处换行，超宽标识符扩大实体与画布而不拆字。
+test('ER never splits attribute words, even when the table must scroll', () => {
+  const type = 'schema.LongDatabase-Type(255)[]';
+  const name = 'carRegistrationNumber';
+  const commentWord = 'ExternalRegistrationIdentifier'.repeat(3);
+  const source = `erDiagram\nCar { ${type} ${name} PK, FK, UK "${commentWord} manual verification" }`;
+  const walk = node => [node, ...(node.children ?? []).flatMap(walk)];
+  for (const width of [800, 360]) {
+    const { scene, diagnostics } = api.diagram(source, { width });
+    assert.ok(scene, JSON.stringify(diagnostics));
+    const children = walk(scene);
+    const cell = kind => children.filter(n => n.meta?.kind === kind).map(n => n.text);
+    assert.deepEqual(cell('attribute-type'), [type]);
+    assert.deepEqual(cell('attribute'), [name]);
+    assert.deepEqual(cell('attribute-key').join(' ').split(' '), ['PK', 'FK', 'UK']);
+    assert.deepEqual(cell('attribute-comment'), [commentWord, 'manual verification']);
+    assert.deepEqual(checkScene(scene), []);
+    if (width === 360) assert.ok(scene.width > width);
+  }
+});
+
 // 意图：前向子图引用不会造出假实体，且连到框边界时仍保留封闭子图的局部方向。
 test('ER links to nested frames without disabling closed-frame direction', () => {
   const source = 'erDiagram\nA ||--|| Outer : links\nsubgraph Outer [Outer frame]\n  direction LR\n  subgraph Inner\n    B\n  end\nend';
