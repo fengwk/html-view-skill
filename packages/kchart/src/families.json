@@ -142,6 +142,12 @@
       }
     }
   },
+  "diagram/wardley": {
+    "diagrams": { "wardley-beta": { "syntax": "mermaid", "topic": "architecture", "aliases": [] } }
+  },
+  "diagram/eventmodeling": {
+    "diagrams": { "eventmodeling": { "syntax": "mermaid", "topic": "flow", "aliases": [] } }
+  },
   "diagram/layers": {
     "diagrams": {
       "layers": {
