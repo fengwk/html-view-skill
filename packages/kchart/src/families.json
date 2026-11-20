@@ -249,8 +249,9 @@
       "pie": {
         "topic": "composition"
       },
-      "treemap-beta": {
-        "topic": "composition"
+      "treemap": {
+        "topic": "composition",
+        "aliases": ["treemap-beta"]
       }
     }
   },
@@ -266,8 +267,11 @@
   },
   "diagram/numeric-sankey": {
     "diagrams": {
-      "sankey-beta": {
-        "topic": "network"
+      "sankey": {
+        "topic": "network",
+        "aliases": [
+          "sankey-beta"
+        ]
       }
     }
   },

@@ -52,7 +52,22 @@ test('Mermaid mindmap parses one root, shapes, Markdown breaks, statuses, aliase
   }
   const unsupportedHeader = parse('root(root)', { headerLine: 3, options: { style: 'round' } });
   assert.ok(unsupportedHeader.errors.some(e => e.line === 3 && /不支持选项/.test(e.message)));
-  assert.ok(parse('root(root)', { layout: 'unknown' }).errors.some(e => /不支持脑图布局/.test(e.message)));
+  const fallback = parse('root(root)', { layout: 'unknown' });
+  assert.equal(fallback.model.layout, 'bilateral');
+  assert.deepEqual(fallback.errors.map(e => e.severity), ['warning']);
+});
+
+// Shape delimiters select distinct outlines, while uneven sibling indentation selects the nearest shallower parent.
+test('mindmap shapes and relative indentation', () => {
+  const parsed = parse('root((Root))\n        a[A]\n            b(B)\n          c{{C}}\n        d))D((\n        e)E(\n        F', { firstLine: 2 });
+  assert.deepEqual(parsed.errors, []);
+  const root = parsed.model.data;
+  assert.equal(root.shape, 'circle');
+  assert.deepEqual(root.children.map(n => n.shape), ['rect', 'bang', 'cloud', 'none']);
+  assert.deepEqual(root.children[0].children.map(n => n.shape), ['rounded', 'hexagon']);
+  const { svg } = render(parsed.model, { width: 800 });
+  assert.match(svg, /<ellipse\b|rx="[2-9]\d/);
+  assert.equal((svg.match(/<polygon\b/g) || []).length, 2);
 });
 
 // Invalid decorations must be diagnosed, and limits/errors preserve every source node and its line.
