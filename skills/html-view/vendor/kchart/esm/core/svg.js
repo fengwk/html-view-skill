@@ -31,7 +31,7 @@ function serializeElement(node, prefix) {
 		if ((value.match(/url\([^)]*\)/gi) || []).some((ref) => !/^url\(\s*#[\w.-]+\s*\)$/i.test(ref))) throw new TypeError(`Unsafe SVG resource reference: ${key}`);
 		attrs[key] = value.replace(/url\(\s*#([\w.-]+)\s*\)/g, `url(#${prefix}-$1)`);
 	}
-	for (const [key, value] of Object.entries(node.meta || {})) attrs[`data-kc-${key}`] = Array.isArray(value) || value && typeof value === "object" ? JSON.stringify(value) : String(value);
+	for (const [key, value] of Object.entries(node.meta || {})) if (value != null) attrs[`data-kc-${key}`] = Array.isArray(value) || typeof value === "object" ? JSON.stringify(value) : String(value);
 	const attrText = Object.entries(attrs).map(([key, value]) => {
 		validateAttribute(key, {
 			serialize: true,

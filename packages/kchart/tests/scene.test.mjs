@@ -41,6 +41,15 @@ test('场景序列化转义文本、改写引用并拒绝非法属性', () => {
   assert.throws(() => svg.renderScene({ width: 2, height: 2, children: [external] }), /Unsafe SVG resource reference/);
 });
 
+// 交互提示把 data-kc-* 当文字读：缺失值（undefined、未知 null）不写属性，否则提示会显示“null”。
+// 0、false 和空数组是真实值，照常写出。
+test('场景序列化跳过缺失的元数据，保留 0 与 false', () => {
+  const mark = { ...scene.el('rect', { width: 2, height: 2 }), meta: { kind: 'record', id: undefined, value: null, zero: 0, total: false, related: [] } };
+  const rendered = svg.renderScene({ width: 2, height: 2, children: [mark] }, { prefix: 'unit' });
+  assert.match(rendered, /data-kc-kind="record" data-kc-zero="0" data-kc-total="false" data-kc-related="\[\]"/);
+  assert.doesNotMatch(rendered, /data-kc-(?:id|value)=/);
+});
+
 // 用实际模块闭包验证通用上下文没有图表字段、单位或刻度规则。
 test('只有图表上下文带字段格式、日期、刻度和表格语义', () => {
   const generic = context.createContext();

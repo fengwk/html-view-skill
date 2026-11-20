@@ -17,7 +17,8 @@ function serializeElement(node, prefix) {
     if (refs.some((ref) => !/^url\(\s*#[\w.-]+\s*\)$/i.test(ref))) throw new TypeError(`Unsafe SVG resource reference: ${key}`);
     attrs[key] = value.replace(/url\(\s*#([\w.-]+)\s*\)/g, `url(#${prefix}-$1)`);
   }
-  for (const [key, value] of Object.entries(node.meta || {})) attrs[`data-kc-${key}`] = Array.isArray(value) || (value && typeof value === 'object') ? JSON.stringify(value) : String(value);
+  // A missing meta value (undefined, or null for unknown) writes no attribute: readers would see the text "null".
+  for (const [key, value] of Object.entries(node.meta || {})) if (value != null) attrs[`data-kc-${key}`] = Array.isArray(value) || typeof value === 'object' ? JSON.stringify(value) : String(value);
   const attrText = Object.entries(attrs).map(([key, value]) => {
     validateAttribute(key, { serialize: true, generated: true, tag: node.tag });
     return ` ${key}="${escapeXml(value)}"`;
