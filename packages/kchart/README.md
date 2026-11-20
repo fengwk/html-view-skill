@@ -4,6 +4,10 @@
 
 KChart renders declarative charts and diagrams to deterministic SVG without a DOM, a runtime dependency, or a remote rendering service. Install with `npm install @fengwk/kchart`. Node.js consumers need Node 22.12 or later; all entries are ESM and include TypeScript declarations.
 
+## Mermaid compatibility
+
+All 525 core examples accepted by Mermaid 12.3.0 in the [conformance corpus](https://github.com/fengwk/html-view-skill/tree/main/packages/kchart/tests/conformance) render at both 800 px and 360 px without error diagnostics and pass the geometry checks. KChart uses its own layout and theme: supported style colors map by hue to theme status colors; unsupported presentation is not reproduced. Safe links are kept, but callbacks are not executed. ZenUML is an external Mermaid plugin and is not supported; the legacy `zenuml` reader only handles simple call diagrams.
+
 ## Browser and async Node API
 
 ```js
@@ -17,11 +21,13 @@ const bars = await render({
 }, { theme: 'paper', prefix: 'bars-1' });
 ```
 
-`render(spec, options?)` and `diagram(source, options?)` resolve to `{ svg, scene, diagnostics }`. For invalid input or a layout that cannot be rendered, `svg` and `scene` are `null`; unexpected failures reject. Each diagram diagnostic has `severity`: an `error` blocks rendering, while a `warning` (accepted input that KChart ignores or draws its own way, such as Mermaid colors or callbacks) accompanies a rendered SVG. `check(source, { syntax, lang }?)` resolves to the parse/validation diagnostics, warnings included, without laying out the diagram. The diagram syntax defaults to `mermaid`; use `layers`, `blocks`, or `swimlane` for native diagrams. `catalog` and `diagramTypes` expose the supported types and diagram aliases synchronously.
+`render(spec, options?)` and `diagram(source, options?)` resolve to `{ svg, scene, diagnostics }`. For invalid input or a layout that cannot be rendered, `svg` and `scene` are `null`; unexpected failures reject. Each diagram diagnostic has `severity`: an `error` blocks rendering, while a `warning` (for example, a skipped callback or a suggestion to split a large diagram) accompanies a rendered SVG. `check(source, { syntax, lang }?)` resolves to the parse/validation diagnostics, warnings included, without laying out the diagram. The diagram syntax defaults to `mermaid`; use `layers`, `blocks`, or `swimlane` for native diagrams. `catalog` and `diagramTypes` expose the supported types and diagram aliases synchronously.
 
 Render options include `width`, `lang`, `theme`, `media`, `frame`, `prefix`, and `measure(text, size, weight, fontFamily)`. Set `frame: false` if your host already supplies a figure frame. Give each inline SVG a unique `prefix`; allow horizontal scrolling if a diagram needs more room than the requested width.
 
-A production Vite build splits chart and diagram families at dynamic imports. Make the Markdown component itself a dynamic import (for example with `React.lazy`) to defer the facade as well. Shared dependencies can be reused between families. For a map chart, only the requested built-in map (`world` or `us-states`) is loaded; `options.assets` can supply your own map data instead. Browser imports do not use the Node entry or fetch map data from third-party services.
+If `lang` is omitted, diagrams infer English or Chinese from the source: English when there are at least twice as many English words as CJK characters and at least one English word; otherwise Chinese. Set `lang` explicitly to override this.
+
+A production Vite build splits chart and diagram families at dynamic imports. Make the Markdown component itself a dynamic import (for example with `React.lazy`) to defer the facade as well. Shared dependencies can be reused between families. For a map chart, only the requested built-in map (`world` or `us-states`) is loaded; `options.assets` can supply your own map data instead. The renderer needs no network service at runtime; serve the JavaScript chunks and map assets locally for offline use. In a hosted browser build on-demand imports may still load chunks from your own host.
 
 ## Synchronous Node API
 
@@ -43,13 +49,19 @@ const { svg, diagramType, diagnostics } = await mermaid.render('preview-1', 'gra
 
 `initialize(config)` replaces the default KChart render options; the render ID supplies the SVG prefix unless a per-call prefix is provided. `render(id, text, options?)` rejects invalid diagrams with an `Error` carrying `diagnostics`; warnings never reject. `parse(text, { suppressErrors }?)` resolves to `{ diagramType, diagnostics }` (warnings only), or to `false` for invalid input when suppression is enabled; otherwise it rejects with diagnostics. Synchronous `detectType(text)` returns the canonical type for a recognized Mermaid header, without validating the body, and throws for unknown types.
 
-This facade supports KChart's documented Mermaid subset, not the entire Mermaid API. It does not run callbacks or return DOM binding functions.
+This is a Mermaid-style facade, not the entire Mermaid API. It does not run callbacks or return DOM binding functions. Successful `parse` does not guarantee that a diagram can be laid out.
+
+## Diagnostics and icons
+
+Diagram diagnostics carry a `code`, `severity`, `line`, `column`, `message`, `fix`, and `topic`. Diagram warnings include `IGNORED_CONFIG` (unused settings), `IGNORED_STYLE` (unused CSS), `IGNORED_INTERACTION` (callbacks or unsafe links), `IGNORED_ASSET` (such as an unknown icon or a remote image), `LARGE_DIAGRAM` (consider splitting the figure), and `DIAGRAM_HINT` (type-specific advice).
+
+Both the async and Node entries export `registerIcons({ prefix, icons, width?, height? })` for an Iconify-style icon set. Each entry in `icons` has an SVG `body` and optional `width` and `height`; KChart normalizes the geometry. Registered icons are shared across renders in the same process (or browser context) and referenced as `prefix:name` wherever the diagram accepts icons. Built-in icons work without registration; unresolved icons warn rather than blocking render.
 
 ## Themes and supported types
 
 `themes` lists the built-in palettes; `theme('paper')` returns a reusable snapshot. Pass a built-in ID or a snapshot as `options.theme`, and use `media: 'print'` for print colors. The Node entry also exposes `resolveThemeConfig(config)` for inherited custom themes.
 
-See [chart declarations](https://github.com/fengwk/html-view-skill/blob/main/packages/kchart/docs/declaring-charts.md) and [diagram declarations](https://github.com/fengwk/html-view-skill/blob/main/packages/kchart/docs/declaring-diagrams.md) for inputs, supported types, and Mermaid limitations.
+See [chart declarations](https://github.com/fengwk/html-view-skill/blob/main/packages/kchart/docs/declaring-charts.md) and [diagram references (Chinese)](https://github.com/fengwk/html-view-skill/tree/main/skills/html-view/references/diagrams) for inputs, supported types, and Mermaid limitations.
 
 KChart is [MIT licensed](LICENSE). See [NOTICE](NOTICE.md) for asset sources and licenses.
 
