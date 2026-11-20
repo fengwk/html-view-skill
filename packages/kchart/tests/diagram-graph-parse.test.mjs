@@ -125,8 +125,8 @@ test('flow/state/ER 复杂样例保留结构并报告不支持语法', () => {
   for (const source of [
     'flowchart TB\n  classDef x fill:#f00', 'flowchart TB\n  style A fill:#f00',
     'flowchart TB\n  linkStyle 0 stroke:#f00', 'flowchart TB\n  click A callback', 'flowchart TB\n  call foo()',
-    'stateDiagram-v2\n  note right of A: x', 'stateDiagram-v2\n  A --> B\n  --\n  B --> C',
-    'flowchart TB\n  A@{ shape: circle }', 'flowchart TB\n  A:::bad --> B',
+    'stateDiagram-v2\n  note right of A', 'stateDiagram-v2\n  A --> B\n  --\n  B --> C',
+    'flowchart TB\n  A@{ shape: unknown-shape }', 'flowchart TB\n  A:::bad --> B',
     'flowchart TB\n  class A bad', 'erDiagram\n  A ?--o{ B',
     'erDiagram\n  A {\n    int id BAD\n  }', 'stateDiagram-v2 BAD', 'erDiagram BAD',
   ]) {

@@ -250,7 +250,7 @@ function findCycle(runs, orders) {
 }
 
 // cross 是横跨流程的方向，along 是流程方向；两种方向共用一套几何，最后换算成 x / y。
-function layout(model, { measure, width, lang }) {
+export function layout(model, { measure, width, lang }) {
   const horizontal = model.direction === 'LR';
   const crossOf = (node) => horizontal ? node.h : node.w;
   const alongOf = (node) => horizontal ? node.w : node.h;
@@ -305,6 +305,11 @@ function layout(model, { measure, width, lang }) {
     const textH = lines.length * 20;
     const diamond = node.shape === 'diamond';
     const room = portRoom(node.id);
+    if (model.mermaid && node.shape === 'circle') {
+      const diameter = snap(Math.max(room, Math.hypot(textW + 16, textH + 12)));
+      nodes.push({ ...node, lines, diamond, step: stepOf.get(node.id), w: diameter, h: diameter });
+      continue;
+    }
     const cross = (diamond ? textW * 1.7 : textW) + NODE_PAD_X;
     const along = (diamond ? textH * 1.7 : textH) + NODE_PAD_Y;
     nodes.push({ id: node.id, label: node.label, shape: node.shape, class: node.class || null, lane: node.lane, line: node.line, lines, diamond, step: stepOf.get(node.id), w: snap(horizontal ? cross : Math.max(cross, room)), h: snap(horizontal ? Math.max(along, room) : along) });
@@ -321,7 +326,8 @@ function layout(model, { measure, width, lang }) {
   for (const item of lanes) {
     item.rooms = item.columns.map((column) => column.reduce((sum, node) => sum + crossOf(node), 0) + NODE_GAP * Math.max(0, column.length - 1));
     const title = horizontal ? 0 : measure(item.lane.name, FONT.title) + LANE_PAD * 2;
-    item.size = snap(Math.max(0, ...item.rooms, title, horizontal ? MIN_LANE_LR : MIN_LANE_TB) + LANE_PAD * 2);
+    const groupHeadroom = horizontal ? 24 * (model.nested?.filter(group => group.lane === item.lane.id).length || 0) : 0;
+    item.size = snap(Math.max(0, ...item.rooms, title, horizontal ? MIN_LANE_LR : MIN_LANE_TB) + LANE_PAD * 2 + groupHeadroom * 2);
   }
   let nominal = 0;
   const nominalAt = lanes.map((item, index) => {
@@ -642,7 +648,7 @@ function layout(model, { measure, width, lang }) {
   }
   const bands = Array.from({ length: maxStep + 1 }, (_, band) => capacity(bandTracks.get(band) || 0, STEP_GAP));
 
-  let alongCursor = horizontal ? snap(Math.max(HEADER, ...model.lanes.map((lane) => measure(lane.name, FONT.title) + 24))) : HEADER;
+  let alongCursor = horizontal ? snap(Math.max(HEADER, ...model.lanes.map((lane) => measure(lane.name, FONT.title) + 24))) : HEADER + 24 * (model.nested?.length || 0);
   const alongAt = Array.from({ length: maxStep + 1 }, (_, index) => {
     if (index) alongCursor += bands[index - 1] + steps[index - 1];
     return alongCursor;
@@ -663,7 +669,10 @@ function layout(model, { measure, width, lang }) {
   // 判断节点只有斜边可用，端口按斜边求出落点，箭头才不会悬在顶点外。
   const portPoint = (node, cross, side) => {
     const shift = Math.abs(cross - (node.cross + crossOf(node) / 2));
-    const depth = node.diamond ? Math.min(alongOf(node) / 2, shift * alongOf(node) / crossOf(node)) : 0;
+    const r = crossOf(node) / 2;
+    const curve = model.mermaid && node.shape === 'circle' ? r : 0;
+    const depth = node.diamond ? Math.min(alongOf(node) / 2, shift * alongOf(node) / crossOf(node))
+      : curve ? r - Math.sqrt(Math.max(0, r * r - shift * shift)) : 0;
     return point(cross, Math.round(side > 0 ? node.along + alongOf(node) - depth : node.along + depth));
   };
 
@@ -706,16 +715,28 @@ function layout(model, { measure, width, lang }) {
   const laneGeometry = model.lanes.map((lane, index) => horizontal
     ? { id: lane.id, name: lane.name, line: lane.line, nodes: lane.nodes, x: 0, y: laneAt[index], w: canvasW, h: lanes[index].size }
     : { id: lane.id, name: lane.name, line: lane.line, nodes: lane.nodes, x: laneAt[index], y: 0, w: lanes[index].size, h: canvasH });
-  return { type: 'swimlane', direction: model.direction, width: canvasW, height: canvasH, lanes: laneGeometry, nodes, edges, errors: [] };
+  if (model.reverse) {
+    const axis = horizontal ? 'x' : 'y', size = horizontal ? 'w' : 'h';
+    const extent = horizontal ? canvasW : canvasH;
+    for (const box of [...nodes, ...edges.map(edge => edge.label).filter(Boolean)]) box[axis] = extent - box[axis] - box[size];
+    for (const edge of edges) {
+      for (const point of [...edge.points, ...edge.hops]) point[axis] = extent - point[axis];
+      edge.d = pathData(edge.points, edge.hops);
+    }
+  }
+  return { type: 'swimlane', direction: model.direction, width: canvasW, height: canvasH, lanes: laneGeometry, nodes, edges, errors: [], model };
 }
 
-function scene(layout, ctx) {
+export function scene(layout, ctx) {
+  const model = layout.model;
+  const mermaid = model?.mermaid;
+  const flowEdges = new Map(model?.edges.map(edge => [edge.id, edge]));
   const appearance = appearanceOf(ctx);
   const palette = Array.from({ length: 6 }, (_, index) => ctx.frameTone(ctx.color(`tone${index + 1}`)));
   const marker = 'swimlane-arrow';
   const children = [ctx.el('defs', {}, [ctx.el('marker', {
     id: marker, viewBox: '0 0 8 8', refX: 7, refY: 4, markerWidth: 8, markerHeight: 8,
-    markerUnits: 'userSpaceOnUse', orient: 'auto',
+    markerUnits: 'userSpaceOnUse', orient: mermaid ? 'auto-start-reverse' : 'auto',
   }, [ctx.path('M0 0 L8 4 L0 8 Z', { fill: appearance.fg4 })])])];
   for (const [index, lane] of layout.lanes.entries()) {
     const color = palette[index % palette.length];
@@ -723,26 +744,52 @@ function scene(layout, ctx) {
       ctx.rect(lane.x, lane.y, lane.w, lane.h, {
         fill: ctx.tint(appearance.bg, color, .07), stroke: ctx.tint(appearance.bg, color, .45), 'stroke-width': 1, rx: appearance.radius,
       }),
-      ctx.text(layout.direction === 'LR' ? 12 : lane.x + lane.w / 2,
-        layout.direction === 'LR' ? lane.y + lane.h / 2 : 18, lane.name, {
+      ctx.text(layout.direction === 'LR' ? (model?.reverse ? lane.w - 12 : 12) : lane.x + lane.w / 2,
+        layout.direction === 'LR' ? lane.y + lane.h / 2 : model?.reverse ? lane.h - 18 : 18, lane.name, {
           size: FONT.title.size, weight: FONT.title.weight, fill: appearance.fg1,
-          anchor: layout.direction === 'LR' ? 'start' : 'middle', 'dominant-baseline': 'central',
+          anchor: layout.direction === 'LR' ? (model?.reverse ? 'end' : 'start') : 'middle', 'dominant-baseline': 'central',
         }),
     ]);
-    group.meta = { lane: lane.id };
+    group.meta = { lane: lane.id, ...(mermaid ? { kind: 'frame', id: lane.id } : {}) };
     children.push(group);
   }
-  for (const edge of layout.edges) children.push(ctx.path(edge.d, {
-    fill: 'none', stroke: appearance.fg4, 'stroke-width': 1.25, 'stroke-linejoin': 'round',
-    ...(edge.style === 'dashed' ? { 'stroke-dasharray': '5 4' } : {}),
-    'marker-end': `url(#${marker})`, meta: { edge: edge.id, back: edge.back },
-  }));
+  if (mermaid) {
+    const nodes = new Map(layout.nodes.map(node => [node.id, node]));
+    const groups = model.nested.filter(group => group.nodes.length);
+    for (const [index, group] of groups.entries()) {
+      const members = group.nodes.map(id => nodes.get(id));
+      const lane = layout.lanes.find(item => item.id === group.lane);
+      const x = Math.min(...members.map(node => node.x)) - 4;
+      const titleY = Math.min(...members.map(node => node.y)) - 14 - (groups.slice(index + 1).filter(item => item.lane === group.lane).length * 20);
+      const y = Math.max(lane.y + 2, titleY - 8);
+      const titleWidth = ctx.measure(group.title, FONT.label.size, 600) + 12;
+      const w = Math.min(lane.x + lane.w - x - 2, Math.max(titleWidth, ...members.map(node => node.x + node.w + 4 - x)));
+      const h = Math.max(...members.map(node => node.y + node.h + 4 - y));
+      children.push(ctx.rect(x, y, w, h, { fill: appearance.surface2, stroke: appearance.line2, rx: appearance.smallRadius,
+        meta: { kind: 'frame', id: group.id } }));
+      children.push(ctx.text(x + 6, y + 9, group.title, { size: FONT.label.size, weight: 600, anchor: 'start', 'dominant-baseline': 'central', fill: appearance.fg2 }));
+    }
+  }
+  for (const edge of layout.edges) {
+    const flow = flowEdges.get(edge.id);
+    if (mermaid && edge.style === 'invisible') continue;
+    children.push(ctx.path(edge.d, {
+      fill: 'none', stroke: appearance.fg4, 'stroke-width': mermaid && edge.style === 'bold' ? 2.5 : 1.25, 'stroke-linejoin': 'round',
+      ...(edge.style === 'dashed' ? { 'stroke-dasharray': '5 4' } : {}),
+      ...(!mermaid || flow.endArrow ? { 'marker-end': `url(#${marker})` } : {}),
+      ...(mermaid && flow.startArrow ? { 'marker-start': `url(#${marker})` } : {}),
+      meta: { edge: edge.id, back: edge.back, ...(mermaid ? { kind: 'edge', from: edge.from, to: edge.to } : {}) },
+    }));
+  }
   for (const node of layout.nodes) {
     const color = palette[Math.max(0, layout.lanes.findIndex((lane) => lane.id === node.lane)) % palette.length];
     const stroke = node.class && appearance[node.class] ? appearance[node.class] : ctx.tint(appearance.bg, color, .4);
-    const shape = node.shape === 'diamond'
+    const shape = mermaid && node.shape === 'circle'
+      ? ctx.shape('circle', { cx: node.x + node.w / 2, cy: node.y + node.h / 2, r: node.w / 2, fill: appearance.node, stroke, 'stroke-width': 1 })
+      : node.shape === 'diamond'
       ? ctx.shape('polygon', { points: `${node.x + node.w / 2},${node.y} ${node.x + node.w},${node.y + node.h / 2} ${node.x + node.w / 2},${node.y + node.h} ${node.x},${node.y + node.h / 2}`, fill: appearance.node, stroke, 'stroke-width': 1 }, { node: node.id, shape: node.shape, ...(node.class ? { status: node.class } : {}) })
-      : ctx.rect(node.x, node.y, node.w, node.h, { fill: appearance.node, stroke, 'stroke-width': 1, rx: appearance.smallRadius, meta: { node: node.id, shape: node.shape, ...(node.class ? { status: node.class } : {}) } });
+      : ctx.rect(node.x, node.y, node.w, node.h, { fill: appearance.node, stroke, 'stroke-width': 1, rx: mermaid && node.shape === 'stadium' ? node.h / 2 : mermaid && node.shape === 'rect' ? 0 : appearance.smallRadius, meta: { node: node.id, shape: node.shape, ...(node.class ? { status: node.class } : {}) } });
+    if (mermaid) shape.meta = { ...shape.meta, kind: 'node', id: node.id };
     const mark = statusMarks[node.class];
     children.push(ctx.el('g', {}, [shape, ...node.lines.map((line, index) => ctx.text(node.x + node.w / 2,
       node.y + node.h / 2 + (index - (node.lines.length - 1) / 2) * 20, line, {
@@ -757,7 +804,7 @@ function scene(layout, ctx) {
         size: FONT.label.size, fill: appearance.fg2, anchor: 'middle', 'dominant-baseline': 'central',
       })),
     ]);
-    group.meta = { label: edge.id };
+    group.meta = { label: edge.id, ...(mermaid ? { kind: 'edge-label-group', from: edge.from, to: edge.to } : {}) };
     children.push(group);
   }
   return { width: layout.width, height: layout.height, children };

@@ -1,7 +1,10 @@
 import { __exportAll } from "../_virtual/_rolldown/runtime.js";
 import { register } from "./registry.js";
 // src/chart/relations.js
-var relations_exports = /* @__PURE__ */ __exportAll({ install: () => install });
+var relations_exports = /* @__PURE__ */ __exportAll({
+	install: () => install,
+	sankeyPresentation: () => sankeyPresentation
+});
 var clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, n));
 var idOf = (record, fallback) => String(record.id ?? fallback);
 var textOf = (record) => String(record.label ?? record.id ?? "");
@@ -402,6 +405,7 @@ function orderSankeyStages(stages, grouped, edges, stageMap) {
 	}
 	return best;
 }
+var sankeyPresentation = Symbol("sankey presentation");
 function sankey(spec, ctx) {
 	const { nodes, edges } = spec.data;
 	if (nodes.length > 60 || edges.length > 120) ctx.fit("sankey超过60个节点或120条边", "缩小数据范围后重试");
@@ -411,11 +415,12 @@ function sankey(spec, ctx) {
 	const nodeSize = 18;
 	const labelSize = 12;
 	const labelCap = vertical ? 160 : 120;
+	const showValues = spec.showValues !== false;
 	const sum = (list) => list.reduce((total, e) => total + e.value, 0);
 	const wrapped = new Map(nodes.map((n) => {
 		const name = ctx.wrap(textOf(n), labelCap, labelSize, 400);
 		const total = Math.max(sum(edges.filter((e) => e.target === n.id)), sum(edges.filter((e) => e.source === n.id)));
-		const lines = name.length ? [...name, ctx.format(total, "edge.value")] : name;
+		const lines = showValues && name.length ? [...name, ctx.format(total, "edge.value")] : name;
 		const width = Math.max(12, ...lines.map((line) => ctx.measure(line, labelSize, 400)));
 		return [n.id, {
 			lines,
@@ -591,10 +596,11 @@ function sankey(spec, ctx) {
 			const along = cubic(prev.a1, mid, mid, cur.a0, t), cross = cubic(prev.c, prev.c, cur.c, cur.c, t) + thick / 2;
 			return vertical ? [cross, along + 4] : [along, cross + 4];
 		};
+		const ribbonColor = ctx.design[e[sankeyPresentation]] || ctx.color("tone2");
 		children.push(ctx.path(d, {
-			fill: ctx.color("tone2"),
+			fill: ribbonColor,
 			"fill-opacity": ".32",
-			stroke: ctx.color("tone2"),
+			stroke: ribbonColor,
 			"stroke-opacity": ".18",
 			"stroke-width": ".6",
 			meta: {
@@ -602,10 +608,14 @@ function sankey(spec, ctx) {
 				edge: String(e.id ?? `${e.source}-${e.target}`),
 				source: String(e.source),
 				target: String(e.target),
-				value: e.value
+				value: e.value,
+				...spec[sankeyPresentation] ? {
+					from: String(e.source),
+					to: String(e.target)
+				} : {}
 			}
 		}));
-		if (thick >= 16) readouts.push({
+		if (showValues && thick >= 16) readouts.push({
 			edge: e,
 			text: ctx.format(e.value, "edge.value"),
 			labelAt
@@ -703,18 +713,19 @@ function sankey(spec, ctx) {
 	}
 	for (const n of nodes) {
 		const p = pos.get(n.id), box = wrapped.get(n.id), related = edges.filter((e) => e.source === n.id || e.target === n.id).map((e) => String(e.id ?? `${e.source}-${e.target}`));
+		const appearance = n[sankeyPresentation], start = children.length;
 		children.push(ctx.rect(p.x, p.y, p.w, p.h, {
 			rx: 3,
-			fill: ctx.color("tone1"),
+			fill: ctx.design[appearance?.status] || ctx.color("tone1"),
 			"fill-opacity": ".85",
 			meta: {
 				kind: "node",
 				node: String(n.id),
 				stage: stageMap.get(n.id),
-				related
+				related,
+				...spec[sankeyPresentation] ? { id: String(n.id) } : {}
 			}
 		}));
-		if (!box.lines.length) continue;
 		if (vertical) {
 			const lines = box.lines;
 			const x = p.x + p.w + 8;
@@ -749,6 +760,8 @@ function sankey(spec, ctx) {
 				}
 			})));
 		}
+		const link = appearance?.link;
+		if (link) children.push(ctx.link(link.href, children.splice(start), link));
 	}
 	return withDescription(ctx, H, children, spec, W);
 }
@@ -931,4 +944,4 @@ function install({ register }) {
 	register("threads", threads);
 }
 install({ register });
-export { install, relations_exports };
+export { install, relations_exports, sankeyPresentation };

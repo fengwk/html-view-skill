@@ -3,9 +3,9 @@ import { test } from 'vitest';
 import * as Source from '../src/diagram/source.js';
 import { labelText } from '../src/diagram/support.js';
 
-// Front matter delimiters and nested documented settings must retain original physical lines.
-test('prepareSource handles leading blanks, legacy closing delimiter and nested mindmap config', () => {
-  const result = Source.prepareSource('\n---\ntitle: "申请流程"\nconfig:\n  layout: radial\n  mindmap:\n    colorBy: branch\n...\n%%{init: {theme: dark}}%%\nflowchart LR; A --> B\n  C --> D');
+// Front matter delimiters and documented settings retain original physical lines.
+test('prepareSource handles leading blanks, the legacy delimiter and mindmap config', () => {
+  const result = Source.prepareSource('\n---\ntitle: "申请流程"\nconfig:\n  layout: radial\n  mindmap:\n    colorBy: branch\n...\n%%{init: {"theme": "dark"}}%%\nflowchart LR; A --> B\n  C --> D');
   assert.equal(result.title, '申请流程');
   assert.equal(result.layout, 'radial');
   assert.equal(result.header, 'flowchart LR; A --> B');
@@ -14,51 +14,91 @@ test('prepareSource handles leading blanks, legacy closing delimiter and nested 
   assert.equal(result.kind, 'flowchart');
   assert.equal(result.params, 'LR; A --> B');
   assert.equal(result.body, '  C --> D');
-  assert.equal(result.errors.length, 1);
-  assert.equal(result.errors[0].line, 9);
-  assert.match(result.errors[0].fix, /前言区/);
+  assert.deepEqual(result.config, { layout: 'radial', mindmap: { colorBy: 'branch' }, theme: 'dark' });
+  assert.deepEqual(result.configLines, { layout: 5, mindmap: 6, 'mindmap.colorby': 7, theme: 9 });
+  assert.deepEqual(result.errors, []);
 });
 
-// Duplicate front matter keys and undocumented config must identify their actual key columns.
-test('prepareSource diagnoses duplicate title/layout and unknown config at source positions', () => {
-  const result = Source.prepareSource('---\ntitle: one\ntitle: two\nconfig:\n  layout: right\n  layout: left\n  unknown: value\n---\nflowchart TB');
-  assert.deepEqual([...result.errors].map(({ line, column }) => [line, column]), [[3, 1], [6, 3], [7, 3]]);
-  assert.equal(result.title, 'one');
-  assert.equal(result.layout, 'right');
+// Malformed YAML remains blocking and reports the offending physical line and column.
+test('prepareSource reports duplicate keys, bad indentation and unclosed flow collections', () => {
+  for (const [yaml, line, column] of [
+    ['title: one\ntitle: two', 3, 1],
+    ['config:\n  layout: right\n  layout: left', 4, 3],
+    ['config:\n  look: classic\n theme: default', 4, 2],
+    ['config: { theme: default', 2, 25],
+  ]) {
+    const result = Source.prepareSource(`---\n${yaml}\n---\nflowchart TB`);
+    assert.deepEqual(result.errors.map(d => [d.line, d.column, d.severity]), [[line, column, 'error']]);
+  }
 });
 
-// A rejected leading directive is reported once and skipped so the actual graph declaration is still found.
-test('prepareSource skips single- and multiline directives before the graph header', () => {
-  const result = Source.prepareSource('%%{init:\n  theme: dark\n}%%\nflowchart TB\n  A --> B');
-  assert.equal(result.errors.length, 1);
-  assert.equal(result.errors[0].line, 1);
-  assert.match(result.errors[0].fix, /前言区/);
-  assert.equal(result.header, 'flowchart TB');
-  assert.equal(result.headerLine, 4);
-  assert.equal(result.firstLine, 5);
-  assert.equal(result.body, '  A --> B');
-
-  const single = Source.prepareSource('%%{init: {theme: dark}}%%\nflowchart TB');
-  assert.equal(single.errors.length, 1);
-  assert.equal(single.headerLine, 2);
-
-  const inBody = Source.prepareSource('flowchart TB\n%%{init: {theme: dark}}%%\n  A --> B\n%%{init:\n  theme: dark\n}%%\n  C --> D');
-  assert.deepEqual([...inBody.errors].map(({ line }) => line), [2, 4]);
-  assert.equal(inBody.body, '\n  A --> B\n\n\n\n  C --> D');
+// YAML preserves original case and typed values through nested block and flow collections.
+test('prepareSource reads YAML collections, scalars, comments and gantt displayMode', () => {
+  const result = Source.prepareSource(`---
+    title: 'It''s #literal' # ignored
+    displayMode: compact
+    config:
+      ThemeVariables: { color: '#fff', scale: [1.5, -2e1, true, null] }
+      entries:
+        - label: plain item
+          opts: [false, "line\\nbreak"]
+        - 'x'
+---
+gantt`);
+  assert.deepEqual(result.errors, []);
+  assert.equal(result.title, "It's #literal");
+  assert.deepEqual(result.config, {
+    ThemeVariables: { color: '#fff', scale: [1.5, -20, true, null] },
+    entries: [{ label: 'plain item', opts: [false, 'line\nbreak'] }, 'x'],
+    gantt: { displayMode: 'compact' },
+  });
+  assert.equal(result.configLines['themevariables.scale'], 5);
+  assert.equal(result.configLines['entries.0.opts'], 8);
+  assert.equal(result.configLines['gantt.displaymode'], 3);
 });
 
-// Header options remain raw for optionMode dispatch; semicolon-separated Mermaid statements are not token-validated here.
-test('prepareSource preserves the full header and raw params including semicolon statements', () => {
+// Directives deep-merge in source order and warn without blocking on invalid or unknown syntax.
+test('prepareSource merges init, initialize and wrap while removing directive rows', () => {
+  const result = Source.prepareSource(`---
+config: {sequence: {mirrorActors: true, width: 100}, theme: default}
+---
+%%{init: {'theme': 'dark', 'sequence': {'width': 200}}}%%
+sequenceDiagram
+%%{initialize: {
+  'sequence': {'width': 300, 'note': 'literal }%% text'}
+}}%%
+%%{wrap}%%
+%%{init: {notJSON: true}}%%
+%%{unknown}%%
+A->>B: hello`);
+  assert.equal(result.headerLine, 5);
+  assert.equal(result.firstLine, 6);
+  assert.equal(result.body, '\n'.repeat(6) + 'A->>B: hello');
+  assert.deepEqual(result.config, { sequence: { mirrorActors: true, width: 300, note: 'literal }%% text' }, theme: 'dark', wrap: true });
+  assert.equal(result.configLines['sequence.width'], 7);
+  assert.equal(result.configLines['sequence.mirroractors'], 2);
+  assert.deepEqual(result.errors.map(d => [d.code, d.severity, d.line]), [['IGNORED_CONFIG', 'warning', 10]]);
+  assert.match(result.errors[0].message, /init.*unknown/);
+  const inline = Source.prepareSource(`%%{init: {'theme': 'unterminated}}%%
+flowchart TB %%{wrap}%%%%{init: {'look': 'classic'}}%%
+A --> B`);
+  assert.equal(inline.header, 'flowchart TB');
+  assert.deepEqual(inline.config, { wrap: true, look: 'classic' });
+  assert.equal(inline.errors[0].line, 1);
+});
+
+// Header options remain raw for optionMode dispatch, including semicolon-separated statements.
+test('prepareSource preserves the full header and raw params', () => {
   const result = Source.prepareSource('flowchart LR; A --> B\n  unknown statement\n  C --> D');
   assert.equal(result.kind, 'flowchart');
   assert.equal(result.header, 'flowchart LR; A --> B');
   assert.equal(result.params, 'LR; A --> B');
   assert.equal(result.body, '  unknown statement\n  C --> D');
-  assert.deepEqual([...result.errors], []);
+  assert.deepEqual(result.errors, []);
 });
 
-// Only explicit quoted-backtick Mermaid Markdown is normalized; merged physical rows are padded for downstream line numbers.
-test('prepareSource normalizes multiline explicit Markdown but preserves other quoted text verbatim', () => {
+// Only explicit quoted-backtick Mermaid Markdown is normalized, with physical-line padding.
+test('prepareSource normalizes multiline Markdown but preserves other quoted text', () => {
   const result = Source.prepareSource('flowchart TB\n  A["`**first\nsecond *word***`"] --> B\n  C --> D\n  style[标签] --> E');
   assert.equal(result.body, '  A["first<br/>second word"] --> B\n\n  C --> D\n  style[标签] --> E');
   assert.equal(result.errors.length, 0);
@@ -73,16 +113,34 @@ test('prepareSource normalizes multiline explicit Markdown but preserves other q
   assert.equal(native.body, '  A["`**native**`"]');
 });
 
-// classDiagram owns class declarations; Mermaid style-class declarations elsewhere are forbidden, while ordinary style-like IDs remain untouched.
-test('prepareSource distinguishes classDiagram grammar from generic style declarations', () => {
+// Presentation and class grammar both pass source preparation unchanged for registry dispatch.
+test('prepareSource leaves class statements alone', () => {
   const classes = Source.prepareSource('classDiagram\n  class A {\n    +String click\n  }\n  class B');
   assert.equal(classes.body, '  class A {\n    +String click\n  }\n  class B');
-  assert.equal(classes.errors.length, 0);
-
+  assert.deepEqual(classes.errors, []);
   const styleClass = Source.prepareSource('flowchart TB\n  class A danger');
-  assert.equal(styleClass.errors.length, 1);
-  assert.equal(styleClass.errors[0].line, 2);
-  assert.match(styleClass.errors[0].message, /样式类/);
+  assert.deepEqual(styleClass.errors, []);
+  assert.equal(styleClass.body, '  class A danger');
+});
+
+// Comments strip only outside quotes; accessibility statements do not move subsequent rows.
+test('prepareSource strips comments and blanks accessibility rows', () => {
+  const result = Source.prepareSource(`%% heading comment
+flowchart TB %% header comment
+  A["quoted %% content"] --> B %% trailing
+  B['single %% quoted'] --> C
+  accTitle: Read me %% comment
+  accDescr {
+First line
+Second line
+  } %% comment
+  C --> D`);
+  assert.equal(result.header, 'flowchart TB');
+  assert.equal(result.firstLine, 3);
+  assert.equal(result.accTitle, 'Read me');
+  assert.equal(result.accDescr, 'First line\nSecond line');
+  assert.deepEqual(result.body.split('\n'), ['  A["quoted %% content"] --> B', "  B['single %% quoted'] --> C", '', '', '', '', '', '  C --> D']);
+  assert.equal(Source.prepareSource('flowchart LR\naccDescr: Short description').accDescr, 'Short description');
 });
 
 // Native bare source begins at its first physical line; option parsing remains available to the dispatcher.
@@ -101,5 +159,12 @@ test('native bare source and parseOptions retain exact values and positions', ()
   const fromText = Source.parseOptions('layout=radial title="two words"', { line: 2 });
   assert.equal(fromText.options.title, 'two words');
   assert.equal(parsed.errors.length, 2);
-  assert.deepEqual([...parsed.errors].map(({ line }) => line), [4, 4]);
+  assert.deepEqual(parsed.errors.map(({ line }) => line), [4, 4]);
+});
+
+// Trailing %% comments are stripped by default, but a kind may keep them as text (gantt axisFormat %%).
+test('keepsTrailingComments lets a kind keep %% text after a statement', () => {
+  const source = 'gantt\naxisFormat %s %%\nflow A --> B %% note';
+  assert.equal(Source.prepareSource(source).body, 'axisFormat %s\nflow A --> B');
+  assert.equal(Source.prepareSource(source, { keepsTrailingComments: kind => kind === 'gantt' }).body, 'axisFormat %s %%\nflow A --> B %% note');
 });

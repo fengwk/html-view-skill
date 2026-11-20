@@ -6,8 +6,9 @@ import * as chart from '../dist/esm/node.js';
 const { check, createRenderer, diagram, diagramTypes, modulesFor } = chart;
 
 // 清单上的每个规范图型必须有实际实现；任何额外实现都要通过同一处登记。
-test('结构图目录与实际模块覆盖 27 个 Mermaid 类型和 3 个原生类型', () => {
-  assert.equal(diagramTypes.filter(({ syntax }) => syntax === 'mermaid').length, 27);
+test('结构图目录与实际模块一一对应：Mermaid 类型与 3 个原生类型', () => {
+  // Mermaid kinds grow with every family slice; the set equality below is the real guard.
+  assert.ok(diagramTypes.filter(({ syntax }) => syntax === 'mermaid').length >= 27);
   assert.deepEqual(diagramTypes.filter(({ syntax }) => syntax !== 'mermaid').map(({ kind }) => kind), ['layers', 'blocks', 'swimlane']);
   const modules = import.meta.glob('../src/diagram/*.js', { eager: true });
   const implemented = Object.values(modules).flatMap(unit => Object.keys(unit.implementations || {}));
@@ -102,7 +103,7 @@ test('共用入口保留 Markdown 换行并定位未支持的写法', () => {
   for (const [input, line] of [
     ['flowchart LR\n A --> B\n class A danger', 3],
     ['flowchart LR; A --> B; class A danger', 1],
-    ['mindmap\n  root\n    label\n    ::icon(fa fa-book)', 4],
+    ['mindmap\n  root\n    label\n    ::icon()', 4],
   ]) {
     const { svg, diagnostics } = diagram(input);
     assert.equal(svg, null);

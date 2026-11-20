@@ -1,4 +1,4 @@
-import { el, hash, primitive } from './scene.js';
+import { el, hash, link, primitive } from './scene.js';
 import { FONT_FAMILY, defaultStyle, paletteOf, theme as resolveTheme } from './theme.js';
 import { contrast, isHex, luminance, mix, pushContrast, tint } from './color.js';
 import { fallbackMeasure, wrapText } from './text.js';
@@ -96,7 +96,7 @@ function createContext(options = {}) {
   const ctx = {
     width, lang, theme, fontFamily, scheme: resolved.scheme, design: resolved, assets: options.assets || null,
     measure: (value, size, weight) => measure(value, size, weight, fontFamily),
-    el: el, shape: primitive, text, titled, textColor, textOn,
+    el: el, shape: primitive, text, titled, link, textColor, textOn,
     rect: (x, y, w, h, opts = {}) => primitive('rect', { x, y, width: w, height: h, ...opts }, opts.meta),
     line: (x1, y1, x2, y2, opts = {}) => primitive('line', { x1, y1, x2, y2, ...opts }, opts.meta),
     circle: (x, y, r, opts = {}) => primitive('circle', { cx: x, cy: y, r, ...opts }, opts.meta),

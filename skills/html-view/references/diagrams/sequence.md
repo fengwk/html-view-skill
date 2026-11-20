@@ -24,4 +24,8 @@ API-->>用户: 展示结果
 
 受控 `zenuml` 支持参与者、`Client->API: request` 消息、`Client.call()` 调用和单行嵌套调用 `Client.call() { API.handle() }`；可用 `title` 正文语句。其他 ZenUML 语法不支持，检查会给出源码位置和改法；不要假定完整兼容。
 
+## usecase-beta
+
+UML 用例图：`actor 名称("显示名")` 声明参与者，`systemBoundary "系统名" … end` 包住用例，`用例ID("名称")` 声明用例，`A --> B` 等关联箭头连接参与者与用例，`A ..> : include B`、`A ..> : extend B` 画虚线 «include» / «extend» 依赖；可用 `direction LR`。
+
 时序图可使用前言区 `title`；`zenuml` 也可用正文 `title`。阅读文档的图题必须来自图源码，不支持的额外标题选项应删除，不要以外部段落替代。

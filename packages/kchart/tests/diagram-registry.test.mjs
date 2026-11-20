@@ -150,3 +150,58 @@ test('warnings ride along with a rendered SVG and never block', () => {
   assert.equal(blocked.svg, null);
   assert.deepEqual(blocked.diagnostics.map(d => d.severity), ['warning', 'error']);
 });
+
+// Honored prefixes and silent defaults reach both stages without warning; all ignored subjects share one diagnostic.
+test('registry reports ignored config once and passes the same config to parse and layout', () => {
+  let parsedConfig;
+  const base = implementation();
+  const impl = implementation({
+    honoredConfig: ['FlowChart.Curve', 'gantt'],
+    parse(body, info) { parsedConfig = info.config; return base.parse(body, info); },
+    layout(model, args, info) { assert.equal(info.config, parsedConfig); return base.layout(model, args, info); },
+  });
+  const source = `---
+config:
+  flowchart: {Curve: linear, direction: TB}
+  gantt: {displayMode: compact, settings: {x: 2}}
+  securityLevel: strict
+  dompurifyConfig: {X: true}
+  theme: default
+  layout: dagre
+  look: classic
+  themeVariables: {primaryColor: blue}
+foo: true
+---
+%%{noSuchDirective}%%
+graph
+Hello`;
+  const result = createDiagramApi({ flowchart: impl }, types).diagram(source, { lang: 'en' });
+  assert.ok(result.svg);
+  assert.equal(parsedConfig.flowchart.Curve, 'linear');
+  assert.deepEqual(parsedConfig.dompurifyConfig, { X: true });
+  assert.deepEqual(result.diagnostics.map(d => [d.code, d.severity, d.line]), [['IGNORED_CONFIG', 'warning', 3]]);
+  assert.match(result.diagnostics[0].message, /foo.*noSuchDirective.*flowchart\.direction.*themeVariables\.primaryColor/);
+  assert.doesNotMatch(result.diagnostics[0].message, /Curve|gantt|securityLevel|dompurifyConfig|layout|look/);
+});
+
+// Only an implementation opting in sees formerly forbidden Mermaid presentation declarations.
+test('registry gates presentation syntax per implementation', () => {
+  const source = 'graph\n  classDef c fill:red\n  style A fill:red\n  linkStyle 0 stroke:red\n  click A fn\n  href A example\n  callback A fn\n  A::icon(test)\n  class A c';
+  const rejected = createDiagramApi({ flowchart: implementation({ parse() { assert.fail('must not parse'); } }) }, types);
+  const diagnostics = rejected.check(source, { lang: 'en' });
+  assert.deepEqual(diagnostics.map(d => d.line), [2, 3, 4, 5, 6, 7, 8, 9]);
+  assert.match(diagnostics[0].message, /Unsupported Mermaid syntax "classDef"/);
+  assert.match(diagnostics[7].message, /style-class declarations/);
+  const accepted = createDiagramApi({ flowchart: implementation({ acceptsPresentation: true }) }, types).parse(source);
+  assert.deepEqual(accepted.diagnostics, []);
+  assert.equal(accepted.model.text, source.slice(source.indexOf('\n') + 1).trim());
+});
+
+// Accessibility labels are XML-escaped independently of the visible front matter heading.
+test('registry sets SVG title and description from accessibility statements', () => {
+  const api = createDiagramApi({ flowchart: implementation() }, types);
+  const result = api.diagram('---\ntitle: Visible heading\n---\ngraph\naccTitle: Accessible & title\naccDescr {\nDescription <one>\nLine two\n}\nHello');
+  assert.equal(result.scene.heading, 'Visible heading');
+  assert.match(result.svg, /<title[^>]*>Accessible &amp; title<\/title>/);
+  assert.match(result.svg, /<desc>Description &lt;one&gt;\nLine two<\/desc>/);
+});
