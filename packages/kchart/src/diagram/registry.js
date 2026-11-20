@@ -109,7 +109,9 @@ function createDiagramApi(implementations, types) {
     const preparedDiagnostics = normalize(merge(sourceErrors, config ? [config] : [], presentation, optionResult.errors || []), type);
     if (!type) {
       if (preparedDiagnostics.some(blocking)) return { info, type: null, model: null, diagnostics: preparedDiagnostics };
-      return { info, type: null, model: null, diagnostics: [...preparedDiagnostics, diagnostic({ line: headerLineOf(prepared), message: `未知结构图类型「${prepared.kind || syntax}」`, fix: '使用已声明的结构图类型' })] };
+      // An unrecognized first line (for example `pie:`) has no kind; name its first word instead of the syntax.
+      const shown = prepared.kind || prepared.body.trim().split(/\s+/)[0].slice(0, 40) || syntax;
+      return { info, type: null, model: null, diagnostics: [...preparedDiagnostics, diagnostic({ line: headerLineOf(prepared), message: `未知结构图类型「${shown}」`, fix: '使用已声明的结构图类型' })] };
     }
     if (String(type.syntax).toLowerCase() !== String(syntax).toLowerCase()) {
       const syntaxError = diagnostic({ line: headerLineOf(prepared), message: `图类型「${prepared.kind}」不支持语法「${syntax}」`, fix: `使用 ${type.syntax} 语法` }, type);

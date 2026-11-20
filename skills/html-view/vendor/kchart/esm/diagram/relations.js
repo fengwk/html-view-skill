@@ -5,16 +5,7 @@ import { layoutGraph } from "./graph-layout.js";
 import { cubicPath } from "../core/geometry.js";
 // src/diagram/relations.js
 var relations_exports = /* @__PURE__ */ __exportAll({ implementations: () => implementations });
-var TYPES = [
-	"classDiagram",
-	"requirementDiagram",
-	"C4Context",
-	"C4Container",
-	"C4Component",
-	"C4Dynamic",
-	"C4Deployment",
-	"zenuml"
-];
+var TYPES = ["zenuml"];
 var MAX = {
 	nodes: 40,
 	edges: 60,

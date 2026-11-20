@@ -101,8 +101,8 @@ test('共用入口保留 Markdown 换行并定位未支持的写法', () => {
   assert.equal(rendered.scene.nodes[1].status, 'ok');
   assert.match(rendered.svg, /第一行<\/text>/);
   for (const [input, line] of [
-    ['flowchart LR\n A --> B\n class A danger', 3],
-    ['flowchart LR; A --> B; class A danger', 1],
+    ['flowchart LR\n A --> B\n A -->', 3],
+    ['flowchart LR; A --> B; A -->', 1],
     ['mindmap\n  root\n    label\n    ::icon()', 4],
   ]) {
     const { svg, diagnostics } = diagram(input);

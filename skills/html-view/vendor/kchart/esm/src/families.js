@@ -81,7 +81,7 @@ var families_default = {
 	"diagram/graph": { "diagrams": {
 		"flowchart": {
 			"topic": "flow",
-			"aliases": ["graph"]
+			"aliases": ["graph", "flowchart-elk"]
 		},
 		"stateDiagram-v2": {
 			"topic": "flow",
@@ -151,22 +151,22 @@ var families_default = {
 	"diagram/gantt": { "diagrams": { "gantt": { "topic": "time" } } },
 	"diagram/timeline": { "diagrams": { "timeline": { "topic": "time" } } },
 	"diagram/journey": { "diagrams": { "journey": { "topic": "flow" } } },
-	"diagram/time": { "diagrams": {
-		"gitGraph": { "topic": "time" },
-		"kanban": { "topic": "time" },
-		"packet-beta": { "topic": "time" },
-		"quadrantChart": { "topic": "time" }
-	} },
-	"diagram/relations": { "diagrams": {
-		"classDiagram": { "topic": "data-model" },
-		"requirementDiagram": { "topic": "data-model" },
-		"C4Context": { "topic": "architecture" },
-		"C4Container": { "topic": "architecture" },
-		"C4Component": { "topic": "architecture" },
-		"C4Dynamic": { "topic": "architecture" },
-		"C4Deployment": { "topic": "architecture" },
-		"zenuml": { "topic": "sequence" }
-	} },
+	"diagram/gitgraph": { "diagrams": { "gitGraph": { "topic": "time" } } },
+	"diagram/kanban": { "diagrams": { "kanban": { "topic": "time" } } },
+	"diagram/packet": { "diagrams": { "packet": {
+		"topic": "time",
+		"aliases": ["packet-beta"]
+	} } },
+	"diagram/quadrant": { "diagrams": { "quadrantChart": { "topic": "time" } } },
+	"diagram/class": { "diagrams": { "classDiagram": {
+		"topic": "data-model",
+		"aliases": ["classDiagram-v2"]
+	} } },
+	"diagram/requirement": { "diagrams": { "requirementDiagram": {
+		"topic": "data-model",
+		"aliases": ["requirement"]
+	} } },
+	"diagram/relations": { "diagrams": { "zenuml": { "topic": "sequence" } } },
 	"diagram/architecture": { "diagrams": { "architecture": {
 		"aliases": ["architecture-beta"],
 		"topic": "architecture"
@@ -197,6 +197,13 @@ var families_default = {
 	} } },
 	"diagram/treeview": { "diagrams": { "treeView-beta": { "topic": "hierarchy" } } },
 	"diagram/venn": { "diagrams": { "venn-beta": { "topic": "composition" } } },
-	"diagram/cynefin": { "diagrams": { "cynefin-beta": { "topic": "matrix" } } }
+	"diagram/cynefin": { "diagrams": { "cynefin-beta": { "topic": "matrix" } } },
+	"diagram/c4": { "diagrams": {
+		"C4Context": { "topic": "architecture" },
+		"C4Container": { "topic": "architecture" },
+		"C4Component": { "topic": "architecture" },
+		"C4Dynamic": { "topic": "architecture" },
+		"C4Deployment": { "topic": "architecture" }
+	} }
 };
 export { families_default as default };

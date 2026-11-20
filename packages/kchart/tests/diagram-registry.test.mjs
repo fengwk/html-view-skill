@@ -126,6 +126,7 @@ test('diagram distinguishes unknown type, syntax misuse, and unloaded implementa
   assert.equal(missing.diagnostics[0].topic, 'flow');
   assert.match(api.check('mindmap\nbody')[0].message, /不支持语法/);
   assert.match(api.check('nonsense\nbody')[0].message, /未知结构图类型/);
+  assert.match(api.check('pie:\n"A": 1')[0].message, /「pie:」/, 'an unrecognized header names its own word');
   assert.match(api.check('flowchart ???')[0].message, /无效的图选项「\?\?\?」/);
 });
 

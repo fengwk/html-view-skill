@@ -78,6 +78,11 @@ var invalidAt = (line, column = 1) => Object.assign(/* @__PURE__ */ new SyntaxEr
 	column
 });
 var number = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?$/i;
+var COLON_HEADERS = /* @__PURE__ */ new Set([
+	"gitgraph",
+	"cynefin-beta",
+	"radar-beta"
+]);
 function yamlScalar(text) {
 	if (/^(?:null|~)$/i.test(text)) return null;
 	if (/^(?:true|false)$/i.test(text)) return text.toLowerCase() === "true";
@@ -439,7 +444,12 @@ function prepareSource(source, { syntax = "mermaid", lang, keepsTrailingComments
 	while (start < lines.length && !lines[start].trim()) start++;
 	let header = "", headerLine = 0, firstLine = start + 1, bodyStart = start;
 	const first = lines[start] || "";
-	const head = /^\s*([A-Za-z][\w-]*)(?=\s|;|$)(.*)$/.exec(first);
+	let head = /^\s*([A-Za-z][\w-]*)(?=\s|;|:|$)(.*)$/.exec(first);
+	if (head?.[2].startsWith(":")) head = COLON_HEADERS.has(head[1].toLowerCase()) ? [
+		head[0],
+		head[1],
+		head[2].slice(1)
+	] : null;
 	const mermaid = syntax === "mermaid";
 	const nativeType = String(syntax || "").replace(/^native(?::|-)?/i, "");
 	let kind = "", params = "";
@@ -458,7 +468,7 @@ function prepareSource(source, { syntax = "mermaid", lang, keepsTrailingComments
 		firstLine = bodyStart + 1;
 		params = head[2].trim();
 	} else {
-		kind = nativeType && nativeType.toLowerCase() !== "native" ? nativeType : "";
+		kind = !mermaid && nativeType && nativeType.toLowerCase() !== "native" ? nativeType : "";
 		bodyStart = start;
 		firstLine = start + 1;
 	}

@@ -147,13 +147,14 @@ function createDiagramApi(implementations, types) {
 				model: null,
 				diagnostics: preparedDiagnostics
 			};
+			const shown = prepared.kind || prepared.body.trim().split(/\s+/)[0].slice(0, 40) || syntax;
 			return {
 				info,
 				type: null,
 				model: null,
 				diagnostics: [...preparedDiagnostics, diagnostic({
 					line: headerLineOf(prepared),
-					message: `未知结构图类型「${prepared.kind || syntax}」`,
+					message: `未知结构图类型「${shown}」`,
 					fix: "使用已声明的结构图类型"
 				})]
 			};

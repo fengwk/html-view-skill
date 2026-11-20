@@ -1,5 +1,6 @@
 import { __exportAll } from "../_virtual/_rolldown/runtime.js";
-import { DIRECTIONS, FONT as FONT$1, fallbackMeasure, maxWidthOf, wrapText } from "./support.js";
+import { DIRECTIONS, FONT as FONT$1, fallbackMeasure, maxWidthOf, warning, wrapText } from "./support.js";
+import { repairRoutes } from "./graph-route.js";
 import { flowOutlineName, outlinePort, shapeGlyphBox, shapeOutline, shapeSize } from "./shapes.js";
 // src/diagram/graph-layout.js
 var graph_layout_exports = /* @__PURE__ */ __exportAll({ layoutGraph: () => layoutGraph });
@@ -76,7 +77,13 @@ function collapseFrames(model) {
 		edges
 	};
 }
-function layoutGraph(source, options = {}) {
+function layoutGraph(source, options = {}, info = {}) {
+	const geometry = arrangeGraph(source, options, info);
+	if (source.type !== "er") repairRoutes(geometry);
+	if (source.type !== "er" && (source.nodes.length > 60 || geometry.width > (options.width ?? Infinity) * 2)) geometry.errors = [warning("LARGE_DIAGRAM", options.lang ?? info.lang, info.headerLine ?? 1, "图较大，可在框内滚动", "Large diagram; scroll within the frame", "考虑拆成多张图", "Consider splitting the diagram")];
+	return geometry;
+}
+function arrangeGraph(source, options, info, allowCompact = true) {
 	const model = collapseFrames(source);
 	const frames = new Map(model.subgraphs.map((frame) => [frame.id, frame]));
 	const childRegions = new Set(model.subgraphs.filter((frame) => frame.kind === "divider").map((frame) => frame.parent));
@@ -89,25 +96,33 @@ function layoutGraph(source, options = {}) {
 	};
 	const all = [...nodes, ...model.subgraphs];
 	const occupied = new Set(all.map((item) => item.parent));
+	const compact = allowCompact && model.type === "flowchart" && nodes.length > 0 && nodes.every((item) => item.parent != null);
+	const flowConfig = Object.entries(info.config ?? {}).find(([key]) => key.toLowerCase() === "flowchart")?.[1];
+	const inheritDir = Object.entries(flowConfig ?? {}).some(([key, value]) => key.toLowerCase() === "inheritdir" && value === true);
+	const projected = /* @__PURE__ */ new Map();
 	for (const frame of [...frames.values()].sort((a, b) => a.depth - b.depth || a.seq - b.seq)) {
-		if (hidden.has(frame.id) || occupied.has(frame.id) && !(frame.dir || frame.kind === "divider" || childRegions.has(frame.id))) continue;
+		const wholeBlock = compact && !frame.parent;
+		if (hidden.has(frame.id) || occupied.has(frame.id) && !(wholeBlock || frame.dir || inheritDir || frame.kind === "divider" || childRegions.has(frame.id))) continue;
 		const members = new Set(occupied.has(frame.id) ? all.filter((item) => isMember(item, frame)).map((item) => item.id) : []);
-		if (edges.some((edge) => members.has(edge.from) !== members.has(edge.to))) continue;
+		const external = edges.some((edge) => members.has(edge.from) !== members.has(edge.to));
+		if (external && !wholeBlock) continue;
+		for (const id of members) projected.set(id, frame.id);
 		const topLevel = (item) => item.parent === frame.id ? {
 			...item,
 			parent: null
 		} : item;
-		const inside = edges.filter((edge) => members.has(edge.from));
-		const inner = layoutGraph({
+		const inside = edges.filter((edge) => members.has(edge.from) && members.has(edge.to));
+		const innerDirection = !external && frame.dir ? frame.dir : model.type === "flowchart" && (inheritDir || external) ? model.direction : "TB";
+		const inner = arrangeGraph({
 			...model,
-			direction: frame.dir || (model.type === "state" ? "TB" : model.direction),
+			direction: innerDirection,
 			nodes: nodes.filter((item) => members.has(item.id)).map(topLevel),
 			subgraphs: model.subgraphs.filter((item) => members.has(item.id)).map(topLevel),
 			edges: inside
-		}, options);
-		const lines = frame.title ? wrapText(frame.title, 200, FONT.frame, measure) : [];
+		}, options, info, false);
+		const lines = frame.title ? wrapText(frame.title, 200, FONT.frame, measure) : frame.icon ? [""] : [];
 		const descLines = (frame.desc ?? []).flatMap((line) => wrapText(line, 180, FONT.body, measure));
-		const titleW = Math.max(maxWidthOf(lines, FONT.frame, measure), maxWidthOf(descLines, FONT.body, measure));
+		const titleW = Math.max(maxWidthOf(lines, FONT.frame, measure) + (frame.icon ? 22 : 0), maxWidthOf(descLines, FONT.body, measure));
 		const titleH = lines.length * 17 + (descLines.length ? 4 + descLines.length * 16 : 0);
 		const titleBand = titleH ? titleH + 8 : 0;
 		const w = Math.max(inner.width, titleW + 32), h = inner.height + titleBand;
@@ -127,6 +142,18 @@ function layoutGraph(source, options = {}) {
 	}
 	if (!blocks.size) return layoutCore(model, options);
 	const proxy = (id) => blocks.has(id);
+	const redirects = /* @__PURE__ */ new Map();
+	const outerEdges = edges.filter((edge) => !localEdges.has(edge)).map((edge) => {
+		const from = projected.get(edge.from) ?? edge.from, to = projected.get(edge.to) ?? edge.to;
+		if (from !== edge.from || to !== edge.to) redirects.set(edge.seq, edge);
+		return {
+			...edge,
+			from,
+			to,
+			fromFrame: edge.fromFrame && !proxy(from),
+			toFrame: edge.toFrame && !proxy(to)
+		};
+	});
 	const outer = layoutCore({
 		...model,
 		nodes: [...nodes.filter((item) => !hidden.has(item.id)), ...[...blocks.values()].map(({ frame, w, h }) => ({
@@ -139,11 +166,7 @@ function layoutGraph(source, options = {}) {
 			shape: "rect"
 		}))],
 		subgraphs: model.subgraphs.filter((frame) => !hidden.has(frame.id) && !proxy(frame.id)),
-		edges: edges.filter((edge) => !localEdges.has(edge)).map((edge) => ({
-			...edge,
-			fromFrame: edge.fromFrame && !proxy(edge.from),
-			toFrame: edge.toFrame && !proxy(edge.to)
-		}))
+		edges: outerEdges
 	}, options);
 	const retained = [];
 	for (const node of outer.nodes) {
@@ -204,11 +227,16 @@ function layoutGraph(source, options = {}) {
 		if (proxy(edge.from)) edge.fromFrame = true;
 		if (proxy(edge.to)) edge.toFrame = true;
 	}
-	return {
+	const result = {
 		...outer,
 		nodes: retained,
 		model
 	};
+	if (redirects.size) {
+		repairRoutes(result, redirects);
+		if ([...redirects].some(([seq, original]) => !result.edges.some((edge) => edge.id === seq && edge.from === original.from && edge.to === original.to))) return arrangeGraph(source, options, info, false);
+	}
+	return result;
 }
 function layoutCore(model, { measure = fallbackMeasure, lang, ctx, renderOptions } = {}) {
 	const direction = DIRECTIONS.includes(model.direction) ? model.direction : "TB";
@@ -294,7 +322,7 @@ function layoutCore(model, { measure = fallbackMeasure, lang, ctx, renderOptions
 			const descW = maxWidthOf(descLines, FONT.body, measure);
 			tw = Math.max(64, Math.max(titleW, descW) + 28);
 			th = 20 + titleLines.length * 19 + (descLines.length ? 5 + descLines.length * 17 : 0);
-			th = Math.max(40, th) + (node.kind === "collapsed" ? 20 : 0);
+			th = Math.max(40, th) + (node.kind === "collapsed" ? 20 : 0) + (node.icon ? 24 : 0);
 			if (flowShape) [tw, th] = shapeSize(flowShape, tw, th, direction, titleLines.length > 0);
 			else if (node.shape === "diamond") {
 				tw *= 1.7;
@@ -366,7 +394,8 @@ function layoutCore(model, { measure = fallbackMeasure, lang, ctx, renderOptions
 	};
 	const layoutClusterTitle = (cluster, maxWidth) => {
 		cluster.titleLines = wrapText(cluster.title, maxWidth, FONT.frame, measure);
-		cluster.titleW = maxWidthOf(cluster.titleLines, FONT.frame, measure);
+		if (!cluster.titleLines.length && cluster.model.icon) cluster.titleLines = [""];
+		cluster.titleW = maxWidthOf(cluster.titleLines, FONT.frame, measure) + (cluster.model.icon ? 22 : 0);
 		cluster.titleBand = 10 + cluster.titleLines.length * 17 + (cluster.descLines.length ? 4 + cluster.descLines.length * 16 : 0) + 8;
 	};
 	for (const sg of model.subgraphs) {
@@ -590,7 +619,7 @@ function layoutCore(model, { measure = fallbackMeasure, lang, ctx, renderOptions
 			continue;
 		}
 		const chain = [a];
-		let labelRank = le.edge.label ? a.rank + Math.max(1, Math.floor(span / 2)) : -1;
+		let labelRank = le.edge.label || le.edge.icon ? a.rank + Math.max(1, Math.floor(span / 2)) : -1;
 		if (le.edge.label && (le.fromFrame || le.toFrame)) {
 			const candidates = [];
 			const lowIsFrame = le.reversed ? le.toFrame : le.fromFrame;
@@ -617,7 +646,8 @@ function layoutCore(model, { measure = fallbackMeasure, lang, ctx, renderOptions
 			let labelLines = [];
 			if (isLabel) {
 				labelLines = wrapText(le.edge.label, 160, FONT.label, measure);
-				tw = Math.max(26, maxWidthOf(labelLines, FONT.label, measure) + 10);
+				if (!labelLines.length && le.edge.icon) labelLines = [""];
+				tw = Math.max(26, maxWidthOf(labelLines, FONT.label, measure) + 10 + (le.edge.icon ? 22 : 0));
 				th = Math.max(18, labelLines.length * 16 + 6);
 			}
 			const item = {
@@ -1799,8 +1829,8 @@ function layoutCore(model, { measure = fallbackMeasure, lang, ctx, renderOptions
 			};
 			const rect = tbRectOf(item);
 			const shape = shapeOf(item);
-			loop.labelLines = edge.label ? wrapText(edge.label, 120, FONT.label, measure) : [];
-			loop.labelW = loop.labelLines.length ? maxWidthOf(loop.labelLines, FONT.label, measure) + 10 : 0;
+			loop.labelLines = edge.label ? wrapText(edge.label, 120, FONT.label, measure) : edge.icon ? [""] : [];
+			loop.labelW = loop.labelLines.length ? maxWidthOf(loop.labelLines, FONT.label, measure) + 10 + (edge.icon ? 22 : 0) : 0;
 			loop.labelH = loop.labelLines.length ? Math.max(18, loop.labelLines.length * 16 + 6) : 0;
 			const halfSpan = Math.max(8, (loop.labelH + 6) / 2);
 			loop.upper = {

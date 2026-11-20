@@ -31,16 +31,21 @@ import { agentflow_exports } from "./diagram/agentflow.js";
 import { architecture_exports } from "./diagram/architecture.js";
 import { block_exports } from "./diagram/block.js";
 import { blocks_exports } from "./diagram/blocks.js";
+import { c4_exports } from "./diagram/c4.js";
+import { class_exports } from "./diagram/class.js";
 import { cynefin_exports } from "./diagram/cynefin.js";
 import { er_exports } from "./diagram/er.js";
 import { eventmodeling_exports } from "./diagram/eventmodeling.js";
 import { gantt_date_exports } from "./diagram/gantt-date.js";
 import { gantt_exports } from "./diagram/gantt.js";
+import { gitgraph_exports } from "./diagram/gitgraph.js";
 import { graph_layout_exports } from "./diagram/graph-layout.js";
 import { graph_parse_exports } from "./diagram/graph-parse.js";
+import { graph_route_exports } from "./diagram/graph-route.js";
 import { graph_exports } from "./diagram/graph.js";
 import { ishikawa_exports } from "./diagram/ishikawa.js";
 import { journey_exports } from "./diagram/journey.js";
+import { kanban_exports } from "./diagram/kanban.js";
 import { label_exports } from "./diagram/label.js";
 import { layers_exports } from "./diagram/layers.js";
 import { mindmap_exports as mindmap_exports$1 } from "./diagram/mindmap.js";
@@ -50,11 +55,14 @@ import { numeric_parse_exports } from "./diagram/numeric-parse.js";
 import { numeric_radar_exports } from "./diagram/numeric-radar.js";
 import { numeric_sankey_exports } from "./diagram/numeric-sankey.js";
 import { numeric_xy_exports } from "./diagram/numeric-xy.js";
+import { packet_exports } from "./diagram/packet.js";
 import { presentation_exports } from "./diagram/presentation.js";
+import { quadrant_exports } from "./diagram/quadrant.js";
 import { railroad_parse_exports } from "./diagram/railroad-parse.js";
 import { railroad_exports } from "./diagram/railroad.js";
 import { registry_exports as registry_exports$1 } from "./diagram/registry.js";
 import { relations_exports as relations_exports$1 } from "./diagram/relations.js";
+import { requirement_exports } from "./diagram/requirement.js";
 import { sequence_exports } from "./diagram/sequence.js";
 import { shapes_exports } from "./diagram/shapes.js";
 import { prepareSource, source_exports } from "./diagram/source.js";
@@ -106,16 +114,21 @@ var modulesByPath = /* #__PURE__ */ Object.assign({
 	"./src/diagram/architecture.js": architecture_exports,
 	"./src/diagram/block.js": block_exports,
 	"./src/diagram/blocks.js": blocks_exports,
+	"./src/diagram/c4.js": c4_exports,
+	"./src/diagram/class.js": class_exports,
 	"./src/diagram/cynefin.js": cynefin_exports,
 	"./src/diagram/er.js": er_exports,
 	"./src/diagram/eventmodeling.js": eventmodeling_exports,
 	"./src/diagram/gantt-date.js": gantt_date_exports,
 	"./src/diagram/gantt.js": gantt_exports,
+	"./src/diagram/gitgraph.js": gitgraph_exports,
 	"./src/diagram/graph-layout.js": graph_layout_exports,
 	"./src/diagram/graph-parse.js": graph_parse_exports,
+	"./src/diagram/graph-route.js": graph_route_exports,
 	"./src/diagram/graph.js": graph_exports,
 	"./src/diagram/ishikawa.js": ishikawa_exports,
 	"./src/diagram/journey.js": journey_exports,
+	"./src/diagram/kanban.js": kanban_exports,
 	"./src/diagram/label.js": label_exports,
 	"./src/diagram/layers.js": layers_exports,
 	"./src/diagram/mindmap.js": mindmap_exports$1,
@@ -125,11 +138,14 @@ var modulesByPath = /* #__PURE__ */ Object.assign({
 	"./src/diagram/numeric-radar.js": numeric_radar_exports,
 	"./src/diagram/numeric-sankey.js": numeric_sankey_exports,
 	"./src/diagram/numeric-xy.js": numeric_xy_exports,
+	"./src/diagram/packet.js": packet_exports,
 	"./src/diagram/presentation.js": presentation_exports,
+	"./src/diagram/quadrant.js": quadrant_exports,
 	"./src/diagram/railroad-parse.js": railroad_parse_exports,
 	"./src/diagram/railroad.js": railroad_exports,
 	"./src/diagram/registry.js": registry_exports$1,
 	"./src/diagram/relations.js": relations_exports$1,
+	"./src/diagram/requirement.js": requirement_exports,
 	"./src/diagram/sequence.js": sequence_exports,
 	"./src/diagram/shapes.js": shapes_exports,
 	"./src/diagram/source.js": source_exports,

@@ -49,8 +49,12 @@ it('implements the Mermaid facade', async () => {
       svg: node.diagram(source, { theme: 'paper', width: 500, prefix: 'preview' }).svg,
       diagramType: 'flowchart', diagnostics: [],
     });
-    const bad = 'flowchart LR\nclick A call callback()';
-    const diagnostic = { code: 'BAD_DIAGRAM', line: 2 };
+    // A warning (an ignored callback) rides along with the SVG instead of rejecting.
+    const warned = await mermaid.render('preview', 'flowchart LR\nA --> B\nclick A call callback()');
+    expect(warned.svg).toMatch(/^<svg/);
+    expect(warned.diagnostics).toEqual([expect.objectContaining({ code: 'IGNORED_INTERACTION', severity: 'warning', line: 3 })]);
+    const bad = 'flowchart LR\nA -->';
+    const diagnostic = { code: 'BAD_DIAGRAM', severity: 'error', line: 2 };
     await expect(mermaid.render('preview', bad)).rejects.toBeInstanceOf(Error);
     await expect(mermaid.render('preview', bad)).rejects.toMatchObject({ diagnostics: [expect.objectContaining(diagnostic)] });
     await expect(mermaid.parse(bad)).rejects.toMatchObject({ diagnostics: [expect.objectContaining(diagnostic)] });

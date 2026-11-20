@@ -5,12 +5,7 @@ var time_exports = /* @__PURE__ */ __exportAll({ implementations: () => implemen
 var MAX_ITEMS = 80;
 var MAX_LINES = 240;
 var MAX_PACKET_BIT = 4095;
-var kinds = [
-	"gitGraph",
-	"kanban",
-	"packet-beta",
-	"quadrantChart"
-];
+var kinds = [];
 var issue = (lang, line, text) => error(lang, line, `无法识别或处理语句「${String(text).slice(0, 36)}」`, `Unrecognized or invalid statement: ${String(text).slice(0, 36)}`, "修正这条语句或移除不支持的语法", "Fix this statement or remove unsupported syntax");
 var date = (s) => {
 	if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return NaN;

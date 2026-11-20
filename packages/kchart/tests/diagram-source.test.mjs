@@ -97,6 +97,17 @@ test('prepareSource preserves the full header and raw params', () => {
   assert.deepEqual(result.errors, []);
 });
 
+// Mermaid's Langium grammars accept `gitGraph:`, `cynefin-beta:` and `radar-beta:`; other keywords stay unrecognized.
+test('prepareSource accepts a glued header colon only where Mermaid does', () => {
+  for (const kind of ['gitGraph', 'cynefin-beta', 'radar-beta']) {
+    const result = Source.prepareSource(`${kind}:\n  body`);
+    assert.equal(result.kind, kind);
+    assert.equal(result.params, '');
+    assert.equal(result.body, '  body');
+  }
+  assert.equal(Source.prepareSource('flowchart:\n  A --> B').kind, '');
+});
+
 // Only explicit quoted-backtick Mermaid Markdown is normalized, with physical-line padding.
 test('prepareSource normalizes multiline Markdown but preserves other quoted text', () => {
   const result = Source.prepareSource('flowchart TB\n  A["`**first\nsecond *word***`"] --> B\n  C --> D\n  style[标签] --> E');

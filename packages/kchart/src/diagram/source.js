@@ -47,6 +47,8 @@ const keyOf = (obj, key) => Object.hasOwn(obj, key) ? key : Object.keys(obj).fin
 const pathOf = (path, key) => path ? `${path}.${key.toLowerCase()}` : key.toLowerCase();
 const invalidAt = (line, column = 1) => Object.assign(new SyntaxError(), { line, column });
 const number = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?$/i;
+// Mermaid's Langium grammars for these kinds also accept the keyword glued to a colon (`gitGraph:`); others reject it.
+const COLON_HEADERS = new Set(['gitgraph', 'cynefin-beta', 'radar-beta']);
 
 function yamlScalar(text) {
   if (/^(?:null|~)$/i.test(text)) return null;
@@ -364,7 +366,8 @@ function prepareSource(source, { syntax = 'mermaid', lang, keepsTrailingComments
   let header = '', headerLine = 0, firstLine = start + 1, bodyStart = start;
   const first = lines[start] || '';
   // Split only at the first word. Keep the complete original header and raw remainder for optionMode dispatch.
-  const head = /^\s*([A-Za-z][\w-]*)(?=\s|;|$)(.*)$/.exec(first);
+  let head = /^\s*([A-Za-z][\w-]*)(?=\s|;|:|$)(.*)$/.exec(first);
+  if (head?.[2].startsWith(':')) head = COLON_HEADERS.has(head[1].toLowerCase()) ? [head[0], head[1], head[2].slice(1)] : null;
   const mermaid = syntax === 'mermaid';
   const nativeType = String(syntax || '').replace(/^native(?::|-)?/i, '');
   let kind = '', params = '';
@@ -375,7 +378,7 @@ function prepareSource(source, { syntax = 'mermaid', lang, keepsTrailingComments
     kind = head[1]; header = first; headerLine = start + 1; bodyStart = start + 1; firstLine = bodyStart + 1;
     params = head[2].trim();
   } else {
-    kind = nativeType && nativeType.toLowerCase() !== 'native' ? nativeType : '';
+    kind = !mermaid && nativeType && nativeType.toLowerCase() !== 'native' ? nativeType : '';
     bodyStart = start; firstLine = start + 1;
   }
 

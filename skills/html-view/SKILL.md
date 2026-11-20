@@ -39,7 +39,7 @@ description: 生成、检查和导出离线单文件 HTML 文档、数据报表�
 | 如何分类、怎么从主题展开？ | KChart `tree`、`mindmap`；Mermaid `mindmap`、`ishikawa`、`treeView-beta` | [层级与脑图](references/diagrams/hierarchy.md) |
 | 流程从谁到谁、状态如何转移？ | `flowchart`、`stateDiagram-v2`、`journey`、`swimlane-beta`、`eventmodeling`、`agentflow-beta`、原生 `swimlane` | [流程](references/diagrams/flow.md) |
 | 调用先后和参与者是谁？ | `sequenceDiagram`、`usecase-beta`、`zenuml` | [时序](references/diagrams/sequence.md) |
-| 如何排期、分栏或编号？ | `gantt`、`timeline`、`gitGraph`、`kanban`、`packet-beta`、`quadrantChart` | [时间与网格](references/diagrams/time.md) |
+| 如何排期、分栏或编号？ | `gantt`、`timeline`、`gitGraph`、`kanban`、`packet`、`quadrantChart` | [时间与网格](references/diagrams/time.md) |
 | 实体、类或需求怎样关联？ | `erDiagram`、`classDiagram`、`requirementDiagram` | [数据模型](references/diagrams/data-model.md) |
 | 一条语法规则怎样匹配符号？ | `railroad-beta`、`railroad-ebnf-beta`、`railroad-abnf-beta`、`railroad-peg-beta` | [数据模型](references/diagrams/data-model.md) |
 | 系统如何分层、容器和依赖在哪里？ | `C4Context`、`C4Container`、`C4Component`、`C4Dynamic`、`C4Deployment`、`architecture`、`block`、`wardley-beta`、原生 `layers`、`blocks` | [架构](references/diagrams/architecture.md) |
