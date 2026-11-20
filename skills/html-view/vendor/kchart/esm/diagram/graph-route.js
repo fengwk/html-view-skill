@@ -27,16 +27,23 @@ var expand = ({ x, y, w, h }, d) => ({
 var overlaps = (a, b) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
 function hits(a, b, rect) {
 	let lo = 0, hi = 1;
-	for (const [key, size] of [["x", "w"], ["y", "h"]]) {
-		const min = rect[key], max = min + rect[size], d = b[key] - a[key];
-		if (Math.abs(d) < 1e-8) {
-			if (a[key] <= min || a[key] >= max) return false;
-		} else {
-			const p = (min - a[key]) / d, q = (max - a[key]) / d;
-			lo = Math.max(lo, Math.min(p, q));
-			hi = Math.min(hi, Math.max(p, q));
-			if (lo >= hi) return false;
-		}
+	const dx = b.x - a.x;
+	if (Math.abs(dx) < 1e-8) {
+		if (a.x <= rect.x || a.x >= rect.x + rect.w) return false;
+	} else {
+		const p = (rect.x - a.x) / dx, q = (rect.x + rect.w - a.x) / dx;
+		lo = Math.max(lo, Math.min(p, q));
+		hi = Math.min(hi, Math.max(p, q));
+		if (lo >= hi) return false;
+	}
+	const dy = b.y - a.y;
+	if (Math.abs(dy) < 1e-8) {
+		if (a.y <= rect.y || a.y >= rect.y + rect.h) return false;
+	} else {
+		const p = (rect.y - a.y) / dy, q = (rect.y + rect.h - a.y) / dy;
+		lo = Math.max(lo, Math.min(p, q));
+		hi = Math.min(hi, Math.max(p, q));
+		if (lo >= hi) return false;
 	}
 	return lo < hi;
 }
@@ -85,22 +92,34 @@ function crosses(a, b) {
 	const side = (p, q, r) => (q.x - p.x) * (r.y - p.y) - (q.y - p.y) * (r.x - p.x);
 	return side(a.p0, a.p1, b.p0) * side(a.p0, a.p1, b.p1) < -1e-6 && side(b.p0, b.p1, a.p0) * side(b.p0, b.p1, a.p1) < -1e-6;
 }
-function shortest(from, to, obstacles, occupied, type, bounds, label, original, back, frameSides, arrivals, clearOf = []) {
+function shortest(from, to, obstacles, occupied, type, bounds, label, original, back, frameSides, arrivals, clearOf = [], lanes = {
+	x: [],
+	y: []
+}) {
 	let best = null, score = Infinity;
-	const candidates = (a, b, key, span) => {
-		const midpoint = (a[key] + b[key]) / 2;
+	const fixed = {};
+	for (const [key, span] of [["x", "w"], ["y", "h"]]) {
 		const frameTracks = frameSides.filter(({ p0, p1 }) => p0[key] === p1[key]).flatMap(({ p0 }) => [p0[key] - 8, p0[key] + 8]);
 		const tracks = back ? occupied.filter(({ p0, p1 }) => Math.abs(p0[key] - p1[key]) < .01).flatMap(({ p0 }) => [p0[key] - 12, p0[key] + 12]) : [];
-		return [.../* @__PURE__ */ new Set([
-			midpoint,
+		fixed[key] = [.../* @__PURE__ */ new Set([
 			6,
 			bounds[span] - 6,
 			...tracks,
 			...frameTracks,
 			...obstacles.flatMap((r) => [r[key] - 1, r[key] + r[span] + 1])
-		])].filter((x) => x >= 4 && x <= bounds[span] - 4).sort((x, y) => Math.abs(x - midpoint) - Math.abs(y - midpoint) || x - y).slice(0, 28);
+		])].filter((x) => x >= 4 && x <= bounds[span] - 4);
+	}
+	const sorted = /* @__PURE__ */ new Map();
+	const candidates = (a, b, key, span) => {
+		const midpoint = (a[key] + b[key]) / 2;
+		if (!sorted.has(key + midpoint)) {
+			const coords = midpoint >= 4 && midpoint <= bounds[span] - 4 && !fixed[key].includes(midpoint) ? [midpoint, ...fixed[key]] : fixed[key].slice();
+			sorted.set(key + midpoint, coords.sort((x, y) => Math.abs(x - midpoint) - Math.abs(y - midpoint) || x - y).slice(0, 28));
+		}
+		return sorted.get(key + midpoint);
 	};
 	const clear = (a, b) => !obstacles.some((r) => hits(a, b, r));
+	const fromBox = expand(from, 4), toBox = expand(to, 4);
 	const search = (source, target, startOffset, endOffset, detour) => {
 		const { port: fromPort, stub: a } = attachment(from, source, type, startOffset);
 		const { port: toPort, stub: b } = attachment(to, target, type, endOffset);
@@ -120,12 +139,14 @@ function shortest(from, to, obstacles, occupied, type, bounds, label, original, 
 				const prev = points[i - 2], a = points[i - 1], b = points[i];
 				if (prev && (prev.x === a.x && a.x === b.x || prev.y === a.y && a.y === b.y) && distance(prev, a) + distance(a, b) > distance(prev, b) + .001) return;
 				length += distance(a, b);
-				if (i > 1 && i < points.length - 1 && (hits(points[i - 1], points[i], expand(from, 4)) || hits(points[i - 1], points[i], expand(to, 4)))) return;
-				if (i > 1 && i < points.length - 1 && !clear(points[i - 1], points[i])) return;
 			}
 			const compact = points.filter((p, i) => !i || i === points.length - 1 || Math.abs(distance(points[i - 1], p) + distance(p, points[i + 1]) - distance(points[i - 1], points[i + 1])) > .001 || points[i - 1].x !== points[i + 1].x && points[i - 1].y !== points[i + 1].y);
 			const cost = length + (compact.length - 2) * 16;
 			if (cost >= score) return;
+			for (let i = 2; i < points.length - 1; i++) {
+				if (hits(points[i - 1], points[i], fromBox) || hits(points[i - 1], points[i], toBox)) return;
+				if (!clear(points[i - 1], points[i])) return;
+			}
 			const segments = compact.slice(1).map((p, i) => straight(compact[i], p));
 			if (segments.some(({ p0, p1 }) => occupied.some((seg) => sharesRun(p0, p1, seg.p0, seg.p1, back ? 12 : 1, back ? 8 : 4)) || clearOf.some((seg) => sharesRun(p0, p1, seg.p0, seg.p1, EDGE_CLEAR, 4)) || frameSides.some((seg) => sharesRun(p0, p1, seg.p0, seg.p1, 8, 12)) || arrivals.some((edge) => edge.segments.some((seg) => crosses({
 				p0,
@@ -182,15 +203,16 @@ function shortest(from, to, obstacles, occupied, type, bounds, label, original, 
 			x: b.x,
 			y: a.y
 		}]);
+		const ends = distance(fromPort, a) + distance(b, toPort) - .01;
 		const xs = candidates(a, b, "x", "w"), ys = candidates(a, b, "y", "h");
-		for (const x of xs) validate([{
+		for (const x of xs) if (ends + Math.abs(a.x - x) + Math.abs(a.y - b.y) + Math.abs(x - b.x) < score) validate([{
 			x,
 			y: a.y
 		}, {
 			x,
 			y: b.y
 		}]);
-		for (const y of ys) validate([{
+		for (const y of ys) if (ends + Math.abs(a.y - y) + Math.abs(a.x - b.x) + Math.abs(y - b.y) < score) validate([{
 			x: a.x,
 			y
 		}, {
@@ -201,42 +223,49 @@ function shortest(from, to, obstacles, occupied, type, bounds, label, original, 
 			const near = (p, key, span) => candidates(p, p, key, span).slice(0, 7);
 			const aX = near(a, "x", "w"), bX = near(b, "x", "w");
 			const aY = near(a, "y", "h"), bY = near(b, "y", "h");
-			for (const y of ys.slice(0, 8)) for (const x1 of aX) for (const x2 of bX) validate([
-				{
-					x: x1,
-					y: a.y
-				},
-				{
-					x: x1,
-					y
-				},
-				{
-					x: x2,
-					y
-				},
-				{
-					x: x2,
-					y: b.y
-				}
-			]);
-			for (const x of xs.slice(0, 8)) for (const y1 of aY) for (const y2 of bY) validate([
-				{
-					x: a.x,
-					y: y1
-				},
-				{
-					x,
-					y: y1
-				},
-				{
-					x,
-					y: y2
-				},
-				{
-					x: b.x,
-					y: y2
-				}
-			]);
+			const gapTracks = (list, key, span) => [.../* @__PURE__ */ new Set([...lanes[key].filter((v) => v >= 4 && v <= bounds[span] - 4), ...list.slice(0, 8)])];
+			for (const y of gapTracks(ys, "y", "h")) for (const x1 of aX) for (const x2 of bX) {
+				if (ends + Math.abs(a.x - x1) + Math.abs(a.y - y) + Math.abs(x1 - x2) + Math.abs(y - b.y) + Math.abs(x2 - b.x) >= score) continue;
+				validate([
+					{
+						x: x1,
+						y: a.y
+					},
+					{
+						x: x1,
+						y
+					},
+					{
+						x: x2,
+						y
+					},
+					{
+						x: x2,
+						y: b.y
+					}
+				]);
+			}
+			for (const x of gapTracks(xs, "x", "w")) for (const y1 of aY) for (const y2 of bY) {
+				if (ends + Math.abs(a.y - y1) + Math.abs(a.x - x) + Math.abs(y1 - y2) + Math.abs(x - b.x) + Math.abs(y2 - b.y) >= score) continue;
+				validate([
+					{
+						x: a.x,
+						y: y1
+					},
+					{
+						x,
+						y: y1
+					},
+					{
+						x,
+						y: y2
+					},
+					{
+						x: b.x,
+						y: y2
+					}
+				]);
+			}
 		}
 	};
 	for (const source of sides) for (const target of sides) search(source, target, 0, 0, false);
@@ -354,6 +383,14 @@ function repairRoutes(geometry, redirects = /* @__PURE__ */ new Map()) {
 		}
 		const labelObstacles = geometry.edges.filter((other) => other !== edge && other.labelRect).map((other) => expand(other.labelRect, 2));
 		const forwardRuns = isBack ? [] : geometry.edges.filter((other) => other !== edge && other.style !== "invisible" && !pending.has(other.id) && !back(other)).flatMap((other) => other.segments);
+		const lanes = {
+			x: [],
+			y: []
+		};
+		for (const { p0, p1 } of edge.segments) {
+			if (Math.abs(p0.x - p1.x) < .01) lanes.x.push(p0.x);
+			if (Math.abs(p0.y - p1.y) < .01) lanes.y.push(p0.y);
+		}
 		const route = (clearOf) => shortest(from, to, [
 			...obstacles,
 			...titles,
@@ -361,7 +398,7 @@ function repairRoutes(geometry, redirects = /* @__PURE__ */ new Map()) {
 		], occupied ?? occupiedOf(), geometry.type, {
 			w: geometry.width,
 			h: geometry.height
-		}, edge.labelRect, !redirect, isBack, frameSides, arrivals, clearOf);
+		}, edge.labelRect, !redirect, isBack, frameSides, arrivals, clearOf, lanes);
 		const replacement = forwardRuns.length && route(forwardRuns) || route([]);
 		if (replacement) {
 			pending.delete(edge.id);

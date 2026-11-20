@@ -47,14 +47,77 @@ function collapseFrames(model) {
   return { ...model, nodes, subgraphs, edges };
 }
 
+// Proper crossings between the drawn runs of different edges; touching at a shared port is not one.
+function crossingCount(geometry) {
+  const side = (p, q, r) => (q.x - p.x) * (r.y - p.y) - (q.y - p.y) * (r.x - p.x);
+  const runs = geometry.edges.filter(edge => edge.style !== 'invisible').map(edge => edge.segments);
+  let count = 0;
+  for (let i = 0; i < runs.length; i += 1) {
+    for (let j = i + 1; j < runs.length; j += 1) {
+      for (const a of runs[i]) for (const b of runs[j]) {
+        if (side(a.p0, a.p1, b.p0) * side(a.p0, a.p1, b.p1) < -1e-6 && side(b.p0, b.p1, a.p0) * side(b.p0, b.p1, a.p1) < -1e-6) count += 1;
+      }
+    }
+  }
+  return count;
+}
+
+// Where a block member's links leave the block: the mean cross-axis centre of its outside
+// neighbours, or its own centre when it has none, so it keeps its place among the others.
+function outsideKeys(geometry, members, ids) {
+  const lr = geometry.direction === 'LR' || geometry.direction === 'RL';
+  const centers = new Map([...geometry.nodes, ...geometry.frames].map(item => [item.id, lr ? item.y + item.h / 2 : item.x + item.w / 2]));
+  return new Map(ids.map(id => {
+    const outside = geometry.model.edges.flatMap(edge => (edge.from === id && !members.has(edge.to) ? [edge.to]
+      : edge.to === id && !members.has(edge.from) ? [edge.from] : [])).map(other => centers.get(other)).filter(Number.isFinite);
+    return [id, outside.length ? outside.reduce((sum, value) => sum + value, 0) / outside.length : centers.get(id)];
+  }));
+}
+
+// A compact layout arranges each subgraph on its own, so members linked only to other subgraphs
+// keep their declaration order and the links between subgraphs cross each other. Try member orders
+// that follow the outside neighbours (both ways of breaking ties) and keep one only when the routed
+// edges cross less. Each try is a complete layout, so larger diagrams skip the search and the
+// number of tries is capped.
+const ORDER_SEARCH_NODES = 60, ORDER_SEARCH_TRIES = 12;
+function orderBlocks(geometry, settle) {
+  if (!geometry.blocks?.length || geometry.nodes.length > ORDER_SEARCH_NODES) return geometry;
+  const seqOf = new Map(geometry.model.nodes.map(node => [node.id, node.seq]));
+  let best = geometry, score = crossingCount(geometry), hints = new Map(), tries = 0;
+  for (const block of geometry.blocks) {
+    if (!score) break;
+    const ids = block.members.filter(id => seqOf.has(id));
+    if (ids.length < 2) continue;
+    const keys = outsideKeys(best, new Set(block.members), ids);
+    const seqs = ids.map(id => seqOf.get(id)).sort((a, b) => a - b);
+    const tried = new Set([ids.slice().sort((a, b) => (hints.get(a) ?? seqOf.get(a)) - (hints.get(b) ?? seqOf.get(b))).join('\n')]);
+    for (const tie of [1, -1]) {
+      const order = ids.slice().sort((a, b) => keys.get(a) - keys.get(b) || tie * (seqOf.get(a) - seqOf.get(b)));
+      if (tried.has(order.join('\n')) || tries >= ORDER_SEARCH_TRIES) continue;
+      tried.add(order.join('\n'));
+      tries += 1;
+      const next = new Map(hints);
+      order.forEach((id, index) => next.set(id, seqs[index]));
+      const candidate = settle(next);
+      if (!candidate.blocks) continue;
+      const count = crossingCount(candidate);
+      if (count < score) ({ best, score, hints } = { best: candidate, score: count, hints: next });
+    }
+  }
+  return best;
+}
+
 // A closed frame can be laid out in its own direction without rotating its labels or shapes.
 // The parent router sees its entire bounding box; only edges addressed to the frame can enter.
 function layoutGraph(source, options = {}, info = {}) {
-  const geometry = arrangeGraph(source, options, info);
-  if (source.type !== 'er') {
-    repairRoutes(geometry);
-    placeGraphLabels(geometry, options.measure ?? fallbackMeasure);
-  }
+  const settle = (hints) => {
+    const arranged = arrangeGraph(source, options, info, true, hints);
+    repairRoutes(arranged);
+    return arranged;
+  };
+  const geometry = source.type === 'er' ? arrangeGraph(source, options, info) : orderBlocks(settle(null), settle);
+  if (source.type !== 'er') placeGraphLabels(geometry, options.measure ?? fallbackMeasure);
+  delete geometry.blocks;
   if (source.type !== 'er' && (source.nodes.length > 60 || geometry.width > (options.width ?? Infinity) * 2)) {
     geometry.errors = [warning('LARGE_DIAGRAM', options.lang ?? info.lang, info.headerLine ?? 1,
       '图较大，可在框内滚动', 'Large diagram; scroll within the frame', '考虑拆成多张图', 'Consider splitting the diagram')];
@@ -62,7 +125,8 @@ function layoutGraph(source, options = {}, info = {}) {
   return geometry;
 }
 
-function arrangeGraph(source, options, info, allowCompact = true) {
+// hints: node id → ordering seq for members of compact blocks (see orderBlocks).
+function arrangeGraph(source, options, info, allowCompact = true, hints = null) {
   const model = collapseFrames(source);
   const frames = new Map(model.subgraphs.map(frame => [frame.id, frame]));
   const childRegions = new Set(model.subgraphs.filter(frame => frame.kind === 'divider').map(frame => frame.parent));
@@ -87,10 +151,11 @@ function arrangeGraph(source, options, info, allowCompact = true) {
     if (external && !wholeBlock) continue;
     for (const id of members) projected.set(id, frame.id);
     const topLevel = item => item.parent === frame.id ? { ...item, parent: null } : item;
+    const hinted = item => hints?.has(item.id) ? { ...item, orderSeq: hints.get(item.id) } : item;
     const inside = edges.filter(edge => members.has(edge.from) && members.has(edge.to));
     const innerDirection = !external && frame.dir ? frame.dir : model.type === 'flowchart' && (inheritDir || external) ? model.direction : 'TB';
     const inner = arrangeGraph({ ...model, direction: innerDirection,
-      nodes: nodes.filter(item => members.has(item.id)).map(topLevel),
+      nodes: nodes.filter(item => members.has(item.id)).map(topLevel).map(hinted),
       subgraphs: model.subgraphs.filter(item => members.has(item.id)).map(topLevel), edges: inside,
     }, options, info, false);
     const lines = frame.title ? wrapText(frame.title, 200, FONT.frame, measure) : frame.icon ? [''] : [];
@@ -99,7 +164,7 @@ function arrangeGraph(source, options, info, allowCompact = true) {
     const titleH = lines.length * 17 + (descLines.length ? 4 + descLines.length * 16 : 0);
     const titleBand = titleH ? titleH + 8 : 0;
     const w = Math.max(inner.width, titleW + 32), h = inner.height + titleBand;
-    blocks.set(frame.id, { frame, inner, lines, descLines, titleW, titleH, titleBand, w, h });
+    blocks.set(frame.id, { frame, inner, lines, descLines, titleW, titleH, titleBand, w, h, members, whole: wholeBlock });
     for (const id of members) hidden.add(id);
     for (const edge of inside) localEdges.add(edge);
   }
@@ -161,6 +226,10 @@ function arrangeGraph(source, options, info, allowCompact = true) {
     if ([...redirects].some(([seq, original]) => !result.edges.some(edge => edge.id === seq && edge.from === original.from && edge.to === original.to))) {
       return arrangeGraph(source, options, info, false);
     }
+  }
+  if (compact) {
+    result.blocks = [...blocks.values()].filter(block => block.whole)
+      .map(({ frame, members }) => ({ id: frame.id, members: [...members] }));
   }
   return result;
 }
@@ -301,7 +370,8 @@ function layoutCore(model, { measure = fallbackMeasure, lang, ctx, renderOptions
       kind: 'real',
       node,
       id: node.id,
-      seq: node.seq,
+      // 紧凑布局可按子图外的邻居给成员重排序号（orderBlocks）；只影响层内顺序。
+      seq: node.orderSeq ?? node.seq,
       tw,
       th,
       bw: cross + loopExtra,
@@ -1896,6 +1966,8 @@ function layoutCore(model, { measure = fallbackMeasure, lang, ctx, renderOptions
         if (lane > rect.x + 16 && lane < rect.x + rect.w - 16) {
           src.side = 'bottom';
           src.hardCross = rect.x + rect.w / 2;
+          // 几条线争同一个顶点时都会让出它，改按各自的去向排序；都退回中点就分不出左右，会互相横穿。
+          src.pref = adjacentX(route, 'src');
         } else {
           src.side = lane < rect.x + rect.w / 2 ? 'left' : 'right';
           src.hardCross = 0;
@@ -1920,6 +1992,7 @@ function layoutCore(model, { measure = fallbackMeasure, lang, ctx, renderOptions
         if (ahead || (lane > rect.x + 16 && lane < rect.x + rect.w - 16)) {
           tgt.side = 'top';
           tgt.hardCross = cx;
+          tgt.pref = adjacentX(route, 'tgt');
         } else {
           tgt.side = lane < rect.x + rect.w / 2 ? 'left' : 'right';
           tgt.hardCross = 0;
@@ -1939,7 +2012,8 @@ function layoutCore(model, { measure = fallbackMeasure, lang, ctx, renderOptions
         // 短头指向外侧：端口被邻居占位时优先继续往外让，而不是折回到判断框一侧。
         route.tgtEnd.outward = route.srcEnd.side === 'left' ? -1 : 1;
       }
-      if (!isFlowSide(route.tgtEnd.side) && route.srcEnd.side === 'bottom' && route.srcEnd.hardCross == null) {
+      // 判断框底部顶点被让出时同样对准短头：竖线要落在侧顶点外侧，端口顺序才和去向一致。
+      if (!isFlowSide(route.tgtEnd.side) && route.srcEnd.side === 'bottom') {
         route.srcEnd.pref = stubLane(route.tgtEnd);
       }
     }

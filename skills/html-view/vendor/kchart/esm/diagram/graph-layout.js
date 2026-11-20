@@ -77,16 +77,66 @@ function collapseFrames(model) {
 		edges
 	};
 }
-function layoutGraph(source, options = {}, info = {}) {
-	const geometry = arrangeGraph(source, options, info);
-	if (source.type !== "er") {
-		repairRoutes(geometry);
-		placeGraphLabels(geometry, options.measure ?? fallbackMeasure);
+function crossingCount(geometry) {
+	const side = (p, q, r) => (q.x - p.x) * (r.y - p.y) - (q.y - p.y) * (r.x - p.x);
+	const runs = geometry.edges.filter((edge) => edge.style !== "invisible").map((edge) => edge.segments);
+	let count = 0;
+	for (let i = 0; i < runs.length; i += 1) for (let j = i + 1; j < runs.length; j += 1) for (const a of runs[i]) for (const b of runs[j]) if (side(a.p0, a.p1, b.p0) * side(a.p0, a.p1, b.p1) < -1e-6 && side(b.p0, b.p1, a.p0) * side(b.p0, b.p1, a.p1) < -1e-6) count += 1;
+	return count;
+}
+function outsideKeys(geometry, members, ids) {
+	const lr = geometry.direction === "LR" || geometry.direction === "RL";
+	const centers = new Map([...geometry.nodes, ...geometry.frames].map((item) => [item.id, lr ? item.y + item.h / 2 : item.x + item.w / 2]));
+	return new Map(ids.map((id) => {
+		const outside = geometry.model.edges.flatMap((edge) => edge.from === id && !members.has(edge.to) ? [edge.to] : edge.to === id && !members.has(edge.from) ? [edge.from] : []).map((other) => centers.get(other)).filter(Number.isFinite);
+		return [id, outside.length ? outside.reduce((sum, value) => sum + value, 0) / outside.length : centers.get(id)];
+	}));
+}
+var ORDER_SEARCH_NODES = 60;
+var ORDER_SEARCH_TRIES = 12;
+function orderBlocks(geometry, settle) {
+	if (!geometry.blocks?.length || geometry.nodes.length > ORDER_SEARCH_NODES) return geometry;
+	const seqOf = new Map(geometry.model.nodes.map((node) => [node.id, node.seq]));
+	let best = geometry, score = crossingCount(geometry), hints = /* @__PURE__ */ new Map(), tries = 0;
+	for (const block of geometry.blocks) {
+		if (!score) break;
+		const ids = block.members.filter((id) => seqOf.has(id));
+		if (ids.length < 2) continue;
+		const keys = outsideKeys(best, new Set(block.members), ids);
+		const seqs = ids.map((id) => seqOf.get(id)).sort((a, b) => a - b);
+		const tried = /* @__PURE__ */ new Set([ids.slice().sort((a, b) => (hints.get(a) ?? seqOf.get(a)) - (hints.get(b) ?? seqOf.get(b))).join("\n")]);
+		for (const tie of [1, -1]) {
+			const order = ids.slice().sort((a, b) => keys.get(a) - keys.get(b) || tie * (seqOf.get(a) - seqOf.get(b)));
+			if (tried.has(order.join("\n")) || tries >= ORDER_SEARCH_TRIES) continue;
+			tried.add(order.join("\n"));
+			tries += 1;
+			const next = new Map(hints);
+			order.forEach((id, index) => next.set(id, seqs[index]));
+			const candidate = settle(next);
+			if (!candidate.blocks) continue;
+			const count = crossingCount(candidate);
+			if (count < score) ({best, score, hints} = {
+				best: candidate,
+				score: count,
+				hints: next
+			});
+		}
 	}
+	return best;
+}
+function layoutGraph(source, options = {}, info = {}) {
+	const settle = (hints) => {
+		const arranged = arrangeGraph(source, options, info, true, hints);
+		repairRoutes(arranged);
+		return arranged;
+	};
+	const geometry = source.type === "er" ? arrangeGraph(source, options, info) : orderBlocks(settle(null), settle);
+	if (source.type !== "er") placeGraphLabels(geometry, options.measure ?? fallbackMeasure);
+	delete geometry.blocks;
 	if (source.type !== "er" && (source.nodes.length > 60 || geometry.width > (options.width ?? Infinity) * 2)) geometry.errors = [warning("LARGE_DIAGRAM", options.lang ?? info.lang, info.headerLine ?? 1, "图较大，可在框内滚动", "Large diagram; scroll within the frame", "考虑拆成多张图", "Consider splitting the diagram")];
 	return geometry;
 }
-function arrangeGraph(source, options, info, allowCompact = true) {
+function arrangeGraph(source, options, info, allowCompact = true, hints = null) {
 	const model = collapseFrames(source);
 	const frames = new Map(model.subgraphs.map((frame) => [frame.id, frame]));
 	const childRegions = new Set(model.subgraphs.filter((frame) => frame.kind === "divider").map((frame) => frame.parent));
@@ -114,12 +164,16 @@ function arrangeGraph(source, options, info, allowCompact = true) {
 			...item,
 			parent: null
 		} : item;
+		const hinted = (item) => hints?.has(item.id) ? {
+			...item,
+			orderSeq: hints.get(item.id)
+		} : item;
 		const inside = edges.filter((edge) => members.has(edge.from) && members.has(edge.to));
 		const innerDirection = !external && frame.dir ? frame.dir : model.type === "flowchart" && (inheritDir || external) ? model.direction : "TB";
 		const inner = arrangeGraph({
 			...model,
 			direction: innerDirection,
-			nodes: nodes.filter((item) => members.has(item.id)).map(topLevel),
+			nodes: nodes.filter((item) => members.has(item.id)).map(topLevel).map(hinted),
 			subgraphs: model.subgraphs.filter((item) => members.has(item.id)).map(topLevel),
 			edges: inside
 		}, options, info, false);
@@ -138,7 +192,9 @@ function arrangeGraph(source, options, info, allowCompact = true) {
 			titleH,
 			titleBand,
 			w,
-			h
+			h,
+			members,
+			whole: wholeBlock
 		});
 		for (const id of members) hidden.add(id);
 		for (const edge of inside) localEdges.add(edge);
@@ -265,6 +321,10 @@ function arrangeGraph(source, options, info, allowCompact = true) {
 		repairRoutes(result, redirects);
 		if ([...redirects].some(([seq, original]) => !result.edges.some((edge) => edge.id === seq && edge.from === original.from && edge.to === original.to))) return arrangeGraph(source, options, info, false);
 	}
+	if (compact) result.blocks = [...blocks.values()].filter((block) => block.whole).map(({ frame, members }) => ({
+		id: frame.id,
+		members: [...members]
+	}));
 	return result;
 }
 function layoutCore(model, { measure = fallbackMeasure, lang, ctx, renderOptions } = {}) {
@@ -387,7 +447,7 @@ function layoutCore(model, { measure = fallbackMeasure, lang, ctx, renderOptions
 			kind: "real",
 			node,
 			id: node.id,
-			seq: node.seq,
+			seq: node.orderSeq ?? node.seq,
 			tw,
 			th,
 			bw: cross + loopExtra,
@@ -1832,6 +1892,7 @@ function layoutCore(model, { measure = fallbackMeasure, lang, ctx, renderOptions
 				if (lane > rect.x + 16 && lane < rect.x + rect.w - 16) {
 					src.side = "bottom";
 					src.hardCross = rect.x + rect.w / 2;
+					src.pref = adjacentX(route, "src");
 				} else {
 					src.side = lane < rect.x + rect.w / 2 ? "left" : "right";
 					src.hardCross = 0;
@@ -1852,6 +1913,7 @@ function layoutCore(model, { measure = fallbackMeasure, lang, ctx, renderOptions
 				if (!!srcRect && isDiamondNode(src.item) && (src.side === "right" && cx > srcRect.x + srcRect.w + 16 || src.side === "left" && cx < srcRect.x - 16) || lane > rect.x + 16 && lane < rect.x + rect.w - 16) {
 					tgt.side = "top";
 					tgt.hardCross = cx;
+					tgt.pref = adjacentX(route, "tgt");
 				} else {
 					tgt.side = lane < rect.x + rect.w / 2 ? "left" : "right";
 					tgt.hardCross = 0;
@@ -1869,7 +1931,7 @@ function layoutCore(model, { measure = fallbackMeasure, lang, ctx, renderOptions
 				route.tgtEnd.pref = stubLane(route.srcEnd);
 				route.tgtEnd.outward = route.srcEnd.side === "left" ? -1 : 1;
 			}
-			if (!isFlowSide(route.tgtEnd.side) && route.srcEnd.side === "bottom" && route.srcEnd.hardCross == null) route.srcEnd.pref = stubLane(route.tgtEnd);
+			if (!isFlowSide(route.tgtEnd.side) && route.srcEnd.side === "bottom") route.srcEnd.pref = stubLane(route.tgtEnd);
 		}
 		for (const [item, list] of inRoutes) {
 			const rect = tbRectOf(item);
