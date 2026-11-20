@@ -29,6 +29,33 @@ const bars = await render({
 
 在 Vite 生产构建中，数据图和结构图的各个族通过动态导入拆分。如果也要延迟加载适配器，请动态导入 Markdown 组件（例如使用 `React.lazy`）。不同族可复用公共依赖。地图只在地图图表需要时加载相应的内置数据（`world` 或 `us-states`），也可通过 `options.assets` 注入自有地图。渲染不依赖在线服务；将 JavaScript 分块和地图资源放在本地即可离线使用。浏览器部署时，动态导入仍可能从宿主加载分块。
 
+## 总览图
+
+原生 `blocks` 用于画一页总览图：虚线分组（`box`）里放卡片、说明文字和图例，用 `row`、`col`、`grid N` 排布。`card` 下每个缩进行是一行说明。`box` 或 `card` 行尾的花括号可加样式词（`accent`、`new`、`info`、`ok`、`warn`、`danger`、`ext`）、`#01` 徽章、`@id` 引用名或 `"标签"`。关系 `->`、`=>`（主流程）和 `~>`（虚线）按 `@id` 或完整标题连接分组与卡片。
+
+```js
+const board = await diagram(`row
+  box 输入
+    card 会话记录
+      所有仓库
+  box 每周复盘 {accent}
+    card 收集数据 {accent #01}
+      跑指标
+    card 诊断 {accent #02}
+      选补丁
+  col
+    card 前置检查 {ok}
+    legend
+      accent: 复盘步骤
+      ok: 沉淀资产
+      =>: 主流程
+会话记录 => 收集数据
+收集数据 => 诊断
+诊断 -> 前置检查: 上线`, { syntax: 'blocks', width: 720 });
+```
+
+关系走横平竖直的路径，绕开卡片、分组边框和标题；间隙会自动加宽，但行、列和跨列保持原样。Mermaid `block` 使用同一套走线和虚线分组框。颜色由主题决定：普通卡片是无边框底块，带样式的卡片用样式色描边，同一张图里一起使用的样式在每套内置主题下都能区分。全部写法和上限见 [blocks 参考](https://github.com/fengwk/html-view-skill/blob/main/skills/html-view/references/diagrams/architecture.md#blocks)。
+
 ## Node 同步 API
 
 ```js

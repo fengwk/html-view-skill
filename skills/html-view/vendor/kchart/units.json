@@ -242,19 +242,39 @@
     "file": "units/diagram/block.js",
     "deps": [
       "core/icons",
+      "diagram/board-paint",
+      "diagram/board-route",
+      "diagram/graph-route",
       "diagram/label",
       "diagram/presentation",
       "diagram/support"
     ],
-    "bytes": 16083
+    "bytes": 15402
   },
   "diagram/blocks": {
     "file": "units/diagram/blocks.js",
     "deps": [
       "diagram/support",
-      "core/icons"
+      "core/icons",
+      "diagram/board-paint",
+      "diagram/board-route"
     ],
-    "bytes": 17870
+    "bytes": 17008
+  },
+  "diagram/board-paint": {
+    "file": "units/diagram/board-paint.js",
+    "deps": [
+      "core/color",
+      "diagram/support"
+    ],
+    "bytes": 10082
+  },
+  "diagram/board-route": {
+    "file": "units/diagram/board-route.js",
+    "deps": [
+      "diagram/graph-route"
+    ],
+    "bytes": 1013
   },
   "diagram/c4": {
     "file": "units/diagram/c4.js",
@@ -364,7 +384,7 @@
     "deps": [
       "diagram/shapes"
     ],
-    "bytes": 8914
+    "bytes": 10888
   },
   "diagram/graph": {
     "file": "units/diagram/graph.js",

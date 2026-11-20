@@ -1,5 +1,8 @@
 import { __exportAll } from "../_virtual/_rolldown/runtime.js";
 import { resolveIconRef } from "../core/icons.js";
+import { boardLook, drawEdge, drawFrame, drawLabel, frameTitle, markers, measureLabel, surfaceAt, titleRect } from "./board-paint.js";
+import { routeBoard } from "./board-route.js";
+import "./graph-route.js";
 import { normalizeLabel } from "./label.js";
 import { presentation } from "./presentation.js";
 import { FONT, appearance, error, maxWidthOf, textBlock, warning, wrapText } from "./support.js";
@@ -400,7 +403,8 @@ function parse(body, { lang, firstLine = 2, params = "", header = "block" }) {
 		errors: [...errors, ...notices.values()]
 	};
 }
-function grid(group, measure, pad) {
+function grid(group, measure, pad, spacing) {
+	const gaps = spacing.get(group) ?? newGaps();
 	const rows = [], columns = group.columns || Infinity;
 	let col = 0, occupied = 0, unit = 72, row;
 	const currentRow = () => row ??= {
@@ -426,43 +430,55 @@ function grid(group, measure, pad) {
 			}
 			continue;
 		}
-		const inner = node.children ? grid(node, measure, pad) : null;
-		const font = inner ? FONT.title : FONT.body;
-		const label = node.label ?? (inner ? "" : node.id);
-		const lines = label.trim() ? wrapText(label, NODE_LABEL_MAX - iconWidth(node.icon, [label]), font, measure) : [];
-		const textW = maxWidthOf(lines, font, measure) + iconWidth(node.icon, lines);
-		const textH = Math.max(lines.length * 18, node.icon ? ICON : 0);
-		const title = inner && textH ? textH + 4 : 0;
-		let w = textW + 28, h = textH + 20;
-		const compact = !inner && [
-			"diamond",
-			"circle",
-			"doublecircle"
-		].includes(node.shape);
-		if (compact) w = h = Math.ceil(node.shape === "diamond" ? textW + textH + 24 : Math.hypot(textW, textH) + 24);
-		else if (node.shape === "arrow") {
-			w += 28;
-			h += 24;
-		} else if (node.shape === "cylinder") h += 12;
-		else if (node.shape && ![
-			"square",
-			"round",
-			"stadium"
-		].includes(node.shape)) w += 20;
+		const inner = node.children ? grid(node, measure, pad, spacing) : null;
+		let cell, w, h;
 		if (inner) {
-			w = Math.max(w, inner.w + 2 * pad);
-			h = inner.h + 2 * pad + title;
+			const title = frameTitle({
+				title: node.label ?? "",
+				icon: node.icon
+			}, measure);
+			const inset = inner.gaps.inset.map((gap, i) => Math.max(gap, i === 0 && title.band ? title.band : pad));
+			const [top, right, bottom, left] = inset;
+			w = Math.max(title.minW, inner.w + left + right);
+			h = inner.h + top + bottom;
+			cell = {
+				...node,
+				col,
+				inner,
+				title,
+				inset
+			};
+		} else {
+			const label = node.label ?? node.id;
+			const lines = label.trim() ? wrapText(label, NODE_LABEL_MAX - iconWidth(node.icon, [label]), FONT.body, measure) : [];
+			const textW = maxWidthOf(lines, FONT.body, measure) + iconWidth(node.icon, lines);
+			const textH = Math.max(lines.length * 18, node.icon ? ICON : 0);
+			w = textW + 28;
+			h = textH + 20;
+			const compact = [
+				"diamond",
+				"circle",
+				"doublecircle"
+			].includes(node.shape);
+			if (compact) w = h = Math.ceil(node.shape === "diamond" ? textW + textH + 24 : Math.hypot(textW, textH) + 24);
+			else if (node.shape === "arrow") {
+				w += 28;
+				h += 24;
+			} else if (node.shape === "cylinder") h += 12;
+			else if (node.shape && ![
+				"square",
+				"round",
+				"stadium"
+			].includes(node.shape)) w += 20;
+			cell = {
+				...node,
+				col,
+				lines,
+				font: FONT.body,
+				textH,
+				...compact ? { diameter: w } : {}
+			};
 		}
-		const cell = {
-			...node,
-			col,
-			inner,
-			lines,
-			font,
-			title,
-			textH,
-			...compact ? { diameter: w } : {}
-		};
 		currentRow().cells.push(cell);
 		row.h = Math.max(row.h, h);
 		unit = Math.max(unit, Math.ceil((w - (node.span - 1) * GAP) / node.span));
@@ -470,26 +486,66 @@ function grid(group, measure, pad) {
 		advance(Math.min(node.span, columns - col));
 	}
 	if (row) rows.push(row);
-	const h = rows.reduce((sum, item) => sum + item.h + GAP, -20);
+	const xGaps = Array.from({ length: Math.max(0, occupied - 1) }, (_, i) => gaps.x.get(i) ?? GAP);
+	const yGaps = rows.slice(1).map((_, i) => gaps.y.get(i) ?? GAP);
 	return {
+		group,
+		gaps,
 		rows,
-		unit,
+		xGaps,
+		yGaps,
 		columns: occupied,
-		w: Math.max(0, occupied * (unit + GAP) - GAP),
-		h: Math.max(0, h)
+		w: occupied * unit + sum(xGaps),
+		h: sum(rows.map((row) => row.h)) + sum(yGaps)
 	};
 }
-function place(grid, x, y, width, nodes, frames, pad) {
+var sum = (values) => values.reduce((a, b) => a + b, 0);
+var newGaps = () => ({
+	x: /* @__PURE__ */ new Map(),
+	y: /* @__PURE__ */ new Map(),
+	inset: [
+		0,
+		0,
+		0,
+		0
+	]
+});
+function place(grid, x, y, width, nodes, frames, corridors, parent, outline) {
 	if (!grid.columns) return;
-	const pitch = (width + GAP) / grid.columns;
-	for (const row of grid.rows) {
+	const unit = (width - sum(grid.xGaps)) / grid.columns;
+	const xs = [x];
+	const corridor = (axis, index, start, size, lo, hi, inset = false) => {
+		if (size > 0) corridors.push({
+			group: grid.group,
+			axis,
+			index,
+			start,
+			size,
+			lo,
+			hi,
+			inset
+		});
+	};
+	for (const [i, gap] of grid.xGaps.entries()) {
+		corridor("x", i, xs[i] + unit, gap, y, y + grid.h);
+		xs.push(xs[i] + unit + gap);
+	}
+	if (outline) {
+		corridor("y", 0, outline.y, y - outline.y, x, x + width, true);
+		corridor("x", 1, x + width, outline.x + outline.w - x - width, y, y + grid.h, true);
+		corridor("y", 2, y + grid.h, outline.y + outline.h - y - grid.h, x, x + width, true);
+		corridor("x", 3, outline.x, x - outline.x, y, y + grid.h, true);
+	}
+	for (const [r, row] of grid.rows.entries()) {
 		for (const cell of row.cells) {
+			const end = cell.col + cell.span - 1;
 			const box = {
 				...cell,
-				x: x + cell.col * pitch,
+				x: xs[cell.col],
 				y,
-				w: cell.span * pitch - GAP,
-				h: row.h
+				w: xs[end] - xs[cell.col] + unit,
+				h: row.h,
+				...parent ? { parent } : {}
 			};
 			if (cell.diameter) {
 				box.x += (box.w - cell.diameter) / 2;
@@ -503,18 +559,55 @@ function place(grid, x, y, width, nodes, frames, pad) {
 			nodes.set(box.id, box);
 			if (box.inner) {
 				frames.push(box);
-				place(box.inner, box.x + pad, y + pad + box.title, box.w - 2 * pad, nodes, frames, pad);
+				const [top, right, , left] = cell.inset;
+				place(box.inner, box.x + left, y + top, box.w - left - right, nodes, frames, corridors, box.id, box);
 			}
 		}
-		y += row.h + GAP;
+		const gap = grid.yGaps[r] ?? 0;
+		corridor("y", r, y + row.h, gap, x, x + width);
+		y += row.h + gap;
 	}
 }
-var rectPoints = [
-	[0, 0],
-	[1, 0],
-	[1, 1],
-	[0, 1]
-];
+function widenCorridors(corridors, routes, relations, nodes, spacing) {
+	let changed = false;
+	for (const { group, axis, index, start, size, lo, hi, inset } of corridors) {
+		const along = axis === "x" ? "y" : "x", span = axis === "x" ? "w" : "h", end = start + size;
+		const inside = (coord) => start < coord && coord < end;
+		let required = size;
+		if (!inset) for (const { from, to, label } of relations) {
+			if (!label || label[span] + 16 <= required) continue;
+			const crossSpan = axis === "x" ? "h" : "w";
+			const a = nodes.get(from), b = nodes.get(to);
+			const [first, second] = a[axis] < b[axis] ? [a, b] : [b, a];
+			if (Math.abs(first[axis] + first[span] - start) < .01 && Math.abs(second[axis] - end) < .01 && Math.min(hi, a[along] + a[crossSpan], b[along] + b[crossSpan]) > Math.max(lo, a[along], b[along])) required = label[span] + 16;
+		}
+		const events = [];
+		for (const { points, labelRect: label } of routes) {
+			if (label && inside(label[axis] + label[span] / 2)) {
+				const crossSpan = axis === "x" ? "h" : "w", at = label[along] + label[crossSpan] / 2;
+				if (lo <= at && at <= hi) required = Math.max(required, label[span] + 16);
+			}
+			for (let i = 1; i < points.length; i++) {
+				const a = points[i - 1], b = points[i];
+				if (a[axis] !== b[axis] || !inside(a[axis])) continue;
+				const first = Math.max(lo, Math.min(a[along], b[along])), last = Math.min(hi, Math.max(a[along], b[along]));
+				if (last > first) events.push([first, 1], [last, -1]);
+			}
+		}
+		let tracks = 0;
+		for (const [, delta] of events.sort(([a, da], [b, db]) => a - b || da - db)) {
+			tracks += delta;
+			if (tracks > 0) required = Math.max(required, 16 + (tracks - 1) * 12);
+		}
+		if (required <= size + .01) continue;
+		const gaps = spacing.get(group) ?? newGaps();
+		spacing.set(group, gaps);
+		if (inset) gaps.inset[index] = Math.ceil(required);
+		else gaps[axis].set(index, Math.ceil(required));
+		changed = true;
+	}
+	return changed;
+}
 var polygons = {
 	diamond: [
 		[.5, 0],
@@ -638,148 +731,101 @@ function outline(box) {
 	return points?.map(([x, y]) => [box.x + x * box.w, box.y + y * box.h]);
 }
 var center = (b) => [b.x + b.w / 2, b.y + b.h / 2];
-var cross = (a, b) => a[0] * b[1] - a[1] * b[0];
-var vector = (a, b) => [b[0] - a[0], b[1] - a[1]];
 var roundShape = (b) => b.shape === "circle" || b.shape === "doublecircle";
-function attach(box, toward) {
-	const c = center(box), d = vector(c, toward);
-	if (roundShape(box)) {
-		const t = 1 / Math.hypot(d[0] / (box.w / 2), d[1] / (box.h / 2));
-		return c.map((v, i) => v + d[i] * t);
-	}
-	const points = outline(box) || rectPoints.map(([x, y]) => [box.x + x * box.w, box.y + y * box.h]);
-	let t = Infinity;
-	for (const [i, p] of points.entries()) {
-		const q = points[(i + 1) % points.length], side = vector(p, q), det = cross(d, side);
-		if (Math.abs(det) < 1e-6) continue;
-		const offset = vector(c, p), u = cross(offset, d) / det, distance = cross(offset, side) / det;
-		if (u >= 0 && u <= 1 && distance > 0) t = Math.min(t, distance);
-	}
-	return Number.isFinite(t) ? c.map((v, i) => v + d[i] * t) : c;
-}
-var inside = (outer, inner) => outer.x <= inner.x && outer.y <= inner.y && outer.x + outer.w >= inner.x + inner.w && outer.y + outer.h >= inner.y + inner.h;
-var intersects = (a, b) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
-function hits([a, b], box) {
-	let lo = 0, hi = 1;
-	for (const [i, low, high] of [[
-		0,
-		box.x - 2,
-		box.x + box.w + 2
-	], [
-		1,
-		box.y - 2,
-		box.y + box.h + 2
-	]]) {
-		const d = b[i] - a[i];
-		if (d === 0) {
-			if (a[i] < low || a[i] > high) return false;
-			continue;
+function loop(box) {
+	const [cx, cy] = center(box), right = box.x + box.w, top = box.y;
+	return [
+		{
+			x: right,
+			y: cy
+		},
+		{
+			x: right + 12,
+			y: cy
+		},
+		{
+			x: right + 12,
+			y: top - 12
+		},
+		{
+			x: cx,
+			y: top - 12
+		},
+		{
+			x: cx,
+			y: top
 		}
-		const t = (low - a[i]) / d, u = (high - a[i]) / d;
-		lo = Math.max(lo, Math.min(t, u));
-		hi = Math.min(hi, Math.max(t, u));
-	}
-	return lo <= hi;
-}
-var segments = (points) => points.slice(1).map((b, i) => [points[i], b]);
-var length = ([a, b]) => Math.hypot(...vector(a, b));
-function route(edge, a, b, boxes, used, measure, budget) {
-	const start = center(a), end = center(b);
-	const obstacles = boxes.filter((box) => box !== a && box !== b && !(box.inner && (inside(box, a) || inside(box, b))));
-	const lines = edge.label.trim() ? wrapText(edge.label, 176, FONT.label, measure) : [];
-	const labelW = maxWidthOf(lines, FONT.label, measure) + iconWidth(edge.icon, lines) + 12;
-	const labelH = Math.max(lines.length * 16, edge.icon ? ICON : 0) + 4;
-	const candidates = [
-		[],
-		[[start[0], end[1]]],
-		[[end[0], start[1]]]
 	];
-	for (const lane of [...new Set(boxes.flatMap((box) => [box.x - GAP / 2, box.x + box.w + GAP / 2]))]) candidates.push([[lane, start[1]], [lane, end[1]]]);
-	for (const lane of [...new Set(boxes.flatMap((box) => [box.y - GAP / 2, box.y + box.h + GAP / 2]))]) candidates.push([[start[0], lane], [end[0], lane]]);
-	if (a === b) candidates.unshift([
-		[a.x + a.w + 8, start[1]],
-		[a.x + a.w + 8, a.y - 8],
-		[start[0], a.y - 8]
-	]);
-	let best;
-	for (const via of candidates) {
-		const path = [
-			start,
-			...via,
-			end
-		].filter((p, i, all) => !i || length([all[i - 1], p]) > .01);
-		if (path.length < 2) continue;
-		const first = attach(a, path[1]), last = attach(b, path.at(-2));
-		if (length([start, first]) >= length([start, path[1]]) || length([end, last]) >= length([end, path.at(-2)])) continue;
-		path[0] = first;
-		path[path.length - 1] = last;
-		const legs = segments(path), cost = legs.reduce((sum, leg) => sum + length(leg), via.length * 12);
-		if (best && cost >= best.cost) continue;
-		if ((budget.left -= legs.length * (obstacles.length + 1)) < 0) return best;
-		if (legs.some((leg) => obstacles.some((box) => hits(leg, box)))) continue;
-		let plate;
-		if (lines.length || edge.icon) {
-			for (const [p, q] of [...legs].sort((i, j) => length(j) - length(i))) {
-				const x = (p[0] + q[0] - labelW) / 2, y = (p[1] + q[1] - labelH) / 2;
-				for (const offset of [
-					[0, 0],
-					[0, -labelH / 2 - 4],
-					[0, labelH / 2 + 4],
-					[-labelW / 2 - 4, 0],
-					[labelW / 2 + 4, 0]
-				]) {
-					const box = {
-						x: x + offset[0],
-						y: y + offset[1],
-						w: labelW,
-						h: labelH
-					};
-					if (!boxes.some((node) => (!node.inner || obstacles.includes(node)) && intersects(node, box)) && !used.some((other) => intersects(other, box))) {
-						plate = box;
-						break;
-					}
-				}
-				if (plate) break;
-			}
-			if (!plate) continue;
-		}
-		best = {
-			...edge,
-			cost,
-			path,
-			plate,
-			lines
-		};
-		if (!via.length) return best;
-	}
-	return best;
 }
 function layout(model, { width, lang, measure }, info) {
 	const padding = info.config?.block?.padding;
 	const validPadding = Number.isFinite(padding) && padding >= 0 && padding <= 2e3;
 	const pad = validPadding ? padding : PAD;
-	const plan = grid(model.root, measure, pad), nodes = /* @__PURE__ */ new Map(), frames = [], edges = [], plates = [], errors = [];
+	const spacing = /* @__PURE__ */ new Map(), edges = [], errors = [];
 	if (padding !== void 0 && !validPadding) errors.push(warning("IGNORED_CONFIG", lang, info.configLines?.["block.padding"] ?? info.headerLine ?? 1, "已忽略无效的 block.padding", "Ignored invalid block.padding", "使用 0 到 2000 之间的数值", "Use a number from 0 to 2000"));
-	place(plan, MARGIN, MARGIN, plan.w, nodes, frames, pad);
-	const boxes = [...nodes.values()], budget = { left: 2e6 };
-	for (const edge of model.edges) {
-		const routed = route(edge, nodes.get(edge.from), nodes.get(edge.to), boxes, plates, measure, budget);
-		if (budget.left < 0) {
-			errors.push(error(lang, edge.line, "块图连线过于复杂", "Block routing is too complex", "拆分图表", "Split the diagram"));
-			break;
-		}
-		if (routed) {
-			edges.push(routed);
-			if (routed.plate) plates.push(routed.plate);
-		} else errors.push(error(lang, edge.line, `无法为 ${edge.from} → ${edge.to} 留出连线空间`, `No clear route for ${edge.from} → ${edge.to}`, "增加 space 留出走线空间", "Add space cells to make room for the edge"));
+	const labels = model.edges.map((edge) => measureLabel(edge.label, measure, edge.icon));
+	const relations = model.edges.flatMap((edge, id) => edge.from === edge.to ? [] : [{
+		id,
+		from: edge.from,
+		to: edge.to,
+		...labels[id] ? { label: labels[id] } : {}
+	}]);
+	let nodes, frames, leaves, naturalWidth, height, routed;
+	for (let pass = 0; pass < 3; pass++) {
+		const plan = grid(model.root, measure, pad, spacing), corridors = [];
+		nodes = /* @__PURE__ */ new Map();
+		frames = [];
+		place(plan, MARGIN, MARGIN, plan.w, nodes, frames, corridors);
+		leaves = [...nodes.values()].filter((box) => !box.inner);
+		naturalWidth = plan.w + 48;
+		height = plan.h + 48;
+		routed = routeBoard({
+			width: naturalWidth,
+			height,
+			nodes: leaves,
+			frames: frames.map((frame) => ({
+				...frame,
+				titleRect: titleRect(frame, frame.title)
+			})),
+			edges: relations
+		});
+		if (pass === 2 || !widenCorridors(corridors, routed.edges, relations, nodes, spacing)) break;
 	}
-	const naturalWidth = plan.w + 48;
+	const routes = new Map(routed.edges.map((route) => [route.id, route]));
+	model.edges.forEach((edge, id) => {
+		const route = routes.get(id), label = labels[id];
+		if (edge.from === edge.to) {
+			const points = loop(nodes.get(edge.from));
+			const rect = label && {
+				x: points[2].x + 4,
+				y: points[2].y - label.h / 2,
+				w: label.w,
+				h: label.h
+			};
+			edges.push({
+				...edge,
+				points,
+				label: rect ? {
+					rect,
+					lines: label.lines
+				} : null
+			});
+		} else if (route) edges.push({
+			...edge,
+			points: route.points,
+			label: label && route.labelRect ? {
+				rect: route.labelRect,
+				lines: label.lines
+			} : null
+		});
+		else errors.push(error(lang, edge.line, `无法为 ${edge.from} → ${edge.to} 留出连线空间`, `No clear route for ${edge.from} → ${edge.to}`, "增加 space 留出走线空间", "Add space cells to make room for the edge"));
+	});
 	if (naturalWidth > 2 * width || model.nodeCount > 60) errors.push(warning("LARGE_DIAGRAM", lang, info.headerLine || 1, "块图较大，可滚动查看", "Large block diagram; scroll to view it", "考虑拆分块图", "Consider splitting the diagram"));
 	return {
 		width: naturalWidth,
-		height: plan.h + 48,
+		height,
 		pad,
-		nodes: boxes.filter((box) => !box.inner),
+		nodes: leaves,
 		frames,
 		edges,
 		errors
@@ -848,66 +894,23 @@ function caption(ctx, { icon, x, y, lines, font, lineHeight }) {
 	}, icon.elements.map(({ tag, attrs }) => ctx.shape(tag, attrs)));
 	return ctx.el("g", {}, [glyph, text]);
 }
+var markKinds = {
+	point: "arrow",
+	circle: "circle",
+	cross: "cross"
+};
 function scene(g, ctx) {
 	const ink = ctx.color("muted"), bg = ctx.design.bg, nodeFill = appearance(ctx).node;
-	const markerId = (kind, status) => `block-${kind}${status ? `-${status}` : ""}`;
-	const marker = (id, child) => ctx.el("marker", {
-		id,
-		viewBox: "0 0 10 10",
-		refX: 9,
-		refY: 5,
-		markerWidth: 7,
-		markerHeight: 7,
-		markerUnits: "userSpaceOnUse",
-		orient: "auto-start-reverse"
-	}, [child]);
-	const marks = /* @__PURE__ */ new Map();
-	const mark = (kind, status, color) => {
-		const id = markerId(kind, status);
-		if (!marks.has(id)) {
-			const child = kind === "point" ? ctx.path("M0 0 L10 5 L0 10 Z", { fill: color }) : kind === "circle" ? ctx.el("circle", {
-				cx: 5,
-				cy: 5,
-				r: 4,
-				fill: bg,
-				stroke: color
-			}) : ctx.path("M1 1 L9 9 M9 1 L1 9", {
-				fill: "none",
-				stroke: color,
-				"stroke-width": 1.8
-			});
-			marks.set(id, marker(id, child));
-		}
-		return `url(#${id})`;
-	};
-	const children = [];
+	const look = boardLook(ctx), marks = markers(ctx);
 	const attachLink = (node, shape) => node.link ? ctx.link(node.link.href, [shape], node.link) : shape;
-	for (const [i, frame] of g.frames.entries()) {
-		const { x, y, w, h, status } = frame;
-		const tone = ctx.frameTone(status ? ctx.design[status] : ctx.color(`tone${i % 6 + 1}`));
-		const shape = ctx.rect(x, y, w, h, {
-			rx: 5,
-			fill: ctx.tint(bg, tone, .07),
-			stroke: ctx.tint(bg, tone, .45)
-		});
-		const text = caption(ctx, {
-			...frame,
-			x: x + w / 2,
-			y: y + g.pad + frame.textH / 2,
-			lineHeight: 18
-		});
-		children.push(attachLink(frame, {
-			...ctx.el("g", {}, [shape, text]),
-			meta: {
-				kind: "frame",
-				id: frame.id,
-				...status ? { status } : {}
-			}
-		}));
-	}
-	for (const node of g.nodes) {
+	const groups = g.frames.map((frame) => ({
+		...frame,
+		style: frame.status
+	}));
+	const frames = groups.map((frame) => attachLink(frame, drawFrame(ctx, frame, look)));
+	const nodes = g.nodes.map((node) => {
 		const [x, y] = center(node);
-		const { status } = node, tone = status && ctx.frameTone(ctx.design[status]);
+		const { status } = node, tone = status && ctx.design[status];
 		const parts = drawShape(ctx, node, {
 			fill: tone ? ctx.tint(bg, tone, .11) : nodeFill,
 			stroke: ctx.tint(bg, tone || ink, .62),
@@ -919,62 +922,49 @@ function scene(g, ctx) {
 			y,
 			lineHeight: 18
 		}));
-		children.push(attachLink(node, {
+		return attachLink(node, {
 			...ctx.el("g", {}, parts),
 			meta: {
 				kind: "node",
 				id: node.id,
 				...status ? { status } : {}
 			}
-		}));
-	}
-	for (const { from, to, path, pattern, thickness, arrowStart, arrowEnd, plate, lines, icon, status } of g.edges) {
-		const color = status ? ctx.frameTone(ctx.design[status], true) : ink;
-		const attrs = {
-			fill: "none",
-			stroke: color,
-			"stroke-width": thickness,
-			"stroke-linecap": "round",
-			"stroke-linejoin": "round"
-		};
-		if (pattern === "dotted") attrs["stroke-dasharray"] = "2 4";
-		if (arrowStart) attrs["marker-start"] = mark(arrowStart, status, color);
-		if (arrowEnd) attrs["marker-end"] = mark(arrowEnd, status, color);
-		children.push({
-			...ctx.path(`M${path.map((p) => p.join(" ")).join(" L")}`, attrs),
-			meta: {
-				kind: "edge",
-				from,
-				to
-			}
 		});
-		if (plate) {
-			const { x, y, w, h } = plate;
-			children.push({
-				...ctx.el("g", {}, [ctx.rect(x, y, w, h, {
-					fill: bg,
-					rx: 4
-				}), caption(ctx, {
-					x: x + w / 2,
-					y: y + h / 2,
-					lines,
-					icon,
-					font: FONT.label,
-					lineHeight: 16
-				})]),
-				meta: {
-					kind: "edge-label-group",
-					from,
-					to
-				}
-			});
+	});
+	const edges = [], labels = [];
+	for (const edge of g.edges) {
+		const { from, to, pattern, thickness, arrowStart, arrowEnd, label, icon, status } = edge;
+		const stroke = thickness > 2 ? {
+			...look.edge("plain", status),
+			width: 2.5
+		} : look.edge(pattern === "dotted" ? "dashed" : "plain", status);
+		const end = (kind) => kind && marks.url(markKinds[kind], stroke.stroke);
+		edges.push(drawEdge(ctx, edge, stroke, {
+			start: end(arrowStart),
+			end: end(arrowEnd)
+		}));
+		if (label) {
+			const { rect } = label;
+			labels.push(drawLabel(ctx, {
+				from,
+				to,
+				rect,
+				lines: label.lines,
+				icon,
+				plate: surfaceAt(groups, look, rect.x + rect.w / 2, rect.y + rect.h / 2)
+			}, look));
 		}
 	}
-	if (marks.size) children.unshift(ctx.el("defs", {}, [...marks.values()]));
 	return {
 		width: g.width,
 		height: g.height,
-		children
+		children: [
+			...marks.defs(),
+			...frames,
+			...edges,
+			...nodes,
+			...labels
+		]
 	};
 }
 var implementations = { block: {

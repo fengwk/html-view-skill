@@ -424,7 +424,7 @@ HTML View 的图表由自带的 KChart 库绘制。图谱展示 **45 种数据�
 <td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/zh-CN/diagram-treeView-beta.svg"><img src="docs/showcase/gallery/zh-CN/diagram-treeView-beta.svg" width="360" alt="目录树"></a><br><b>目录树</b><br><sub><code>treeView-beta</code></sub></td>
 </tr>
 <tr>
-<td colspan="2" align="center"><a href="docs/showcase/gallery/zh-CN/diagram-blocks.svg"><img src="docs/showcase/gallery/zh-CN/diagram-blocks.svg" width="780" alt="能力块"></a><br><b>能力块</b><br><sub><code>blocks</code></sub></td>
+<td colspan="2" align="center"><a href="docs/showcase/gallery/zh-CN/diagram-blocks.svg"><img src="docs/showcase/gallery/zh-CN/diagram-blocks.svg" width="780" alt="总览图"></a><br><b>总览图</b><br><sub><code>blocks</code></sub></td>
 </tr>
 <tr>
 <td colspan="2" align="center"><a href="docs/showcase/gallery/zh-CN/diagram-architecture-beta.svg"><img src="docs/showcase/gallery/zh-CN/diagram-architecture-beta.svg" width="780" alt="架构图"></a><br><b>架构图</b><br><sub><code>architecture-beta</code></sub></td>

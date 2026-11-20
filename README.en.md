@@ -427,7 +427,7 @@ Charts in HTML View are drawn by its bundled KChart library: **45 data charts, 3
 <td colspan="2" align="center"><a href="docs/showcase/gallery/en/diagram-layers.svg"><img src="docs/showcase/gallery/en/diagram-layers.svg" width="780" alt="Layers"></a><br><b>Layers</b><br><sub><code>layers</code></sub></td>
 </tr>
 <tr>
-<td colspan="2" align="center"><a href="docs/showcase/gallery/en/diagram-blocks.svg"><img src="docs/showcase/gallery/en/diagram-blocks.svg" width="780" alt="Blocks"></a><br><b>Blocks</b><br><sub><code>blocks</code></sub></td>
+<td colspan="2" align="center"><a href="docs/showcase/gallery/en/diagram-blocks.svg"><img src="docs/showcase/gallery/en/diagram-blocks.svg" width="780" alt="Overview board"></a><br><b>Overview board</b><br><sub><code>blocks</code></sub></td>
 </tr>
 <tr>
 <td colspan="2" align="center"><a href="docs/showcase/gallery/en/diagram-architecture-beta.svg"><img src="docs/showcase/gallery/en/diagram-architecture-beta.svg" width="780" alt="Architecture"></a><br><b>Architecture</b><br><sub><code>architecture-beta</code></sub></td>

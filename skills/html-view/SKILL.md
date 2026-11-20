@@ -48,6 +48,7 @@ description: 生成、检查和导出离线单文件 HTML 文档、数据报表�
 | 实体、类或需求怎样关联？ | `erDiagram`、`classDiagram`、`requirementDiagram` | [数据模型](references/diagrams/data-model.md) |
 | 一条语法规则怎样匹配符号？ | `railroad-beta`、`railroad-ebnf-beta`、`railroad-abnf-beta`、`railroad-peg-beta` | [数据模型](references/diagrams/data-model.md) |
 | 系统如何分层、容器和依赖在哪里？ | `C4Context`、`C4Container`、`C4Component`、`C4Dynamic`、`C4Deployment`、`architecture-beta`、`block`、`wardley-beta`、原生 `layers`、`blocks` | [架构](references/diagrams/architecture.md) |
+| 一页总览：分组里的卡片、主流程和图例？ | 原生 `blocks`（卡片、徽章、图例、强调线）；已有 Mermaid 块图时 `block` | [架构](references/diagrams/architecture.md#blocks) |
 | 手头已有 Mermaid 数值图？ | `pie`、`xychart`、`sankey`、`radar-beta`、`treemap` | [Mermaid 数值图](references/diagrams/time.md#mermaid-数值图)；新数据图用上方 KChart 图型 |
 | 集合如何重叠、情境如何分类？ | `venn-beta`、`cynefin-beta` | [集合](references/charts/composition.md#venn-beta)、[情境](references/charts/matrix.md#cynefin-beta) |
 | 已有 ZenUML 语法的简单调用图？ | `zenuml`（受控语法子集，不支持 ZenUML 插件） | [ZenUML](references/diagrams/sequence.md#zenuml) |

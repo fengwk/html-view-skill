@@ -21,7 +21,7 @@ test('structure roles use hex colors and honor Cloud Music’s neutral frame ink
 });
 
 // 六层覆盖所有 tone：手写 SVG 用的结构色必须与 layers 实际序列化的分组框和能力项一致。
-// blocks 自 0.2.0 起使用中性虚线分组的看板外观，不再按 tone 轮换分组色。
+// blocks 自 0.2.0 起使用中性虚线分组的总览图外观，不再按 tone 轮换分组色。
 test('structure frame and node colors match layers SVG', () => {
   const source = 'layers\n' + frameRoles.map((_, i) => `- Layer${i}\n  - Group${i}: Node${i}`).join('\n');
   for (const theme of ['claude', 'cloudmusic']) {
@@ -42,7 +42,7 @@ test('structure frame and node colors match layers SVG', () => {
   }
 });
 
-// 看板里带样式的卡片沿用公开的节点底色（与手写 SVG 的 --viz-node 一致）；普通卡片和能力项是无边框底块。
+// 总览图里带样式的卡片沿用公开的节点底色（与手写 SVG 的 --viz-node 一致）；普通卡片和能力项是无边框底块。
 test('board styled cards use the public node fill and plain ones are borderless tiles', () => {
   for (const theme of ['claude', 'cloudmusic', 'tokyo']) {
     const { svg, diagnostics } = diagram('blocks\nrow\n  box Group: Item\n  card Plain\n  card Styled {ok}', { syntax: 'blocks', theme });

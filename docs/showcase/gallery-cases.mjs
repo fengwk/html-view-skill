@@ -441,8 +441,8 @@ export function galleryCases(lang) {
       'layers\n- 触达\n  - 渠道: 小程序, 外卖平台, 门店收银\n- 交易\n  - 订单: 下单, 支付, 退款\n  - 会员: 积分, 优惠券\n- 履约\n  - 门店: 制作屏, 叫号\n  - 配送: 骑手调度',
       'layers\n- Reach\n  - Channels: App, Delivery apps, Till\n- Transactions\n  - Orders: Checkout, Payment, Refunds\n  - Members: Points, Coupons\n- Fulfilment\n  - Store: Bar screen, Pickup calls\n  - Delivery: Courier dispatch')],
     blocks: ['blocks', L(
-      'blocks\ncol\n  row\n    box 小程序\n      点单, 会员码\n    box 订单服务\n      计价, 库存\n  row\n    box 支付平台 {ext}\n      扣款, 退款\n    box 订单库 {db}\n      订单, 流水\n小程序 -> 订单服务: 下单\n订单服务 -> 订单库: 写入\n小程序 ~> 支付平台: 扣款',
-      'blocks\ncol\n  row\n    box App\n      Ordering, Member code\n    box Order API\n      Pricing, Stock\n  row\n    box Payments {ext}\n      Charges, Refunds\n    box Orders {db}\n      Orders, Ledger\nApp -> Order API: orders\nOrder API -> Orders: writes\nApp ~> Payments: pays')],
+      'blocks\ncol\n  row\n    card 顾客评价\n      口味、等待时长\n    box 新品上线 {accent}\n      grid 2\n        card 选品 {accent #01}\n          试饮 4 分以上\n        card 试点 {accent #02}\n          6 家门店\n        card 全量 {accent #04}\n          全部门店上架\n        card 复盘 {accent #03}\n          杯量与毛利\n    box 沉淀 {ok}\n      col\n        card 配方卡 {ok}\n          标准出杯\n        card 培训视频 {ok}\n          新人上手\n        card 门店物料 {ok}\n          海报、杯套\n  legend\n    accent: 上线步骤\n    ok: 沉淀资产\n    =>: 主流程\n    ->: 产出\n    ~>: 回流\n顾客评价 => 选品\n选品 => 试点\n试点 => 复盘\n复盘 => 全量\n复盘 -> 沉淀\n全量 ~> 顾客评价',
+      'blocks\ncol\n  row\n    card Reviews\n      Taste, wait time\n    box New drink {accent}\n      grid 2\n        card Pick {accent #01}\n          Tasting 4+\n        card Pilot {accent #02}\n          6 stores\n        card Launch {accent #04}\n          Every store\n        card Review {accent #03}\n          Cups, margin\n    box Keep {ok}\n      col\n        card Recipe {ok}\n          One build\n        card Training {ok}\n          New baristas\n        card Store kit {ok}\n          Cup sleeves\n  legend\n    accent: Launch step\n    ok: Lasting asset\n    =>: Main flow\n    ->: Output\n    ~>: Feedback\nReviews => Pick\nPick => Pilot\nPilot => Review\nReview => Launch\nReview -> Keep\nLaunch ~> Reviews')],
   };
 
   const cards = (prefix, items) => items.map(([id, zh, en, wide]) => ({ id: `${prefix}${id}`, title: L(zh, en), wide }));
@@ -493,7 +493,7 @@ export function galleryCases(lang) {
       ['packet', '报文位域', 'Packet layout'],
     ]) },
     { id: 'architecture', kind: 'diagram', title: L('架构、分层与目录', 'Architecture, layers and file trees'), items: diagramCards([
-      ['layers', '分层图', 'Layers'], ['blocks', '能力块', 'Blocks', true], ['architecture-beta', '架构图', 'Architecture'], ['block', '块图', 'Block diagram'],
+      ['layers', '分层图', 'Layers'], ['blocks', '总览图', 'Overview board', true], ['architecture-beta', '架构图', 'Architecture'], ['block', '块图', 'Block diagram'],
       ['treeView-beta', '目录树', 'File tree'],
     ]) },
     { id: 'c4', kind: 'diagram', title: L('C4 的五个视角', 'Five C4 views'), items: diagramCards([

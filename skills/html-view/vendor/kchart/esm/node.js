@@ -31,6 +31,8 @@ import { agentflow_exports } from "./diagram/agentflow.js";
 import { architecture_exports } from "./diagram/architecture.js";
 import { block_exports } from "./diagram/block.js";
 import { blocks_exports } from "./diagram/blocks.js";
+import { board_paint_exports } from "./diagram/board-paint.js";
+import { board_route_exports } from "./diagram/board-route.js";
 import { c4_exports } from "./diagram/c4.js";
 import { class_exports } from "./diagram/class.js";
 import { cynefin_exports } from "./diagram/cynefin.js";
@@ -117,6 +119,8 @@ var modulesByPath = /* #__PURE__ */ Object.assign({
 	"./src/diagram/architecture.js": architecture_exports,
 	"./src/diagram/block.js": block_exports,
 	"./src/diagram/blocks.js": blocks_exports,
+	"./src/diagram/board-paint.js": board_paint_exports,
+	"./src/diagram/board-route.js": board_route_exports,
 	"./src/diagram/c4.js": c4_exports,
 	"./src/diagram/class.js": class_exports,
 	"./src/diagram/cynefin.js": cynefin_exports,

@@ -29,6 +29,33 @@ If `lang` is omitted, diagrams infer English or Chinese from the source: English
 
 A production Vite build splits chart and diagram families at dynamic imports. Make the Markdown component itself a dynamic import (for example with `React.lazy`) to defer the facade as well. Shared dependencies can be reused between families. For a map chart, only the requested built-in map (`world` or `us-states`) is loaded; `options.assets` can supply your own map data instead. The renderer needs no network service at runtime; serve the JavaScript chunks and map assets locally for offline use. In a hosted browser build on-demand imports may still load chunks from your own host.
 
+## Boards
+
+Native `blocks` draws a one-page overview board: dashed groups (`box`) holding cards, notes and a legend, laid out with `row`, `col` and `grid N`. Each line indented under a `card` is one description line. Braces at the end of a `box` or `card` line add a style word (`accent`, `new`, `info`, `ok`, `warn`, `danger`, `ext`), a `#01` badge, an `@id` reference or a `"tag"`. Relations `->`, `=>` (main flow) and `~>` (dashed) connect groups and cards by `@id` or exact title.
+
+```js
+const board = await diagram(`row
+  box Inputs
+    card Sessions
+      Every repository
+  box Weekly review {accent}
+    card Collect {accent #01}
+      Run the metrics
+    card Diagnose {accent #02}
+      Pick a fix
+  col
+    card Checks {ok}
+    legend
+      accent: Review step
+      ok: Lasting fix
+      =>: Main flow
+Sessions => Collect
+Collect => Diagnose
+Diagnose -> Checks: ships`, { syntax: 'blocks', width: 720 });
+```
+
+Relations run orthogonally around cards, group borders and titles; gaps widen to fit them, but rows, columns and spans stay as written. Mermaid `block` diagrams use the same router and dashed group frames. Colors come from the theme: plain cards are borderless tiles, styled cards are outlined in the style color, and the styles used together on one board stay distinguishable in every built-in theme. See the [blocks reference (Chinese)](https://github.com/fengwk/html-view-skill/blob/main/skills/html-view/references/diagrams/architecture.md#blocks) for every option and limit.
+
 ## Synchronous Node API
 
 ```js

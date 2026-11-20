@@ -95,12 +95,20 @@ function crosses(a, b) {
 function shortest(from, to, obstacles, occupied, type, bounds, label, original, back, frameSides, arrivals, clearOf = [], lanes = {
 	x: [],
 	y: []
-}) {
+}, board = false) {
 	let best = null, score = Infinity;
 	const fixed = {};
 	for (const [key, span] of [["x", "w"], ["y", "h"]]) {
-		const frameTracks = frameSides.filter(({ p0, p1 }) => p0[key] === p1[key]).flatMap(({ p0 }) => [p0[key] - 8, p0[key] + 8]);
-		const tracks = back ? occupied.filter(({ p0, p1 }) => Math.abs(p0[key] - p1[key]) < .01).flatMap(({ p0 }) => [p0[key] - 12, p0[key] + 12]) : [];
+		const frameTracks = frameSides.filter(({ p0, p1 }) => p0[key] === p1[key]).flatMap(({ p0 }) => {
+			const at = p0[key], clearance = board && label ? Math.max(8, label[span] / 2 + 2) : 8;
+			return clearance === 8 ? [at - 8, at + 8] : [
+				at - 8,
+				at + 8,
+				at - clearance,
+				at + clearance
+			];
+		});
+		const tracks = back || board ? occupied.filter(({ p0, p1 }) => Math.abs(p0[key] - p1[key]) < .01).flatMap(({ p0 }) => [p0[key] - 12, p0[key] + 12]) : [];
 		fixed[key] = [.../* @__PURE__ */ new Set([
 			6,
 			bounds[span] - 6,
@@ -120,9 +128,54 @@ function shortest(from, to, obstacles, occupied, type, bounds, label, original, 
 	};
 	const clear = (a, b) => !obstacles.some((r) => hits(a, b, r));
 	const fromBox = expand(from, 4), toBox = expand(to, 4);
-	const search = (source, target, startOffset, endOffset, detour) => {
-		const { port: fromPort, stub: a } = attachment(from, source, type, startOffset);
-		const { port: toPort, stub: b } = attachment(to, target, type, endOffset);
+	const inside = board && (board.insideFrom ? from : board.insideTo ? to : null);
+	const fitsInside = (p) => !inside || p.x >= inside.x && p.x <= inside.x + inside.w && p.y >= inside.y && p.y <= inside.y + inside.h;
+	const orderedPort = (port, side, peer, ports) => {
+		const axis = vertical(side) ? "x" : "y", span = axis === "x" ? "w" : "h";
+		const at = peer[axis] + peer[span] / 2;
+		return ports.every((old) => {
+			if (side !== old.side) return true;
+			const delta = at - (old.peer[axis] + old.peer[span] / 2);
+			return Math.abs(port[axis] - old.port[axis]) >= 3.999 && delta * (port[axis] - old.port[axis]) >= 0;
+		});
+	};
+	const attach = (box, side, offset, coord) => {
+		if (!board) return attachment(box, side, type, offset);
+		const v = vertical(side), first = side === "top" || side === "left";
+		const along = coord ?? (v ? box.x + box.w * (.5 + offset) : box.y + box.h * (.5 + offset));
+		const face = v ? box.y + (first ? 0 : box.h) : box.x + (first ? 0 : box.w);
+		const lead = face + (first ? -1 : 1) * (inside ? 4 : 8) * (box === inside ? -1 : 1);
+		return v ? {
+			port: {
+				x: along,
+				y: face
+			},
+			stub: {
+				x: along,
+				y: lead
+			}
+		} : {
+			port: {
+				x: face,
+				y: along
+			},
+			stub: {
+				x: lead,
+				y: along
+			}
+		};
+	};
+	const search = (source, target, startOffset, endOffset, detour, sharedCoord) => {
+		const start = attach(from, source, startOffset, sharedCoord), end = attach(to, target, endOffset, sharedCoord);
+		const { port: fromPort } = start, { port: toPort } = end;
+		const mid = sharedCoord === void 0 ? null : {
+			x: (fromPort.x + toPort.x) / 2,
+			y: (fromPort.y + toPort.y) / 2
+		};
+		const a = mid ?? start.stub, b = mid ?? end.stub;
+		const pointsToward = ({ port, stub }) => (mid.x - port.x) * (stub.x - port.x) + (mid.y - port.y) * (stub.y - port.y) > 0;
+		if (mid && (!pointsToward(start) || !pointsToward(end))) return;
+		if (board && (!orderedPort(fromPort, source, to, board.fromPorts) || !orderedPort(toPort, target, from, board.toPorts))) return;
 		if (!clear(fromPort, a) || !clear(b, toPort)) return;
 		if (arrivals.some((edge) => distance(edge.end, toPort) < 8)) return;
 		if (distance(fromPort, a) + distance(a, b) + distance(b, toPort) >= score) return;
@@ -133,7 +186,8 @@ function shortest(from, to, obstacles, occupied, type, bounds, label, original, 
 				...mids,
 				b,
 				toPort
-			].filter((p, i, all) => !i || distance(p, all[i - 1]) > .001);
+			].filter((p, i, all) => !i || distance(p, all[i - 1]) > (board ? 0 : .001));
+			if (inside && !points.every(fitsInside)) return;
 			let length = 0;
 			for (let i = 1; i < points.length; i++) {
 				const prev = points[i - 2], a = points[i - 1], b = points[i];
@@ -144,11 +198,11 @@ function shortest(from, to, obstacles, occupied, type, bounds, label, original, 
 			const cost = length + (compact.length - 2) * 16;
 			if (cost >= score) return;
 			for (let i = 2; i < points.length - 1; i++) {
-				if (hits(points[i - 1], points[i], fromBox) || hits(points[i - 1], points[i], toBox)) return;
+				if (from !== inside && hits(points[i - 1], points[i], fromBox) || to !== inside && hits(points[i - 1], points[i], toBox)) return;
 				if (!clear(points[i - 1], points[i])) return;
 			}
 			const segments = compact.slice(1).map((p, i) => straight(compact[i], p));
-			if (segments.some(({ p0, p1 }) => occupied.some((seg) => sharesRun(p0, p1, seg.p0, seg.p1, back ? 12 : 1, back ? 8 : 4)) || clearOf.some((seg) => sharesRun(p0, p1, seg.p0, seg.p1, EDGE_CLEAR, 4)) || frameSides.some((seg) => sharesRun(p0, p1, seg.p0, seg.p1, 8, 12)) || arrivals.some((edge) => edge.segments.some((seg) => crosses({
+			if (segments.some(({ p0, p1 }) => occupied.some((seg) => sharesRun(p0, p1, seg.p0, seg.p1, board ? EDGE_CLEAR : back ? 12 : 1, board ? 0 : back ? 8 : 4)) || clearOf.some((seg) => sharesRun(p0, p1, seg.p0, seg.p1, EDGE_CLEAR, 4)) || frameSides.some((seg) => sharesRun(p0, p1, seg.p0, seg.p1, 8, 12)) || arrivals.some((edge) => edge.segments.some((seg) => crosses({
 				p0,
 				p1
 			}, seg) || sharesRun(p0, p1, seg.p0, seg.p1, 8, 8))))) return;
@@ -163,11 +217,20 @@ function shortest(from, to, obstacles, occupied, type, bounds, label, original, 
 					from,
 					to,
 					...obstacles
-				].some((r) => overlaps(box, r));
+				].some((r) => r !== inside && overlaps(box, r)) && (!board || fitsInside(box) && fitsInside({
+					x: box.x + box.w,
+					y: box.y + box.h
+				}) && box.x >= 0 && box.y >= 0 && box.x + box.w <= bounds.w && box.y + box.h <= bounds.h && !occupied.some((seg) => hits(seg.p0, seg.p1, expand(box, 2))) && !frameSides.some((seg) => hits(seg.p0, seg.p1, box)));
 				const legs = compact.slice(1).map((p, i) => [compact[i], p]).sort(([p, q], [r, s]) => distance(r, s) - distance(p, q));
 				labelRect = null;
 				for (const [p, q] of legs) {
-					for (const f of [
+					for (const f of board ? [
+						.5,
+						.35,
+						.65,
+						.2,
+						.8
+					] : [
 						.5,
 						.35,
 						.65
@@ -190,11 +253,16 @@ function shortest(from, to, obstacles, occupied, type, bounds, label, original, 
 				start: fromPort,
 				end: toPort,
 				labelRect,
-				segments
+				segments,
+				...board ? {
+					source,
+					target
+				} : {}
 			};
 			score = cost;
 		};
 		if (a.x === b.x || a.y === b.y) validate([]);
+		if (sharedCoord !== void 0) return;
 		validate([{
 			x: a.x,
 			y: b.y
@@ -268,6 +336,39 @@ function shortest(from, to, obstacles, occupied, type, bounds, label, original, 
 			}
 		}
 	};
+	if (board) for (const [key, span, low, high] of [[
+		"x",
+		"w",
+		"top",
+		"bottom"
+	], [
+		"y",
+		"h",
+		"left",
+		"right"
+	]]) {
+		const inset = (box) => Math.min(8, box[span] / 4);
+		const overlapLo = Math.max(from[key], to[key]), overlapHi = Math.min(from[key] + from[span], to[key] + to[span]);
+		if (overlapHi <= overlapLo) continue;
+		const lo = Math.min((overlapLo + overlapHi) / 2, Math.max(from[key] + inset(from), to[key] + inset(to)));
+		const hi = Math.max((overlapLo + overlapHi) / 2, Math.min(from[key] + from[span] - inset(from), to[key] + to[span] - inset(to)));
+		const clamp = (value) => Math.max(lo, Math.min(hi, value));
+		const preferred = clamp(to[key] + to[span] / 2);
+		const cross = key === "x" ? "y" : "x", size = key === "x" ? "h" : "w";
+		const pair = from[cross] + from[size] <= to[cross] ? [high, low] : to[cross] + to[size] <= from[cross] ? [low, high] : null;
+		const pairs = inside ? [[low, low], [high, high]] : pair ? [pair] : [];
+		for (const faces of pairs) for (const coord of /* @__PURE__ */ new Set([
+			preferred,
+			(lo + hi) / 2,
+			clamp(preferred - 12),
+			clamp(preferred + 12),
+			lo,
+			hi
+		])) {
+			search(...faces, 0, 0, false, coord);
+			if (best && !inside) return best;
+		}
+	}
 	for (const source of sides) for (const target of sides) search(source, target, 0, 0, false);
 	for (const offset of [
 		-.2,
@@ -275,7 +376,7 @@ function shortest(from, to, obstacles, occupied, type, bounds, label, original, 
 		-.35,
 		.35
 	]) {
-		if (best) break;
+		if (best && !board) break;
 		for (const source of sides) for (const target of sides) for (const [u, v] of [
 			[offset, 0],
 			[0, offset],
@@ -320,7 +421,7 @@ function borders({ x, y, w, h }) {
 		straight(d, a)
 	];
 }
-function repairRoutes(geometry, redirects = /* @__PURE__ */ new Map()) {
+function repairRoutes(geometry, redirects = /* @__PURE__ */ new Map(), { board = false } = {}) {
 	const nodes = new Map(geometry.nodes.map((node) => [node.id, node]));
 	const frames = new Map(geometry.frames.map((frame) => [frame.id, {
 		...frame,
@@ -329,12 +430,21 @@ function repairRoutes(geometry, redirects = /* @__PURE__ */ new Map()) {
 	const endpoint = (id) => nodes.get(id) ?? frames.get(id);
 	const ancestors = (node) => {
 		const result = /* @__PURE__ */ new Set([node.id]);
-		for (let id = node.parent; id; id = frames.get(id)?.parent) result.add(id);
+		for (let id = node.parent; board ? id != null : id; id = frames.get(id)?.parent) result.add(id);
 		return result;
 	};
-	const checkTracks = nodes.size > 30;
+	const checkTracks = !board && nodes.size > 30;
 	const pending = new Set(redirects.keys());
 	const settled = [];
+	const ports = /* @__PURE__ */ new Map();
+	const reserve = (box, peer, port, side) => {
+		if (!ports.has(box.id)) ports.set(box.id, []);
+		ports.get(box.id).push({
+			peer,
+			port,
+			side
+		});
+	};
 	const direction = geometry.direction;
 	const coordinate = (p) => direction === "LR" ? p.x : direction === "RL" ? -p.x : direction === "BT" ? -p.y : p.y;
 	const back = (e) => e.reversed || e.start && e.end && coordinate(e.start) > coordinate(e.end) + 1;
@@ -346,7 +456,8 @@ function repairRoutes(geometry, redirects = /* @__PURE__ */ new Map()) {
 		const redirect = redirects.get(edge.id);
 		const from = endpoint(redirect?.from ?? edge.from), to = endpoint(redirect?.to ?? edge.to);
 		if (!from || !to || from === to) continue;
-		const exempt = /* @__PURE__ */ new Set([...ancestors(from), ...ancestors(to)]);
+		const fromAncestors = ancestors(from), toAncestors = ancestors(to);
+		const exempt = /* @__PURE__ */ new Set([...fromAncestors, ...toAncestors]);
 		const boxes = [...nodes.values(), ...frames.values()].filter((box) => !exempt.has(box.id));
 		const isBack = !!back(edge);
 		const obstacles = boxes.map((box) => expand(box, box.frame ? 5 : 8));
@@ -381,8 +492,8 @@ function repairRoutes(geometry, redirects = /* @__PURE__ */ new Map()) {
 			if (checkTracks) settled.push(...edge.segments);
 			continue;
 		}
-		const labelObstacles = geometry.edges.filter((other) => other !== edge && other.labelRect).map((other) => expand(other.labelRect, 2));
-		const forwardRuns = isBack ? [] : geometry.edges.filter((other) => other !== edge && other.style !== "invisible" && !pending.has(other.id) && !back(other)).flatMap((other) => other.segments);
+		const labelObstacles = geometry.edges.filter((other) => other !== edge && other.labelRect && (!board || !pending.has(other.id))).map((other) => expand(other.labelRect, 2));
+		const forwardRuns = isBack || board ? [] : geometry.edges.filter((other) => other !== edge && other.style !== "invisible" && !pending.has(other.id) && !back(other)).flatMap((other) => other.segments);
 		const lanes = {
 			x: [],
 			y: []
@@ -391,6 +502,12 @@ function repairRoutes(geometry, redirects = /* @__PURE__ */ new Map()) {
 			if (Math.abs(p0.x - p1.x) < .01) lanes.x.push(p0.x);
 			if (Math.abs(p0.y - p1.y) < .01) lanes.y.push(p0.y);
 		}
+		const boardPorts = board && {
+			insideFrom: toAncestors.has(from.id),
+			insideTo: fromAncestors.has(to.id),
+			fromPorts: ports.get(from.id) ?? [],
+			toPorts: ports.get(to.id) ?? []
+		};
 		const route = (clearOf) => shortest(from, to, [
 			...obstacles,
 			...titles,
@@ -398,10 +515,14 @@ function repairRoutes(geometry, redirects = /* @__PURE__ */ new Map()) {
 		], occupied ?? occupiedOf(), geometry.type, {
 			w: geometry.width,
 			h: geometry.height
-		}, edge.labelRect, !redirect, isBack, frameSides, arrivals, clearOf, lanes);
+		}, edge.labelRect, !redirect, isBack, frameSides, arrivals, clearOf, lanes, boardPorts);
 		const replacement = forwardRuns.length && route(forwardRuns) || route([]);
 		if (replacement) {
 			pending.delete(edge.id);
+			if (board) {
+				reserve(from, to, replacement.start, replacement.source);
+				reserve(to, from, replacement.end, replacement.target);
+			}
 			Object.assign(edge, replacement, {
 				from: from.id,
 				to: to.id,
