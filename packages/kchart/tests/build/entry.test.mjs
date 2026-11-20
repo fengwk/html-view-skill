@@ -3,6 +3,7 @@ import { runInNewContext } from 'node:vm';
 import { expect, it } from 'vitest';
 import { galleryCases } from '../../../../docs/showcase/gallery-cases.mjs';
 import * as node from '../../dist/esm/node.js';
+import { registerIcons } from '../../dist/esm/index.js';
 
 const families = JSON.parse(readFileSync(new URL('../../src/families.json', import.meta.url), 'utf8'));
 const gallery = galleryCases('en');
@@ -15,13 +16,18 @@ const page = (script) => {
   return context.KChart;
 };
 
-// Pins the old Node export surface with runtimeSource as the sole addition.
+// Pins the synchronous Node export surface, including host icon registration.
 it('exports the synchronous Node API', () => {
   expect(Object.keys(node).sort()).toEqual([
     'createRenderer', 'render', 'parse', 'validate', 'schema', 'dataTable', 'catalog', 'theme', 'themes',
     'resolveThemeConfig', 'validateThemeSnapshot', 'DEFAULT_THEME', 'FONT_FAMILY', 'defaultStyle',
-    'structureRoles', 'modulesFor', 'diagram', 'check', 'diagramTypes', 'detectSyntax', 'browserSource', 'runtimeSource',
+    'structureRoles', 'modulesFor', 'diagram', 'check', 'diagramTypes', 'detectSyntax', 'browserSource', 'runtimeSource', 'registerIcons',
   ].sort());
+});
+
+// Both published entries share the same process-wide registry.
+it('exports the same icon registration function from both entries', () => {
+  expect(registerIcons).toBe(node.registerIcons);
 });
 
 for (const [family, entry] of Object.entries(families)) {

@@ -1,4 +1,4 @@
-const allowedTags = new Set(['g', 'rect', 'circle', 'ellipse', 'line', 'polyline', 'polygon', 'path', 'text', 'tspan', 'defs', 'marker', 'linearGradient', 'stop', 'clipPath', 'title', 'desc']);
+const allowedTags = new Set(['a', 'g', 'rect', 'circle', 'ellipse', 'line', 'polyline', 'polygon', 'path', 'text', 'tspan', 'defs', 'marker', 'linearGradient', 'stop', 'clipPath', 'title', 'desc']);
 const safeAttrs = new Set(('id class x y x1 y1 x2 y2 cx cy r rx ry width height d points dx dy rotate fill fill-opacity fill-rule clip-rule stroke stroke-width stroke-opacity stroke-dasharray stroke-dashoffset stroke-linecap stroke-linejoin stroke-miterlimit marker-start marker-mid marker-end markerWidth markerHeight markerUnits refX refY orient opacity transform text-anchor dominant-baseline font-family font-size font-weight font-style letter-spacing text-decoration textLength lengthAdjust paint-order viewBox preserveAspectRatio offset stop-color stop-opacity gradientUnits gradientTransform clip-path vector-effect pointer-events role aria-label aria-labelledby aria-describedby').split(' '));
 
 const escapeXml = (value) => String(value).replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;' })[ch]);
@@ -11,8 +11,30 @@ function validateTag(tag) {
   if (!allowedTags.has(tag)) throw new TypeError(`Unsafe SVG tag: ${tag}`);
   return tag;
 }
-function validateAttribute(key, { serialize = false, generated = false } = {}) {
-  const invalid = /^on/i.test(key) || (!generated && !safeAttrs.has(key)) || (serialize ? /^(?:href|xlink:href|style)$/i.test(key) : ['style', 'href', 'xlink:href'].includes(key));
+const linkAttrs = new Set(['href', 'target', 'rel']);
+const linkTargets = new Set(['_blank', '_self', '_parent', '_top']);
+const blankRel = 'noopener noreferrer';
+
+function safeHref(url) {
+  if (typeof url !== 'string' || !url || /[\s\p{Cc}\\]/u.test(url) || url.startsWith('//')) return null;
+  const scheme = /^[a-z][a-z\d+.-]*:/i.exec(url)?.[0];
+  if (!scheme) return url;
+  if (!/^(https?|mailto):$/i.test(scheme) || !URL.canParse(url)) return null;
+  return url;
+}
+
+function validateLink(attrs) {
+  if (!safeHref(attrs.href)) throw new TypeError('Unsafe SVG link href');
+  if (attrs.target != null && !linkTargets.has(attrs.target)) throw new TypeError('Unsafe SVG link target');
+  if (attrs.target === '_blank' ? attrs.rel !== blankRel : attrs.rel != null) throw new TypeError('Unsafe SVG link rel');
+}
+
+function validateAttribute(key, { serialize = false, generated = false, tag } = {}) {
+  if (linkAttrs.has(key)) {
+    if (tag !== 'a') throw new TypeError(`Unsafe SVG attribute: ${key}`);
+    return key;
+  }
+  const invalid = /^on/i.test(key) || (!generated && !safeAttrs.has(key)) || /^(?:href|xlink:href|style|target|rel)$/i.test(key);
   if (invalid || (serialize && !/^(?:[a-zA-Z][\w:-]*)$/.test(key))) throw new TypeError(`Unsafe SVG attribute: ${key}`);
   return key;
 }
@@ -21,11 +43,17 @@ function el(tag, attrs = {}, children = []) {
   const safe = {};
   for (const [key, value] of Object.entries(attrs || {})) {
     if (value == null) continue;
-    validateAttribute(key);
+    validateAttribute(key, { tag });
     safe[key] = value;
   }
+  if (tag === 'a') validateLink(safe);
   return { tag, attrs: safe, ...(children?.length ? { children: [...children] } : {}) };
 }
+function link(href, children, { tooltip, target } = {}) {
+  const title = tooltip == null || tooltip === '' ? [] : [{ ...el('title'), text: String(tooltip) }];
+  return el('a', { href, target, rel: target === '_blank' ? blankRel : undefined }, [...title, ...children]);
+}
+
 const primitive = (tag, attrs, meta) => { const { meta: ignored, ...rest } = attrs || {}; return { ...el(tag, rest), ...(meta ? { meta } : {}) }; };
 
 // Matrix math and text bounds are kept with the scene model so every layout shares the same overflow rules.
@@ -73,4 +101,4 @@ function containText(scene, measure, { blockPadding = 0 } = {}) {
   return { ...scene, width: scene.width + left + right, height: scene.height + top + bottom, children: left || top ? [el('g', { transform: `translate(${left} ${top})` }, scene.children)] : scene.children, ...(anchor ? { anchor } : {}), overflow: { left, top, right, bottom } };
 }
 
-export { el, primitive, hash, escapeXml, containText, validateTag, validateAttribute, allowedTags, safeAttrs };
+export { el, link, safeHref, linkTargets, validateLink, primitive, hash, escapeXml, containText, validateTag, validateAttribute, allowedTags, safeAttrs };
