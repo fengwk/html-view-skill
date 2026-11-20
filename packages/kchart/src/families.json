@@ -205,14 +205,24 @@
       }
     }
   },
-  "diagram/relations": {
+  "diagram/class": {
     "diagrams": {
       "classDiagram": {
-        "topic": "data-model"
-      },
+        "topic": "data-model",
+        "aliases": ["classDiagram-v2"]
+      }
+    }
+  },
+  "diagram/requirement": {
+    "diagrams": {
       "requirementDiagram": {
-        "topic": "data-model"
-      },
+        "topic": "data-model",
+        "aliases": ["requirement"]
+      }
+    }
+  },
+  "diagram/relations": {
+    "diagrams": {
       "C4Context": {
         "topic": "architecture"
       },
