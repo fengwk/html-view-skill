@@ -61,7 +61,7 @@ function edgePath(edge, modelNodes, ctx, a) {
   const isEr = modelNodes.get(edge.from)?.kind === 'er' || modelNodes.get(edge.to)?.kind === 'er';
   const bold = edge.style === 'bold';
   const attrs = {
-    fill: 'none', stroke: bold ? a.fg3 : a.fg4, 'stroke-width': bold ? 2 : 1.25,
+    fill: 'none', stroke: a[edge.status] ?? (bold ? a.fg3 : a.fg4), 'stroke-width': bold ? 2 : 1.25,
     ...(edge.style === 'dashed' || edge.animated ? { 'stroke-dasharray': '5 4' } : {}),
   };
   if (isEr) {
@@ -75,7 +75,7 @@ function edgePath(edge, modelNodes, ctx, a) {
     }
   }
   const tip = `${edge.from} → ${edge.to}${edge.label ? `：${edge.label}` : ''}`;
-  return group(ctx, [titleNode(ctx, tip), path(ctx, d, attrs, { kind: 'edge', from: edge.from, to: edge.to })], { kind: 'edge-group' });
+  return group(ctx, [titleNode(ctx, tip), path(ctx, d, attrs, { kind: 'edge', from: edge.from, to: edge.to, ...(edge.status ? { status: edge.status } : {}) })], { kind: 'edge-group' });
 }
 
 function drawFlowShape(ctx, name, { x, y, w, h, direction }, common, a) {
@@ -158,6 +158,14 @@ function drawShape(ctx, item, n, a) {
   return [shape, path(ctx, `M${x + 9} ${y + 4} V${y + h - 4} M${x + w - 9} ${y + 4} V${y + h - 4}`, { fill: 'none', stroke, 'stroke-width': 1.25 })];
 }
 
+function drawIcon(ctx, icon, x, y, color) {
+  const [left, top, w, h] = icon.viewBox.split(/\s+/).map(Number), scale = 16 / Math.max(w, h);
+  return ctx.el('g', { transform: `translate(${x - (left + w / 2) * scale} ${y - (top + h / 2) * scale}) scale(${scale})` },
+    icon.elements.map(({ tag, attrs }) => ctx.shape(tag, { ...attrs, ...(icon.set === 'simple'
+      ? { fill: color } : { fill: 'none', stroke: color, 'stroke-width': 1.6, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }) })));
+}
+const linked = (ctx, item, drawing) => item?.link ? ctx.link(item.link.href, [drawing], item.link) : drawing;
+
 function drawNode(ctx, item, n, a) {
   const node = item.node, children = [titleNode(ctx, node.label || node.id), ...drawShape(ctx, item, n, a)];
   const nodeMeta = { kind: node.kind === 'collapsed' ? 'frame' : 'node', id: node.id, ...(node.class ? { status: node.class } : {}) };
@@ -184,7 +192,10 @@ function drawNode(ctx, item, n, a) {
   const collapsed = node.kind === 'collapsed';
   const flowShape = item.flowchart && flowOutlineName(node.shape);
   const glyph = flowShape && shapeGlyphBox(flowShape, n.w, n.h, n.direction);
-  const top = glyph ? n.y + glyph.y - titleH - 6 : n.y + Math.max(10, (n.h - titleH - gap - descH - (collapsed ? 20 : 0)) / 2);
+  const iconH = node.icon ? 24 : 0;
+  const aboveIcon = node.iconPosition === 't' && titleH > 0;
+  const top = glyph ? n.y + glyph.y - titleH - 6 : n.y + Math.max(10, (n.h - titleH - gap - descH - (collapsed ? 20 : 0) - iconH) / 2) + (aboveIcon ? 0 : iconH);
+  if (node.icon) children.push(drawIcon(ctx, node.icon, n.x + n.w / 2, aboveIcon ? top + titleH + 12 : top - 12, a.fg3));
   const textX = glyph ? n.x + glyph.x + glyph.w + 8 : n.x + n.w / 2;
   if (collapsed) {
     const y = n.y + n.h - 20;
@@ -198,31 +209,37 @@ function drawNode(ctx, item, n, a) {
 
 function scene(geometry, ctx, info = {}) {
   const a = appearance(ctx), model = geometry.model || {}, modelNodes = new Map((model.nodes || []).map(node => [node.id, node]));
+  const modelEdges = new Map((model.edges || []).map(edge => [edge.seq, edge]));
+  const modelFrames = new Map((model.subgraphs || []).map(frame => [frame.id, frame]));
   const framesLayer = [], edgeLayer = [], nodeLayer = [], edgeLabelLayer = [], titleLayer = [];
   for (const frame of geometry.frames || []) {
     const attrs = { fill: frame.kind === 'divider' ? a.node : a.surface, stroke: frame.class && a[frame.class] ? a[frame.class] : a.line2, 'stroke-width': 1, 'stroke-dasharray': '5 4' };
     const frameChildren = [ctx.rect(frame.x, frame.y, frame.w, frame.h, { ...attrs, rx: 6 })];
-    framesLayer.push(group(ctx, frameChildren, { kind: 'frame', id: frame.id, ...(frame.class ? { status: frame.class } : {}) }));
+    const presentation = modelFrames.get(frame.id);
+    framesLayer.push(linked(ctx, presentation, group(ctx, frameChildren, { kind: 'frame', id: frame.id, ...(frame.class ? { status: frame.class } : {}) })));
     if (frame.lines?.length) {
       const rect = frame.titleRect;
       const titleChildren = [ctx.rect(rect.x - 3, rect.y - 3, rect.w + 6, rect.h + 6, { fill: a.surface, rx: 2 })];
-      frame.lines.forEach((line, i) => titleChildren.push(text(ctx, rect.x, rect.y + (i + .5) * 17, line, { anchor: 'start', size: 13, weight: 600, fill: a.fg3 }, { kind: 'frame-title', id: frame.id })));
+      if (presentation?.icon) titleChildren.push(drawIcon(ctx, presentation.icon, rect.x + 8, rect.y + 8.5, a.fg3));
+      frame.lines.forEach((line, i) => titleChildren.push(text(ctx, rect.x + (presentation?.icon ? 22 : 0), rect.y + (i + .5) * 17, line, { anchor: 'start', size: 13, weight: 600, fill: a.fg3 }, { kind: 'frame-title', id: frame.id })));
       (frame.descLines || []).forEach((line, i) => titleChildren.push(text(ctx, rect.x, rect.y + frame.lines.length * 17 + 4 + i * 16 + 8, line, { anchor: 'start', size: 13, fill: a.fg3 }, { kind: 'frame-description', id: frame.id })));
-      titleLayer.push(group(ctx, titleChildren, { kind: 'frame-title-group', id: frame.id }));
+      titleLayer.push(linked(ctx, presentation, group(ctx, titleChildren, { kind: 'frame-title-group', id: frame.id })));
     }
   }
   for (const edge of geometry.edges || []) {
-    const rendered = edgePath(edge, modelNodes, ctx, a);
+    const rendered = edgePath({ ...edge, status: modelEdges.get(edge.id)?.status }, modelNodes, ctx, a);
     if (rendered) edgeLayer.push(rendered);
     if (edge.labelRect && edge.labelLines?.length) {
       const r = edge.labelRect, children = [ctx.rect(r.x, r.y, r.w, r.h, { fill: a.surface, rx: 3 })];
-      edge.labelLines.forEach((line, i) => children.push(text(ctx, r.x + r.w / 2, r.y + r.h / 2 + (i - (edge.labelLines.length - 1) / 2) * 16, line, { anchor: 'middle', size: 12, fill: a.fg3 }, { kind: 'edge-label' })));
+      const icon = modelEdges.get(edge.id)?.icon;
+      if (icon) children.push(drawIcon(ctx, icon, r.x + 13, r.y + r.h / 2, a.fg3));
+      edge.labelLines.forEach((line, i) => children.push(text(ctx, r.x + r.w / 2 + (icon ? 11 : 0), r.y + r.h / 2 + (i - (edge.labelLines.length - 1) / 2) * 16, line, { anchor: 'middle', size: 12, fill: a.fg3 }, { kind: 'edge-label' })));
       edgeLabelLayer.push(group(ctx, children, { kind: 'edge-label-group', from: edge.from, to: edge.to }));
     }
   }
   for (const n of geometry.nodes || []) {
     const item = modelNodes.get(n.id);
-    if (item) nodeLayer.push(drawNode(ctx, { node: item, flowchart: model.type === 'flowchart', titleLines: n.lines, descLines: n.descLines }, n, a));
+    if (item) nodeLayer.push(linked(ctx, item, drawNode(ctx, { node: item, flowchart: model.type === 'flowchart', titleLines: n.lines, descLines: n.descLines }, n, a)));
   }
   const children = [defs(ctx, a), ...framesLayer,
     group(ctx, edgeLayer, { kind: 'edges' }), group(ctx, nodeLayer, { kind: 'nodes' }),
@@ -232,6 +249,8 @@ function scene(geometry, ctx, info = {}) {
 
 const implementations = Object.fromEntries(['flowchart', 'stateDiagram-v2'].map(kind => [kind, {
   optionMode: 'raw',
+  acceptsPresentation: true,
+  honoredConfig: ['flowchart.inheritDir'],
   parse: (body, info) => parseGraph(body, info),
   layout: (model, options, info) => layoutGraph(model, options, info),
   scene,

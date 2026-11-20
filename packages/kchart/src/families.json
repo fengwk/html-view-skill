@@ -128,7 +128,8 @@
       "flowchart": {
         "topic": "flow",
         "aliases": [
-          "graph"
+          "graph",
+          "flowchart-elk"
         ]
       },
       "stateDiagram-v2": {
