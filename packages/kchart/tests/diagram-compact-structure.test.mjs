@@ -4,6 +4,7 @@ import { test } from 'vitest';
 import { galleryCases } from '../../../docs/showcase/gallery-cases.mjs';
 import { diagram } from '../dist/esm/node.js';
 import { fallbackMeasure } from '../src/core/text.js';
+import { checkScene } from './helpers/geometry.mjs';
 
 const gallery = galleryCases('en').diagrams;
 const families = [
@@ -63,18 +64,51 @@ test.each([false, true])('git labels prefer the explicit break (compact=%s)', co
   assert.ok(nodes.some(n => n.text === '小规模端到端验证'));
 });
 
-// A greedy source-order tie must not put Application beside the largest branch on the fuller side.
-test.each([false, true])('mindmap separates the largest branch from Application (compact=%s)', compact => {
-  const source = `mindmap\n Root\n  Training\n   A\n   B\n   C\n   D\n  Evaluation\n   E\n   F\n  Deployment\n   G\n   H\n  Application\n   I\n   J`;
-  const nodes = all(render(source, { compact }).scene);
-  const x = text => nodes.find(n => n.text === text).attrs.x;
-  assert.ok((x('Training') - x('Root')) * (x('Application') - x('Root')) < 0);
+// Move branches for a 3–1 → 2–2 improvement, but preserve source-order sides for a 6–4 tie.
+test.each([false, true])('mindmap changes sides only for strictly better balance (compact=%s)', compact => {
+  const improved = 'mindmap\n Root\n  First\n  Second\n  Largest\n   A\n   B';
+  const tied = 'mindmap\n Root\n  Largest\n   A\n   B\n   C\n   D\n  First\n   E\n   F\n  Second\n   G\n   H\n  Last\n   I\n   J';
+  const left = source => {
+    const nodes = all(render(source, { compact }).scene);
+    const root = nodes.find(n => n.text === 'Root');
+    return ['Largest', 'First', 'Second', 'Last'].filter(text => nodes.some(n => n.text === text && n.attrs.x < root.attrs.x));
+  };
+  assert.deepEqual(left(improved), ['Largest']);
+  assert.deepEqual(left(tied), ['Largest', 'Last']);
+});
+
+const c4Corpus = JSON.parse(readFileSync(new URL('./conformance/mermaid-12.3.0.json', import.meta.url))).filter(r => r.type === 'c4');
+
+// Treat dotted leaders as the only edges and the other labels as obstacles for the geometry gate.
+function leaderGeometry(node) {
+  const { meta } = node, id = `${meta?.from}→${meta?.to}`;
+  if (meta?.kind === 'edge') return [];
+  if (meta?.kind === 'leader') return [{ ...node, meta: { kind: 'edge', id, to: `plate:${id}` } }];
+  if (meta?.kind === 'edge-label-group') return [{ ...node, meta: { kind: 'node', id: `plate:${id}` } }];
+  return [{ ...node, ...(node.children ? { children: node.children.flatMap(leaderGeometry) } : {}) }];
+}
+
+test.each([false, true])('C4 leaders avoid corpus cards, headers and labels (compact=%s)', compact => {
+  for (const { id, source } of c4Corpus) for (const width of [390, 800]) {
+    const { scene } = render(source, { compact, width });
+    const geometry = { ...scene, children: scene.children.flatMap(leaderGeometry) };
+    const crossings = checkScene(geometry).filter(i => ['edge-crosses-node', 'edge-crosses-text'].includes(i.kind));
+    assert.deepEqual(crossings, [], `${id} at ${width}`);
+  }
+});
+
+// The JDBC label fits between the database and the boundary, but only between the coarse samples.
+test('compact C4Dynamic places the JDBC plate by its edge, not below the diagram', () => {
+  const { source } = c4Corpus.find(r => r.id === 'c4.md:312');
+  const nodes = all(render(source, { compact: true }).scene);
+  const plate = nodes.find(n => n.meta?.kind === 'edge-label-group' && n.meta.from === 'c3' && n.meta.to === 'c4').children[0].attrs;
+  const frame = nodes.find(n => n.meta?.kind === 'frame').attrs;
+  assert.ok(plate.y + plate.height < frame.y + frame.height);
 });
 
 // This dense corpus graph used to accept a plate spanning a boundary if the route score was better.
 test.each([false, true])('C4 plates clear boundary borders (compact=%s)', compact => {
-  const corpus = JSON.parse(readFileSync(new URL('./conformance/mermaid-12.3.0.json', import.meta.url)));
-  const { source } = corpus.find(r => r.id === 'c4.md:228');
+  const { source } = c4Corpus.find(r => r.id === 'c4.md:228');
   const nodes = all(render(source, { compact }).scene);
   const frames = nodes.filter(n => n.meta?.kind === 'frame').map(n => n.attrs);
   const plates = nodes.filter(n => n.meta?.kind === 'edge-label-group').map(n => n.children[0].attrs);

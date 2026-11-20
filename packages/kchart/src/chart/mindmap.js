@@ -149,11 +149,10 @@ function arrange(spec, ctx, mode, { cap, gap }) {
     stack(root, 0, n => mode === 'left' ? -col[n.depth] - n.w : col[n.depth]);
   } else if (mode === 'bilateral') {
     // Try the heaviest branches first, keeping source order within each side.
-    const partition = (branches, heaviestFirst = false) => {
+    const partition = branches => {
       const sides = [[], []], mass = [0, 0];
       for (const child of branches) {
-        const preferRight = heaviestFirst && mass[0] === mass[1] && sides[0].length > 0;
-        const side = mass[0] < mass[1] || (mass[0] === mass[1] && !preferRight) ? 0 : 1;
+        const side = mass[0] <= mass[1] ? 0 : 1;
         sides[side].push(child);
         mass[side] += leaves(child);
       }
@@ -161,13 +160,9 @@ function arrange(spec, ctx, mode, { cap, gap }) {
     };
     const original = partition(root.children);
     const ordered = [...root.children].sort((a, b) => leaves(b) - leaves(a));
-    const ranked = partition(ordered, true);
+    const ranked = partition(ordered);
     const imbalance = ({ mass }) => Math.abs(mass[0] - mass[1]);
-    // In a tie, avoid stacking more branches beside the heaviest one on the fuller side.
-    const heavySideMass = ({ sides, mass }) => mass[sides[0].includes(ordered[0]) ? 0 : 1];
-    const improves = imbalance(ranked) < imbalance(original) || (imbalance(ranked) === imbalance(original)
-      && heavySideMass(ranked) < heavySideMass(original));
-    const { sides, mass } = improves ? ranked : original;
+    const { sides, mass } = imbalance(ranked) < imbalance(original) ? ranked : original;
     for (let i = 0; i < sides.length; i++) {
       const members = new Set(sides[i]);
       sides[i] = root.children.filter(child => members.has(child));

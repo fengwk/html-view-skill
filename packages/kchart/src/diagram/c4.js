@@ -473,6 +473,9 @@ function layout(model, { width, ctx, lang, compact }) {
   }
   children.push(...nodes.flatMap(b => drawBox(ctx, b)));
   const leaders = [];
+  const coarse = [0.5, 0.4, 0.6, 0.3, 0.7, 0.2, 0.8, 0.1, 0.9];
+  const fine = Array.from({ length: 19 }, (_, i) => i + 1).flatMap(i => [(20 - i) / 40, (20 + i) / 40])
+    .filter(t => !coarse.includes(t));
   for (const { path, rel, meta } of routes) {
     const label = relLabel(rel, ctx);
     if (!label) continue;
@@ -492,48 +495,67 @@ function layout(model, { width, ctx, lang, compact }) {
     const plate = p => ({ x: Math.max(6, Math.min(p.x - w / 2, sceneWidth - w - 6)), y: p.y - h / 2, w, h });
     const free = box => box.y >= 6 && box.y + h <= height - 6 && !occupied.some(b => overlaps(inflate(box, 4), b))
       && !arrowBoxes.some(b => overlaps(box, b));
-    const candidates = [[preferred, mid]];
-    for (const t of [0.5, 0.4, 0.6, 0.3, 0.7, 0.2, 0.8, 0.1, 0.9]) {
-      const p = along(t);
-      candidates.push([point(p.x, 6 + h / 2), p], [point(p.x, height - 6 - h / 2), p]);
-      for (const dx of [0, -w / 2 - 4, w / 2 + 4]) for (const dy of [0, -h / 2 - 4, h / 2 + 4, -h - 8, h + 8]) {
-        candidates.push([point(p.x + dx, p.y + dy), p]);
-      }
-    }
     let box, leader, best = Infinity;
     const other = used.filter(seg => !path.includes(seg[0]) || !path.includes(seg[1])).concat(leaders);
-    for (const [p, pOnEdge] of candidates) {
+    const clear = tie => !occupied.some(b => hits(tie, b));
+    const consider = (p, pOnEdge) => {
       const candidate = plate(p);
-      if (!free(candidate)) continue;
+      if (!free(candidate)) return;
       const end = point(Math.max(candidate.x, Math.min(candidate.x + w, pOnEdge.x)), Math.max(candidate.y, Math.min(candidate.y + h, pOnEdge.y)));
       const connected = parts.some(seg => hits(seg, candidate));
       const tie = connected ? null : [pOnEdge, end];
-      if (tie && occupied.some(b => hits(tie, b))) continue;
-      const straddle = frames.some(frame => !contains(frame, inflate(candidate, 2)) && overlaps(frame, inflate(candidate, 2)));
-      if (straddle) continue;
+      if (tie && !clear(tie)) return;
+      const padded = inflate(candidate, 2);
+      if (frames.some(frame => overlaps(frame, padded) && !contains(frame, padded))) return;
       const score = distance(point(cx(candidate), cy(candidate)), preferred) + (tie ? distance(...tie) * 2 : 0)
         + 240 * other.filter(seg => hits(seg, candidate)).length;
       if (score < best) { best = score; box = candidate; leader = tie; }
-    }
+    };
+    const search = fractions => {
+      for (const t of fractions) {
+        const p = along(t);
+        consider(point(p.x, 6 + h / 2), p);
+        consider(point(p.x, height - 6 - h / 2), p);
+        for (const dx of [0, -w / 2 - 4, w / 2 + 4]) for (const dy of [0, -h / 2 - 4, h / 2 + 4, -h - 8, h + 8]) {
+          consider(point(p.x + dx, p.y + dy), p);
+        }
+      }
+    };
+    consider(preferred, mid);
+    search(coarse);
+    // Keep existing placements; only look between the coarse samples when none fits.
+    if (!box) search(fine);
     if (!box) {
       // Search the free space beside the drawing before parking a label below it.
-      for (const t of [0.5, 0.4, 0.6, 0.3, 0.7, 0.2, 0.8, 0.1, 0.9]) {
+      for (const t of coarse) {
         const p = along(t);
         for (const x of [6 + w / 2, sceneWidth - 6 - w / 2]) {
           const candidate = plate(point(x, p.y));
           const padded = inflate(candidate, 2);
           if (!free(candidate) || frames.some(frame => overlaps(frame, padded) && !contains(frame, padded))) continue;
           const tie = [p, point(p.x < x ? candidate.x : candidate.x + w, p.y)];
-          if (occupied.some(b => hits(tie, b))) continue;
+          if (!clear(tie)) continue;
           const score = distance(...tie);
           if (score < best) { best = score; box = candidate; leader = tie; }
         }
       }
     }
     if (!box) {
-      box = plate(point(mid.x, height + h / 2));
+      // The lowest clear vertical leader keeps the parked label attached without cutting through cards.
+      const anchors = [...path, ...coarse.map(along), ...fine.map(along)].sort((a, b) => b.y - a.y);
+      for (const p of anchors) {
+        const candidate = plate(point(p.x, height + h / 2));
+        const tie = [p, point(p.x, candidate.y)];
+        if (p.x < candidate.x || p.x > candidate.x + w || !clear(tie)) continue;
+        box = candidate;
+        leader = tie;
+        break;
+      }
+      if (!box) {
+        box = plate(point(mid.x, height + h / 2));
+        leader = [mid, point(cx(box), box.y)];
+      }
       height += h + 14;
-      leader = [mid, point(cx(box), box.y)];
     }
     if (leader) {
       leaders.push(leader);
