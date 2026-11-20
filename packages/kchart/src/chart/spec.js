@@ -54,7 +54,11 @@ function validate(spec) {
     err(errors, '', '声明必须是对象');
     return { errors, data: null };
   }
-  keys(spec,TOP,'',errors);
+  for (const field of Object.keys(spec)) {
+    if (TOP.has(field)) continue;
+    if (field === 'id') err(errors, '/id', '图表声明不接受根级 id', '移除根级 id；要标识数据行时，若图型支持，使用 encode.id 映射到行字段。');
+    else err(errors, ptr([field]), '未知字段');
+  }
   const c = typeof spec.chart === 'string' ? catalog[spec.chart] : undefined;
   if (!c) err(errors,'/chart','未知图型','chart 必须是注册图型名。');
   for (const k of ['title','subtitle','source','note','unit']) if (spec[k] !== undefined && typeof spec[k] !== 'string') err(errors,`/${k}`,'必须是字符串');
@@ -100,7 +104,7 @@ function validate(spec) {
     const encodeOk = errors.length === errorsBeforeEncode;
     const layersOk = c.name !== 'combo' || Array.isArray(spec.layers) && spec.layers.every((layer) => obj(layer) && typeof layer.field === 'string');
     const commonFields=new Set(['chart','title','subtitle','source','note','data','fields','unit','sort','emphasis','annotations','interaction','encode']);
-    for (const field of Object.keys(spec)) if (!commonFields.has(field) && c.special[field]===undefined && !(field==='unitMark'&&['bar','column','dumbbell','waterfall','histogram'].includes(c.name))) err(errors,`/${field}`,`图型 ${c.name} 不支持此参数`);
+    for (const field of Object.keys(spec)) if (TOP.has(field) && !commonFields.has(field) && c.special[field]===undefined && !(field==='unitMark'&&['bar','column','dumbbell','waterfall','histogram'].includes(c.name))) err(errors,`/${field}`,`图型 ${c.name} 不支持此参数`);
     for (const field of c.requiredSpecial) if (spec[field]===undefined) err(errors,`/${field}`,'必填专用字段缺失');
     for (const [field, allowed] of Object.entries(c.special)) {
       const v=spec[field]; if (v===undefined) { if (allowed==='range') err(errors,`/${field}`,'必填专用字段缺失'); continue; }

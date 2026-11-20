@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -8,6 +8,8 @@ import { findBrowser, launchBrowser } from '../src/shared/browser.mjs';
 import { readAsset } from '../src/shared/assets.mjs';
 import { renderShell } from '../src/shared/shell.mjs';
 import { getTheme } from '../src/shared/themes.mjs';
+import { buildDoc } from '../src/artifacts/doc/index.mjs';
+import { renderCheck } from '../src/shared/render-audit.mjs';
 
 const chrome = findBrowser();
 const waitFor = (page, expression, label) => page.evaluate(`new Promise((resolve, reject) => {
@@ -121,6 +123,23 @@ test('doc runtime renders a KChart figure and supports numbered xrefs and Review
   } finally {
     await page?.close();
     await browser?.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+// 原样保留长表名：普通段落和提示条都需在手机内换行，云音的「注意」标签在屏幕和打印上都要读得清。
+test('Cloud Music report keeps long identifiers and passes rendered checks', { skip: !chrome && '未找到可执行 Chrome；设置 CHROME_PATH 后自动启用此浏览器回归' }, async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'htmlview-doc-wrap-'));
+  try {
+    const source = join(dir, 'report.md');
+    const file = join(dir, 'report.html');
+    const tableName = 'example_warehouse_team.dim_itm_example_community_resource_long_tag_daily_archive';
+    writeFileSync(source, `# 虚构报告\n\n## 数据口径\n\n来源：${tableName}（示例）。\n\n> [!NOTE]\n> 数据来源：${tableName}（示例）。\n\n> [!WARNING]\n> 首周只含四天。\n`);
+    await buildDoc([source, '--out', file, '--type', 'report', '--theme', 'cloudmusic', '--lang', 'zh-CN']);
+    assert.equal(readFileSync(file, 'utf8').split(tableName).length - 1, 2);
+    const result = await renderCheck(file, { chromePath: chrome });
+    assert.deepEqual(result.failures, []);
+  } finally {
     rmSync(dir, { recursive: true, force: true });
   }
 });

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { existsSync, linkSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, linkSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -70,6 +70,40 @@ test('read --outline 输出稳定的大纲字段，--out 保存 Markdown 正文'
   assert.deepEqual(JSON.parse(readFileSync(outlineOut, 'utf8')).headings, result.headings);
 });
 
+// Only a skin changes on the copy; a plain HTML input is explicitly rejected before any write.
+test('style help distinguishes managed HTML and copy-first restyling preserves the source', (t) => {
+  const dir = tempDir(t);
+  const input = join(dir, 'original.html');
+  const output = join(dir, 'cloudmusic.html');
+  const source = join(dir, 'original.md');
+  const external = join(dir, 'external.html');
+  const help = invoke(['style', '--help']);
+  assert.equal(help.exitCode, 0);
+  assert.match(help.stdout, /原位更新 htmlview 产物/);
+  assert.match(help.stdout, /同目录复制/);
+
+  const ordinaryHtml = '<!doctype html><html><head><title>Original</title></head><body><p>Read-only</p></body></html>';
+  writeFileSync(external, ordinaryHtml);
+  const unsupported = invoke(['style', external, '--theme', 'cloudmusic']);
+  assert.equal(unsupported.exitCode, 2);
+  const { error } = JSON.parse(unsupported.stdout);
+  assert.equal(error.code, 'BAD_SHELL');
+  assert.match(error.next, /普通 HTML.*doc new.*迁移原有内容/);
+  assert.equal(readFileSync(external, 'utf8'), ordinaryHtml);
+
+  writeFileSync(source, '# Fictional report\n\n## Results\n\nThe sample contained 305 records.\n');
+  assert.equal(invoke(['doc', 'build', source, '--out', input, '--theme', 'claude']).exitCode, 0);
+  const original = readFileSync(input, 'utf8');
+  copyFileSync(input, output);
+  const restyled = invoke(['style', output, '--theme', 'cloudmusic']);
+  assert.equal(restyled.exitCode, 0, restyled.stdout);
+  assert.equal(JSON.parse(restyled.stdout).theme, 'cloudmusic');
+  assert.equal(readFileSync(input, 'utf8'), original);
+  const diff = invoke(['diff', input, output]);
+  assert.equal(diff.exitCode, 0, diff.stdout);
+  assert.deepEqual(JSON.parse(diff.stdout).changed, []);
+});
+
 test('embed 只改 htmlview 内容区并内嵌本地图片和 data-src 文本', async (t) => {
   const dir = tempDir(t);
   const image = join(dir, 'pixel.png');
@@ -95,6 +129,18 @@ test('viz schema 与 palette 通过 KChart 原生 API 返回契约字段', async
   assert.equal(schemaResult.exitCode, 0);
   assert.equal(schemaPayload.ok, true);
   assert.equal(typeof schemaPayload.schema, 'object');
+
+  // A selected chart exposes its role and variant rules before the full conditional schema.
+  const line = invoke(['viz', 'schema', 'line']);
+  assert.equal(line.exitCode, 0, line.stdout);
+  const selected = JSON.parse(line.stdout);
+  assert.deepEqual(selected.contract.required, ['category', 'value']);
+  assert.deepEqual(selected.contract.special.variant, ['counter', 'barcode']);
+  assert.ok(!Object.hasOwn(selected.contract.special, 'layout'));
+  assert.equal(selected.schema.allOf[0].then.properties.layout, false);
+  const invalid = invoke(['viz', 'schema', 'unknown-chart']);
+  assert.equal(invalid.exitCode, 2);
+  assert.equal(JSON.parse(invalid.stdout).error.code, 'USAGE');
 
   const paletteResult = await invoke(['viz', 'palette', '--theme', 'paper']);
   const palettePayload = JSON.parse(paletteResult.stdout);

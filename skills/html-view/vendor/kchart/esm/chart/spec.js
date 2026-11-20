@@ -163,7 +163,11 @@ function validate(spec) {
 			data: null
 		};
 	}
-	keys(spec, TOP, "", errors);
+	for (const field of Object.keys(spec)) {
+		if (TOP.has(field)) continue;
+		if (field === "id") err(errors, "/id", "图表声明不接受根级 id", "移除根级 id；要标识数据行时，若图型支持，使用 encode.id 映射到行字段。");
+		else err(errors, ptr([field]), "未知字段");
+	}
 	const c = typeof spec.chart === "string" ? catalog[spec.chart] : void 0;
 	if (!c) err(errors, "/chart", "未知图型", "chart 必须是注册图型名。");
 	for (const k of [
@@ -221,7 +225,7 @@ function validate(spec) {
 			"interaction",
 			"encode"
 		]);
-		for (const field of Object.keys(spec)) if (!commonFields.has(field) && c.special[field] === void 0 && !(field === "unitMark" && [
+		for (const field of Object.keys(spec)) if (TOP.has(field) && !commonFields.has(field) && c.special[field] === void 0 && !(field === "unitMark" && [
 			"bar",
 			"column",
 			"dumbbell",

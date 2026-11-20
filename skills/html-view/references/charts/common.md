@@ -1,6 +1,6 @@
 # KChart 声明通则
 
-开始写数据图时先读本页，再看对应图族。用 `htmlview viz schema <chart>` 核对可用字段、必需角色和规模，不把别的图型字段套过来。
+开始写数据图时先读本页，再看对应图族。`htmlview viz schema <chart>` 的 `contract` 列出必需及可选的 `encode` 角色（`required`、`optional`）和图型专属选项（`special`）；`schema` 给出字段格式。规模限制见对应图族，不把别的图型字段套过来。
 
 - `chart` 是图型；`data` 是源记录或该图型声明的数据形状；`encode` 把语义角色映射到源字段。多数图是对象数组；树用嵌套节点，关系图用节点与边或路径，地理图用受控地图资源。保留原字段单位、缺值和量级。
 - `title` 写这张图要说明的问题或结论；需要时加 `subtitle`（口径）、`source`（可核对来源）、`note`（限制）。同一图不在声明外重复标题。
@@ -9,6 +9,7 @@
 - 只用登记的 `variant`、`layout`、`sort` 与下面的强调、注释字段；不要提供坐标、颜色、任意样式或第三方选项。默认无交互无动画；仅在需要查读时声明图型支持的 `interaction`。
 - `emphasis` 让读者该先看的记录或系列保持醒目，其余变淡；颜色不代表系列时（单系列柱、漏斗），选中项还会改用强调色。三种写法任选其一：`{"rows":["记录 id"]}`（须映射 `encode.id`）、`{"fields":["字段"]}`（`encode.value` 为数组时）、`{"series":["系列名"]}`。只有 `line`、`area`、`bar`、`column`、`share`、`funnel` 绘制强调，其中部分变体只支持 `rows`；其他组合 validate 直接报错。
 - `annotations` 用于 `line`、`area`、`bar`、`column`、`combo`、`scatter`、`interval`、`histogram`、`candlestick`：参考线 `{"kind":"rule","field":"数值字段","value":600,"label":"目标"}`，区间 `{"kind":"band","field":"数值字段","from":80,"to":95,"label":"正常范围"}`，点注 `{"kind":"note","record":"记录 id","field":"数值字段","text":"说明"}`（须映射 `encode.id`）。目标和区间要有来源，写进 `subtitle` 或 `note`。
+- 图表声明没有根级 `id`。文档的图形锚点写在 `<pre data-viz>` 元素上；数据报表的图块编号写在报表图块上。标识数据行才用 `encode.id`。
 - 报表中的图由数据包绑定；完整 `data` 用于独立图、文档和界面稿，报表图块只写字段映射。
 
 ```kchart

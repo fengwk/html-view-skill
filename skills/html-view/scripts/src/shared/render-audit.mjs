@@ -16,7 +16,7 @@ const FIX = {
   SVG_ARROW_HIDDEN: '连线终点停在框边外，并把连线写在它连接的框之后',
   TEXT_CLIP: '扩大文本元素或允许换行；若省略号截断是有意的，在元素上标记 data-allow-truncate',
   LOW_CONTRAST: '加深文字色或减淡底色；正文对比度至少 4.5:1',
-  PAGE_OVERFLOW: '找出超宽元素（SVG、表格、长 URL），放进横向滚动容器或改成自适应宽度',
+  PAGE_OVERFLOW: '允许长文本在容器内换行，宽图和宽表各自横向滚动，其他超宽元素改用自适应宽度',
   PRINT_CLIP: '优先用 --paper a4-landscape 或 --paper a3-portrait 增加版心宽度；也可调整表格列宽或换行，给宽图换较窄的布局或拆图，不缩小 SVG。',
   PRINT_TALL_FIGURE: '图需要放在同一页。改用 --paper a3-portrait、拆图或单独交付完整 SVG，不缩小图或字号。',
   PRINT_UI_FRAME: '界面稿默认按设备尺寸打印；去掉 --paper，或交付保留交互和滚动的 HTML。',

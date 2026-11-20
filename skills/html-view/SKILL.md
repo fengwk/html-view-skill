@@ -7,7 +7,12 @@ description: 生成、检查和导出离线单文件 HTML 文档、数据报表�
 
 `node <skill-dir>/scripts/htmlview` 是跨平台命令入口；以下用 `htmlview` 简写。需 Node.js 22+；浏览器检查、截图、导出和独立图渲染还需 Chrome 或 Chromium。找不到浏览器时按 `error.next` 处理。
 
-## 先选产物
+## 已有 HTML：只换主题
+
+- **htmlview 产物**：文档、报表或单图页用 `htmlview style file.html --theme cloudmusic`（`htmlview style --list` 查主题）；界面稿用 `--scheme` 或 `--brand`。`style` 原位更新，只重组外壳和派生图。要输出新文件，先在同目录复制到一个未使用的文件名，对副本运行 `style`，然后用 `htmlview diff` 对照内容。
+- **普通 HTML**：`style` 不接收普通 HTML。需要使用技能外壳时，新建主题文档（见[文档流程](references/artifacts/doc.md)和[文档组件](references/artifacts/doc-components.md)），把现有内容迁入新文件；不沿用旧外壳的 CSS 和脚本。只换风格时，保留原数字、时间粒度和结论，不重算数据，也不为通过显示检查丢掉原图的细节。
+
+## 按任务选入口
 
 | 用户要的结果 | 做法 | 何时展开 |
 |---|---|---|
@@ -20,7 +25,7 @@ description: 生成、检查和导出离线单文件 HTML 文档、数据报表�
 - 素材不是现成的页面结构时，如零散笔记、会议记录、JSON、CSV、日志，或需要重排的 Markdown，写内容前读[从材料到页面](references/guides/from-source.md)。
 - HTML 产物为单个可离线打开的文件。手写时只改标题和 `<!-- htmlview:content -->` 与 `<!-- /htmlview:content -->` 之间的内容；两条标记各保留一次，布局、主题和运行脚本由 CLI 组装。
 - Markdown 构建的文档改 Markdown 源；数据报表改数据包，不直接改生成的文字、图或数字。没有来源的数据不得编造；演示数据要标明是虚构示例。
-- `style` 保留内容，重组外壳。覆盖已存在的独立成果，须确认目标后才用 `--force`；同源文档更新不需要 `--force`。
+- 覆盖已存在的独立成果，须确认目标后才用 `--force`；同源文档更新不需要 `--force`。
 - 未传 `--lang` 时，生成命令按标题和正文推断图号、目录、图例等外壳用语：英文词数至少是中日韩字数的两倍时用英文，否则用中文。其他语言或中英各半的内容显式传 `--lang`。
 
 ## 按读者要看什么选图
@@ -45,7 +50,7 @@ description: 生成、检查和导出离线单文件 HTML 文档、数据报表�
 | 系统如何分层、容器和依赖在哪里？ | `C4Context`、`C4Container`、`C4Component`、`C4Dynamic`、`C4Deployment`、`architecture-beta`、`block`、`wardley-beta`、原生 `layers`、`blocks` | [架构](references/diagrams/architecture.md) |
 | 手头已有 Mermaid 数值图？ | `pie`、`xychart`、`sankey`、`radar-beta`、`treemap` | [Mermaid 数值图](references/diagrams/time.md#mermaid-数值图)；新数据图用上方 KChart 图型 |
 | 集合如何重叠、情境如何分类？ | `venn-beta`、`cynefin-beta` | [集合](references/charts/composition.md#venn-beta)、[情境](references/charts/matrix.md#cynefin-beta) |
-| 旧文档中的简单调用图？ | `zenuml`（仅旧写法，不支持 ZenUML 插件） | [旧版兼容](references/diagrams/sequence.md#zenuml) |
+| 已有 ZenUML 语法的简单调用图？ | `zenuml`（受控语法子集，不支持 ZenUML 插件） | [ZenUML](references/diagrams/sequence.md#zenuml) |
 
 Markdown 用 `kchart`、`mermaid`、`layers`、`blocks`、`swimlane` 围栏；手写 HTML 用 `<pre data-viz="语法">`，转义其中的 HTML 特殊字符。文档图题写在声明中：KChart `title`，结构图前言 `title:` 或该语法支持的标题语句。图题和图中文字与正文用同一种语言。内置图族放不下或表达不了时，如嵌套过深、关系过多或机制示意，先拆成总图和分图；仍需手画时读[手写 SVG](references/guides/custom-svg.md)。
 
@@ -58,7 +63,6 @@ Markdown 用 `kchart`、`mermaid`、`layers`、`blocks`、`swimlane` 围栏；�
 | 界面稿骨架 | `htmlview ui new prototype.html --title '申请处理' --device mobile --screens '列表,详情'` |
 | 静审、比较内容 | `htmlview audit file.html`；`htmlview diff old.html new.html` |
 | 为文档或界面稿重新装入图模块 | `htmlview style file.html`（保留现有主题与内容） |
-| 换主题或界面配色 | 文档／报表／单图 HTML：`htmlview style file.html --theme paper`（`htmlview style --list` 列出主题）；界面稿：`htmlview style file.html --scheme dark` |
 | 显示检查、截图、导出 | `htmlview check file.html`；`htmlview shot file.html --select 'figure'`；`htmlview export file.html --format pdf`；整页长图 `htmlview export file.html --format png` |
 | 读取正文、内嵌本地资源 | `htmlview read file.html [--outline 或 --section id]`；`htmlview embed file.html` |
 | 独立图、字段约束、主题色、手写图量字 | `htmlview viz render spec.json --out chart.svg`；`htmlview viz schema bar`；`htmlview viz palette --theme paper`；`htmlview viz measure '订单服务' --size 13` |

@@ -12,14 +12,14 @@ const routes = new Map([
   ['ui new', ['创建界面稿骨架', '<file> --title <标题> --device mobile|desktop|responsive --screens <列表> [--fidelity wireframe|mockup] [--brand <色值>] [--scheme light|dark] [--radius <值>] [--density compact|regular] [--lang <lang>] [--force]']],
   ['audit', ['静态审计产物源码', '<file>']],
   ['diff', ['比较两个同类产物的章节、视图或屏幕', '<old> <new>']],
-  ['style', ['换主题或重组外壳；单图页从内嵌声明重绘；`--list` 列出主题', `<file> ${THEME_USAGE} [--lang <lang>] [界面稿设计参数] | --list`]],
+  ['style', ['原位更新 htmlview 产物的主题或外壳；`--list` 列出主题', `<file> ${THEME_USAGE} [--lang <lang>] [界面稿设计参数] | --list`]],
   ['check', ['在桌面、手机、导出和打印视口检查一个本地 HTML', `<file> [--paper ${paperChoices}]`]],
   ['shot', ['截图，或用选择器截图指定元素', '<file> [--mode screen|export] [--select <css>]… [--section <id>]… [--out <dir>]']],
   ['export', ['导出 PDF 或 PNG', `<file> --format pdf|png [--device desktop|mobile] [--select <css>] [--paper ${paperChoices}] [--out <path>]`]],
   ['embed', ['将本地图片与代码文件内嵌到 HTML', '<file>']],
   ['read', ['读取本地 HTML 的 Markdown 或标题大纲', '<file> [--outline | --section <id>] [--out <file>]']],
   ['viz render', ['把图形声明渲染为独立 SVG 或 HTML', `<source> --out <file.svg|file.html> ${THEME_USAGE} [--width <px>] [--lang <lang>] [--force]`]],
-  ['viz schema', ['读取图表 JSON Schema', '[<chart>]']],
+  ['viz schema', ['读取图表 JSON Schema；指定图型时同时显示该图型的契约', '[<chart>]']],
   ['viz palette', ['读取主题色角色、结构图配色和手绘 SVG 骨架', THEME_USAGE]],
   ['viz measure', ['估算图内文字宽度与换行', '<text>… [--size <px>] [--weight <n>] [--max-width <px>]']],
 ]);
@@ -31,7 +31,11 @@ const exits = '退出码：0 成功，1 检查有失败项，2 用法或输入�
 function showHelp(group = null) {
   const entries = [...routes.entries()].filter(([key]) => !group || key === group || key.startsWith(`${group} `));
   const lines = entries.flatMap(([key, [desc, usage]]) => [`  htmlview ${key} ${usage}`, `    ${desc}`]);
-  if (group === 'style') lines.push('    界面稿设计参数与 ui new 相同，不接受 --theme 或 --theme-file；报表只能重组外壳或换主题。');
+  if (group === 'style') lines.push(
+    '    普通 HTML 不支持直接换主题。要保留输入文件，请先在同目录复制一份再操作。',
+    '    界面稿设计参数与 ui new 相同，不接受 --theme 或 --theme-file；单图页从内嵌声明重绘。',
+  );
+  if (group === 'doc' || group === 'doc new') lines.push('    文档类型见 references/artifacts/doc.md；tech-spec 以 Markdown 为源，用 doc build。');
   process.stdout.write(`htmlview · 离线 HTML 文档、数据报表、界面稿与图形\n\n${lines.join('\n')}\n\n${exits}\n`);
 }
 

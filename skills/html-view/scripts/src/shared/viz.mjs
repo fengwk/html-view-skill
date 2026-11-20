@@ -29,11 +29,14 @@ const topicRef = Object.freeze(Object.fromEntries([
 ]));
 function vizFailure(item, contentLine, detail) {
   const diagnosticLine = detail?.line ?? detail?.location?.line ?? 1;
+  const fix = item.syntax === 'kchart' && detail?.path === '/id'
+    ? '移除 JSON 中的根级 id；图形锚点写在 <pre data-viz="kchart" id="…"> 上。'
+    : detail?.fix ?? '按图形声明契约修正输入。';
   return {
     code: 'BAD_VIZ',
     where: { line: contentLine + item.line + diagnosticLine - 2, part: item.id || item.syntax, selector: 'pre[data-viz]' },
     detail: detail?.message ?? String(detail),
-    fix: detail?.fix ?? '按图形声明契约修正输入。',
+    fix,
     ref: `references/${topicRef[detail?.topic] ?? (item.syntax === 'kchart' ? 'charts/common.md' : 'diagrams/flow.md')}`,
     ...(typeof detail === 'object' && detail ? { diagnostics: [detail] } : {}),
   };

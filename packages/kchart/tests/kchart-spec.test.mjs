@@ -56,6 +56,15 @@ test('拒绝图型专用字段越界、单位歧义、错误日期与不允许�
   assert.ok(unsupported.errors.some(e => e.path === '/color'));
 });
 
+// HTML anchors are not chart fields; row identifiers still use the registered encode role.
+test('根级 id 只报一次，encode.id 仍可标识记录', () => {
+  const spec = { chart: 'line', data: [{ day: '1月', value: 3, row: 'first' }], encode: { category: 'day', value: 'value', id: 'row' } };
+  assert.deepEqual(K.validate(spec).errors, []);
+  const { errors } = K.validate({ ...spec, id: 'fig-trend' });
+  assert.deepEqual(errors.map(({ path }) => path), ['/id']);
+  assert.match(errors[0].fix, /encode\.id/);
+});
+
 test('正负值按图型和变体区分，small-multiples两种编码形式均正确', () => {
   // 普通比较保留有符号数据；只有声明的构成/符号变体及目标图才要求非负。
   for (const chart of ['line','area','bar','column']) {

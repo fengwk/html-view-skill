@@ -28,7 +28,7 @@ htmlview audit reading.html
 
 `doc new`、`doc build`、`data build`、`viz render`、`viz palette` 和 `style` 均支持该选项。`viz palette` 输出的 `chartAccent` 是图内强调色，等于 `tones[1]`，不是页面的 `accent`。`--theme` 与 `--theme-file` 二选一。界面稿仍用 `--brand` 和 `--scheme`。
 
-HTML 内嵌解析后的主题，不保存主题文件路径。删除 JSON 或把 HTML 分享到另一台机器后，仍可审计、检查、截图、导出。`style file.html` 保留随页主题，也可以换成另一套；单图 HTML 会用随页声明重新渲染静态 SVG，需要 Chrome 或 Chromium。单独的 SVG 已含所选色值，换色时从声明重新运行 `viz render`。
+HTML 内嵌解析后的主题，不保存主题文件路径。删除 JSON 或把 HTML 分享到另一台机器后，仍可审计、检查、截图、导出。`style file.html` 原位更新 htmlview 产物，不接收普通 HTML。它默认保留随页主题，也可以换成另一套；单图 HTML 会用随页声明重新渲染静态 SVG，需要 Chrome 或 Chromium。单独的 SVG 已含所选色值，换色时从声明重新运行 `viz render`。
 
 ## 可配置字段
 
@@ -46,7 +46,3 @@ HTML 内嵌解析后的主题，不保存主题文件路径。删除 JSON 或把
 | `diagram` | 覆盖结构图的 `radius`、`smallRadius`、`soft`、`nodeBackground`，未覆盖的跟随 `style`；`null` 清除继承的结构图覆盖。 |
 
 颜色使用 `#RRGGBB`。主题文件只接受 JSON 数据，不接受 CSS、脚本、字体 URL 或外部资源。程序检查颜色角色、文字对比度、序列区分度和前 3 色的红绿弱视模拟。实际页面还需 `check` 和目检；同一个颜色混到浅底上以后，对比度可能改变。深色主题打印换用 Paper 色板，亮色主题的页面底换为白色。
-
-## 新增内置主题
-
-先用 `--theme-file` 在真实文档、数据图和结构图上预览，同一份 JSON 审查通过后放进库的 [`packages/kchart/assets/themes/`](../../../../packages/kchart/assets/themes/)。文件名必须是 `<id>.json`，填写 `id`、`name`、`en`、`desc`；可用非负整数 `order` 控制展示位置，省略则排在有 `order` 的主题之后。在 `packages/kchart` 运行 `npm run build` 和 `npm run vendor`，把新主题连同构建物带进技能的 `vendor/kchart`。CLI、KChart、通用测试和图库生成器会自动发现它，不改 CSS、测试主题列表或图型代码。发布仓库时重新生成 README 的主题对照图，不手改图库表格。

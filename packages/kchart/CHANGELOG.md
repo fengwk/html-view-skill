@@ -4,6 +4,7 @@
 
 - Center the full content block horizontally in Event Modeling frames while keeping payload rows left-aligned within it.
 - In combo charts, keep lines and points above columns, and use a thin local outline only where a line overlaps a low-contrast column.
+- Raise warning-label contrast in the Cloud Music theme. Report an invalid top-level chart `id` once, without rejecting the supported `encode.id` role.
 
 ## 0.1.1
 

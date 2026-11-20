@@ -92,6 +92,21 @@ test('doc audit combines shared figure-title diagnostics with the doc-specific l
   assert.ok(unsafeResult.failures.some((failure) => failure.code === 'FORBIDDEN_TAG'));
 });
 
+// A rejected JSON chart anchor should point the author to the surrounding source element.
+test('doc audit explains where to place the figure id', async () => {
+  const spec = { chart: 'line', title: '虚构趋势', data: [{ day: '甲', value: 1 }], encode: { category: 'day', value: 'value' } };
+  const source = JSON.stringify(spec);
+  const html = renderShell({ kind: 'doc', title: '示例', theme: 'claude', attrs: { 'data-layout': 'article' }, meta: { 'doc:type': 'report' },
+    content: `<pre data-viz="kchart">${source}</pre>`,
+  });
+  // Simulate editing the source block of an existing hand-authored document before audit.
+  const edited = html.replace(`${source}</pre>`, `${JSON.stringify({ ...spec, id: 'trend' })}</pre>`);
+  const { failures } = await audit(edited);
+  const issue = failures.filter(({ diagnostics }) => diagnostics?.some(({ path }) => path === '/id'));
+  assert.equal(issue.length, 1);
+  assert.match(issue[0].fix, /<pre data-viz="kchart" id=/);
+});
+
 // A hand-drawn SVG uses the page theme; a fallback does not excuse a misspelled token.
 test('doc audit checks CSS variables in SVG attributes against shipped theme tokens', async () => {
   const check = (fill) => audit(renderShell({ kind: 'doc', title: '示例', theme: 'claude',
