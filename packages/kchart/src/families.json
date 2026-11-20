@@ -268,7 +268,9 @@
     "diagrams": {
       "classDiagram": {
         "topic": "data-model",
-        "aliases": ["classDiagram-v2"]
+        "aliases": [
+          "classDiagram-v2"
+        ]
       }
     }
   },
@@ -276,27 +278,14 @@
     "diagrams": {
       "requirementDiagram": {
         "topic": "data-model",
-        "aliases": ["requirement"]
+        "aliases": [
+          "requirement"
+        ]
       }
     }
   },
   "diagram/relations": {
     "diagrams": {
-      "C4Context": {
-        "topic": "architecture"
-      },
-      "C4Container": {
-        "topic": "architecture"
-      },
-      "C4Component": {
-        "topic": "architecture"
-      },
-      "C4Dynamic": {
-        "topic": "architecture"
-      },
-      "C4Deployment": {
-        "topic": "architecture"
-      },
       "zenuml": {
         "topic": "sequence"
       }
@@ -390,6 +379,25 @@
     "diagrams": {
       "cynefin-beta": {
         "topic": "matrix"
+      }
+    }
+  },
+  "diagram/c4": {
+    "diagrams": {
+      "C4Context": {
+        "topic": "architecture"
+      },
+      "C4Container": {
+        "topic": "architecture"
+      },
+      "C4Component": {
+        "topic": "architecture"
+      },
+      "C4Dynamic": {
+        "topic": "architecture"
+      },
+      "C4Deployment": {
+        "topic": "architecture"
       }
     }
   }
