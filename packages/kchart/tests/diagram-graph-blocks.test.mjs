@@ -78,6 +78,42 @@ test('subgraph members follow their links to other subgraphs', () => {
   assert.ok(crossings(result) <= 2, `${crossings(result)} crossings`);
 });
 
+// A loose terminal node must not flatten the stages. A skip link may reserve a side
+// channel, but it must not displace the stages or cross the source's local chain.
+test('a mixed compound spine stays aligned around a skip link', () => {
+  const result = layout(`flowchart TD
+  subgraph First
+    A --> B
+  end
+  subgraph Middle
+    C --> D
+  end
+  subgraph Last
+    E --> F
+  end
+  B --> C
+  D --> E
+  F --> Done
+  A --> E`);
+  const frames = ['First', 'Middle', 'Last'].map(id => result.frames.find(frame => frame.id === id));
+  const center = node => node.x + node.w / 2;
+  frames.slice(1).forEach((frame, i) => {
+    assert.ok(frame.y >= frames[i].y + frames[i].h);
+    assert.ok(Math.abs(center(frame) - center(frames[i])) < .001);
+  });
+  const [f, done] = ['F', 'Done'].map(id => result.nodes.find(node => node.id === id));
+  assert.ok(done.y >= frames[2].y + frames[2].h);
+  assert.ok(Math.abs(center(done) - center(f)) < .001);
+  const skip = result.edges.find(edge => edge.from === 'A' && edge.to === 'E');
+  const local = result.edges.find(edge => edge.from === 'A' && edge.to === 'B');
+  assert.ok(skip.start.y > result.nodes.find(node => node.id === 'A').y);
+  assert.ok(skip.end.y < result.nodes.find(node => node.id === 'E').y + result.nodes.find(node => node.id === 'E').h);
+  assert.ok(!skip.segments.some(a => local.segments.some(b => crosses(a, b))));
+  const middle = frames[1];
+  assert.ok(skip.segments.every(({ p0, p1 }) => Math.max(p0.y, p1.y) <= middle.y || Math.min(p0.y, p1.y) >= middle.y + middle.h
+    || Math.max(p0.x, p1.x) <= middle.x || Math.min(p0.x, p1.x) >= middle.x + middle.w));
+});
+
 // 意图：隔层连线（第 0 层直连第 2 层）要绕过中间的子图。外层排版已为它在中间子图旁留了通道，
 // 改走节点到节点时先试这条通道；找不到路线就会退回成子图斜向错开的阶梯排版。
 test('links that skip a layer keep layered subgraphs side by side', () => {
