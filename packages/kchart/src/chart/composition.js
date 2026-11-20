@@ -78,7 +78,9 @@ function pieLayout(spec, ctx, isDonut = false) {
   const groupWidth = sideLegend ? chartSpan + 28 + legendWidth : width;
   const groupX = sideLegend ? (width - groupWidth) / 2 : 0;
   const cx = sideLegend ? groupX + chartSpan / 2 : width / 2;
-  const r = width <= 360 ? Math.min(112, width * 0.275) : Math.min(sideLegend ? 168 : 112, Math.max(60, chartSpan * 0.32));
+  const compact = spec[compositionPresentation]?.compact === true;
+  const r = compact ? Math.min(92, Math.max(60, chartSpan * 0.26))
+    : width <= 360 ? Math.min(112, width * 0.275) : Math.min(sideLegend ? 168 : 112, Math.max(60, chartSpan * 0.32));
   const cy = r + 36, inner = isDonut ? r * 0.58 : 0;
   const labelRadius = r * (spec[compositionPresentation]?.labelRadius ?? .72);
   const children = [], sectors = [], sliceLabels = [], ticksVariant = isDonut && spec.variant === 'ticks';
@@ -342,7 +344,9 @@ function fallbackLegend(children, entries, x, y, width, ctx, kind, format = valu
 function treemap(spec, ctx) {
   const root = spec.data, tree = treeNodes(root), leaves = tree.filter(x => !x.children.length);
   const diagram = spec[compositionPresentation];
-  let width = Math.min(ctx.width - 48, 752), mapHeight = 242, needWidth = false, needHeight = false;
+  let width = Math.min(ctx.width - 48, 752), mapHeight = diagram?.compact
+    ? leaves.length === 1 ? 120 : Math.min(280, 190 + leaves.length * 8)
+    : 242, needWidth = false, needHeight = false;
   const tones = new Map(leaves.map((leaf, i) => [leaf, `tone${i % 6 + 1}`])), children = [], fallback = [];
   const statusOf = (entry) => ctx.design[entry.node[compositionPresentation]?.status];
   const colorOf = (leaf) => statusOf(leaf) || ctx.color(tones.get(leaf));
@@ -456,7 +460,9 @@ function treemap(spec, ctx) {
     const rootLines = heading ? ctx.wrap(heading, width, 13, 650) : [];
     top = 44 + rootLines.length * 18;
     if (rootLines.length) children.push(ctx.textLines(24, 39, rootLines, { size: 13, weight: 650, leading: 18, fill: ctx.color('fg') }));
-    place(tree[0], 24, top, width, mapHeight, 0);
+    // A lone compact treemap item reads better as a contained tile than a full-bleed banner.
+    const inset = diagram?.compact && leaves.length === 1 ? 0.02 : 0;
+    place(tree[0], 24 + width * inset, top + mapHeight * inset, width * (1 - inset * 2), mapHeight * (1 - inset * 2), 0);
     if (!needWidth && !needHeight) break;
     if (attempt === 6) ctx.fit('矩形树图的最小分块无法容纳编号', '拆分图表或缩小权重差距');
     if (needWidth) width *= 1.5;

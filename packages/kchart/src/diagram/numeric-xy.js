@@ -9,7 +9,7 @@
 import { error, warning } from './support.js';
 import { numericLabel, renderWith, validateWith } from './numeric-model.js';
 import { diagramLine } from '../chart/basic.js';
-import { diagramCombo } from '../chart/multivariate.js';
+import { compactNumeric, diagramCombo } from '../chart/multivariate.js';
 
 // Mermaid 的 NUMBER_WITH_DECIMAL：没有指数、也没有末尾小数点。
 const NUMBER = '[+-]?(?:\\d+(?:\\.\\d+)?|\\.\\d+)';
@@ -356,8 +356,15 @@ const validate = (model, info) => panelsOf(model, info).flatMap(panel =>
   validateWith(specOf(panel, info), info, detail => lineFor(panel, detail)));
 const layout = (model, options, info) => {
   const panels = panelsOf(model, info);
+  // Budget roughly 52px per category plus axis gutters; clamp to an inline-friendly range.
+  const width = options.compact ? Math.min(720, Math.max(360, 180 + model.categories.length * 52)) : options.width;
+  const renderOptions = width === options.width ? options : { ...options, width };
   // A combined SVG contains all panels, so combo clipping IDs need a panel namespace.
-  const results = panels.map((panel, index) => renderWith(specOf(panel, info, index), options, info, detail => lineFor(panel, detail)));
+  const results = panels.map((panel, index) => {
+    const spec = specOf(panel, info, index);
+    if (options.compact === true) spec[compactNumeric] = true;
+    return renderWith(spec, renderOptions, info, detail => lineFor(panel, detail));
+  });
   if (results.some(result => !result.scene)) return results.find(result => !result.scene);
   const result = results[0];
   if (results.length > 1) {

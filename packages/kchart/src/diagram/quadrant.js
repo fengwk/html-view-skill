@@ -81,7 +81,7 @@ function parse(body, { lang, title = '', firstLine = 2, config, options = {} }) 
   return { model: { type: 'quadrantChart', title, axes, captions, points, config: config?.quadrantChart || {} }, errors };
 }
 
-function layout(model, { ctx, width, renderOptions }, info = {}) {
+function layout(model, { ctx, width, renderOptions, compact = false }, info = {}) {
   const { title, captions, axes, points, config } = model, t = appearance(ctx);
   const dimension = (key, fallback, min, max) => Number.isFinite(config[key]) ? Math.min(max, Math.max(min, config[key])) : fallback;
   const size = dimension('pointLabelFontSize', 12, 12, 24);
@@ -100,7 +100,9 @@ function layout(model, { ctx, width, renderOptions }, info = {}) {
   const top = pad + (titleInline ? 32 : 0) + (xTop && axes.x ? xRoom : 0);
   const left = pad + (!yRight && axes.y ? yRoom : 0);
   const right = pad + (yRight && axes.y ? yRoom : 0);
-  const span = Math.max(Math.min(520, width - left - right), 360, dimension('chartWidth', 0, 0, 4000), spanOf(axes.x), ...captions.map(s => 2 * W(s, FONT.title) + 44).filter(Number.isFinite));
+  const compactSpan = Math.min(440, 360 + Math.min(80, points.length * 2));
+  const span = Math.max(compact ? compactSpan : Math.min(520, width - left - right), compact ? 0 : 360,
+    dimension('chartWidth', 0, 0, 4000), spanOf(axes.x), ...captions.map(s => 2 * W(s, FONT.title) + 44).filter(Number.isFinite));
   const h = Math.max(340, spanOf(axes.y), dimension('chartHeight', 0, 0, 4000));
   const w = left + span + right, bottom = top + h;
   const children = [], occupied = [];
@@ -134,7 +136,12 @@ function layout(model, { ctx, width, renderOptions }, info = {}) {
   if (axes.y) {
     const x = yRight ? left + span + yGap : left - yGap;
     [[axes.y[0], bottom, 'start'], [axes.y[1], top, 'end']].forEach(([text, y, anchor]) => {
-      pushText(x, y, text, FONT.label, t.fg2, { anchor, transform: `rotate(-90 ${x} ${y})` });
+      if (/[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/u.test(text)) {
+        const lines = Array.from(text);
+        children.push(...ctx.textLines(x, y - (lines.length - 1) * 7, lines, { ...FONT.label, ...centered, leading: 14, fill: t.fg2 }).children ?? []);
+      } else {
+        pushText(x, y, text, FONT.label, t.fg2, { anchor, transform: `rotate(-90 ${x} ${y})` });
+      }
     });
   }
   const overflow = [];

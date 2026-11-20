@@ -9,14 +9,18 @@ function bind(parse, toSpec, lineFor, options) {
   return {
     ...options, parse,
     validate: (model, info) => validateWith(toSpec(model, info), info, detail => lineFor(model, detail.path)),
-    layout: (model, options, info) => renderWith(toSpec(model, info), options, info, detail => lineFor(model, detail.path)),
+    layout(model, options, info) {
+      // Fit compact pies to their categories instead of the host canvas; native chart widths stay untouched.
+      const width = options.compact ? Math.min(560, Math.max(360, 290 + model.rows.length * 24)) : options.width;
+      return renderWith(toSpec(model, info, options.compact === true), { ...options, width }, info, detail => lineFor(model, detail.path));
+    },
   };
 }
-const pie = bind(parsePie, model => ({
+const pie = bind(parsePie, (model, _info, compact) => ({
   chart: 'pie', title: model.title || undefined, sliceLabels: true,
   data: model.rows.map(({ category, value }) => ({ category, value })),
   encode: { category: 'category', value: 'value' },
-  [compositionPresentation]: { labelRadius: model.labelRadius },
+  [compositionPresentation]: { labelRadius: model.labelRadius, ...(compact ? { compact: true } : {}) },
 }), (model, path) => path === '/title' ? model.titleLine : model.rows[Number(path?.split('/')[2])]?.line || model.rows[0]?.line, { optionMode: 'raw', honoredConfig: ['pie.textPosition'] });
 const treemapSpec = (model, info) => ({
   chart: 'treemap', title: model.title || undefined, data: model.data,
@@ -45,8 +49,14 @@ const treemap = {
     return diagnostics(validateSpec(spec).errors, info, detail => treemapLine(model, detail.path));
   },
   layout(model, options, info) {
+    const compact = options.compact === true;
     const spec = treemapSpec(model, info), lineFor = detail => treemapLine(model, detail.path);
-    const result = renderWith(spec, options, info, lineFor, treemapRegistry.layout);
+    if (compact) spec[compositionPresentation] = { ...spec[compositionPresentation], compact: true };
+    // Treemap reserves 48px around its map; expand with item count, except a lone leaf gets a small inline tile.
+    const singleLeaf = model.data.children?.length === 1 && !model.data.children[0]?.children?.length;
+    const width = compact ? (singleLeaf ? 256 : Math.min(640, 480 + Math.max(0, model.nodeCount - 1) * 10)) : options.width;
+    const renderOptions = compact ? { ...options, width } : options;
+    const result = renderWith(spec, renderOptions, info, lineFor, treemapRegistry.layout);
     if (result.scene && (model.nodeCount > 60 || model.depth > 5 || result.width > options.width * 2)) {
       result.errors.push(warning('LARGE_DIAGRAM', info.lang, info.headerLine,
         '矩形树图较大，可滚动查看', 'Large treemap; scroll to view it', '考虑拆分图表', 'Consider splitting the chart'));

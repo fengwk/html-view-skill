@@ -5,6 +5,7 @@ import { columnHeaders } from '../core/geometry.js';
 import { contrast, pushContrast } from '../core/color.js';
 
 export const diagramCombo = Symbol('diagram combo');
+export const compactNumeric = Symbol('compact numeric geometry');
 const finite = Number.isFinite;
 const number = (ctx, field, values, zero = false) => {
   const result = ctx.ticks(values.filter(finite), field, { zero });
@@ -221,7 +222,7 @@ const chart = (spec, ctx) => {
     const leftGutter = Math.max(36, ...(axisTicks.left?.labels || ['0']).map(label => ctx.measure(label, 12))) + 16;
     const rightGutter = Math.max(28, ...(axisTicks.right?.labels || ['']).map(label => ctx.measure(label, 12))) + 16;
     const annotationRows = (spec.annotations || []).filter(annotation => annotation.label || annotation.text).length;
-    const p = plot(36 + annotationRows * 16, 302, leftGutter, width - rightGutter);
+    const p = plot(36 + annotationRows * 16, spec[compactNumeric] ? 252 : 302, leftGutter, width - rightGutter);
     reserveEdgeCategories(cats, p);
     const yFor = (field, v) => p.y + p.h - (v - scales[field].min) / (scales[field].max - scales[field].min || 1) * p.h;
     const y0 = (field) => yFor(field, Math.max(scales[field].min, Math.min(scales[field].max, 0)));
@@ -688,7 +689,7 @@ const chart = (spec, ctx) => {
       const firstY = horizontal ? ty - (block - 1) * 8 : sin < 0 ? ty - block * 16 - 4 : ty + 16;
       return { anchor, tx, firstY, block };
     };
-    let radius = Math.min(180, Math.max(72, (width - textWidth * 2 - 24) / 2));
+    let radius = Math.min(spec[compactNumeric] ? 132 : 180, Math.max(72, (width - textWidth * 2 - 24) / 2));
     if (dense) {
       const widths = wrapped.map(item => Math.max(
         ...item.name.map(line => ctx.measure(line, 12, 600)),

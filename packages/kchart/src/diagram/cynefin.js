@@ -286,13 +286,15 @@ function layout(model, options = {}) {
   const errors = [];
   const ink = (value, font) => Math.max(0, measure(value, font.size, font.weight));
   const wrap = (value, maxWidth, font) => wrapText(value, maxWidth, font, (piece, spec) => measure(piece, spec));
-  const nameFont = { size: FONT.title.size, weight: FONT.title.weight };
+  const compact = options.compact === true;
+  const nameFont = { size: compact ? 13 : FONT.title.size, weight: FONT.title.weight };
   const bodyFont = { size: FONT.label.size, weight: FONT.label.weight };
   const widest = (lines, font) => Math.ceil(Math.max(0, ...lines.map(line => ink(line, font))));
 
   const titleLines = model.title ? wrap(model.title, Math.max(160, Math.min(640, width - MARGIN * 2)), nameFont) : [];
   const titleHeight = titleLines.length ? titleLines.length * TITLE_LINE + TITLE_GAP : 0;
-  const plotW = clamp(width - MARGIN * 2, MIN_PLOT, MAX_PLOT);
+  const itemCount = DOMAINS.reduce((sum, name) => sum + model.domains[name].length, 0);
+  const plotW = compact ? Math.min(MAX_PLOT, Math.max(480, 440 + itemCount * 14)) : clamp(width - MARGIN * 2, MIN_PLOT, MAX_PLOT);
   const chipCap = Math.max(96, Math.min(CHIP_CAP, plotW / 2 - PANEL_PAD * 2 - 8));
 
   const chipOf = (label, cap, icon) => {
@@ -420,6 +422,7 @@ function layout(model, options = {}) {
   return {
     width: planWidth,
     height: planHeight,
+    compact,
     title: titleLines.length ? { lines: titleLines, x: plotX + plotW / 2, top: MARGIN + TITLE_LINE / 2 } : null,
     plot: { x: plotX, y: plotY, w: plotW, h: plotH },
     centre, rx, ry,
@@ -530,7 +533,7 @@ function scene(plan, ctx) {
   }
 
   if (plan.title) {
-    plan.title.lines.forEach((line, index) => children.push(label(line, { size: FONT.title.size, weight: FONT.title.weight }, ink.fg1,
+    plan.title.lines.forEach((line, index) => children.push(label(line, { size: plan.compact ? 13 : FONT.title.size, weight: FONT.title.weight }, ink.fg1,
       plan.title.x, plan.title.top + index * TITLE_LINE)));
   }
 

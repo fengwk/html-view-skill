@@ -346,6 +346,7 @@ function orderSankeyStages(stages, grouped, edges, stageMap) {
   return best;
 }
 export const sankeyPresentation = Symbol('sankey presentation');
+export const sankeyCompact = Symbol('diagram sankey compact');
 function sankey(spec, ctx) {
   const { nodes, edges } = spec.data;
   const budget = spec[sizeBudget] ?? {}, maxNodes = budget.nodes ?? 60, maxEdges = budget.edges ?? 120;
@@ -353,6 +354,7 @@ function sankey(spec, ctx) {
   const stageMap = nodes.every((n) => Number.isInteger(n.stage)) ? new Map(nodes.map((n) => [n.id, n.stage])) : networkStages(spec.data);
   const stages = [...new Set(nodes.map((n) => stageMap.get(n.id)))].sort((a, b) => a - b);
   const vertical = spec.layout === 'down';
+  const compact = spec[sankeyCompact] === true;
   const nodeSize = 18;
   const labelSize = 12;
   // 标签按可读宽度换行；阶段间距不够放下实测标签时加宽场景，不丢标签。
@@ -384,13 +386,20 @@ function sankey(spec, ctx) {
     const row = nodes.filter(node => stageMap.get(node.id) === stage);
     return row.reduce((sum, node) => sum + nodeSize + wrapped.get(node.id).width + 16, 0) + Math.max(0, row.length - 1) * 6 + margin * 2;
   })) : 0;
-  const W = vertical ? Math.max(ctx.width, verticalMinimum) : Math.max(ctx.width, horizontalMinimum);
+  // Compact Mermaid charts scale from their number of stages and measured labels, not host width.
+  const compactWidth = Math.min(720, Math.max(360, margin * 2 + widestLabel + stages.length * (nodeSize + lane)));
+  const W = vertical ? Math.max(compact ? compactWidth : ctx.width, verticalMinimum) : Math.max(compact ? compactWidth : ctx.width, horizontalMinimum);
   const maxNodesPerStage = Math.max(1, ...stages.map((stage) => nodes.filter((node) => stageMap.get(node.id) === stage).length));
   const labelStackHeight = Math.max(0, ...stages.map(stage => nodes.filter(node => stageMap.get(node.id) === stage)
     .reduce((sum, node) => sum + wrapped.get(node.id).height + 4, 0)));
+  const compactFlowTotal = Math.max(1, ...stages.map(stage => edges
+    .filter(edge => stageMap.get(edge.source) === stage)
+    .reduce((total, edge) => total + edge.value, 0)));
+  // Absolute stage throughput adds a restrained vertical scale; node count/labels can still demand more room.
+  const compactHeight = Math.max(160, margin * 2 + labelStackHeight + 40, Math.min(300, 160 + Math.sqrt(compactFlowTotal) * 5));
   const H = vertical
-    ? Math.max(460, margin * 2 + stages.length * nodeSize + Math.max(0, stages.length - 1) * (maxLabelLines * 14 + 36) + 40)
-    : Math.max(360, margin * 2 + labelStackHeight + 40);
+    ? Math.max(compact ? 160 : 460, margin * 2 + stages.length * nodeSize + Math.max(0, stages.length - 1) * (maxLabelLines * 14 + 36) + 40)
+    : compact ? compactHeight : Math.max(360, margin * 2 + labelStackHeight + 40);
   const axisStart = !vertical && stages.length === 1 ? Math.max(margin, lane + 8) : margin;
   const axisEnd = vertical ? H - margin - nodeSize : W - margin - nodeSize;
   const slot = stages.length > 1 ? Math.max(minSlot, (axisEnd - axisStart) / (stages.length - 1)) : 0;
@@ -594,8 +603,8 @@ function sankey(spec, ctx) {
       const anchor = inward ? 'end' : 'start';
       const firstY = p.labelTop;
       lines.forEach((line, i) => children.push(ctx.text(x, firstY + i * 14, line, {
-        anchor, size: labelSize, fill: ctx.color(i === box.totalIndex ? 'muted' : 'fg'), stroke: ctx.color('bg'),
-        'stroke-width': 4, 'stroke-linejoin': 'round', 'paint-order': 'stroke',
+        anchor, size: labelSize, fill: ctx.color(i === box.totalIndex ? 'muted' : 'fg'),
+        ...(spec[sankeyPresentation] ? {} : { stroke: ctx.color('bg'), 'stroke-width': 4, 'stroke-linejoin': 'round', 'paint-order': 'stroke' }),
         meta: { kind: i === box.totalIndex ? 'node-total' : 'label', node: String(n.id) },
       })));
     }

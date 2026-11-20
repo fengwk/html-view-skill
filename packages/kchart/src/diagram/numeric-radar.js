@@ -7,7 +7,7 @@
 import { error, warning } from './support.js';
 import { numericLabel, renderWith, validateWith } from './numeric-model.js';
 import { sizeBudget } from '../chart/spec.js';
-import '../chart/multivariate.js';
+import { compactNumeric } from '../chart/multivariate.js';
 
 const limit = 24;
 const MAX_AXES = 24, MIN_RINGS = 2, MAX_RINGS = 8, DEFAULT_RINGS = 5;
@@ -257,8 +257,13 @@ function lineFor(model, detail) {
 
 const validate = (model, info) => validateWith(toSpec(model), info, detail => lineFor(model, detail));
 const layout = (model, options, info) => {
-  const result = renderWith(toSpec(model), options, info, detail => lineFor(model, detail));
-  if (result.scene && result.width > options.width) {
+  // Reserve a ~120px radius plus label gutters, growing modestly with axis count.
+  const width = options.compact ? Math.min(720, 440 + model.axes.length * 5) : options.width;
+  const renderOptions = width === options.width ? options : { ...options, width };
+  const spec = toSpec(model);
+  if (options.compact === true) spec[compactNumeric] = true;
+  const result = renderWith(spec, renderOptions, info, detail => lineFor(model, detail));
+  if (result.scene && result.width > renderOptions.width) {
     result.errors.push(warning('LARGE_DIAGRAM', info.lang, model.optionsLine,
       '雷达图超出可用宽度，可滚动查看', 'The radar chart exceeds the available width; scroll to view',
       '缩短维度标签或拆分图表', 'Shorten axis labels or split the chart'));
