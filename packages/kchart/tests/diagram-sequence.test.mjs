@@ -25,15 +25,15 @@ test('sequence parser preserves participants, message styles, loopback, fragment
   const model = plain(result.model);
   assert.deepEqual(model.participants.map(x => [x.id,x.name,x.kind]), [['A','Caller','participant'],['B','Worker','actor']]);
   assert.deepEqual(model.statements.filter(x => x.type === 'message').map(x => [x.style,x.from,x.to,x.activate,x.deactivate]), [['sync','A','B',false,false],['return','B','A',false,false],['async','A','B',false,false],['sync','A','A',false,false],['sync','A','B',true,false],['return','B','A',false,true]]);
-  assert.equal(model.statements.find(x=>x.type==='note').text, 'accepted<br/>quickly');
+  assert.equal(model.statements.find(x=>x.type==='note').text, 'accepted\nquickly');
   assert.equal(model.statements.find(x=>x.type==='section').keyword,'else');
 });
 
 // 意图：语法非法、限制越界及未配对声明均须给出诊断而不是生成成功模型。
-test('sequence parser diagnoses unsupported options, unsafe rect color, unmatched blocks and tabs', () => {
+test('sequence parser diagnoses unsupported options, unmatched blocks and tabs', () => {
   const result = sequence.sequenceDiagram.parse('rect #fff\nA->>B: ok\nend extra\n\tparticipant C\nend', { lang:'zh', firstLine:2, options:{ mirrorActors:true } });
   assert.ok(result.errors.some(e => e.line === 1 && e.message.includes('不支持选项')));
-  assert.ok(result.errors.some(e => e.line === 2 && e.message.includes('不接受颜色')));
+  assert.ok(!result.errors.some(e => e.line === 2), 'rect accepts a trailing # comment');
   assert.ok(result.errors.some(e => e.line === 5 && e.message.includes('Tab')));
   assert.ok(result.errors.some(e => e.line === 6 && e.message.includes('end')));
   assert.ok(result.errors.every(e => Number.isInteger(e.line) && e.message && e.fix));
@@ -140,8 +140,8 @@ test('sequence scene serializes marker refs and expected SVG primitives', () => 
 
 // 意图：固定公开参与者与嵌套限制
 test('sequence parser enforces participant and fragment depth limits', () => {
-  const tooMany = Array.from({length:9},(_,i)=>`participant P${i}`).join('\n');
-  assert.ok(sequence.sequenceDiagram.parse(tooMany,{firstLine:2,options:{}}).errors.some(e=>e.message.includes('8')));
-  const nested = 'alt one\nopt two\npar three\nA->>B: x\nend\nend\nend';
+  const tooMany = Array.from({length:21},(_,i)=>`participant P${i}`).join('\n');
+  assert.ok(sequence.sequenceDiagram.parse(tooMany,{firstLine:2,options:{}}).errors.some(e=>e.message.includes('20')));
+  const nested = 'alt one\nopt two\npar three\ncritical four\nloop five\nA->>B: x\nend\nend\nend\nend\nend';
   assert.ok(sequence.sequenceDiagram.parse(nested,{firstLine:2,options:{}}).errors.some(e=>e.message.includes('嵌套')));
 });

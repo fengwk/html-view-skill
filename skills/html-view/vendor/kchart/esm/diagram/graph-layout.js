@@ -1,5 +1,6 @@
 import { __exportAll } from "../_virtual/_rolldown/runtime.js";
 import { DIRECTIONS, FONT as FONT$1, fallbackMeasure, maxWidthOf, wrapText } from "./support.js";
+import { flowOutlineName, outlinePort, shapeGlyphBox, shapeOutline, shapeSize } from "./shapes.js";
 // src/diagram/graph-layout.js
 var graph_layout_exports = /* @__PURE__ */ __exportAll({ layoutGraph: () => layoutGraph });
 var FONT = {
@@ -39,7 +40,177 @@ var hgap = (a, b) => {
 	if (a.kind === "label" || b.kind === "label") return 18;
 	return 20;
 };
-function layoutGraph(model, { measure = fallbackMeasure, lang, ctx, renderOptions } = {}) {
+function collapseFrames(model) {
+	const frames = new Map(model.subgraphs.map((frame) => [frame.id, frame]));
+	if (![...frames.values()].some((frame) => frame.view === "collapsed")) return model;
+	const byId = new Map([...model.nodes, ...model.subgraphs].map((item) => [item.id, item]));
+	const redirects = /* @__PURE__ */ new Map();
+	for (const item of byId.values()) {
+		let collapsed = item.view === "collapsed" ? item.id : null;
+		for (let parent = item.parent; parent; parent = frames.get(parent)?.parent) if (frames.get(parent)?.view === "collapsed") collapsed = parent;
+		if (collapsed != null) redirects.set(item.id, collapsed);
+	}
+	const nodes = model.nodes.filter((node) => !redirects.has(node.id));
+	for (const frame of frames.values()) if (redirects.get(frame.id) === frame.id) nodes.push({
+		...frame,
+		label: frame.title,
+		shape: "rounded",
+		kind: "collapsed"
+	});
+	const subgraphs = model.subgraphs.filter((frame) => !redirects.has(frame.id));
+	const edges = model.edges.flatMap((edge) => {
+		const from = redirects.get(edge.from) ?? edge.from, to = redirects.get(edge.to) ?? edge.to;
+		if (from === to && redirects.has(from)) return [];
+		return [{
+			...edge,
+			from,
+			to,
+			fromFrame: edge.fromFrame && !redirects.has(from),
+			toFrame: edge.toFrame && !redirects.has(to)
+		}];
+	});
+	return {
+		...model,
+		nodes,
+		subgraphs,
+		edges
+	};
+}
+function layoutGraph(source, options = {}) {
+	const model = collapseFrames(source);
+	const frames = new Map(model.subgraphs.map((frame) => [frame.id, frame]));
+	const childRegions = new Set(model.subgraphs.filter((frame) => frame.kind === "divider").map((frame) => frame.parent));
+	const hidden = /* @__PURE__ */ new Set(), localEdges = /* @__PURE__ */ new Set(), blocks = /* @__PURE__ */ new Map();
+	const nodes = [...model.nodes], edges = [...model.edges];
+	const measure = options.measure ?? fallbackMeasure;
+	const isMember = (item, frame) => {
+		for (let parent = item.parent; parent; parent = frames.get(parent)?.parent) if (parent === frame.id) return true;
+		return false;
+	};
+	const all = [...nodes, ...model.subgraphs];
+	const occupied = new Set(all.map((item) => item.parent));
+	for (const frame of [...frames.values()].sort((a, b) => a.depth - b.depth || a.seq - b.seq)) {
+		if (hidden.has(frame.id) || occupied.has(frame.id) && !(frame.dir || frame.kind === "divider" || childRegions.has(frame.id))) continue;
+		const members = new Set(occupied.has(frame.id) ? all.filter((item) => isMember(item, frame)).map((item) => item.id) : []);
+		if (edges.some((edge) => members.has(edge.from) !== members.has(edge.to))) continue;
+		const topLevel = (item) => item.parent === frame.id ? {
+			...item,
+			parent: null
+		} : item;
+		const inside = edges.filter((edge) => members.has(edge.from));
+		const inner = layoutGraph({
+			...model,
+			direction: frame.dir || (model.type === "state" ? "TB" : model.direction),
+			nodes: nodes.filter((item) => members.has(item.id)).map(topLevel),
+			subgraphs: model.subgraphs.filter((item) => members.has(item.id)).map(topLevel),
+			edges: inside
+		}, options);
+		const lines = frame.title ? wrapText(frame.title, 200, FONT.frame, measure) : [];
+		const descLines = (frame.desc ?? []).flatMap((line) => wrapText(line, 180, FONT.body, measure));
+		const titleW = Math.max(maxWidthOf(lines, FONT.frame, measure), maxWidthOf(descLines, FONT.body, measure));
+		const titleH = lines.length * 17 + (descLines.length ? 4 + descLines.length * 16 : 0);
+		const titleBand = titleH ? titleH + 8 : 0;
+		const w = Math.max(inner.width, titleW + 32), h = inner.height + titleBand;
+		blocks.set(frame.id, {
+			frame,
+			inner,
+			lines,
+			descLines,
+			titleW,
+			titleH,
+			titleBand,
+			w,
+			h
+		});
+		for (const id of members) hidden.add(id);
+		for (const edge of inside) localEdges.add(edge);
+	}
+	if (!blocks.size) return layoutCore(model, options);
+	const proxy = (id) => blocks.has(id);
+	const outer = layoutCore({
+		...model,
+		nodes: [...nodes.filter((item) => !hidden.has(item.id)), ...[...blocks.values()].map(({ frame, w, h }) => ({
+			...frame,
+			label: "",
+			block: {
+				w,
+				h
+			},
+			shape: "rect"
+		}))],
+		subgraphs: model.subgraphs.filter((frame) => !hidden.has(frame.id) && !proxy(frame.id)),
+		edges: edges.filter((edge) => !localEdges.has(edge)).map((edge) => ({
+			...edge,
+			fromFrame: edge.fromFrame && !proxy(edge.from),
+			toFrame: edge.toFrame && !proxy(edge.to)
+		}))
+	}, options);
+	const retained = [];
+	for (const node of outer.nodes) {
+		const block = blocks.get(node.id);
+		if (!block) {
+			retained.push(node);
+			continue;
+		}
+		const { frame, inner, lines, descLines, titleW, titleH, titleBand, w, h } = block;
+		const dx = node.x + (w - inner.width) / 2, dy = node.y + titleBand;
+		const move = (p) => p && {
+			...p,
+			x: p.x + dx,
+			y: p.y + dy
+		};
+		const attach = (item) => item.parent == null ? frame.id : item.parent;
+		outer.frames.push({
+			...frame,
+			x: node.x,
+			y: node.y,
+			w,
+			h,
+			lines,
+			descLines,
+			titleRect: {
+				x: node.x + 16,
+				y: node.y + 10,
+				w: titleW,
+				h: titleH
+			}
+		});
+		outer.frames.push(...inner.frames.map((item) => ({
+			...move(item),
+			parent: attach(item),
+			titleRect: move(item.titleRect)
+		})));
+		retained.push(...inner.nodes.map((item) => ({
+			...move(item),
+			parent: attach(item),
+			titleY: item.titleY + dy,
+			descY: item.descY == null ? null : item.descY + dy
+		})));
+		outer.labels.push(...inner.labels.map(move));
+		outer.edges.push(...inner.edges.map((edge) => ({
+			...edge,
+			start: move(edge.start),
+			end: move(edge.end),
+			labelRect: move(edge.labelRect),
+			segments: edge.segments.map(({ p0, c1, c2, p1 }) => ({
+				p0: move(p0),
+				c1: move(c1),
+				c2: move(c2),
+				p1: move(p1)
+			}))
+		})));
+	}
+	for (const edge of outer.edges) {
+		if (proxy(edge.from)) edge.fromFrame = true;
+		if (proxy(edge.to)) edge.toFrame = true;
+	}
+	return {
+		...outer,
+		nodes: retained,
+		model
+	};
+}
+function layoutCore(model, { measure = fallbackMeasure, lang, ctx, renderOptions } = {}) {
 	const direction = DIRECTIONS.includes(model.direction) ? model.direction : "TB";
 	const isLR = direction === "LR" || direction === "RL";
 	const clusters = /* @__PURE__ */ new Map();
@@ -65,8 +236,9 @@ function layoutGraph(model, { measure = fallbackMeasure, lang, ctx, renderOption
 		selfEdges.get(edge.from).push(edge);
 	}
 	const measureNode = (node) => {
-		const titleText = markOf(node.class) + (node.label || node.id);
-		const titleLines = wrapText(titleText, node.kind === "er" ? 180 : 200, FONT.title, measure);
+		const flowShape = model.type === "flowchart" && flowOutlineName(node.shape);
+		const titleText = !(flowShape && shapeGlyphBox(flowShape, 1, 1, direction)) || node.explicitLabel || node.label !== node.id ? markOf(node.class) + (node.label ?? node.id) : "";
+		const titleLines = !titleText ? [] : wrapText(titleText, node.kind === "er" ? 180 : 200, FONT.title, measure);
 		const descLines = [];
 		for (const desc of node.desc || []) descLines.push(...wrapText(desc, 200, FONT.body, measure));
 		let tw;
@@ -82,8 +254,8 @@ function layoutGraph(model, { measure = fallbackMeasure, lang, ctx, renderOption
 			tw = 34;
 			th = 34;
 		} else if (node.kind === "fork" || node.kind === "join") {
-			tw = 48;
-			th = 10;
+			tw = isLR ? 10 : 70;
+			th = isLR ? 70 : 10;
 		} else if (node.kind === "er") {
 			const pad = 12;
 			const headLines = titleLines;
@@ -122,8 +294,9 @@ function layoutGraph(model, { measure = fallbackMeasure, lang, ctx, renderOption
 			const descW = maxWidthOf(descLines, FONT.body, measure);
 			tw = Math.max(64, Math.max(titleW, descW) + 28);
 			th = 20 + titleLines.length * 19 + (descLines.length ? 5 + descLines.length * 17 : 0);
-			th = Math.max(40, th);
-			if (node.shape === "diamond") {
+			th = Math.max(40, th) + (node.kind === "collapsed" ? 20 : 0);
+			if (flowShape) [tw, th] = shapeSize(flowShape, tw, th, direction, titleLines.length > 0);
+			else if (node.shape === "diamond") {
 				tw *= 1.7;
 				th *= 1.7;
 			} else if (node.shape === "circle") {
@@ -133,6 +306,7 @@ function layoutGraph(model, { measure = fallbackMeasure, lang, ctx, renderOption
 			} else if (node.shape === "hexagon") tw += 34;
 			else if (node.shape === "cylinder") th += 12;
 		}
+		if (node.block) ({w: tw, h: th} = node.block);
 		const loops = selfEdges.get(node.id) || [];
 		let loopExtra = 0;
 		let loopLabels = [];
@@ -203,7 +377,7 @@ function layoutGraph(model, { measure = fallbackMeasure, lang, ctx, renderOption
 			children: [],
 			seq: sg.seq,
 			depth: sg.depth,
-			title: sg.title || sg.id,
+			title: sg.title ?? sg.id,
 			titleLines: [],
 			descLines: [],
 			class: sg.class || null
@@ -1303,11 +1477,38 @@ function layoutGraph(model, { measure = fallbackMeasure, lang, ctx, renderOption
 			const node = item.node || {};
 			if (node.kind === "choice") return "diamond";
 			if (node.kind === "start" || node.kind === "end") return "circle";
-			return node.shape || "rect";
+			const flowShape = model.type === "flowchart" && flowOutlineName(node.shape);
+			return flowShape ? `flow:${flowShape}` : node.shape || "rect";
 		};
-		const isDiamondNode = (item) => Boolean(item) && shapeOf(item) === "diamond";
+		const isDiamondNode = (item) => Boolean(item) && [
+			"diamond",
+			"flow:diam",
+			"flow:choice"
+		].includes(shapeOf(item));
+		const outlines = /* @__PURE__ */ new Map();
+		const routedOutline = (shape, w, h) => {
+			const key = `${shape}:${w}:${h}`;
+			if (!outlines.has(key)) {
+				const outline = shapeOutline(shape, isLR ? h : w, isLR ? w : h, direction);
+				outlines.set(key, outline.map(([x, y]) => {
+					if (direction === "BT") return [x, h - y];
+					if (direction === "LR") return [y, x];
+					if (direction === "RL") return [y, h - x];
+					return [x, y];
+				}));
+			}
+			return outlines.get(key);
+		};
 		/** 端口落在边框上；上下边的 cross 是绝对 x，左右边的 cross 是相对 cy 的偏移。 */
 		const borderPort = (rect, shape, side, cross) => {
+			if (shape.startsWith("flow:")) {
+				const offset = isFlowSide(side) ? cross - rect.x : cross + rect.h / 2;
+				const port = outlinePort(routedOutline(shape.slice(5), rect.w, rect.h), side, offset);
+				return {
+					x: rect.x + port.x,
+					y: rect.y + port.y
+				};
+			}
 			const cx = rect.x + rect.w / 2;
 			const cy = rect.y + rect.h / 2;
 			const hw = rect.w / 2;
@@ -3387,6 +3588,7 @@ function layoutGraph(model, { measure = fallbackMeasure, lang, ctx, renderOption
 			id: item.node.id,
 			kind: item.node.kind,
 			shape: item.node.shape,
+			direction,
 			class: item.node.class,
 			label: item.node.label,
 			lines: item.titleLines,
@@ -3426,6 +3628,7 @@ function layoutGraph(model, { measure = fallbackMeasure, lang, ctx, renderOption
 		id: cluster.id,
 		title: cluster.title,
 		class: cluster.class,
+		kind: cluster.model.kind,
 		parent: cluster.model.parent || null,
 		lines: cluster.titleLines,
 		descLines: cluster.descLines,
@@ -3448,6 +3651,9 @@ function layoutGraph(model, { measure = fallbackMeasure, lang, ctx, renderOption
 			style: le.edge.style,
 			startArrow: le.edge.startArrow,
 			endArrow: le.edge.endArrow,
+			startMark: le.edge.startMark,
+			endMark: le.edge.endMark,
+			animated: le.edge.anim?.animate,
 			startCard: le.edge.startCard || null,
 			endCard: le.edge.endCard || null,
 			start: le.start,
@@ -3468,6 +3674,9 @@ function layoutGraph(model, { measure = fallbackMeasure, lang, ctx, renderOption
 		style: loop.edge.style,
 		startArrow: loop.edge.startArrow,
 		endArrow: loop.edge.endArrow,
+		startMark: loop.edge.startMark,
+		endMark: loop.edge.endMark,
+		animated: loop.edge.anim?.animate,
 		startCard: null,
 		endCard: null,
 		start: loop.start,

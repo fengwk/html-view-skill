@@ -21,9 +21,9 @@ test('五种 Mermaid 数值图经所属 KChart 图族排版', () => {
   const cases = [
     ['pie', 'title 分布\n甲 : 3\n乙 : 2', 'pie showData', { showData: true }],
     ['xychart', 'title 销量\nx-axis 月份 [一月, 二月]\ny-axis 件数 0 --> 10\nbar [3, 8]', 'xychart', {}],
-    ['sankey-beta', '"A, one",B,2\nB,C,2', 'sankey-beta', {}],
+    ['sankey', '"A, one",B,2\nB,C,2', 'sankey', {}],
     ['radar-beta', 'title 能力\naxis 速度,质量,成本\ncurve 方案甲 {3,4,2}', 'radar-beta', {}],
-    ['treemap-beta', 'title 预算\n根\n  "销售,市场"\n    销售 : 4\n    市场 : 3', 'treemap-beta', {}],
+    ['treemap', 'title 预算\n根\n  "销售,市场"\n    销售 : 4\n    市场 : 3', 'treemap', {}],
   ];
   for (const [kind, body, header, options] of cases) {
     const sourceInfo = { ...info(kind, 11, options), header };
@@ -57,21 +57,21 @@ test('原始行号与受支持的头行选项被保留', () => {
   const parsed = implementations.pie.parse('%% 注释\n标题 错误\n甲 : 1', sourceInfo);
   assert.equal(parsed.model.showData, true);
   assert.equal(parsed.errors[0].line, 18);
-  const badOption = implementations['sankey-beta'].parse('A,B,1', info('sankey-beta', 20, { foo: true }));
+  const badOption = implementations['sankey'].parse('A,B,1', info('sankey', 20, { foo: true }));
   assert.equal(badOption.errors[0].line, 19);
 });
 
 // chart/spec 校验返回全部 KChart 错误并按 sankey edge / radar curve 映射到源码行。
 test('KChart 数值诊断映射回对应 Mermaid 记录', () => {
-  const sankeyInfo = info('sankey-beta', 30);
-  const invalidSankey = implementations['sankey-beta'].parse('A,B,1\nB,A,1', sankeyInfo).model;
+  const sankeyInfo = info('sankey', 30);
+  const invalidSankey = implementations['sankey'].parse('A,B,1\nB,A,1', sankeyInfo).model;
   invalidSankey.edges[1].value = Infinity;
-  const sankeyErrors = implementations['sankey-beta'].validate(invalidSankey, sankeyInfo);
+  const sankeyErrors = implementations['sankey'].validate(invalidSankey, sankeyInfo);
   assert.ok(sankeyErrors.length > 0);
   assert.equal(sankeyErrors[0].line, 31);
-  const cycleInfo = info('sankey-beta', 35);
-  const cycleModel = implementations['sankey-beta'].parse('A,B,1\nB,A,1', cycleInfo).model;
-  assert.equal(implementations['sankey-beta'].validate(cycleModel, cycleInfo)[0].line, 35);
+  const cycleInfo = info('sankey', 35);
+  const cycleModel = implementations['sankey'].parse('A,B,1\nB,A,1', cycleInfo).model;
+  assert.equal(implementations['sankey'].validate(cycleModel, cycleInfo)[0].line, 35);
 
   const radarInfo = info('radar-beta', 40);
   const invalidRadar = implementations['radar-beta'].parse('axis A,B,C\ncurve R {1,2,3}', radarInfo).model;
@@ -85,10 +85,10 @@ test('KChart 数值诊断映射回对应 Mermaid 记录', () => {
   invalidXy.datasets[0].values[0] = Infinity;
   assert.equal(implementations['xychart'].validate(invalidXy, xyInfo)[0].line, 50);
 
-  const treeInfo = info('treemap-beta', 60);
-  const invalidTree = implementations['treemap-beta'].parse('Root\n  Group\n    Leaf : 1', treeInfo).model;
+  const treeInfo = info('treemap', 60);
+  const invalidTree = implementations['treemap'].parse('Root\n  Group\n    Leaf : 1', treeInfo).model;
   invalidTree.data.children[0].children[0].value = Infinity;
-  assert.equal(implementations['treemap-beta'].validate(invalidTree, treeInfo)[0].line, 62);
+  assert.equal(implementations['treemap'].validate(invalidTree, treeInfo)[0].line, 62);
 
   const fitInfo = info('pie', 80);
   const zeroPie = implementations.pie.parse('Only : 0', fitInfo);
@@ -133,4 +133,101 @@ test('print、主题和 frame 由共享 KChart API 保持', () => {
     { width: 640, lang: 'zh', ctx, renderOptions: { theme: 'paper' }, measure: () => { throw fault; } },
     info('pie', 10),
   ), error => error === fault);
+});
+
+// Inline pie titles, duplicate handling and overflow preserve the first five values and the overflow total.
+test('pie titles and grouped slices', () => {
+  const cfg = { ...info('pie'), params: 'showData title Inventory' };
+  const body = Array.from({ length: 7 }, (_, i) => `"Item ${i}": ${i + 1}`).join('\n');
+  const parsed = implementations.pie.parse(`${body}\n"Item 0": 99`, cfg);
+  assert.equal(parsed.model.rows[0].value, 1);
+  assert.equal(parsed.model.rows[5].value, 13);
+  assert.match(parsed.model.rows[5].category, /Item 5, Item 6/);
+  assert.deepEqual(parsed.errors.map(e => e.severity), ['warning', 'warning']);
+  const noFlag = implementations.pie.parse(body, { ...cfg, params: 'title Inventory' });
+  assert.equal(svgFor(layout('pie', parsed, cfg)), svgFor(layout('pie', noFlag, cfg)));
+  const small = implementations.pie.parse('Large: 99\nSmall: 1', cfg);
+  const svg = svgFor(layout('pie', small, cfg));
+  assert.match(svg, />99%<\/text>/);
+  assert.doesNotMatch(svg, />1%<\/text>/);
+});
+
+// Multiple top-level sections share an invisible root; grouping separators never change the asset's weight.
+test('treemap multiple roots, separators and invalid leaves', () => {
+  const cfg = info('treemap');
+  const parsed = implementations.treemap.parse('"First"\n  "A", 1_200\n"Second"\n  "B": 2,400', cfg);
+  assert.deepEqual(parsed.errors, []);
+  assert.deepEqual(parsed.model.data.children.map(node => node.children[0].value), [1200, 2400]);
+  assert.doesNotMatch(svgFor(layout('treemap', parsed, cfg)), />Treemap<\/text>/);
+  const bad = implementations.treemap.parse('"Root"\n\t"A": 1\n  "B"', cfg);
+  assert.ok(bad.errors.some(e => e.line === cfg.firstLine + 1 && e.column === 1));
+  assert.ok(bad.errors.some(e => e.line === cfg.firstLine + 2 && /权重/.test(e.message)));
+});
+
+// Treemap class suffixes color a leaf through the theme, and percent/currency formatting retains both symbols.
+test('treemap presentation, safe link and value format', () => {
+  const cfg = { ...info('treemap'), config: { treemap: { valueFormat: '$.1%' } } };
+  const parsed = implementations.treemap.parse('"Root"\n  "A": .5:::hot\n  "B": .5\nclassDef hot fill:#f00\nclick A href "https://example.org"', cfg);
+  assert.deepEqual(parsed.errors, []);
+  const laid = layout('treemap', parsed, cfg);
+  const svg = svgFor(laid);
+  assert.match(svg, /<a href="https:\/\/example.org"/);
+  assert.match(svg, /A · \$50\.0%/);
+  const nodes = laid.scene.children.flatMap(part => part.tag === 'a' ? part.children : [part]);
+  assert.equal(nodes.find(part => part.meta?.kind === 'node' && part.meta.label === 'A')?.attrs.fill, createContext().design.danger);
+});
+
+// XY uses evenly spaced categories, keeps sparse line labels and warns once when horizontal is unavailable.
+test('xychart numeric axis and point labels', () => {
+  const cfg = info('xychart');
+  const body = 'x-axis 0 --> 100\nline [25 "Launch", 45, 72, 80, 90 "Target Hit"]';
+  const vertical = implementations.xychart.parse(body, cfg);
+  const horizontal = implementations.xychart.parse(body, { ...cfg, params: 'horizontal' });
+  assert.deepEqual(vertical.model.categories, ['0', '25', '50', '75', '100']);
+  assert.deepEqual(vertical.model.datasets[0].pointLabels, ['Launch', null, null, null, 'Target Hit']);
+  assert.deepEqual(horizontal.errors.map(e => e.severity), ['warning']);
+  const svg = svgFor(layout('xychart', vertical, cfg));
+  assert.match(svg, /Launch/);
+  assert.match(svg, /Target Hit/);
+  assert.equal(svgFor(layout('xychart', horizontal, cfg)), svg);
+});
+
+// XY columns expand a nonzero declared baseline, and the series cap points to the seventh plot.
+test('xychart baseline and series cap', () => {
+  const cfg = info('xychart');
+  const bar = implementations.xychart.parse('y-axis 4000 --> 11000\nbar [5500, 6100]', cfg);
+  assert.deepEqual(bar.model.yDomain, [0, 11000]);
+  assert.deepEqual(bar.errors.map(e => e.severity), ['warning']);
+  const many = implementations.xychart.parse('line [1,2]\n'.repeat(7), cfg);
+  assert.ok(many.errors.some(e => e.line === cfg.firstLine + 6 && e.severity !== 'warning'));
+});
+
+// Sankey records preserve quoted Unicode/escaped quotes, blank lines, and nonconserving middle nodes.
+test('sankey CSV and nonconserving flow', () => {
+  const cfg = info('sankey');
+  const parsed = implementations.sankey.parse('"甲",B,1\n\nB,"a""b",1\nB,D,2', cfg);
+  assert.deepEqual(parsed.errors, []);
+  assert.deepEqual(parsed.model.nodes.map(n => n.id), ['甲', 'B', 'a"b', 'D']);
+  const laid = layout('sankey', parsed, cfg);
+  assert.deepEqual(laid.errors, []);
+  assert.match(svgFor(laid), />a&quot;b<\/text>/);
+  assert.equal(implementations.sankey.parse('A,B,1\nB,C', cfg).errors[0].line, cfg.firstLine + 1);
+});
+
+// Radar resolves named values to declaration order and keeps valid curves when one has the wrong length.
+test('radar repeated axes, named values and plot options', () => {
+  const cfg = info('radar-beta');
+  const body = 'axis a["Food Quality"], b, c\naxis d, e, f\ncurve good{f:6, e:5, d:4, c:3, b:2, a:1}, bad{1,2}\nmax 5\nshowLegend false\ngraticule polygon';
+  const parsed = implementations['radar-beta'].parse(`${body}\nticks 40`, cfg);
+  assert.equal(parsed.model.fields[0].label, 'Food Quality');
+  assert.equal(parsed.model.rows.length, 1);
+  assert.deepEqual(Object.values(parsed.model.rows[0]), ['good', 1, 2, 3, 4, 5, 6]);
+  assert.equal(parsed.model.rings, 8);
+  assert.deepEqual(parsed.errors.map(e => e.severity), ['warning', 'warning', 'warning']);
+  assert.doesNotMatch(svgFor(layout('radar-beta', parsed, cfg)), />good<\/text>/);
+  for (const ticks of [1, 2, 8]) {
+    const low = implementations['radar-beta'].parse(`${body}\nticks ${ticks}`, cfg);
+    assert.equal(low.model.rings, Math.max(2, ticks));
+    assert.equal(low.errors.length, ticks === 1 ? 3 : 2);
+  }
 });

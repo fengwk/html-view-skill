@@ -666,8 +666,14 @@ const chart = (spec, ctx) => {
       const [lo, hi] = domains[axis];
       return Math.max(0, Math.min(1, (value - lo) / (hi - lo || 1))) * radius;
     };
-    for (let ring = 1; ring <= 4; ring++) {
-      const points = angles.map(angle => [cx + Math.cos(angle) * radius * ring / 4, cy + Math.sin(angle) * radius * ring / 4]);
+    // 环数与刻度形状是绘制细节：缺省仍是 4 环多边形，声明时才换成 N 环或圆形刻度环。
+    const rings = Number.isInteger(spec.rings) && spec.rings > 0 ? spec.rings : 4;
+    for (let ring = 1; ring <= rings; ring++) {
+      if (spec.graticule === 'circle') {
+        children.push(ctx.circle(cx, cy, radius * ring / rings, { fill: 'none', stroke: ctx.color('grid') }));
+        continue;
+      }
+      const points = angles.map(angle => [cx + Math.cos(angle) * radius * ring / rings, cy + Math.sin(angle) * radius * ring / rings]);
       children.push(ctx.el('polygon', {
         points: points.map(point => point.join(',')).join(' '), fill: 'none', stroke: ctx.color('grid'),
       }));
@@ -701,9 +707,11 @@ const chart = (spec, ctx) => {
     const legendItems = data.map((row, i) => ({
       label: row[enc.label], color: ctx.color(`tone${i % 6 + 1}`), meta: { record: row[enc.id] || String(i) },
     }));
-    const legendBlock = ctx.legend(legendItems, Math.max(120, chartWidth - 32));
-    children.push(ctx.el('g', { transform: `translate(16,${legendY})` }, legendBlock.children));
-    const scene = ctx.scene(legendY + legendBlock.height + 16, children, title);
+    // legend:false 只省掉图例块；曲线、轴名和刻度照旧，读者仍能对上颜色与数据。
+    const showLegend = spec.legend !== false;
+    const legendBlock = showLegend ? ctx.legend(legendItems, Math.max(120, chartWidth - 32)) : { children: [], height: 0 };
+    if (showLegend) children.push(ctx.el('g', { transform: `translate(16,${legendY})` }, legendBlock.children));
+    const scene = ctx.scene(showLegend ? legendY + legendBlock.height + 16 : legendY - 12, children, title);
     scene.width = chartWidth;
     return scene;
   }

@@ -136,9 +136,40 @@
         "aliases": [
           "stateDiagram"
         ]
-      },
+      }
+    }
+  },
+  "diagram/er": {
+    "diagrams": {
       "erDiagram": {
         "topic": "data-model"
+      }
+    }
+  },
+  "diagram/agentflow": {
+    "diagrams": {
+      "agentflow-beta": {
+        "syntax": "mermaid",
+        "topic": "flow",
+        "aliases": []
+      }
+    }
+  },
+  "diagram/wardley": {
+    "diagrams": {
+      "wardley-beta": {
+        "syntax": "mermaid",
+        "topic": "architecture",
+        "aliases": []
+      }
+    }
+  },
+  "diagram/eventmodeling": {
+    "diagrams": {
+      "eventmodeling": {
+        "syntax": "mermaid",
+        "topic": "flow",
+        "aliases": []
       }
     }
   },
@@ -155,6 +186,22 @@
       "blocks": {
         "syntax": "blocks",
         "topic": "architecture"
+      }
+    }
+  },
+  "diagram/usecase": {
+    "diagrams": {
+      "usecase-beta": {
+        "syntax": "mermaid",
+        "topic": "sequence"
+      }
+    }
+  },
+  "diagram/swimlane-mermaid": {
+    "diagrams": {
+      "swimlane-beta": {
+        "syntax": "mermaid",
+        "topic": "flow"
       }
     }
   },
@@ -180,17 +227,29 @@
       }
     }
   },
-  "diagram/time": {
+  "diagram/gantt": {
     "diagrams": {
       "gantt": {
         "topic": "time"
-      },
+      }
+    }
+  },
+  "diagram/timeline": {
+    "diagrams": {
       "timeline": {
         "topic": "time"
-      },
+      }
+    }
+  },
+  "diagram/journey": {
+    "diagrams": {
       "journey": {
         "topic": "flow"
-      },
+      }
+    }
+  },
+  "diagram/time": {
+    "diagrams": {
       "gitGraph": {
         "topic": "time"
       },
@@ -212,12 +271,6 @@
       },
       "requirementDiagram": {
         "topic": "data-model"
-      },
-      "architecture-beta": {
-        "topic": "architecture"
-      },
-      "block-beta": {
-        "topic": "architecture"
       },
       "zenuml": {
         "topic": "sequence"
@@ -243,13 +296,36 @@
       }
     }
   },
+  "diagram/architecture": {
+    "diagrams": {
+      "architecture": {
+        "aliases": [
+          "architecture-beta"
+        ],
+        "topic": "architecture"
+      }
+    }
+  },
+  "diagram/block": {
+    "diagrams": {
+      "block": {
+        "aliases": [
+          "block-beta"
+        ],
+        "topic": "architecture"
+      }
+    }
+  },
   "diagram/numeric-composition": {
     "diagrams": {
       "pie": {
         "topic": "composition"
       },
-      "treemap-beta": {
-        "topic": "composition"
+      "treemap": {
+        "topic": "composition",
+        "aliases": [
+          "treemap-beta"
+        ]
       }
     }
   },
@@ -265,14 +341,48 @@
   },
   "diagram/numeric-sankey": {
     "diagrams": {
-      "sankey-beta": {
-        "topic": "network"
+      "sankey": {
+        "topic": "network",
+        "aliases": [
+          "sankey-beta"
+        ]
       }
     }
   },
   "diagram/numeric-radar": {
     "diagrams": {
       "radar-beta": {
+        "topic": "matrix"
+      }
+    }
+  },
+  "diagram/ishikawa": {
+    "diagrams": {
+      "ishikawa": {
+        "topic": "hierarchy",
+        "aliases": [
+          "ishikawa-beta"
+        ]
+      }
+    }
+  },
+  "diagram/treeview": {
+    "diagrams": {
+      "treeView-beta": {
+        "topic": "hierarchy"
+      }
+    }
+  },
+  "diagram/venn": {
+    "diagrams": {
+      "venn-beta": {
+        "topic": "composition"
+      }
+    }
+  },
+  "diagram/cynefin": {
+    "diagrams": {
+      "cynefin-beta": {
         "topic": "matrix"
       }
     }

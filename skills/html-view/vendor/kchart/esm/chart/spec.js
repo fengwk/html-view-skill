@@ -28,8 +28,18 @@ var TOP = /* @__PURE__ */ new Set([
 	"start",
 	"layers",
 	"period",
-	"directed"
+	"directed",
+	...Object.values(catalog).flatMap((c) => Object.keys(c.special))
 ]);
+var NODE_SHAPES = [
+	"rect",
+	"rounded",
+	"circle",
+	"bang",
+	"cloud",
+	"hexagon",
+	"none"
+];
 var ENCODE = /* @__PURE__ */ new Set([
 	"category",
 	"value",
@@ -226,6 +236,7 @@ function validate(spec) {
 			if (Array.isArray(allowed) && !allowed.includes(v)) err(errors, `/${field}`, `必须为 ${allowed.join("、")} 中的一项`);
 			else if (allowed === "boolean" && typeof v !== "boolean") err(errors, `/${field}`, "必须是布尔值");
 			else if (allowed === "number" && !finite(v)) err(errors, `/${field}`, "必须是有限数");
+			else if (field === "rings" && (!Number.isInteger(v) || v < 2 || v > 8)) err(errors, `/${field}`, "必须是 2 至 8 的整数");
 			else if (allowed === "year" && (typeof v !== "string" || !/^\d{4}$/.test(v))) err(errors, `/${field}`, "必须是YYYY年份");
 			else if (allowed === "range" && !(Array.isArray(v) && v.length === 2 && v.every(finite) && v[0] < v[1])) err(errors, `/${field}`, "必须是递增的有限数范围");
 			else if (allowed === "layers" && (!Array.isArray(v) || !v.length || v.some((x) => !obj(x) || ![
@@ -253,7 +264,7 @@ function validate(spec) {
 			"histogram"
 		].includes(c.name)) err(errors, "/unitMark", "该图型不支持unitMark");
 		if (shapeOk && c.shape === "tree") checkTree(spec.data, c.name, errors);
-		if (shapeOk && c.shape === "network") checkNetwork(spec.data, spec.chart, errors);
+		if (shapeOk && c.shape === "network") checkNetwork(spec.data, spec.chart, errors, spec.tolerant === true);
 		if (shapeOk && c.shape === "paths") checkPaths(spec.data, errors);
 		if (c.shape === "geo" && spec.data?.map) {
 			const m = spec.data.map;
@@ -879,8 +890,9 @@ function checkTree(rootNode, chart, e) {
 			"id",
 			"icon",
 			"note",
-			...["mindmap", "tree"].includes(chart) ? ["status"] : []
+			...["mindmap", "tree"].includes(chart) ? ["status", "shape"] : []
 		].includes(key)) err(e, `${path}/${key}`, "未知节点字段");
+		if (node.shape !== void 0 && ["mindmap", "tree"].includes(chart) && !NODE_SHAPES.includes(node.shape)) err(e, `${path}/shape`, "未知节点形状");
 		if (node.status !== void 0 && ["mindmap", "tree"].includes(chart) && ![
 			"new",
 			"info",
@@ -904,7 +916,7 @@ function checkTree(rootNode, chart, e) {
 	walk(rootNode, "/data", 1);
 	if (count > 80) err(e, "/data", "超过80节点上限");
 }
-function checkNetwork(d, chart, e) {
+function checkNetwork(d, chart, e, tolerant = false) {
 	const rawNodes = d.nodes || [], rawEdges = d.edges || [];
 	rawNodes.forEach((n, i) => {
 		if (!obj(n)) err(e, `/data/nodes/${i}`, "节点必须是对象");
@@ -983,7 +995,7 @@ function checkNetwork(d, chart, e) {
 		if (visited !== nodes.length) err(e, "/data/edges", "Sankey必须是DAG，不允许环");
 		for (const n of nodes) {
 			const a = ins.get(n.id) || 0, b = outs.get(n.id) || 0;
-			if (a && b && Math.abs(a - b) > 1e-9 * Math.max(1, a, b)) err(e, "/data/nodes", "Sankey中间节点流量不守恒");
+			if (!tolerant && a && b && Math.abs(a - b) > 1e-9 * Math.max(1, a, b)) err(e, "/data/nodes", "Sankey中间节点流量不守恒");
 		}
 	}
 }
@@ -1294,6 +1306,20 @@ function schema(chart) {
 		anyOf,
 		allOf: entries.map((c) => {
 			const special = Object.fromEntries(Object.entries(c.special).map(([k, v]) => [k, schemaFor(v)]));
+			if (special.rings) special.rings = {
+				type: "integer",
+				minimum: 2,
+				maximum: 8
+			};
+			for (const key of [
+				"tolerant",
+				"showValues",
+				"rings",
+				"graticule",
+				"legend",
+				"sliceLabels"
+			]) if (special[key]) properties[key] ??= special[key];
+			else special[key] = false;
 			if ([
 				"bar",
 				"column",
@@ -1361,6 +1387,7 @@ function schema(chart) {
 					"danger",
 					"ext"
 				] },
+				shape: { enum: NODE_SHAPES },
 				children: {
 					type: "array",
 					items: { $ref: `#/$defs/${chartType}Node` }
