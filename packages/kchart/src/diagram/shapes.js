@@ -105,7 +105,7 @@ export function shapeGlyphBox(shape, w, h, direction) {
 
 export function shapeSize(shape, w, h, direction, hasLabel) {
   const size = fixedSize(shape, direction);
-  if (size) return hasLabel ? [size[0] + (w - 20) * 2, size[1] + (h - 12) * 2] : size;
+  if (size) return hasLabel ? [size[0] + (w - 12) * 2, size[1] + 12] : size;
   if (['diam', 'choice'].includes(shape)) return [w * 1.7, h * 1.7];
   if (['tri', 'flip-tri'].includes(shape)) return [w * 2, h * 2];
   if (['circle', 'dbl-circ'].includes(shape)) return Array(2).fill(Math.hypot(w, h) + (shape === 'dbl-circ' ? 10 : 0));
@@ -121,7 +121,10 @@ export function shapeOutline(shape, width, height, direction) {
   let outline = polygons[shape === 'choice' ? 'diam' : shape];
   if (!outline) {
     const r = Math.min(8, h / 2, w / 2), rx = r / w, ry = r / h;
-    if (['rounded', 'state', 'browser', 'console', 'note', 'composite'].includes(shape)) {
+    if (shape === 'note') {
+      const fold = Math.min(12, w / 3, h / 3);
+      outline = [[0,0],[1-fold/w,0],[1,fold/h],[1,1],[0,1]];
+    } else if (['rounded', 'state', 'browser', 'console', 'composite'].includes(shape)) {
       outline = [...arc(1-rx, ry, rx, ry, -90, 0), ...arc(1-rx, 1-ry, rx, ry, 0, 90),
         ...arc(rx, 1-ry, rx, ry, 90, 180), ...arc(rx, ry, rx, ry, 180, 270)];
     } else if (['stadium', 'delay', 'curv-trap'].includes(shape)) {
