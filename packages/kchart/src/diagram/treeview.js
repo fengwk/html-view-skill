@@ -9,6 +9,7 @@ const clamp = (value, fallback, min, max) => typeof value === 'number' && Number
 
 const BRANCH = /^([ \t│┃]*)(?:[├└┣┗])[─━]*[ \t]*/;
 const ANNOTATION = /[ \t]+(?=:::[ \t]*[A-Za-z_]|icon\(|##)/;
+const LEADING_EMOJI = /^(?:\p{Emoji_Presentation}|\p{Extended_Pictographic}\uFE0F|[0-9#*]\uFE0F?\u20E3)/u;
 const MARGIN = 24, STEP = 24;
 const columns = str => str.replaceAll('\t', '    ').length;
 
@@ -68,10 +69,15 @@ function parse(body, { firstLine = 2, headerLine = 1, lang, params, config }) {
     const ext = /\.[^.\/]+$/.exec(textLabel)?.[0];
     const mapped = settings.filenameIcons?.[textLabel] ?? (!directory && ext ? settings.extensionIcons?.[ext] : undefined);
     const ref = icon ?? (name.icon ? undefined : typeof mapped === 'string' ? mapped : undefined);
-    let glyph = name.icon ?? resolveIconRef(directory ? 'tabler:folder' : 'tabler:file');
-    if (ref) {
-      glyph = ref === 'none' ? null : resolveIconRef(ref);
-      if (ref !== 'none' && !glyph) addIssue(warning('IGNORED_ASSET', lang, line, `未知图标 ${ref}`, `Unknown icon ${ref}`, '使用内置或已注册的图标', 'Use a built-in or registered icon'));
+    const defaultGlyph = LEADING_EMOJI.test(textLabel) ? null : resolveIconRef(directory ? 'tabler:folder' : 'tabler:file');
+    let glyph = name.icon ?? defaultGlyph;
+    if (ref === 'none') glyph = null;
+    else if (ref) {
+      glyph = resolveIconRef(ref);
+      if (!glyph) {
+        addIssue(warning('IGNORED_ASSET', lang, line, `未知图标 ${ref}`, `Unknown icon ${ref}`, '使用内置或已注册的图标', 'Use a built-in or registered icon'));
+        glyph = defaultGlyph;
+      }
     }
     const row = { id: `row-${line}`, parent: stack.at(-1)?.id ?? 'root', depth: stack.length + 1, indent, line,
       directory, label: textLabel, description, highlight, icon, glyph: settings.showIcons === false ? null : glyph };

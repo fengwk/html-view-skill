@@ -326,6 +326,7 @@ function layout(model, options = {}) {
   const plotX = MARGIN, plotY = MARGIN + titleHeight;
   const centre = { x: plotX + plotW / 2, y: plotY + plotH / 2 };
 
+  const bottomBlockH = Math.max(blocks.chaotic.h, blocks.clear.h);
   const quadrants = {};
   for (const name of QUADRANTS) {
     const [col, row] = CELLS[name];
@@ -333,7 +334,7 @@ function layout(model, options = {}) {
     const block = blocks[name];
     const blockX = panel.x + (panel.w - block.w) / 2;
     // Content rests on the panel's outer edge so the seam-facing corridor stays free for the arcs.
-    const blockY = row === 0 ? panel.y + PANEL_PAD : panel.y + panel.h - PANEL_PAD - block.h;
+    const blockY = row === 0 ? panel.y + PANEL_PAD : panel.y + panel.h - PANEL_PAD - bottomBlockH;
     const texts = [];
     let cursor = blockY;
     texts.push({ kind: 'name', text: TITLES[name], x: blockX + block.w / 2, y: cursor + NAME_LINE / 2, font: nameFont });

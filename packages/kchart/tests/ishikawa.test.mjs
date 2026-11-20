@@ -85,6 +85,21 @@ test('a skipped indentation level reattaches rather than erroring', () => {
   assert.deepEqual(parsed.model.root.children.map(node => [node.label, node.children.map(child => child.label)]), [['A', ['deep']], ['B', []]]);
 });
 
+// Upper ribs read in source order and their arrows meet a spine extending to the label gutter.
+test('fishbone directional markers and upper branch order', () => {
+  const { model } = parse(corpusBody);
+  for (const width of [800, 360]) {
+    const { geometry, scene, issues } = draw(model, width);
+    assert.deepEqual(issues, []);
+    const yOf = label => geometry.labels.find(item => item.lines.join(' ') === label).y;
+    assert.ok(yOf('LENS') < yOf('SENSOR'));
+    const main = geometry.bones.filter(bone => bone.main);
+    assert.ok(main.every(bone => bone.points[1][1] === geometry.spine.y1));
+    assert.ok(Math.min(...main.map(bone => bone.points[1][0])) - geometry.spine.x1 >= 44);
+    assert.equal([...renderScene(scene).matchAll(/marker-end=/g)].length, main.length + 1);
+  }
+});
+
 // Depth alternates horizontal and diagonal bones; deeper levels keep hanging on their own parent.
 test('depth-parity bones reach the fourth level with one edge per cause', () => {
   const parsed = parse('Problem\n  Cat\n    Sub\n      Deep\n        Deeper\n    Sub2\n  Cat2');
@@ -103,7 +118,7 @@ test('depth-parity bones reach the fourth level with one edge per cause', () => 
   assert.equal(v0, y0, 'the diagonal starts on its parent bone, not in mid-air');
   assert.ok(Math.abs(x1 - x0) >= 30, 'a horizontal bone has a readable run');
   assert.ok(Math.abs(v1 - v0) > Math.abs(u1 - u0), 'a diagonal rises more than it drifts');
-  assert.equal(boneOf(cat.id).from, 'root');
+  assert.equal(geometry.bones.find(bone => bone.from === cat.id && bone.main).to, 'root');
   assert.equal(boneOf(deeper.id).from, deep.id);
 });
 
