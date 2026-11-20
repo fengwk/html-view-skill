@@ -93,6 +93,27 @@ test('treeView default icons, branded icon override and showIcons', () => {
   assert.equal(icons(draw(`---\nconfig:\n  treeView:\n    showIcons: false\n---\n${source}`, 360).svg), 0);
 });
 
+// Leading emoji replace defaults, unknown references keep defaults, and a known brand uses its own outline.
+test('treeView distinguishes inline emoji, unknown icons and React', () => {
+  const { model, errors } = parseTree('🚀 project/\n  🛠️ tools/\n  1.txt\n  one.txt icon(logos:no-such-icon)\n  two.txt icon(logos:no-such-icon)\n  app.tsx icon(logos:react)');
+  const [, project, tools, digit, one, two, app] = model.rows;
+  assert.equal(project.glyph, null);
+  assert.equal(tools.glyph, null);
+  assert.ok(digit.glyph);
+  assert.equal(one.glyph, digit.glyph);
+  assert.equal(two.glyph, digit.glyph);
+  assert.equal(app.glyph.set, 'simple');
+  assert.deepEqual(errors.map(issue => issue.code), ['IGNORED_ASSET']);
+});
+
+// Unequal numbers of domain items must not offset the headers of a shared row.
+test('Cynefin headers align across each row', () => {
+  const { svg } = draw('cynefin-beta\nchaotic\n"One"\nclear\n"One"\n"Two"', 360);
+  const yOf = name => svg.match(new RegExp(`<text[^>]+ y="([^"]+)"[^>]*>${name}</text>`))[1];
+  assert.equal(yOf('Complex'), yOf('Complicated'));
+  assert.equal(yOf('Chaotic'), yOf('Clear'));
+});
+
 // A sorted multi-member style sets the intersection role, and links remain on the labelled set.
 test('Venn applies shared presentation to set, region and item', () => {
   const source = 'set A["A &amp; B"]\n  text T["fa:fa-home Item"]\nset B\nunion A,B["Overlap"]\nstyle B, A fill:#d22\nstyle T fill:#2700cc\nclick A href "https://example.com"';

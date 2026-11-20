@@ -157,7 +157,9 @@ function build(model, { cap, lang, measure, width }) {
   // A category's own bone carries its sub-bones and ends in its chip; both sides share one length so the chips
   // of a side line up (Mermaid also uses one bone length per side).
   for (const category of categories) {
-    const end = category.children.length ? assignBands(category.children, SPINE_CLEAR) : SPINE_CLEAR;
+    // Upper bands grow upward from the spine, so allocate siblings in reverse to read top to bottom.
+    const bands = category.dir < 0 ? [...category.children].reverse() : category.children;
+    const end = assignBands(bands, SPINE_CLEAR);
     category.reach = Math.max(MIN_BONE, end + CHIP_GAP + category.chipH);
   }
   const sides = [categories.filter(category => category.dir < 0), categories.filter(category => category.dir > 0)];
@@ -204,7 +206,9 @@ function build(model, { cap, lang, measure, width }) {
     });
   }
 
-  const spineLeft = categories.length ? Math.min(...categories.map(category => category.ax)) - SPINE_TAIL : -SPINE_TAIL;
+  const spineLeft = categories.length
+    ? Math.min(...categories.map(category => category.ax + Math.min(category.leftRel, -SPINE_TAIL)))
+    : -SPINE_TAIL;
   const minX = Math.min(spineLeft, 0, ...categories.map(category => category.ax + category.leftRel));
   const maxX = Math.max(headW, ...categories.map(category => category.ax + category.rightRel));
   const above = Math.max(0, ...sides[0].map(category => category.reach));
@@ -219,8 +223,8 @@ function build(model, { cap, lang, measure, width }) {
   for (const category of categories) {
     // The bone stops at the chip's inner edge instead of running behind the chip.
     bones.push({
-      id: `${category.id}-bone`, from: 'root', to: category.id, main: true,
-      points: [point(category.ax, 0, 1), point(category.ax - LEAN * (category.reach - category.chipH), category.reach - category.chipH, category.dir)],
+      id: `${category.id}-bone`, from: category.id, to: 'root', main: true,
+      points: [point(category.ax - LEAN * (category.reach - category.chipH), category.reach - category.chipH, category.dir), point(category.ax, 0, 1)],
     });
     chips.push({
       id: category.id, line: category.line, tone: category.index % 6, lines: category.lines, icon: category.icon, status: category.status, link: category.link,
@@ -288,15 +292,22 @@ function scene(plan, ctx) {
   const ink = ctx.frameTone(ctx.color('fg'));
   const strong = ctx.frameTone(ctx.color('accent'), true);
   const tones = Array.from({ length: 6 }, (_, index) => ctx.frameTone(ctx.color(`tone${index + 1}`)));
-  const children = plan.bones.map(bone => ctx.path(
+  const arrowId = 'ishikawa-arrow';
+  const arrowEnd = `url(#${arrowId})`;
+  const children = [ctx.el('defs', {}, [ctx.el('marker', {
+    id: arrowId, viewBox: '0 0 8 8', refX: 8, refY: 4, markerWidth: 8, markerHeight: 8,
+    markerUnits: 'userSpaceOnUse', orient: 'auto',
+  }, [ctx.path('M0 0 L8 4 L0 8 Z', { fill: ink })])])];
+  children.push(...plan.bones.map(bone => ctx.path(
     `M${bone.points[0][0]} ${bone.points[0][1]} L${bone.points[1][0]} ${bone.points[1][1]}`,
     {
       fill: 'none', stroke: bone.main ? ink : (plan.nodeStatus?.[bone.to] ? ctx.frameTone(look[plan.nodeStatus[bone.to]]) : look.fg4), 'stroke-width': bone.main ? 2 : 1.4, 'stroke-linecap': 'round',
+      ...(bone.main ? { 'marker-end': arrowEnd } : {}),
       meta: { kind: 'edge', from: bone.from, to: bone.to },
     },
-  ));
+  )));
   children.push(ctx.line(plan.spine.x1, plan.spine.y1, plan.spine.x2, plan.spine.y2, {
-    stroke: ink, 'stroke-width': 2, 'stroke-linecap': 'round', meta: { kind: 'edge', from: 'root', to: 'root' },
+    stroke: ink, 'stroke-width': 2, 'stroke-linecap': 'round', 'marker-end': arrowEnd, meta: { kind: 'edge', from: 'root', to: 'root' },
   }));
   for (const chip of plan.chips) {
     const tone = tones[chip.tone];
@@ -325,7 +336,7 @@ function scene(plan, ctx) {
     ]);
     children.push(group.link ? ctx.link(group.link.href, [drawing], group.link) : drawing);
   }
-  // The head is the fish's body on the spine's right end: a tinted capsule with an ink dot at the junction.
+  // The effect is a tinted capsule at the right-hand end of the spine.
   const headTone = plan.nodeStatus?.root;
   const headFill = headTone ? ctx.tint(look.bg, look[headTone], 0.12) : ctx.tint(look.bg, strong, 0.12);
   const headDrawing = ctx.el('g', {}, [
@@ -333,7 +344,6 @@ function scene(plan, ctx) {
       rx: Math.min(plan.head.h / 2, look.radius + 10), fill: headFill, stroke: headTone ? look[headTone] : ctx.tint(look.bg, strong, 0.5),
       'stroke-width': 1.5, meta: { kind: 'node', id: 'root', label: 'root' },
     }),
-    ctx.circle(plan.spine.x2, plan.spine.y2, 3, { fill: ink }),
     ...(plan.head.icon ? [labelIcon(ctx, plan.head.icon, plan.head.x + HEAD_PAD_X + 7, plan.head.y + plan.head.h / 2, 14, look.fg3)] : []),
     ...plan.head.lines.map((line, index) => ctx.text(plan.head.x + plan.head.w / 2 + (plan.head.icon ? 10 : 0),
       plan.head.y + plan.head.h / 2 + (index - (plan.head.lines.length - 1) / 2) * HEAD_LINE, line, {
