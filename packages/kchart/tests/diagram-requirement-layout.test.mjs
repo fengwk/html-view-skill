@@ -12,6 +12,8 @@ test('requirement scene keeps relation direction, marks, labels and element tone
   const contains = items.find(item => item.meta?.kind === 'edge' && item.meta.from === 'r');
   assert.equal(contains.meta.to, 'e');
   assert.match(contains.attrs['marker-start'], /contains/);
+  const marker = items.find(item => item.tag === 'marker' && item.attrs.id.includes('contains'));
+  assert.deepEqual(marker.children.map(item => item.tag), ['circle', 'path'], 'containment uses a circle with a cross');
   const verifies = items.find(item => item.meta?.kind === 'edge' && item.meta.from === 'e');
   assert.ok(verifies.attrs['stroke-dasharray']);
   assert.match(verifies.attrs['marker-end'], /arrow/);
