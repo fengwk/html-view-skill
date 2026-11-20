@@ -1,11 +1,11 @@
 import { FONT, error, warning } from './support.js';
 import { geometry, has } from '../core/icons.js';
-import { STYLES, EDGE_KINDS, measureCard, frameTitle, titleRect, measureNote, measureLabel, measureLegend,
-  boardLook, markers, surfaceAt, iconGlyph, drawFrame, drawCard, drawNote, drawEdge, drawLabel, drawLegend } from './board-paint.js';
+import { STYLES, EDGE_KINDS, ITEM, measureCard, measureItem, frameTitle, titleRect, measureNote, measureLabel, measureLegend,
+  boardLook, markers, surfaceAt, drawFrame, drawCard, drawItem, drawNote, drawEdge, drawLabel, drawLegend } from './board-paint.js';
 import { routeBoard } from './board-route.js';
 
 const LIMITS = { depth: 8, endpoints: 400, items: 1000, edges: 200, labelChars: 24, desc: 8 };
-const GAP = 16, PAD = 12, ITEM_GAP = 8, MARGIN = 16;
+const GAP = 16, PAD = 12, ITEM_GAP = ITEM.gap, MARGIN = 16;
 const HEAD = /^(row|col|grid|box|card|note|legend)(?:\s+(.*))?$/;
 const LEGEND_KEYS = [...STYLES, 'default', 'db', ...Object.keys(EDGE_KINDS)];
 const ATTR = /\{((?:"[^"\n]*"|[^{}"]|"(?=[^"\n]*\}$))*)\}$/;
@@ -267,7 +267,7 @@ function layout(model, { width, lang, measure }) {
         const inner = plans.get(node)?.inner.length || 0;
         const pad = kind === 'box' ? Math.max(PAD, inner ? 16 + Math.min(inner, 4) * 6 + pass * 12 : 0) : 0;
         const top = kind === 'box' ? Math.max(36, data.band) + pad - PAD : 0;
-        const cell = items.length ? Math.max(72, ...items.map(item => Math.ceil(measure(item.label, FONT.title) + 30 + (item.icon ? 22 : 0)))) : 0;
+        const cell = items.length ? Math.max(...items.map(item => measureItem(item, measure))) : 0;
         plan = { w: Math.max(kind === 'box' ? 48 : 72, data?.minW || 0, 2 * pad + Math.max(cell, sum(mins) + sum(gx))), pad, top, cell, columns, gx, gy, mins, weights };
       }
       sizes.set(node, plan); return plan;
@@ -287,7 +287,7 @@ function layout(model, { width, lang, measure }) {
       const inner = w - 2 * pad;
       if (node.items.length) {
         const grid = itemGrid(node.items, cell, inner);
-        return { node, w, h: top + grid.rows * 44 + (grid.rows - 1) * ITEM_GAP + pad, grid, plan };
+        return { node, w, h: top + grid.rows * ITEM.h + (grid.rows - 1) * ITEM_GAP + pad, grid, plan };
       }
       const cols = !node.children.length ? [] : kind === 'grid' ? mins.map(() => Math.floor((inner - sum(gx)) / columns)) : distribute(mins, weights, inner - sum(gx));
       const children = node.children.map((child, i) => compose(child, cols[i % columns]));
@@ -310,13 +310,17 @@ function layout(model, { width, lang, measure }) {
       const { pad, top, gx, gy, columns } = plan;
       if (grid) {
         const left = x + Math.floor((w - grid.cw * grid.cols - ITEM_GAP * (grid.cols - 1)) / 2);
-        node.items.forEach((item, i) => nodes.push({ ...item, parent, id: `${id}/item-${i}`, x: left + i % grid.cols * (grid.cw + ITEM_GAP), y: y + top + Math.floor(i / grid.cols) * (44 + ITEM_GAP), w: grid.cw, h: 44 }));
+        node.items.forEach((item, i) => nodes.push({ ...item, parent, id: `${id}/item-${i}`, x: left + i % grid.cols * (grid.cw + ITEM_GAP), y: y + top + Math.floor(i / grid.cols) * (ITEM.h + ITEM_GAP), w: grid.cw, h: ITEM.h }));
       } else if (children.length) {
         const heights = distribute(rows, rows.map(() => 1), h - top - pad - sum(gy));
         const xs = offsets(cols, gx), ys = offsets(heights, gy);
+        // Cards share a row's height only with other cards; beside a taller group a card keeps its
+        // own height, centred, instead of becoming a tall empty box.
+        const mixed = new Set(children.filter(child => child.node.kind !== 'card').map(child => Math.floor(children.indexOf(child) / columns)));
         children.forEach((child, i) => {
           const c = i % columns, r = Math.floor(i / columns);
-          place(child, x + pad + xs[c], y + top + ys[r], heights[r], parent);
+          const own = kind !== 'col' && child.node.kind === 'card' && mixed.has(r);
+          place(child, x + pad + xs[c], y + top + ys[r] + (own ? (heights[r] - child.h) / 2 : 0), own ? child.h : heights[r], parent);
         });
       }
     }
@@ -346,21 +350,8 @@ function labelFits(rect, { width, height }) {
 
 function scene(g, ctx) {
   const look = boardLook(ctx), marks = markers(ctx);
-  const capabilities = g.nodes.map(node => {
-    const card = drawCard(ctx, { ...node, style: node.tone, titleLines: [node.label], descLines: [], x: node.x, w: node.w }, look);
-    // Legacy capability marks and icons are inline content, not endpoint badges.
-    const text = card.children.at(-1);
-    if (node.icon) {
-      text.attrs.x += 22;
-      card.children.splice(1, 0, iconGlyph(ctx, geometry(node.icon), node.x + 14, node.y + 22, look.muted));
-    }
-    if (node.mark) {
-      delete text.text;
-      text.children = [{ ...ctx.el('tspan', { fill: ctx.design[node.tone] }), text: node.mark }, { ...ctx.el('tspan'), text: ` ${node.name}` }];
-    }
-    card.meta = { kind: 'capability', label: node.name, container: node.parent.name, ...(node.mark ? { mark: node.mark } : {}) };
-    return card;
-  });
+  const capabilities = g.nodes.map(node => ({ ...drawItem(ctx, { ...node, icon: node.icon ? geometry(node.icon) : null }, look),
+    meta: { kind: 'capability', label: node.name, container: node.parent.name, ...(node.mark ? { mark: node.mark } : {}) } }));
   const paths = [], labels = [];
   for (const edge of g.edges) {
     const stroke = look.edge(edge.kind);

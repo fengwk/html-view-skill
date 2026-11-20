@@ -20,23 +20,35 @@ test('structure roles use hex colors and honor Cloud Music’s neutral frame ink
   assert.equal(colors.em, themes.cloudmusic.fg1);
 });
 
-// 六个连续源码行覆盖所有 tone，并检查实际序列化的容器与能力项色值。
-test('structure frame and node colors match blocks SVG', () => {
-  const source = 'blocks\n' + frameRoles.map((_, i) => `box Frame${i}: Node${i}`).join('\n');
+// 六层覆盖所有 tone：手写 SVG 用的结构色必须与 layers 实际序列化的分组框和能力项一致。
+// blocks 自 0.2.0 起使用中性虚线分组的看板外观，不再按 tone 轮换分组色。
+test('structure frame and node colors match layers SVG', () => {
+  const source = 'layers\n' + frameRoles.map((_, i) => `- Layer${i}\n  - Group${i}: Node${i}`).join('\n');
   for (const theme of ['claude', 'cloudmusic']) {
-    const { svg, diagnostics } = diagram(source, { syntax: 'blocks', theme });
+    const { svg, diagnostics } = diagram(source, { syntax: 'layers', theme });
     assert.deepEqual(diagnostics, []);
     const { colors } = structureRoles({ theme });
     const ctx = createContext({ theme });
-    const frames = [...svg.matchAll(/data-kc-kind="container"[^>]*><rect[^>]* fill="([^"]+)" stroke="([^"]+)"/g)];
-    const nodes = [...svg.matchAll(/data-kc-kind="capability"[^>]*><rect[^>]* fill="([^"]+)" stroke="([^"]+)"/g)];
+    const shapes = role => [...svg.matchAll(new RegExp(`<rect[^>]* fill="([^"]+)" stroke="([^"]+)"[^>]*data-kc-role="${role}"`, 'g'))];
+    const frames = shapes('group'), nodes = shapes('capability');
     assert.equal(frames.length, 6);
     assert.equal(nodes.length, 6);
     for (let i = 0; i < 6; i += 1) {
-      const k = (i + 2) % 6 + 1;
+      const k = i + 1;
       assert.deepEqual(frames[i].slice(1), [colors[`frame-${k}-fill`], colors[`frame-${k}`]]);
       const line = ctx.tint(ctx.design.bg, ctx.frameTone(ctx.color(`tone${k}`)), 0.40);
       assert.deepEqual(nodes[i].slice(1), [colors.node, k === 1 ? colors['node-line'] : line]);
     }
+  }
+});
+
+// 看板卡片与能力项沿用公开的节点底色，与手写 SVG 的 --viz-node 一致。
+test('board cards and capabilities use the public node fill', () => {
+  for (const theme of ['claude', 'cloudmusic', 'tokyo']) {
+    const { svg, diagnostics } = diagram('blocks\nrow\n  box Group: Item\n  card Card\n    Detail', { syntax: 'blocks', theme });
+    assert.deepEqual(diagnostics, []);
+    const { colors } = structureRoles({ theme });
+    const fills = [...svg.matchAll(/data-kc-kind="(?:capability|node)"[^>]*><rect[^>]* fill="([^"]+)"/g)].map(match => match[1]);
+    assert.deepEqual(fills, [colors.node, colors.node]);
   }
 });

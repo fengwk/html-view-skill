@@ -12,6 +12,7 @@ const FRAME = Object.freeze({ inset: 12, top: 10, line: 17, after: 8, text: 360,
 const NOTE = Object.freeze({ line: 18, font: FONT.label });
 const LEGEND = Object.freeze({ swatch: 22, gap: 6, item: 18, row: 22, font: FONT.label });
 const LABEL = Object.freeze({ text: 160, line: 16, padX: 6, padY: 2, font: FONT.label });
+const ITEM = Object.freeze({ h: 36, padX: 12, min: 72, gap: 8, font: FONT.body });
 const EDGE_KINDS = Object.freeze({ '->': 'plain', '=>': 'strong', '~>': 'dashed' });
 const ICON = Object.freeze({ size: 16, gap: 6 });
 const DASH = '5 4';
@@ -32,6 +33,11 @@ function measureCard({ title, desc = [], badge, tag }, measure) {
     h: CARD.padY * 2 + titleLines.length * CARD.title + (descLines.length ? CARD.gap + descLines.length * CARD.desc : 0),
     titleLines, descLines, badgeW, tagW,
   };
+}
+
+// A capability is a compact pill: one centred line with an optional icon and status mark (+ ~ =).
+function measureItem({ label, icon }, measure) {
+  return Math.max(ITEM.min, Math.ceil(measure(String(label), ITEM.font) + (icon ? ICON.size + ICON.gap : 0) + ITEM.padX * 2));
 }
 
 // A group title sits inside the top-left corner. `band` replaces the top padding of a titled group;
@@ -91,8 +97,13 @@ function boardLook(ctx) {
   const recessed = a.node === d.surface2 ? d.surface : d.surface2;
   const chip = color => { const fill = ctx.tint(bg, color, .14); return { fill, color: ink(color, fill) }; };
   return {
-    bg, radius: Math.min(a.radius, 10), fg: d.fg1, muted: d.fg3,
+    bg, radius: Math.min(a.radius, 10), smallRadius: Math.min(a.smallRadius, 8), fg: d.fg1, muted: d.fg3,
     tag: { fill: a.node, stroke: d.line2, color: ink(d.fg3, a.node) },
+    // Capability marks keep their status hue, like layers.
+    item(tone) {
+      const color = STATUS.has(tone) ? d[tone] : null;
+      return { fill: a.node, stroke: color ? ctx.mix(bg, color, .4) : neutral, mark: color ? ink(color, a.node) : d.fg1 };
+    },
     card(style) {
       if (style === 'ext') return { fill: recessed, stroke: neutral, dash: DASH, desc: ink(d.fg3, recessed), badge: chip(accent) };
       const color = hue(style);
@@ -166,6 +177,20 @@ function drawCard(ctx, card, look) {
     size: FONT.label.size, weight: FONT.label.weight, fill: s.desc, 'dominant-baseline': 'central',
   })));
   return { ...ctx.el('g', {}, parts), meta: { kind: 'node', id, ...(style ? { style } : {}) } };
+}
+
+// item: { x, y, w, h, label, name, mark?, tone?, icon? (resolved icon) }
+function drawItem(ctx, item, look) {
+  const { x, y, w, h, label, name, mark, tone, icon } = item, s = look.item(tone);
+  const lead = icon ? ICON.size + ICON.gap : 0, left = x + (w - lead - ctx.measure(label, ITEM.font.size, ITEM.font.weight)) / 2, cy = y + h / 2;
+  const parts = [ctx.rect(x, y, w, h, { rx: look.smallRadius, fill: s.fill, stroke: s.stroke, 'stroke-width': 1 })];
+  if (icon) parts.push(iconGlyph(ctx, icon, left, cy, look.muted));
+  const font = { size: ITEM.font.size, weight: ITEM.font.weight, fill: look.fg, 'dominant-baseline': 'central' };
+  parts.push(mark
+    ? ctx.el('text', { x: left + lead, y: cy, 'text-anchor': 'start', 'dominant-baseline': 'central', 'font-size': font.size, 'font-weight': font.weight, fill: look.fg },
+      [{ ...ctx.el('tspan', { fill: s.mark }), text: mark }, { ...ctx.el('tspan'), text: ` ${name}` }])
+    : ctx.text(left + lead, cy, label, font));
+  return ctx.el('g', {}, parts);
 }
 
 // note: { x, y, lines }
@@ -250,7 +275,7 @@ function drawLegend(ctx, legend, look, marks) {
 }
 
 export {
-  STYLES, CARD, CHIP, FRAME, NOTE, LEGEND, LABEL, ICON, EDGE_KINDS,
-  measureCard, frameTitle, titleRect, measureNote, measureLabel, measureLegend,
-  boardLook, markers, surfaceAt, iconGlyph, drawFrame, drawCard, drawNote, drawEdge, drawLabel, drawLegend,
+  STYLES, CARD, CHIP, FRAME, NOTE, LEGEND, LABEL, ITEM, ICON, EDGE_KINDS,
+  measureCard, measureItem, frameTitle, titleRect, measureNote, measureLabel, measureLegend,
+  boardLook, markers, surfaceAt, iconGlyph, drawFrame, drawCard, drawItem, drawNote, drawEdge, drawLabel, drawLegend,
 };
