@@ -231,11 +231,16 @@
       "architecture-beta": {
         "topic": "architecture"
       },
-      "block-beta": {
-        "topic": "architecture"
-      },
       "zenuml": {
         "topic": "sequence"
+      }
+    }
+  },
+  "diagram/block": {
+    "diagrams": {
+      "block": {
+        "aliases": ["block-beta"],
+        "topic": "architecture"
       }
     }
   },
