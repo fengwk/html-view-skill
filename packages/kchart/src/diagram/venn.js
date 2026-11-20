@@ -503,11 +503,19 @@ function layoutBlock(region) {
   }));
 }
 
-function planRings(model, { measure, width, lang }) {
-  const available = Math.max(240, width - MARGIN * 2);
+function planRings(model, { measure, width, lang, compact }) {
+  const available = compact ? 560 : Math.max(240, width - MARGIN * 2);
   const preferred = canonicalSpread(model.sets, 1);
   const unit = boundsOf(ringsAt(model.sets, 1, preferred));
-  let R = Math.max(56, Math.min(available / Math.max(1, unit.w), PLOT_H / Math.max(1, unit.h)));
+  const maxLabel = Math.max(0, ...[
+    ...model.sets.map((set) => set.label || set.id), ...model.unions.map((union) => union.label),
+    ...model.texts.map((text) => text.label),
+  ].map((label) => measure(label, SET_FONT)));
+  const preferredPlotWidth = Math.min(520, 260 + Math.min(100, (model.unions.length + model.texts.length) * 8)
+    + Math.min(80, Math.max(0, model.sets.length - 2) * 30) + Math.min(80, maxLabel * 0.25));
+  let R = compact
+    ? Math.max(56, Math.min(preferredPlotWidth / Math.max(1, unit.w), 320 / Math.max(1, unit.h)))
+    : Math.max(56, Math.min(available / Math.max(1, unit.w), PLOT_H / Math.max(1, unit.h)));
   const regions = regionList(ringsAt(model.sets, R, preferred), model);
   let chosen = null;
   // Growing the radius scales every clearance, so a few passes make room; the scene widens, never the text.
@@ -548,14 +556,14 @@ function planRings(model, { measure, width, lang }) {
   }
   const drawn = regions.filter((region) => region.block.h > 0 && region.block.room >= 0);
   for (const region of drawn) layoutBlock(region);
-  return finish({ mode: 'rings', rings, regions: drawn, plot: boundsOf(rings), rows: drawn.flatMap((region) => region.rows), shelf, notes }, model, { measure, width });
+  return finish({ mode: 'rings', rings, regions: drawn, plot: boundsOf(rings), rows: drawn.flatMap((region) => region.rows), shelf, notes }, model, { measure, width, compact });
 }
 
 // --- region grid (four or more sets) ------------------------------------------------------------
 
 // Beyond three rings the readable overlap regions disappear: one tinted panel per set plus one per declared
 // union keeps every set, union and text node visible without pretending the overlaps are circles.
-function planGrid(model, { measure, width, lang }) {
+function planGrid(model, { measure, width, lang, compact }) {
   const groups = new Map();
   for (const text of model.texts) {
     const list = groups.get(text.key) || [];
@@ -607,10 +615,10 @@ function planGrid(model, { measure, width, lang }) {
       + (panel.itemLines.length ? 6 + panel.itemLines.length * ITEM_LINE : 0);
   }
   const cellW = Math.max(...panels.map((panel) => panel.w));
-  const available = Math.max(240, width - MARGIN * 2);
+  const available = compact ? 520 : Math.max(240, width - MARGIN * 2);
   let cols = Math.min(GRID_COLS, panels.length);
   // Columns only shrink when the panels cannot be read side by side even at twice the frame width.
-  while (cols > 1 && cols * cellW + (cols - 1) * GRID_GAP > available * 2) cols -= 1;
+  if (!compact) while (cols > 1 && cols * cellW + (cols - 1) * GRID_GAP > available * 2) cols -= 1;
   const rowCount = Math.ceil(panels.length / cols);
   const rowHeights = [];
   panels.forEach((panel, index) => {
@@ -642,15 +650,15 @@ function planGrid(model, { measure, width, lang }) {
     `${model.sets.length} sets would leave unreadable overlaps; drawn as a region grid instead`,
     '集合减到 3 个可获得圆环布局，或接受分区面板', 'Keep three sets for rings, or accept the region grid')];
   const plot = { x: 0, y: 0, w: cols * cellW + (cols - 1) * GRID_GAP, h: cursor - GRID_GAP };
-  return finish({ mode: 'grid', panels, plot, rows: panels.flatMap((panel) => panel.rows), shelf: [], notes }, model, { measure, width });
+  return finish({ mode: 'grid', panels, plot, rows: panels.flatMap((panel) => panel.rows), shelf: [], notes }, model, { measure, width, compact });
 }
 
 // --- shared plan finishing ----------------------------------------------------------------------
 
 // Adds the title, stacks the shelf under the plot and shifts everything into the margin box.
-function finish(plan, model, { measure, width }) {
+function finish(plan, model, { measure, width, compact }) {
   const titleLines = model.title
-    ? wrapText(model.title, Math.max(160, Math.min(width - MARGIN * 2, 480)), TITLE_FONT, (piece, spec) => measure(piece, spec))
+    ? wrapText(model.title, compact ? 480 : Math.max(160, Math.min(width - MARGIN * 2, 480)), TITLE_FONT, (piece, spec) => measure(piece, spec))
     : [];
   const titleH = titleLines.length ? titleLines.length * TITLE_LINE + TITLE_GAP : 0;
   const shelf = [];
@@ -717,10 +725,11 @@ function layout(model, options = {}) {
   const measure = options.measure || fallbackMeasure;
   const width = Math.max(1, Number(options.width) || 800);
   const lang = options.lang || 'zh';
+  const compact = options.compact === true;
   if (!model.sets.length) return { width, height: 0, errors: [] };
   const plan = model.sets.length <= RING_MAX
-    ? planRings(model, { measure, width, lang })
-    : planGrid(model, { measure, width, lang });
+    ? planRings(model, { measure, width, lang, compact })
+    : planGrid(model, { measure, width, lang, compact });
   const errors = [...plan.notes];
   const parts = model.sets.length + model.unions.length + model.texts.length;
   if (parts > PARTS_HINT) {

@@ -213,8 +213,9 @@ const arrowhead = (ctx, a, b, fill) => {
   return ctx.path(`M${b.x} ${b.y} L${p.x + dx * .48} ${p.y + dy * .48} L${p.x - dx * .48} ${p.y - dy * .48} Z`, { fill });
 };
 
-function layout(model, { width, lang, ctx }, info = {}) {
+function layout(model, { width, lang, ctx, compact = false }, info = {}) {
   const t = appearance(ctx), edge = ctx.color('muted'), grid = ctx.color('grid'), axis = t.fg4;
+  const titleFont = compact ? { ...FONT.title, size: 13 } : FONT.title;
   const config = mapConfig(info.config, 'wardley');
   const pad = 48;
   const stageParts = model.stages.map(stage => [{ text: stage.name + (stage.secondName !== null ? ' /' : ''), icons: [stage.icon].filter(Boolean) },
@@ -226,17 +227,19 @@ function layout(model, { width, lang, ctx }, info = {}) {
   const bandFraction = i => fractions[i] - (fractions[i - 1] || 0);
   const stageWidth = Math.max(...stageParts.map((rows, i) => (Math.max(...rows.map(stageInkWidth)) + 22) / bandFraction(i)));
   const dimension = (value, fallback) => typeof value === 'number' && Number.isFinite(value) ? Math.max(0, Math.min(16000, value)) : fallback;
-  const W = Math.max(2 * pad + stageWidth, 420, dimension(model.size?.width ?? mapConfig(config, 'width'), 900));
+  const compactWidth = Math.max(2 * pad + stageWidth, Math.min(720, 540 + model.nodes.length * 4 + model.links.length * 2));
+  const W = compact ? compactWidth : Math.max(2 * pad + stageWidth, 420, dimension(model.size?.width ?? mapConfig(config, 'width'), 900));
   const right = W - pad, plotW = right - pad;
   const stages = stageParts.map((parts, i) => {
     if (parts.length !== 2 || model.stages[i].secondName === null || [model.stages[i].name, model.stages[i].secondName].some(text => text.includes('\n'))) return parts;
     const together = { text: parts.map(part => part.text).join(' '), icons: parts.flatMap(part => part.icons) };
     return stageInkWidth(together) + 22 <= plotW * bandFraction(i) ? [together] : parts;
   });
-  const titleRows = model.title || model.titleIcon ? ctx.wrap(model.title, plotW - iconGap(model.titleIcon), FONT.title.size, FONT.title.weight) : [];
+  const titleRows = model.title || model.titleIcon ? ctx.wrap(model.title, plotW - iconGap(model.titleIcon), titleFont.size, titleFont.weight) : [];
   const top = 48 + Math.max(0, titleRows.length - 1) * 16;
   const stagesExtra = Math.max(0, ...stages.map(rows => rows.length - 2)) * 16;
-  const H = Math.max(top + 212 + stagesExtra, dimension(model.size?.height ?? mapConfig(config, 'height'), 600));
+  const compactHeight = Math.max(top + 212 + stagesExtra, Math.min(540, 400 + model.nodes.length * 2 + model.links.length));
+  const H = compact ? compactHeight : Math.max(top + 212 + stagesExtra, dimension(model.size?.height ?? mapConfig(config, 'height'), 600));
   const bottom = H - 86 - stagesExtra, plotH = bottom - top;
   const project = ({ evolution, visibility }) => ({ x: pad + plotW * evolution / 100, y: bottom - plotH * visibility / 100 });
   const nodes = new Map(model.nodes.map(node => [node.id, { ...node, ...project(node), r: node.strategy ? 10 : 5 }]));
@@ -321,7 +324,21 @@ function layout(model, { width, lang, ctx }, info = {}) {
       return b.x > 31 && b.x + b.w < W - 8 && b.y > top - 20 && b.y + b.h < bottom + 9 &&
         !obstacles.some(o => collides(b, o)) && !occupied.some(o => collides(b, o)) && !wires.some(([a, z]) => crosses(a, z, b));
     };
-    let chosen = fixed || candidates.find(fits);
+    // API-compact maps can bring authored labels onto nearby nodes; preserve the fixed point when clear,
+    // otherwise nudge only as far as needed to clear node and label boxes.
+    const compactFixed = fixed && compact && (() => {
+      const offsets = [[0,0], [0,-1], [1,0], [-1,0], [0,1], [1,-1], [-1,-1], [1,1], [-1,1]];
+      const alternatives = [fixed];
+      for (const distance of [12, 24, 36, 52, 72]) {
+        for (const [dx, dy] of offsets.slice(1)) alternatives.push({ x: fixed.x + dx * distance, y: fixed.y + dy * distance });
+      }
+      return alternatives.find(({ x, y }) => {
+        const b = grow(centerBox(x, y, w, h), clearance);
+        return b.x > 31 && b.x + b.w < W - 8 && b.y > top - 20 && b.y + b.h < bottom + 9 &&
+          !obstacles.some(o => collides(b, o)) && !occupied.some(o => collides(b, o));
+      });
+    })();
+    let chosen = compactFixed || fixed || candidates.find(fits);
     const leader = !fixed && chosen && leaderFor(chosen);
     if (leader) addLeader(...leader);
     if (!chosen) {
@@ -373,7 +390,7 @@ function layout(model, { width, lang, ctx }, info = {}) {
     const b = { x: project({ evolution: targetEvolution, visibility: a.visibility }).x, y: a.y };
     connect(a, b, {}, true);
   }
-  if (titleRows.length) guides.push(caption(W / 2, 23 + (titleRows.length - 1) * 8, titleRows, model.titleIcon, FONT.title));
+  if (titleRows.length) guides.push(caption(W / 2, 23 + (titleRows.length - 1) * 8, titleRows, model.titleIcon, titleFont));
   guides.push(ctx.line(pad, top, pad, bottom, stroke(axis)), ctx.line(pad, bottom, right, bottom, stroke(axis)));
   const axisMiddle = (top + bottom) / 2;
   guides.push(ctx.el('g', { transform: `rotate(-90 18 ${axisMiddle})` }, [label(18, axisMiddle, [word(lang, 'visibility')], bold, t.fg2)]));

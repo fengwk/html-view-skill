@@ -8,7 +8,7 @@
 import { error, warning } from './support.js';
 import { numericLabel, renderWith, validateWith } from './numeric-model.js';
 import { presentation } from './presentation.js';
-import { sankeyPresentation } from '../chart/relations.js';
+import { sankeyCompact, sankeyPresentation } from '../chart/relations.js';
 import { createRegistry, layouts as chartLayouts } from '../chart/registry.js';
 import { sizeBudget, validate as validateSpec } from '../chart/spec.js';
 
@@ -60,7 +60,7 @@ const UNSUPPORTED_CONFIG = [
   ['nodeAlignment', 'KChart 自动做交叉最少化排序，不接受 nodeAlignment', 'KChart orders nodes by crossing minimisation instead of nodeAlignment'],
   ['nodeWidth', 'KChart 节点厚度固定为 18px', 'KChart fixes node thickness at 18px'],
   ['nodePadding', 'KChart 按实测标签计算节点间距', 'KChart derives node spacing from measured labels'],
-  ['labelStyle', 'KChart 的桑基标签已带描边衬底', 'KChart sankey labels already sit on an outlined plate'],
+  ['labelStyle', 'KChart 不支持 Mermaid labelStyle', 'KChart does not support Mermaid labelStyle'],
   ['nodeColors', '颜色由主题 tone 决定，忽略 nodeColors', 'Colors come from theme tones; nodeColors is ignored'],
   ['width', '场景宽度取调用方给出的宽度，忽略 width', 'The scene takes the caller width; the width option is ignored'],
   ['height', '场景高度按节点和标签推算，忽略 height', 'The scene height follows nodes and labels; the height option is ignored'],
@@ -121,11 +121,12 @@ function unitOf(info) {
   return /^[\p{L}\p{Sc}%‰°]*\p{Sc}?[\p{L}\p{Sc}%‰°]*$/u.test(`${pre}${post}`) && `${pre}${post}` ? `${pre}${post}` : undefined;
 }
 
-function toSpec(model) {
+function toSpec(model, compact = false) {
   return {
     chart: 'sankey',
     tolerant: true,
     [sankeyPresentation]: true,
+    ...(compact ? { [sankeyCompact]: true } : {}),
     // parseSankey enforces the Mermaid caps with its own diagnostics; the native chart keeps its smaller default budget.
     [sizeBudget]: { nodes: MAX_NODES, edges: MAX_EDGES },
     data: { nodes: model.nodes, edges: model.edges.map(({ line, ...edge }) => edge) },
@@ -179,7 +180,7 @@ function validate(model, info) {
 const sankeyRegistry = createRegistry(validateSpec);
 sankeyRegistry.register('sankey', chartLayouts.get('sankey'));
 const layout = (model, options, info) => {
-  const result = renderWith(toSpec(model), options, info, detail => lineFor(model, detail), sankeyRegistry.layout);
+  const result = renderWith(toSpec(model, options.compact === true), options, info, detail => lineFor(model, detail), sankeyRegistry.layout);
   if (result.scene && (result.width > options.width * 2 || model.nodes.length > LARGE_NODES || model.edges.length > LARGE_EDGES)) {
     result.errors.push(warning('LARGE_DIAGRAM', info.lang, info.headerLine,
       '桑基图较大，可滚动查看', 'Large Sankey diagram; scroll to view it', '考虑拆分图表', 'Consider splitting the diagram'));

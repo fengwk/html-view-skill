@@ -23,7 +23,7 @@ const info = (kind, firstLine = 3, options = {}) => ({ kind, syntax: 'mermaid', 
 const layout = (kind, parsed, sourceInfo = info(kind), renderOptions = {}) => {
   const ctx = createContext(renderOptions);
   const measure = (text, { size = 12, weight = 400 } = {}) => ctx.measure(text, size, weight);
-  return implementations[kind].layout(parsed.model, { width: renderOptions.width || 640, lang: sourceInfo.lang, measure, ctx, renderOptions }, sourceInfo);
+  return implementations[kind].layout(parsed.model, { width: renderOptions.width || 640, lang: sourceInfo.lang, measure, ctx, renderOptions, compact: renderOptions.compact === true }, sourceInfo);
 };
 const svgFor = (laid, renderOptions = {}) => renderScene(laid.scene, renderOptions);
 
@@ -289,6 +289,11 @@ test('sankey CSV and nonconserving flow', () => {
   const laid = layout('sankey', parsed, cfg);
   assert.deepEqual(laid.errors, []);
   assert.match(svgFor(laid), />a&quot;b<\/text>/);
+  // Check the actual Mermaid node labels so removing labels cannot pass the halo regression.
+  const walk = parts => parts.flatMap(part => [part, ...walk(part.children || [])]);
+  const labels = walk(laid.scene.children).filter(part => part.meta?.kind === 'label');
+  assert.equal(labels.length, 4);
+  assert.ok(labels.every(part => part.attrs.stroke === undefined), 'Mermaid node text has no background halo');
   assert.equal(implementations.sankey.parse('A,B,1\nB,C', cfg).errors[0].line, cfg.firstLine + 1);
 });
 
@@ -342,5 +347,31 @@ test('radar repeated axes, named values and plot options', () => {
     const low = implementations['radar-beta'].parse(`${body}\nticks ${ticks}`, cfg);
     assert.equal(low.model.rings, Math.max(2, ticks));
     assert.equal(low.errors.length, ticks === 1 ? 3 : 2);
+  }
+});
+
+// Compact numeric layouts are host-width independent and grow with each family's data dimension.
+test('compact numeric families size from data, not host width', () => {
+  const fixtures = {
+    pie: [n => Array.from({ length: n }, (_, i) => `Item ${i} : ${i + 1}`).join('\n'), 2, 5],
+    xychart: [n => `x-axis [${Array.from({ length: n }, (_, i) => `C${i}`).join(', ')}]\nbar [${Array.from({ length: n }, (_, i) => i + 1).join(', ')}]`, 2, 7],
+    sankey: [n => Array.from({ length: n }, (_, i) => `N${i},N${i + 1},1`).join('\n'), 2, 6],
+    'radar-beta': [n => `axis ${Array.from({ length: n }, (_, i) => `A${i}`).join(', ')}\ncurve R{${Array.from({ length: n }, () => 1).join(', ')}}`, 3, 9],
+    treemap: [n => `Root\n${Array.from({ length: n }, (_, i) => `  Item ${i} : ${i + 1}`).join('\n')}`, 1, 7],
+  };
+  for (const [kind, [sourceOf, smallN, largeN]] of Object.entries(fixtures)) {
+    const render = (count, width) => {
+      const source = sourceOf(count), sourceInfo = info(kind);
+      const parsed = implementations[kind].parse(source, sourceInfo);
+      assert.deepEqual(parsed.errors, [], `${kind} ${count}`);
+      const laid = layout(kind, parsed, sourceInfo, { width, compact: true });
+      assert.deepEqual(laid.errors, [], `${kind} compact ${count}`);
+      assert.deepEqual(checkScene(laid.scene, { source }), [], `${kind} geometry ${count}`);
+      return laid;
+    };
+    const sizes = [720, 1200, 1800].map(width => render(smallN, width));
+    assert.equal(new Set(sizes.map(result => `${result.width}x${result.height}`)).size, 1, `${kind} host independence`);
+    const larger = render(largeN, 1200);
+    assert.ok(larger.width > sizes[0].width || larger.height > sizes[0].height, `${kind} grows with data`);
   }
 });

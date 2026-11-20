@@ -232,13 +232,15 @@ function compactRows(items, { bounds, caption, markerXs, left, width }) {
   return rows;
 }
 
-function layout(model, { width, ctx, measure, renderOptions }) {
+function layout(model, { width, ctx, measure, renderOptions, compact: compactOption }) {
   const { design: d, lang } = ctx, { items, sections, today } = model;
+  const compact = compactOption === true;
+  const compactRowsMode = model.compact || compact;
   const errors = [], children = [], title = model.title, naked = !renderOptions?.frame && title;
-  const body = FONT.body, small = FONT.label, bold = { ...body, weight: 600 };
+  const body = FONT.body, small = FONT.label, titleFont = compact ? { ...FONT.title, size: 13 } : FONT.title, bold = { ...body, weight: 600 };
   const texts = value => value.split('\n');
   const states = item => item.flags.map(flag => flags[flag][isEn(lang) ? 1 : 0]).join(' · ');
-  const labelW = Math.max(model.compact ? 32 : 120, ...(model.compact ? [] : items.flatMap(item => [maxWidthOf(texts(item.name), body, measure) + iconSlot(item.icon), measure(states(item), small)])),
+  const labelW = Math.max(compactRowsMode ? 32 : 120, ...(compactRowsMode ? [] : items.flatMap(item => [maxWidthOf(texts(item.name), body, measure) + iconSlot(item.icon), measure(states(item), small)])),
     ...sections.map(s => maxWidthOf(texts(s.name), bold, measure) + iconSlot(s.icon)));
   const addShape = (tag, attrs, meta, link) => {
     const mark = { ...ctx.el(tag, attrs), ...(meta ? { meta } : {}) };
@@ -266,7 +268,9 @@ function layout(model, { width, ctx, measure, renderOptions }) {
     const label = model.axis(stamp);
     if (!seen.has(label)) { seen.add(label); tickList.push({ stamp, label, w: measure(label, small) }); }
   });
-  let plot = Math.max(228, width - left - 60);
+  let plot = compact
+    ? Math.max(220, Math.min(560, 220 + Math.ceil((end - min) / (30 * DAY)) * 14))
+    : Math.max(228, width - left - 60);
   const ratio = stamp => (stamp - min) / (max - min);
   // Prefer widening before suppressing tightly clustered labels from a custom interval.
   for (let i = 1; i < tickList.length; i++) {
@@ -276,7 +280,7 @@ function layout(model, { width, ctx, measure, renderOptions }) {
   const x = stamp => left + ratio(stamp) * plot;
   const range = (w, stamp) => ({ x: x(stamp), left: x(stamp) - w / 2, right: x(stamp) + w / 2 });
   const right = Math.max(30, ...tickList.map(t => t.w / 2 + 14));
-  let w = Math.max(width, Math.ceil(left + plot + right));
+  let w = compact ? Math.ceil(left + plot + right) : Math.max(width, Math.ceil(left + plot + right));
   const markers = items.filter(item => item.flags.includes('vert'));
   const showToday = valid(today) && items.length && today >= min && today <= end;
   const markerStamp = marker => marker.today ? today : marker.startTime + (marker.endTime - marker.startTime) / 2;
@@ -284,8 +288,8 @@ function layout(model, { width, ctx, measure, renderOptions }) {
   const markBounds = item => item.flags.includes('milestone') ?
     [x(markerStamp(item)) - 9, x(markerStamp(item)) + 9] :
     [x(item.startTime), Math.max(x(item.startTime) + 4, x(item.endTime))];
-  const compact = new Map();
-  if (model.compact) for (const section of sections) {
+  const compactBySection = new Map();
+  if (compactRowsMode) for (const section of sections) {
     const rows = compactRows(section.items.filter(item => !item.flags.includes('vert')), {
       bounds: markBounds, markerXs, left: left - 10, width: w,
       caption: item => {
@@ -293,12 +297,12 @@ function layout(model, { width, ctx, measure, renderOptions }) {
         return { names, state, w: Math.max(maxWidthOf(names, body, measure) + iconSlot(item.icon), measure(state, small)) };
       },
     });
-    compact.set(section, rows);
+    compactBySection.set(section, rows);
     for (const row of rows) for (const entry of row) w = Math.max(w, Math.ceil(entry.hi + 14));
   }
-  const titleLines = naked ? wrapText(title, w - 48 - iconSlot(model.titleIcon), FONT.title, measure) : [];
+  const titleLines = naked ? wrapText(title, w - 48 - iconSlot(model.titleIcon), titleFont, measure) : [];
   if (titleLines.length) drawIcon(model.titleIcon, 24, 24);
-  titleLines.forEach((value, i) => text(value, 24 + iconSlot(model.titleIcon), 24 + i * 20, FONT.title));
+  titleLines.forEach((value, i) => text(value, 24 + iconSlot(model.titleIcon), 24 + i * 20, titleFont));
   let y = titleLines.length ? 24 + titleLines.length * 20 : 24;
   if (model.topAxis) y += 22;
   const markerY = y, markerInfo = [];
@@ -318,8 +322,8 @@ function layout(model, { width, ctx, measure, renderOptions }) {
     if (!section.name && !section.icon && !section.items.length) continue;
     const top = y, names = section.name || section.icon ? texts(section.name) : [];
     if (names.length) y += 14 + 18 * names.length;
-    if (model.compact) {
-      for (const row of compact.get(section)) {
+    if (compactRowsMode) {
+      for (const row of compactBySection.get(section)) {
         const rowH = Math.max(48, ...row.map(({ label, inside }) => inside && label.state ? 58 : (label.names.length + Number(Boolean(label.state))) * 18 + 20));
         for (const entry of row) {
           const middle = y + rowH / 2;
@@ -366,7 +370,7 @@ function layout(model, { width, ctx, measure, renderOptions }) {
     if (marker.link) children.push(ctx.link(marker.link.href, parts, marker.link));
     else children.push(...parts);
     const markerX = x(stamp);
-    if (!model.compact) line(markerX, top, bottom, color, true);
+    if (!compactRowsMode) line(markerX, top, bottom, color, true);
     else {
       const gaps = bars.filter(({ caption }) => markerX > caption.x - 3 && markerX < caption.x + caption.label.w + 3);
       let from = top;
