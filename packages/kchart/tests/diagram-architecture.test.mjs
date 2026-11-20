@@ -1,6 +1,6 @@
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
-import { check, diagram, diagramTypes } from '../dist/esm/node.js';
+import { check, diagram, diagramTypes, registerIcons, theme } from '../dist/esm/node.js';
 import { implementations } from '../src/diagram/architecture.js';
 import { checkScene } from './helpers/geometry.mjs';
 
@@ -102,9 +102,56 @@ test('unknown icon names produce a nonblocking warning', () => {
   assert.equal(flatten(scene).filter(n => n.tag === 'path').length, 0);
 });
 
-// Pack-qualified icons are deferred to the shared registration phase.
-test('iconify references are not silently accepted before integration', () => {
-  assert.ok(check(header + 'service a(logos:kubernetes)[K]').some(d => d.severity === 'error' && d.line === 2));
+// Exact host-registered packs and shared aliases render real geometry, unknown packs warn without a placeholder.
+test('resolves Iconify and label icon references', () => {
+  registerIcons({ prefix: 'architecture-test', icons: { service: { body: '<path d="M2 2 L14 14" />' } } });
+  const body = 'service a(architecture-test:service)[Registered]\nservice b(mdi:web)[Alias]\nservice c[<b>fa:fa-house Home</b> #35;1]\nservice d[Suffix]::icon(tabler:cloud)\nservice e(logos:no-such-architecture-icon)[Missing]';
+  const { scene, diagnostics } = diagram(header + body);
+  assert.ok(scene);
+  assert.deepEqual(diagnostics.map(d => [d.code, d.severity, d.line]), [['IGNORED_ASSET', 'warning', 6]]);
+  assert.deepEqual(checkScene(scene), []);
+  const shapes = flatten(scene);
+  assert.equal(shapes.filter(n => n.attrs?.transform?.includes('scale(')).length, 4);
+  assert.ok(shapes.some(n => n.tag === 'path' && n.attrs.d === 'M2 2 L14 14'));
+  assert.ok(shapes.some(n => n.text === 'Home #1'));
+});
+
+// Shared presentation maps node/edge style to theme roles and emits only safe links.
+test('honors classes, linkStyle and safe links', () => {
+  const body = `service a(server)[A]:::danger
+service b[Safe]
+classDef special fill:#31f
+class b special
+a:R --> L:b
+linkStyle 0 stroke:#f00
+click a href "https://example.com" "Details" _blank
+click b href "javascript:void(0)"`;
+  const result = diagram(header + body);
+  assert.ok(result.svg);
+  assert.deepEqual(checkScene(result.scene), []);
+  assert.deepEqual(result.diagnostics.map(d => d.code), ['IGNORED_INTERACTION']);
+  const nodes = flatten(result.scene), design = theme('claude');
+  assert.equal(nodes.find(n => n.meta?.id === 'a').attrs.stroke, design.danger);
+  assert.equal(nodes.find(n => n.meta?.kind === 'edge').attrs.stroke, design.danger);
+  assert.notEqual(nodes.find(n => n.meta?.id === 'a').attrs.stroke, nodes.find(n => n.meta?.id === 'b').attrs.stroke);
+  assert.match(result.svg, /<a [^>]*href="https:\/\/example.com"[^>]*rel="noopener noreferrer"/);
+  assert.doesNotMatch(result.svg, /javascript:/);
+});
+
+// Front matter and init merge in order while unsupported fCoSE knobs warn and accessibility metadata survives.
+test('honors architecture dimensions and shared accessibility', () => {
+  const source = '---\nconfig:\n  architecture:\n    iconSize: 90\n    padding: 24\n    seed: 3\n---\n%%{init: {"architecture":{"fontSize":18}}}%%\narchitecture\naccTitle: Accessible\naccDescr: Network\ngroup g[Group]\nservice a(server)[Readable] in g';
+  const result = diagram(source, { lang: 'en' });
+  assert.ok(result.svg, JSON.stringify(result.diagnostics));
+  assert.deepEqual(checkScene(result.scene), []);
+  assert.equal(result.scene.title, 'Accessible');
+  assert.equal(result.scene.description, 'Network');
+  assert.deepEqual(result.diagnostics.map(d => d.code), ['IGNORED_CONFIG']);
+  assert.match(result.diagnostics[0].message, /architecture\.seed/);
+  const nodes = flatten(result.scene), card = nodes.find(n => n.meta?.kind === 'node'), frame = nodes.find(n => n.meta?.kind === 'frame');
+  assert.ok(card.attrs.width >= 90);
+  assert.equal(card.attrs.x - frame.attrs.x, 24);
+  assert.equal(nodes.find(n => n.text === 'Readable').attrs['font-size'], 18);
 });
 
 // Ports on a horizontal chain remain monotone across group boundaries, with labels inside the service cards.
