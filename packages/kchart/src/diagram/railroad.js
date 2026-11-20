@@ -180,7 +180,7 @@ function layout(model, { width, ctx, measure, lang, renderOptions }, info) {
     y = baseline + t.down + gap + 14;
   }
   const errors = natural > 2 * width || model.count > 60 ? [warning('LARGE_DIAGRAM', lang, info.headerLine,
-    '语法图较大，可在图框中滚动', 'Large grammar; scroll inside the frame', '考虑拆分规则', 'Consider splitting the rules')] : [];
+    '语法图较大，可在图框中滚动', 'Large syntax diagram; scroll inside the frame', '将完整规则分到多张图；把过长的表达式提取为命名规则', 'Split whole rules across diagrams; extract long expressions into named rules')] : [];
   return { scene: { width: natural, height: model.rules.length ? y - gap - 14 + pad : 100,
     children: [...edges, ...chips, ...text], title: info.accTitle || model.accTitle || model.title, heading: model.title,
     description: info.accDescr || model.accDescr }, errors };
