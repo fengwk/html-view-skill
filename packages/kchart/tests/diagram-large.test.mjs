@@ -21,6 +21,17 @@ test.each([
   assert.deepEqual(checkScene(scene, { source }), []);
 });
 
+// Size alone misses these routing risks: exhausted ER ports and expanded Sankey channels.
+test.each([['er-hub', 40, /6 relations per entity/], ['sankey-span', 250, /1000 flow segments/]])(
+  '%s rejects work beyond its routing budget', (family, size, cap) => {
+    const { diagnostics, svg } = diagram(families[family][1](size), { lang: 'en', width: 800 });
+    assert.equal(svg, null);
+    assert.equal(diagnostics[0].severity, 'error');
+    assert.match(diagnostics[0].message, cap);
+    assert.match(diagnostics[0].fix, /split/i);
+  },
+);
+
 // The default text cap applies to Mermaid only and has actionable localized diagnostics.
 test.each([['en', /50,000/, /split/i], ['zh', /50000/, /拆分/]])('source cap in %s', (lang, cap, split) => {
   const result = diagram(`flowchart\n%% ${'x'.repeat(50000)}\nA`, { lang });

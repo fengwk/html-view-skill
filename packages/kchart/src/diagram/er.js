@@ -202,6 +202,19 @@ function parseEr(body, info = {}) {
     edge.toFrame = groups.has(edge.to);
     edge.status = look.edgeStatusOf(edge.seq);
   }
+  // Preserve established small layouts. In larger models more than six links
+  // on one entity exhaust the existing router's independent port tracks.
+  if (model.nodes.length > 30 || model.edges.length > 50) {
+    const degree = new Map();
+    const limit = 6;
+    for (const edge of model.edges) {
+      for (const id of new Set([edge.from, edge.to])) degree.set(id, (degree.get(id) ?? 0) + 1);
+      if (degree.get(edge.from) <= limit && degree.get(edge.to) <= limit) continue;
+      errors.push(error(lang, edge.line, `大型 ER 图每个实体最多连接 ${limit} 条关系`,
+        `Large ER diagrams support at most ${limit} relations per entity`, '请按关系拆分 ER 图', 'Split the ER diagram by relationship'));
+      break;
+    }
+  }
   errors.push(...look.diagnostics(), ...assets.values());
   const parentOf = id => (groups.get(id) ?? entities.get(id))?.parent;
   const inside = (id, group) => {

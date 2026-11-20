@@ -98,9 +98,6 @@ function parseSankey(source, info) {
   if (!rows.length && !errors.length) errors.push(issue(info, info.firstLine, 'sankey 至少需要一条有效流量 CSV 记录', 'Sankey needs at least one valid CSV flow record'));
   if (nodes.length > MAX_NODES) errors.push(issue(info, info.firstLine, `sankey 超过安全上限 ${MAX_NODES} 个节点（当前 ${nodes.length}）`, `Sankey exceeds the safety cap of ${MAX_NODES} nodes (got ${nodes.length})`, '拆分图表后重试', 'Split the diagram and try again'));
   if (rows.length > MAX_EDGES) errors.push(issue(info, info.firstLine, `sankey 超过 Mermaid maxEdges 安全上限 ${MAX_EDGES} 条流量（当前 ${rows.length}）`, `Sankey exceeds the Mermaid maxEdges safety cap of ${MAX_EDGES} flows (got ${rows.length})`, '拆分图表后重试', 'Split the diagram and try again'));
-  if (nodes.length > LARGE_NODES || rows.length > LARGE_EDGES) errors.push(warning('LARGE_DIAGRAM', info.lang, info.firstLine,
-    `sankey 较大（${nodes.length} 个节点、${rows.length} 条流量），建议拆分`, `Large sankey (${nodes.length} nodes, ${rows.length} flows); consider splitting`,
-    '拆分 sankey 以便阅读', 'Split the sankey for readability'));
   const showValues = configFlag(configValue(info.config, 'sankey'), 'showValues') ?? true;
   return {
     model: {
@@ -150,7 +147,33 @@ function lineFor(model, detail) {
   return model.edges[0]?.line;
 }
 
-const validate = (model, info) => validateWith(toSpec(model), info, detail => lineFor(model, detail));
+function validate(model, info) {
+  const errors = validateWith(toSpec(model), info, detail => lineFor(model, detail));
+  if (errors.length || (model.nodes.length <= LARGE_NODES && model.edges.length <= LARGE_EDGES)) return errors;
+  // The chart reserves a routing channel at every intermediate stage. Bound
+  // that expanded graph, not just the number of authored CSV rows.
+  const indegree = new Map(model.nodes.map(node => [node.id, 0]));
+  const outgoing = new Map(model.nodes.map(node => [node.id, []]));
+  const stage = new Map(model.nodes.map(node => [node.id, 0]));
+  for (const { source, target } of model.edges) {
+    outgoing.get(source).push(target);
+    indegree.set(target, indegree.get(target) + 1);
+  }
+  const queue = model.nodes.map(node => node.id).filter(id => !indegree.get(id));
+  for (const id of queue) for (const target of outgoing.get(id)) {
+    stage.set(target, Math.max(stage.get(target), stage.get(id) + 1));
+    indegree.set(target, indegree.get(target) - 1);
+    if (!indegree.get(target)) queue.push(target);
+  }
+  const cap = 1000;
+  let segments = 0;
+  for (const { source, target, line } of model.edges) {
+    segments += stage.get(target) - stage.get(source);
+    if (segments > cap) return [issue(info, line, `桑基图最多支持 ${cap} 个跨阶段流量分段`,
+      `Sankey supports at most ${cap} flow segments across stages`, '请按阶段拆分图表', 'Split the chart by stage')];
+  }
+  return errors;
+}
 // The native chart keeps its smaller budget. Only ignore that specific guard in the
 // Mermaid adapter; syntax, graph validity and other fit diagnostics remain in force.
 const sankeyRegistry = createRegistry(validateSpec);
@@ -163,9 +186,9 @@ sankeyRegistry.register('sankey', (spec, ctx) => sankeyLayout(spec, {
 }));
 const layout = (model, options, info) => {
   const result = renderWith(toSpec(model), options, info, detail => lineFor(model, detail), sankeyRegistry.layout);
-  if (result.scene && result.width > options.width * 2 && model.nodes.length <= 60 && model.edges.length <= 120) {
+  if (result.scene && (result.width > options.width * 2 || model.nodes.length > LARGE_NODES || model.edges.length > LARGE_EDGES)) {
     result.errors.push(warning('LARGE_DIAGRAM', info.lang, info.headerLine,
-      '桑基图较宽，可滚动查看', 'Wide Sankey diagram; scroll to view it', '考虑拆分图表', 'Consider splitting the diagram'));
+      '桑基图较大，可滚动查看', 'Large Sankey diagram; scroll to view it', '考虑拆分图表', 'Consider splitting the diagram'));
   }
   return result;
 };
