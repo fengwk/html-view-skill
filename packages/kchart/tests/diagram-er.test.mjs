@@ -6,6 +6,25 @@ import { implementations, parseEr } from '../src/diagram/er.js';
 import { checkScene } from './helpers/geometry.mjs';
 
 const api = createDiagramApi(implementations, [{ kind: 'erDiagram', syntax: 'mermaid', aliases: [], topic: 'data-model' }]);
+// 意图：真实 ER 场景输出字段、局部基数标记引用，且可选圆圈与鸦爪计入描边也不相交。
+test('ER scene emits attribute rows and separate cardinality glyphs', () => {
+  const { svg } = api.diagram('erDiagram\nUser { int id PK }\nUser |o--o| A\nUser ||--|| B\nUser }o--o{ C\nUser }|--|{ D', { prefix: 'slice' });
+  assert.match(svg, /data-kc-kind="attribute"/);
+  assert.match(svg, /data-kc-kind="attribute-key"/);
+  for (const marker of ['zero-one', 'exactly-one', 'zero-many', 'one-many']) {
+    assert.ok(svg.includes(`marker-start="url(#slice-er-card-${marker})"`));
+    assert.ok(svg.includes(`<marker id="slice-er-card-${marker}"`));
+  }
+  assert.match(svg, /marker-end="url\(#slice-er-card-zero-one\)"/);
+  const optionalMany = /<marker id="slice-er-card-zero-many"[^>]*>(.*?)<\/marker>/.exec(svg)[1];
+  const [, center, radius] = /<circle cx="(\d+)" cy="8" r="(\d+)"/.exec(optionalMany);
+  const [, tip, apex] = /<path d="M(\d+) 2 L(\d+) 8/.exec(optionalMany);
+  assert.ok(Number(center) + Number(radius) + 1.4 < Number(apex));
+  assert.ok(Number(apex) < Number(tip) && Number(tip) < 16);
+  assert.match(svg, /<text[^>]*dominant-baseline="central"[^>]*>User<\/text>/);
+  assert.doesNotMatch(svg, /class="g-|document|style=/);
+});
+
 const spelling = [
   ['||', 'exactly-one'], ['ONLY ONE', 'exactly-one'], ['one', 'exactly-one'], ['1', 'exactly-one'],
   ['|o', 'zero-one'], ['o|', 'zero-one'], ['one or zero', 'zero-one'], ['zero or one', 'zero-one'],

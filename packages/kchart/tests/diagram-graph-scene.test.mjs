@@ -13,7 +13,7 @@ const render = (kind, model, nodes, edges = [], frames = []) => {
 
 // 意图：实际 parser/layout 接线需识别 flowchart 结构并生成节点边几何，而不经过假转接。
 test('registers canonical kinds and delegates to real parser/layout modules', () => {
-  assert.deepEqual(Object.keys(implementations), ['flowchart', 'stateDiagram-v2', 'erDiagram']);
+  assert.deepEqual(Object.keys(implementations), ['flowchart', 'stateDiagram-v2']);
   assert.equal(implementations.flowchart.optionMode, 'raw');
   const info = { kind: 'flowchart', header: 'flowchart LR', headerLine: 1, firstLine: 2, lang: 'en', options: {} };
   const parsed = implementations.flowchart.parse('A[Start] --> B[End]', info);
@@ -52,32 +52,4 @@ test('flowchart and state scenes contain nodes, frame, edge labels, and prefixed
   assert.match(state, /<circle/);
   assert.match(state, /<rect[^>]*rx="8"/);
   assert.match(state, /marker-end="url\(#slice-graph-arrow\)"/);
-});
-
-// ER shape attributes and all crow's-foot cardinality marker variants must be drawable without DOM/CSS.
-test('ER scene emits attribute rows, relation markers, and local marker references', () => {
-  const svg = render('erDiagram', { nodes: [
-    { id: 'User', label: 'User', kind: 'er', fields: [] }, { id: 'Order', label: 'Order', kind: 'er', fields: [] },
-  ] }, [
-    { id: 'User', x: 20, y: 20, w: 100, h: 70, er: { pad: 12, headerH: 30, headLines: ['User'], typeW: 35, rows: [{ name: 'id', typeLines: ['int'], nameLines: ['id'], keyText: 'PK', keys: ['PK'], rowH: 26 }] } },
-    { id: 'Order', x: 150, y: 20, w: 80, h: 70, er: { pad: 12, headerH: 30, headLines: ['Order'], typeW: 35, rows: [] } },
-  ], ['|o', '||', '}o', '}|'].map((card, index) => ({
-    from: 'User', to: 'Order', startCard: card, endCard: card,
-    segments: [{ p0: { x: 120, y: 55 + index }, c1: { x: 130, y: 55 + index }, c2: { x: 140, y: 55 + index }, p1: { x: 150, y: 55 + index } }],
-  })));
-  assert.match(svg, /data-kc-kind="attribute"/);
-  assert.match(svg, /data-kc-kind="attribute-key"/);
-  for (const marker of ['zero-one', 'exactly-one', 'zero-many', 'one-many']) {
-    assert.match(svg, new RegExp(`marker-start="url\\(#slice-graph-card-${marker}\\)"`));
-    assert.match(svg, new RegExp(`<marker id="slice-graph-card-${marker}"`));
-  }
-  assert.match(svg, /marker-end="url\(#slice-graph-card-zero-one\)"/);
-  // 可选圆圈在外侧，鸦爪朝向实体；两者计入描边也不能相交。
-  const optionalMany = /<marker id="slice-graph-card-zero-many"[^>]*>(.*?)<\/marker>/.exec(svg)[1];
-  const [, center, radius] = /<circle cx="(\d+)" cy="8" r="(\d+)"/.exec(optionalMany);
-  const [, tip, apex] = /<path d="M(\d+) 2 L(\d+) 8/.exec(optionalMany);
-  assert.ok(Number(center) + Number(radius) + 1.4 < Number(apex));
-  assert.ok(Number(apex) < Number(tip) && Number(tip) < 16);
-  assert.match(svg, /<text[^>]*dominant-baseline="central"[^>]*>User<\/text>/);
-  assert.doesNotMatch(svg, /class="g-|document|style=/);
 });
