@@ -11,10 +11,11 @@ const stripQuotes = (raw) => {
   return text.replace(/\\"/g, '"').replace(/\\'/g, "'");
 };
 function normalizeLabel(raw) { return labelText(raw).trim(); }
-function splitStatements(text) {
+function splitStatements(text, flow = false) {
   const parts = [];
   let depth = 0;
   let quote = false;
+  let pipe = false;
   let start = 0;
   for (let i = 0; i < text.length; i += 1) {
     const ch = text[i];
@@ -23,7 +24,9 @@ function splitStatements(text) {
       continue;
     }
     if (quote) continue;
-    if ('[({'.includes(ch)) depth += 1;
+    if (flow && ch === '|' && depth === 0) pipe = !pipe;
+    if (pipe) continue;
+    if ('[({'.includes(ch) || (flow && ch === '>' && /[^\s\-=]/.test(text[i - 1] ?? '') && text.indexOf(']', i) !== -1)) depth += 1;
     else if (']})'.includes(ch)) depth = Math.max(0, depth - 1);
     else if (ch === ';' && depth === 0) {
       parts.push(text.slice(start, i));
@@ -47,7 +50,7 @@ function findClose(text, start, close) {
       if (ch === quote && text[i - 1] !== '\\') quote = null;
       continue;
     }
-    if (ch === '"' || ch === "'") {
+    if (ch === '"' || (ch === "'" && (i === start || /[\s:]/.test(text[i - 1])))) {
       quote = ch;
       continue;
     }
@@ -67,7 +70,9 @@ function parseShapeAt(text, index) {
       if (!shape) return { error: 'unterminated', end: end + 1 };
       raw = raw.slice(1, -1);
     }
-    return { shape, label: normalizeLabel(stripQuotes(raw)), end: end + close.length };
+    const props = shape === 'rect' && /^\|[^|]*\|/.exec(raw);
+    if (props) raw = raw.slice(props[0].length);
+    return { shape, props: Boolean(props), label: normalizeLabel(stripQuotes(raw)), end: end + close.length };
   };
   const ch = text[index];
   if (ch === '[') {
@@ -101,7 +106,7 @@ function parseFlowNodeToken(text, start) {
   while (i < text.length) {
     const ch = text[i];
     if (/\s/.test(ch)) break;
-    if ('[](){}|&;:<>@'.includes(ch)) break;
+    if ('[](){}|;<>@'.includes(ch) || text.startsWith(':::', i)) break;
     if (/^(?:--|==|-\.|~~~)/.test(text.slice(i)) || (i > idStart && /^[ox](?:--|==|-\.)/.test(text.slice(i)))) break;
     i += 1;
   }
@@ -112,11 +117,14 @@ function parseFlowNodeToken(text, start) {
     if (close < 0) return { id, error: 'unterminated', end: text.length };
     const metadata = Object.create(null);
     const payload = text.slice(i + 2, close);
-    const fields = /\s*([\w-]+)\s*:\s*("(?:\\.|[^"\\])*"|'(?:''|[^'])*'|[^,]*?)\s*(?:,|$)/gy;
+    const fields = /\s*([\w-]+)\s*:\s*(\|[^\n]*\n[\s\S]*?(?=,\s*[\w-]+\s*:|$)|"(?:\\.|[^"\\])*"|'(?:''|[^'])*'|[^,]*?)\s*(?:,|$)/gy;
     while (fields.lastIndex < payload.length && payload.slice(fields.lastIndex).trim()) {
       const field = fields.exec(payload);
       if (!field) return { id, error: 'metadata', end: close + 1 };
-      metadata[field[1]] = stripQuotes(field[2]);
+      const raw = field[2];
+      metadata[field[1]] = /^\|\s*\n/.test(raw)
+        ? raw.replace(/^\|[^\n]*\n/, '').split('\n').map(line => line.trim()).join('\n')
+        : stripQuotes(raw).replace(/''/g, "'");
     }
     return { id, metadata, end: close + 1 };
   }
@@ -141,7 +149,7 @@ function parseFlowNodeToken(text, start) {
     if (!cls) error = 'class-empty';
   }
   return {
-    id, shape, label, cls, error, end: i,
+    id, shape, label, cls, props: shapePart?.props, error, end: i,
   };
 }
 
@@ -292,6 +300,10 @@ function parseFlowchartBody(statements, errors, direction = 'TB', lang) {
       addError(line, `节点 ${token.id} 的形状没有结束的括号`, '补上缺少的 ]、) 或 }');
       return null;
     }
+    if (token.props && !warned.has('node-props')) {
+      warned.add('node-props');
+      errors.push(warning('IGNORED_CONFIG', lang, line, '忽略方框内的属性', 'Ignored bracketed node properties'));
+    }
     if (token.error === 'class-empty') {
       addError(line, `节点 ${token.id} 的 ::: 后面缺少分类名`, `可用分类：${CLASSES.join('、')}`);
     }
@@ -317,7 +329,10 @@ function parseFlowchartBody(statements, errors, direction = 'TB', lang) {
       node.parent = currentParent();
     }
     if (token.shape) node.shape = token.shape;
-    if (token.label != null) node.label = token.label;
+    if (token.label != null) {
+      node.label = token.label;
+      node.explicitLabel = true;
+    }
     if (token.cls) {
       const cls = checkClass(token.cls, line);
       if (cls) node.class = cls;
@@ -328,7 +343,11 @@ function parseFlowchartBody(statements, errors, direction = 'TB', lang) {
   const edgeIds = new Map();
   const edgeMetadata = [];
   const addEdge = (from, to, op, line, requestedId) => {
-    const id = requestedId && !edgeIds.has(requestedId) ? requestedId : null;
+    let id = requestedId || null;
+    if (id && edgeIds.has(id)) {
+      let serial = 0;
+      do { id = `L_${from.id}_${to.id}_${serial++}`; } while (edgeIds.has(id));
+    }
     const edge = {
       id,
       seq: edgeSeq++,
@@ -432,7 +451,7 @@ function parseFlowchartBody(statements, errors, direction = 'TB', lang) {
       }
       continue;
     }
-    if (/^(note|classDiagram|stateDiagram|erDiagram|flowchart|graph)\b/i.test(text)) {
+    if (/^(classDiagram|stateDiagram|erDiagram|flowchart|graph)\b/i.test(text)) {
       addError(line, `无法解析的语句：${text}`, '检查 Mermaid 语法；图类型只能声明一次');
       continue;
     }
@@ -513,7 +532,6 @@ function parseFlowchart(statements, errors, lang) {
     const symbols = { '<': 'RL', '>': 'LR', '^': 'BT', v: 'TB', BR: 'TB' };
     const d = Object.hasOwn(symbols, token) ? { direction: symbols[token] } : (token === token.toUpperCase() ? parseDirection(token) : null);
     if (d?.direction) direction = d.direction;
-    else if (d?.error && /^[A-Z]+$/.test(token)) errors.push({ line: statements[0].line, message: d.error, fix: '方向用 TB、TD、BT、LR、RL（TD 等同 TB）' });
     else statements = [statements[0], { text: token, line: statements[0].line }, ...statements.slice(1)];
   }
   return parseFlowchartBody(statements, errors, direction, lang);
@@ -534,8 +552,8 @@ function parseStateDecl(rest) {
     kind = m[1].toLowerCase();
     text = text.slice(0, m.index).trim();
   }
-  m = /^"([\s\S]*)"\s+as\s+([^\s]+)$/.exec(text);
-  if (m) return { id: m[2], label: normalizeLabel(m[1]), kind };
+  m = /^"([\s\S]*)"\s+as\s+([^\s:]+)(?:\s*:\s*(.*))?$/i.exec(text);
+  if (m) return { id: m[2], label: normalizeLabel(m[1]), kind, desc: m[3] == null ? null : normalizeLabel(m[3]) };
   return { id: text, label: null, kind };
 }
 
@@ -647,6 +665,7 @@ function parseState(statements, errors, lang) {
       style: note ? 'dashed' : 'solid',
       startArrow: false,
       endArrow: !note,
+      endMark: note ? 'none' : 'barb',
       extra: 0,
       line,
     });
@@ -792,7 +811,7 @@ function parseState(statements, errors, lang) {
           seq: seq++,
           line,
           kind: 'composite',
-          desc: [...meta.desc],
+          desc: [...(decl.desc == null ? [] : [decl.desc]), ...meta.desc],
           class: meta.class,
         };
         subgraphs.set(sg.id, sg);
@@ -809,7 +828,8 @@ function parseState(statements, errors, lang) {
         if (decl.label) metaFor(decl.id).label = decl.label;
         continue;
       }
-      ensureState(decl.id, line, { label: decl.label, kind: decl.kind });
+      const node = ensureState(decl.id, line, { label: decl.label, kind: decl.kind });
+      if (node && decl.desc != null) node.desc.push(decl.desc);
       continue;
     }
 
@@ -825,14 +845,10 @@ function parseState(statements, errors, lang) {
         }
         return { id: value, cls };
       };
-      let leftTok = parseEnd(arrow[1]);
-      let rightTok = parseEnd(arrow[2]);
-      let label = null;
-      const colon = rightTok.id.indexOf(':');
-      if (colon >= 0) {
-        label = rightTok.id.slice(colon + 1).trim();
-        rightTok.id = rightTok.id.slice(0, colon).trim();
-      }
+      const leftTok = parseEnd(arrow[1]);
+      const colon = /(?<!:):(?!:)/.exec(arrow[2])?.index ?? -1;
+      const rightTok = parseEnd(colon < 0 ? arrow[2] : arrow[2].slice(0, colon));
+      const label = colon < 0 ? null : arrow[2].slice(colon + 1).trim();
       if (!leftTok.id || !rightTok.id) {
         addError(line, '状态转移缺少起点或终点', '写成 A --> B : 说明');
         continue;
@@ -1059,12 +1075,26 @@ function parseFlow(statements, { direction = 'TB' } = {}) {
   const model = parseFlowchartBody([{ text: 'flowchart', line: 0 }, ...statements], errors, safeDirection);
   return { ok: errors.length === 0, errors, model };
 }
-function statementsOf(body, firstLine, state = false) {
+function statementsOf(body, firstLine, kind) {
+  const state = kind?.startsWith('statediagram'), flow = kind === 'flowchart';
   const rows = String(body ?? '').replace(/\r\n?/g, '\n').split('\n');
   const statements = [];
   for (let index = 0; index < rows.length; index += 1) {
-    const row = rows[index];
+    let row = rows[index];
     const line = firstLine + index;
+    if (flow) {
+      const tokens = /"(?:\\.|[^"\\])*"|'(?:''|[^'])*'|@\{/g;
+      for (const token of row.matchAll(tokens)) {
+        if (token[0] !== '@{' || findClose(row, token.index + 2, '}') >= 0) continue;
+        const rest = rows.slice(index).join('\n');
+        const end = findClose(rest, token.index + 2, '}');
+        if (end >= 0) {
+          index += rest.slice(0, end).split('\n').length - 1;
+          row = rest.slice(0, end + 1) + rows[index].slice(end - rest.lastIndexOf('\n', end));
+        }
+        break;
+      }
+    }
     if (state && /^\s*note\s+(left|right)\s+of\s+[^\s:]+\s*$/i.test(row)) {
       const end = rows.findIndex((value, i) => i > index && /^\s*end\s+note\s*$/i.test(value));
       if (end !== -1) {
@@ -1073,7 +1103,7 @@ function statementsOf(body, firstLine, state = false) {
         continue;
       }
     }
-    for (const piece of splitStatements(row)) {
+    for (const piece of splitStatements(row, flow)) {
       const text = piece.trim();
       if (state && /^state\s+.+?\{\s*\}\s*$/i.test(text)) {
         statements.push({ text: text.slice(0, -1).trim(), line }, { text: '}', line });
@@ -1087,7 +1117,7 @@ function parseGraph(body, info = {}) {
   const header = String(info.header || '');
   const headerLine = Number.isFinite(info.headerLine) ? info.headerLine : Math.max(1, (info.firstLine || 2) - 1);
   const firstLine = Number.isFinite(info.firstLine) ? info.firstLine : headerLine + 1;
-  const statements = [...statementsOf(header, headerLine), ...statementsOf(body, firstLine, kind.startsWith('statediagram'))];
+  const statements = [...statementsOf(header, headerLine), ...statementsOf(body, firstLine, kind)];
   const errors = [];
   if (info.syntax === 'mermaid') {
     // 与逐行源码检查一致；分号连接的语句也不能绕过样式类约束。

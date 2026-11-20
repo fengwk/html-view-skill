@@ -77,7 +77,7 @@ const polygons = {
   'notch-rect': [[.14,0],[1,0],[1,1],[0,1],[0,.25]],
   odd: [[0,0],[1,0],[1,1],[0,1],[.16,.5]],
   hourglass: [[0,0],[1,0],[.55,.5],[1,1],[0,1],[.45,.5]],
-  bolt: [[.62,0],[.35,.47],[.65,.40],[.38,1],[.90,.32],[.55,.38]],
+  bolt: [[1,0],[.4,.44],[1,.44],[0,1],[.60,.56],[0,.56]],
   folder: [[0,0],[.37,0],[.46,.19],[1,.19],[1,1],[0,1]],
 };
 const box = [[0,0],[1,0],[1,1],[0,1]];
@@ -90,17 +90,34 @@ const wave = (y, reverse = false) => Array.from({ length: 17 }, (_, i) => {
   return [t, y + .09 * Math.sin(t * 2 * Math.PI)];
 });
 
-export function shapeSize(shape, w, h) {
+const fixed = new Map([['sm-circ', [14, 14]], ['f-circ', [14, 14]], ['fr-circ', [16, 16]],
+  ['cross-circ', [36, 36]], ['anchor', [2, 2]], ['hourglass', [30, 30]], ['bolt', [24, 48]], ['fork', [70, 10]]]);
+const fixedSize = (name, direction) => {
+  const pair = fixed.get(name);
+  return pair && name === 'fork' && ['LR', 'RL'].includes(direction) ? [pair[1], pair[0]] : pair;
+};
+export function shapeGlyphBox(shape, w, h, direction) {
+  const size = fixedSize(shape, direction);
+  if (!size) return null;
+  const gw = Math.min(w, size[0]), gh = Math.min(h, size[1]);
+  return { x: (w - gw) / 2, y: (h - gh) / 2, w: gw, h: gh };
+}
+
+export function shapeSize(shape, w, h, direction, hasLabel) {
+  const size = fixedSize(shape, direction);
+  if (size) return hasLabel ? [size[0] + (w - 20) * 2, size[1] + (h - 12) * 2] : size;
   if (['diam', 'choice'].includes(shape)) return [w * 1.7, h * 1.7];
   if (['tri', 'flip-tri'].includes(shape)) return [w * 2, h * 2];
-  if (['circle', 'dbl-circ', 'cross-circ', 'fr-circ'].includes(shape)) return Array(2).fill(Math.hypot(w, h) + (shape === 'dbl-circ' ? 10 : 0));
-  if (['person', 'hourglass', 'bolt', 'bang', 'cloud'].includes(shape)) return [w * 1.6, h * 1.7];
+  if (['circle', 'dbl-circ'].includes(shape)) return Array(2).fill(Math.hypot(w, h) + (shape === 'dbl-circ' ? 10 : 0));
+  if (['person', 'bang', 'cloud'].includes(shape)) return [w * 1.6, h * 1.7];
   if (['rect', 'rounded', 'state', 'note', 'composite', 'text', 'icon'].includes(shape)) return [w, h];
   return [w + 24, h + 12];
 }
 
 // The renderer and router use the same boundary, including sampled arcs and waves.
-export function shapeOutline(shape, w, h) {
+export function shapeOutline(shape, width, height, direction) {
+  const boxOfGlyph = shapeGlyphBox(shape, width, height, direction);
+  const { x: dx, y: dy, w, h } = boxOfGlyph ?? { x: 0, y: 0, w: width, h: height };
   let outline = polygons[shape === 'choice' ? 'diam' : shape];
   if (!outline) {
     const r = Math.min(8, h / 2, w / 2), rx = r / w, ry = r / h;
@@ -117,10 +134,21 @@ export function shapeOutline(shape, w, h) {
       outline = [...arc(.5,.12,.5,.12,180,360), ...arc(.5,.88,shape === 'bucket' ? .38 : .5,.12,0,180)];
     } else if (shape === 'h-cyl') {
       outline = [...arc(.88,.5,.12,.5,-90,90), ...arc(.12,.5,.12,.5,90,270)];
-    } else if (['doc', 'docs', 'lin-doc', 'tag-doc', 'flag'].includes(shape)) {
+    } else if (shape === 'st-rect' || shape === 'docs') {
+      const u = 5 / w, v = 5 / h;
+      const ys = shape === 'docs' ? .9 : 1;
+      const base = shape === 'docs' ? wave(.9, true).map(([x, y]) => [x * (1 - 2 * u), 2 * v + y * (1 - 2 * v)])
+        : [[1 - 2 * u, 1], [0, 1]];
+      outline = [[0, 2 * v], [u, 2 * v], [u, v], [2 * u, v], [2 * u, 0], [1, 0], [1, ys * (1 - 2 * v)],
+        [1-u, ys * (1-2*v)], [1-u, v + ys * (1-2*v)], [1-2*u, v + ys * (1-2*v)], ...base];
+    } else if (['doc', 'lin-doc', 'tag-doc', 'flag'].includes(shape)) {
       outline = [...(shape === 'flag' ? wave(.1) : [[0,0],[1,0]]), ...wave(.9, true)];
     } else if (shape === 'bow-rect') {
-      outline = [...arc(1.05,.5,.18,.68,227,133), ...arc(-.05,.5,.18,.68,47,-47)];
+      const side = Array.from({ length: 17 }, (_, i) => {
+        const t = i / 16;
+        return [1 - .075 * Math.sin(Math.PI * t), t];
+      });
+      outline = [...side, ...side.map(([x,y]) => [x - .925, 1-y])];
     } else if (shape === 'bang' || shape === 'cloud') {
       outline = Array.from({ length: 96 }, (_, i) => {
         const t = i * Math.PI / 48;
@@ -131,7 +159,7 @@ export function shapeOutline(shape, w, h) {
       outline = [...arc(.5,.2,.19,.2,130,410,32), [.61,.39],[.80,.44],[.96,.58],[1,.8],[1,1],[0,1],[0,.8],[.04,.58],[.20,.44],[.39,.39]];
     } else outline = box;
   }
-  return outline.map(([x,y]) => [x*w,y*h]);
+  return outline.map(([x,y]) => [dx + x*w,dy + y*h]);
 }
 
 export function outlinePort(outline, side, cross) {

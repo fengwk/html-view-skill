@@ -1,5 +1,5 @@
 import { DIRECTIONS, FONT as BASE_FONT, fallbackMeasure, maxWidthOf, wrapText } from './support.js';
-import { flowOutlineName, shapeSize, shapeOutline, outlinePort } from './shapes.js';
+import { flowOutlineName, shapeSize, shapeOutline, shapeGlyphBox, outlinePort } from './shapes.js';
 
 const FONT = { ...BASE_FONT, frame: { size: 13, weight: 600 }, erHead: { size: 14, weight: 600 }, erAttr: { size: 13, weight: 400 }, erKey: { size: 12, weight: 400 } };
 const FRAME_PAD = 14;
@@ -60,10 +60,11 @@ function layoutGraph(source, options = {}) {
     return false;
   };
   const all = [...nodes, ...model.subgraphs];
+  const occupied = new Set(all.map(item => item.parent));
   for (const frame of [...frames.values()].sort((a, b) => a.depth - b.depth || a.seq - b.seq)) {
-    if (hidden.has(frame.id) || !(frame.dir || frame.kind === 'divider' || childRegions.has(frame.id))) continue;
-    const members = new Set(all.filter(item => isMember(item, frame)).map(item => item.id));
-    if (!members.size || edges.some(edge => members.has(edge.from) !== members.has(edge.to))) continue;
+    if (hidden.has(frame.id) || (occupied.has(frame.id) && !(frame.dir || frame.kind === 'divider' || childRegions.has(frame.id)))) continue;
+    const members = new Set(occupied.has(frame.id) ? all.filter(item => isMember(item, frame)).map(item => item.id) : []);
+    if (edges.some(edge => members.has(edge.from) !== members.has(edge.to))) continue;
     const topLevel = item => item.parent === frame.id ? { ...item, parent: null } : item;
     const inside = edges.filter(edge => members.has(edge.from));
     const inner = layoutGraph({ ...model, direction: frame.dir || (model.type === 'state' ? 'TB' : model.direction),
@@ -147,8 +148,11 @@ function layoutCore(model, { measure = fallbackMeasure, lang, ctx, renderOptions
   }
 
   const measureNode = (node) => {
-    const titleText = markOf(node.class) + (node.label || node.id);
-    const titleLines = wrapText(titleText, node.kind === 'er' ? 180 : 200, FONT.title, measure);
+    const flowShape = model.type === 'flowchart' && flowOutlineName(node.shape);
+    const glyph = flowShape && shapeGlyphBox(flowShape, 1, 1, direction);
+    const hasLabel = !glyph || node.explicitLabel || node.label !== node.id;
+    const titleText = hasLabel ? markOf(node.class) + (node.label ?? node.id) : '';
+    const titleLines = !titleText ? [] : wrapText(titleText, node.kind === 'er' ? 180 : 200, FONT.title, measure);
     const descLines = [];
     for (const desc of node.desc || []) descLines.push(...wrapText(desc, 200, FONT.body, measure));
     let tw;
@@ -164,8 +168,8 @@ function layoutCore(model, { measure = fallbackMeasure, lang, ctx, renderOptions
       tw = 34;
       th = 34;
     } else if (node.kind === 'fork' || node.kind === 'join') {
-      tw = 48;
-      th = 10;
+      tw = isLR ? 10 : 70;
+      th = isLR ? 70 : 10;
     } else if (node.kind === 'er') {
       const pad = 12;
       const headLines = titleLines;
@@ -211,9 +215,8 @@ function layoutCore(model, { measure = fallbackMeasure, lang, ctx, renderOptions
       tw = Math.max(64, Math.max(titleW, descW) + 28);
       th = 20 + titleLines.length * 19 + (descLines.length ? 5 + descLines.length * 17 : 0);
       th = Math.max(40, th) + (node.kind === 'collapsed' ? 20 : 0);
-      const flowShape = model.type === 'flowchart' && flowOutlineName(node.shape);
       if (flowShape) {
-        [tw, th] = shapeSize(flowShape, tw, th);
+        [tw, th] = shapeSize(flowShape, tw, th, direction, titleLines.length > 0);
       } else if (node.shape === 'diamond') {
         tw *= 1.7;
         th *= 1.7;
@@ -1541,7 +1544,7 @@ function layoutCore(model, { measure = fallbackMeasure, lang, ctx, renderOptions
     const routedOutline = (shape, w, h) => {
       const key = `${shape}:${w}:${h}`;
       if (!outlines.has(key)) {
-        const outline = shapeOutline(shape, isLR ? h : w, isLR ? w : h);
+        const outline = shapeOutline(shape, isLR ? h : w, isLR ? w : h, direction);
         // Undo the final direction transform so asymmetric shapes stay upright.
         outlines.set(key, outline.map(([x, y]) => {
           if (direction === 'BT') return [x, h - y];
@@ -3555,6 +3558,7 @@ function layoutCore(model, { measure = fallbackMeasure, lang, ctx, renderOptions
       id: item.node.id,
       kind: item.node.kind,
       shape: item.node.shape,
+      direction,
       class: item.node.class,
       label: item.node.label,
       lines: item.titleLines,

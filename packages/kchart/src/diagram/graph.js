@@ -2,7 +2,7 @@ import { FONT, appearance } from './support.js';
 import { parseGraph } from './graph-parse.js';
 import { layoutGraph } from './graph-layout.js';
 import { cubicPath } from '../core/geometry.js';
-import { flowOutlineName, shapeOutline } from './shapes.js';
+import { flowOutlineName, shapeOutline, shapeGlyphBox } from './shapes.js';
 
 const path = (ctx, d, attrs = {}, meta) => ({ ...ctx.path(d, attrs), ...(meta ? { meta } : {}) });
 const text = (ctx, x, y, value, opts, meta) => ctx.text(x, y, value, { 'dominant-baseline': 'central', ...opts, meta });
@@ -11,11 +11,11 @@ const titleNode = (ctx, value) => value ? { ...ctx.el('title'), text: String(val
 const points = (coords) => coords.map(([x, y]) => `${x},${y}`).join(' ');
 
 function defs(ctx, a) {
-  const arrow = (id, color) => ({
+  const arrow = (id, color, d = 'M0 0 L8 4 L0 8 Z') => ({
     tag: 'marker', attrs: {
       id, viewBox: '0 0 8 8', refX: 8, refY: 4,
       markerWidth: 8, markerHeight: 8, markerUnits: 'userSpaceOnUse', orient: 'auto-start-reverse',
-    }, children: [ctx.path('M0 0 L8 4 L0 8 Z', { fill: color })],
+    }, children: [ctx.path(d, { fill: color })],
   });
   // From the relationship line toward the entity: minimum first, then maximum.
   // The outer circle/bar and the inner crow’s foot must occupy separate parts of the 16px stub.
@@ -35,7 +35,8 @@ function defs(ctx, a) {
       : ctx.path(args[0], { fill: 'none', stroke: a.fg4, 'stroke-width': 1.4 })),
   }));
   return ctx.el('defs', {}, [
-    arrow('graph-arrow', a.fg4), arrow('graph-arrow-bold', a.fg3), ...cards,
+    arrow('graph-arrow', a.fg4), arrow('graph-arrow-bold', a.fg3),
+    arrow('graph-barb', a.fg4, 'M0 0 L8 4 L0 8 L2 4 Z'), ...cards,
     ...['circle', 'cross'].map(mark => ({
       tag: 'marker', attrs: {
         id: `graph-${mark}`, viewBox: '0 0 10 10', refX: 9, refY: 5,
@@ -77,15 +78,18 @@ function edgePath(edge, modelNodes, ctx, a) {
   return group(ctx, [titleNode(ctx, tip), path(ctx, d, attrs, { kind: 'edge', from: edge.from, to: edge.to })], { kind: 'edge-group' });
 }
 
-function drawFlowShape(ctx, name, { x, y, w, h }, common, a) {
-  const poly = (shape, dx, dy, width, height, attrs) => ctx.shape('polygon', {
-    points: points(shapeOutline(shape, width, height).map(([px, py]) => [dx + px, dy + py])), ...attrs,
-  });
+function drawFlowShape(ctx, name, { x, y, w, h, direction }, common, a) {
+  const glyph = shapeGlyphBox(name, w, h, direction);
+  const fill = ['fork', 'f-circ', 'anchor'].includes(name) ? a.fg3 : common.fill;
+  const stroke = glyph && common.stroke === a.line2 ? a.fg4 : common.stroke;
   const outlineAttrs = name === 'text' || name === 'icon' || ['brace', 'brace-r', 'braces'].includes(name)
-    ? { fill: 'none', stroke: 'none' } : name === 'datastore' ? { ...common, 'stroke-dasharray': '5 3' } : common;
-  const children = [poly(name, x, y, w, h, outlineAttrs)];
+    ? { fill: 'none', stroke: 'none' } : { ...common, fill, stroke, ...(name === 'datastore' ? { 'stroke-dasharray': `${w} ${h}` } : {}) };
+  const children = [ctx.shape('polygon', {
+    points: points(shapeOutline(name, w, h, direction).map(([px, py]) => [x + px, y + py])), ...outlineAttrs,
+  })];
+  if (glyph) { x += glyph.x; y += glyph.y; ({ w, h } = glyph); }
   const at = (u, v) => `${x + w * u} ${y + h * v}`;
-  const detail = (d) => children.push(path(ctx, d, { fill: 'none', stroke: common.stroke, 'stroke-width': 1.25 }));
+  const detail = (d) => children.push(path(ctx, d, { fill: 'none', stroke, 'stroke-width': 1.25 }));
   const line = (u, v, s, t) => `M${at(u, v)} L${at(s, t)}`;
   if (name === 'fr-rect') detail(line(.1,0,.1,1) + line(.9,0,.9,1));
   if (['win-pane', 'lin-rect', 'lin-doc'].includes(name)) detail(line(.11,0,.11,name === 'lin-doc' ? .95 : 1));
@@ -99,15 +103,19 @@ function drawFlowShape(ctx, name, { x, y, w, h }, common, a) {
   if (name === 'h-cyl') detail(`M${at(.12,0)} A${w * .12} ${h / 2} 0 0 1 ${at(.12,1)}`);
   if (name === 'tag-rect' || name === 'tag-doc') detail(line(.75,0,1,.24) + line(.75,0,.75,.24) + line(.75,.24,1,.24));
   if (name === 'docs' || name === 'st-rect') {
-    const page = name === 'docs' ? 'doc' : 'rect';
-    children.push(poly(page, x + 5, y + 5, w - 5, h - 5, common), poly(page, x, y, w - 5, h - 5, common));
+    const bottom = (name === 'docs' ? .9 : 1) * (h - 10);
+    for (const i of [1, 2]) {
+      const d = i * 5, right = x + w - d;
+      detail(`M${x + 10 - d} ${y + d} H${right} V${y + d + bottom}`);
+    }
   }
   if (name === 'dbl-circ' || name === 'fr-circ') {
     children.push(ctx.circle(x + w / 2, y + h / 2, w / 2 - 5, { fill: name === 'fr-circ' ? a.fg4 : 'none', stroke: common.stroke }));
   }
   if (name === 'cross-circ') detail(line(.16,.16,.84,.84) + line(.84,.16,.16,.84));
   const brace = side => {
-    const b = side ? 1 : 0, c = side ? .11 : -.11;
+    // Keep the brace tips inside its logical text-and-brace bounds.
+    const b = side ? .94 : .06, c = side ? .06 : -.06;
     detail(`M${at(b-c,.04)} Q${at(b,.04)} ${at(b,.25)} Q${at(b,.5)} ${at(b+c,.5)} Q${at(b,.5)} ${at(b,.75)} Q${at(b,.96)} ${at(b-c,.96)}`);
   };
   if (name === 'brace' || name === 'braces') brace(false);
@@ -130,7 +138,7 @@ function drawShape(ctx, item, n, a) {
     ctx.circle(x + w / 2, y + h / 2, Math.min(w, h) / 2 - 4, { fill: a.fg2, stroke: 'none' }),
   ];
   if (node.kind === 'choice' || node.shape === 'diamond') return [ctx.shape('polygon', { points: points([[x + w / 2, y], [x + w, y + h / 2], [x + w / 2, y + h], [x, y + h / 2],]), ...common })];
-  if (node.kind === 'fork' || node.kind === 'join') return [ctx.rect(x, y, w, h, { ...common, rx: 2 })];
+  if (node.kind === 'fork' || node.kind === 'join') return [ctx.rect(x, y, w, h, { ...common, fill: a.fg3, rx: 2 })];
   if (node.shape === 'circle') return [ctx.shape('ellipse', { cx: x + w / 2, cy: y + h / 2, rx: w / 2, ry: h / 2, ...common })];
   if (node.shape === 'hexagon') {
     const cut = 16;
@@ -174,13 +182,16 @@ function drawNode(ctx, item, n, a) {
   const lines = item.titleLines || [], desc = item.descLines || [];
   const titleH = lines.length * 19, descH = desc.length * 17, gap = desc.length ? 7 : 0;
   const collapsed = node.kind === 'collapsed';
-  const top = n.y + Math.max(10, (n.h - titleH - gap - descH - (collapsed ? 20 : 0)) / 2);
+  const flowShape = item.flowchart && flowOutlineName(node.shape);
+  const glyph = flowShape && shapeGlyphBox(flowShape, n.w, n.h, n.direction);
+  const top = glyph ? n.y + glyph.y - titleH - 6 : n.y + Math.max(10, (n.h - titleH - gap - descH - (collapsed ? 20 : 0)) / 2);
+  const textX = glyph ? n.x + glyph.x + glyph.w + 8 : n.x + n.w / 2;
   if (collapsed) {
     const y = n.y + n.h - 20;
     children.push(path(ctx, `M${n.x} ${y} H${n.x + n.w}`, { fill: 'none', stroke: a.line2, 'stroke-dasharray': '4 3' }));
     for (const dx of [-5, 0, 5]) children.push(ctx.circle(n.x + n.w / 2 + dx, y + 10, 1.25, { fill: a.fg4 }));
   }
-  lines.forEach((line, i) => children.push(text(ctx, n.x + n.w / 2, top + i * 19 + 9.5, line, { anchor: 'middle', size: FONT.title.size, weight: FONT.title.weight, fill: a.fg1 }, { kind: 'node-label', id: node.id })));
+  lines.forEach((line, i) => children.push(text(ctx, textX, top + i * 19 + 9.5, line, { anchor: glyph ? 'start' : 'middle', size: FONT.title.size, weight: node.kind === 'note' ? FONT.body.weight : FONT.title.weight, fill: a.fg1 }, { kind: 'node-label', id: node.id })));
   desc.forEach((line, i) => children.push(text(ctx, n.x + n.w / 2, top + titleH + gap + i * 17 + 8.5, line, { anchor: 'middle', size: FONT.body.size, fill: a.fg3 }, { kind: 'node-description', id: node.id })));
   return group(ctx, children, nodeMeta);
 }
