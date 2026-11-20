@@ -27,7 +27,6 @@ var CHIP_GAP = 14;
 var MIN_BONE = 122;
 var CAT_PAD = 30;
 var HEAD_GAP = 24;
-var SPINE_TAIL = 26;
 var MARGIN = 24;
 var NODE_CAP = 2e3;
 var NODE_HINT = 60;
@@ -225,7 +224,7 @@ function build(model, { cap, lang, measure, width }) {
 		};
 	});
 	for (const category of categories) {
-		const end = category.children.length ? assignBands(category.children, SPINE_CLEAR) : SPINE_CLEAR;
+		const end = assignBands(category.dir < 0 ? [...category.children].reverse() : category.children, SPINE_CLEAR);
 		category.reach = Math.max(MIN_BONE, end + CHIP_GAP + category.chipH);
 	}
 	const sides = [categories.filter((category) => category.dir < 0), categories.filter((category) => category.dir > 0)];
@@ -265,7 +264,7 @@ function build(model, { cap, lang, measure, width }) {
 			category.ax = index ? side[index - 1].ax - step : -(category.rightRel + HEAD_GAP);
 		});
 	}
-	const spineLeft = categories.length ? Math.min(...categories.map((category) => category.ax)) - SPINE_TAIL : -26;
+	const spineLeft = categories.length ? Math.min(...categories.map((category) => category.ax + Math.min(category.leftRel, -26))) : -26;
 	const minX = Math.min(spineLeft, 0, ...categories.map((category) => category.ax + category.leftRel));
 	const maxX = Math.max(headW, ...categories.map((category) => category.ax + category.rightRel));
 	const above = Math.max(0, ...sides[0].map((category) => category.reach));
@@ -279,10 +278,10 @@ function build(model, { cap, lang, measure, width }) {
 	for (const category of categories) {
 		bones.push({
 			id: `${category.id}-bone`,
-			from: "root",
-			to: category.id,
+			from: category.id,
+			to: "root",
 			main: true,
-			points: [point(category.ax, 0, 1), point(category.ax - LEAN * (category.reach - category.chipH), category.reach - category.chipH, category.dir)]
+			points: [point(category.ax - LEAN * (category.reach - category.chipH), category.reach - category.chipH, category.dir), point(category.ax, 0, 1)]
 		});
 		chips.push({
 			id: category.id,
@@ -379,21 +378,35 @@ function scene(plan, ctx) {
 	const ink = ctx.frameTone(ctx.color("fg"));
 	const strong = ctx.frameTone(ctx.color("accent"), true);
 	const tones = Array.from({ length: 6 }, (_, index) => ctx.frameTone(ctx.color(`tone${index + 1}`)));
-	const children = plan.bones.map((bone) => ctx.path(`M${bone.points[0][0]} ${bone.points[0][1]} L${bone.points[1][0]} ${bone.points[1][1]}`, {
+	const arrowId = "ishikawa-arrow";
+	const arrowEnd = `url(#${arrowId})`;
+	const children = [ctx.el("defs", {}, [ctx.el("marker", {
+		id: arrowId,
+		viewBox: "0 0 8 8",
+		refX: 8,
+		refY: 4,
+		markerWidth: 8,
+		markerHeight: 8,
+		markerUnits: "userSpaceOnUse",
+		orient: "auto"
+	}, [ctx.path("M0 0 L8 4 L0 8 Z", { fill: ink })])])];
+	children.push(...plan.bones.map((bone) => ctx.path(`M${bone.points[0][0]} ${bone.points[0][1]} L${bone.points[1][0]} ${bone.points[1][1]}`, {
 		fill: "none",
 		stroke: bone.main ? ink : plan.nodeStatus?.[bone.to] ? ctx.frameTone(look[plan.nodeStatus[bone.to]]) : look.fg4,
 		"stroke-width": bone.main ? 2 : 1.4,
 		"stroke-linecap": "round",
+		...bone.main ? { "marker-end": arrowEnd } : {},
 		meta: {
 			kind: "edge",
 			from: bone.from,
 			to: bone.to
 		}
-	}));
+	})));
 	children.push(ctx.line(plan.spine.x1, plan.spine.y1, plan.spine.x2, plan.spine.y2, {
 		stroke: ink,
 		"stroke-width": 2,
 		"stroke-linecap": "round",
+		"marker-end": arrowEnd,
 		meta: {
 			kind: "edge",
 			from: "root",
@@ -451,7 +464,6 @@ function scene(plan, ctx) {
 				label: "root"
 			}
 		}),
-		ctx.circle(plan.spine.x2, plan.spine.y2, 3, { fill: ink }),
 		...plan.head.icon ? [labelIcon(ctx, plan.head.icon, plan.head.x + HEAD_PAD_X + 7, plan.head.y + plan.head.h / 2, 14, look.fg3)] : [],
 		...plan.head.lines.map((line, index) => ctx.text(plan.head.x + plan.head.w / 2 + (plan.head.icon ? 10 : 0), plan.head.y + plan.head.h / 2 + (index - (plan.head.lines.length - 1) / 2) * HEAD_LINE, line, {
 			size: FONT.title.size,

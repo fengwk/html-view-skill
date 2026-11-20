@@ -285,7 +285,7 @@
       "diagram/presentation",
       "diagram/support"
     ],
-    "bytes": 13422
+    "bytes": 13456
   },
   "diagram/emphasis": {
     "file": "units/diagram/emphasis.js",
@@ -384,7 +384,7 @@
       "diagram/presentation",
       "diagram/support"
     ],
-    "bytes": 9373
+    "bytes": 9633
   },
   "diagram/journey": {
     "file": "units/diagram/journey.js",
@@ -394,7 +394,7 @@
       "diagram/label",
       "diagram/presentation"
     ],
-    "bytes": 12470
+    "bytes": 12321
   },
   "diagram/kanban": {
     "file": "units/diagram/kanban.js",
@@ -623,7 +623,7 @@
       "diagram/support",
       "diagram/graph-parse"
     ],
-    "bytes": 25579
+    "bytes": 27168
   },
   "diagram/time": {
     "file": "units/diagram/time.js",
@@ -656,19 +656,20 @@
       "core/icons",
       "diagram/tree-family-icon"
     ],
-    "bytes": 6328
+    "bytes": 6427
   },
   "diagram/usecase": {
     "file": "units/diagram/usecase.js",
     "deps": [
       "core/geometry",
       "core/icons",
+      "diagram/emphasis",
       "diagram/label",
       "diagram/presentation",
       "diagram/graph-layout",
       "diagram/support"
     ],
-    "bytes": 18256
+    "bytes": 18341
   },
   "diagram/venn": {
     "file": "units/diagram/venn.js",

@@ -421,6 +421,7 @@ function layout(model, options = {}) {
 		x: plotX + plotW / 2,
 		y: plotY + plotH / 2
 	};
+	const bottomBlockH = Math.max(blocks.chaotic.h, blocks.clear.h);
 	const quadrants = {};
 	for (const name of QUADRANTS) {
 		const [col, row] = CELLS[name];
@@ -432,7 +433,7 @@ function layout(model, options = {}) {
 		};
 		const block = blocks[name];
 		const blockX = panel.x + (panel.w - block.w) / 2;
-		const blockY = row === 0 ? panel.y + PANEL_PAD : panel.y + panel.h - PANEL_PAD - block.h;
+		const blockY = row === 0 ? panel.y + PANEL_PAD : panel.y + panel.h - PANEL_PAD - bottomBlockH;
 		const texts = [];
 		let cursor = blockY;
 		texts.push({

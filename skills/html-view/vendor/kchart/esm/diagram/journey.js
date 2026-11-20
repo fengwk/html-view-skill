@@ -1,6 +1,6 @@
 import { __exportAll } from "../_virtual/_rolldown/runtime.js";
 import { resolveIconRef } from "../core/icons.js";
-import { FONT, appearance, error, warning } from "./support.js";
+import { FONT, appearance, error, isEn, warning } from "./support.js";
 import { normalizeLabel } from "./label.js";
 import { presentation } from "./presentation.js";
 // src/diagram/journey.js
@@ -23,13 +23,7 @@ var COLOR_KEYS = /* @__PURE__ */ new Set([
 var configKey = (value) => String(value).toLowerCase().replace(/[-_]/g, "");
 var FACE_R = 9;
 var ICON_SIZE = 14;
-var SCALE = {
-	segments: 5,
-	width: 4,
-	gap: 2,
-	height: 3,
-	total: 28
-};
+var MAX_SCORE = 5;
 var LAYOUT = {
 	labelX: 12,
 	labelPad: 12,
@@ -292,6 +286,7 @@ function layout(model, options = {}) {
 		size: FONT.label.size,
 		weight: FONT.label.weight
 	};
+	const scoreCaption = isEn(ctx.lang) ? "Score" : "评分";
 	const titleSize = config.titleFontSize || FONT.title.size;
 	const maxLabelWidth = config.maxLabelWidth || 360;
 	const { tasks, actors } = model, groups = model.sections.filter((g) => g.name || g.icon || g.tasks.length);
@@ -315,7 +310,7 @@ function layout(model, options = {}) {
 	const sectionFont = font(FONT.body.size, 600);
 	const sectionWidth = Math.max(0, ...groups.flatMap((group) => group.name.split("\n").map((line, index) => widthOf(line, sectionFont) + (index === 0 ? iconSlot(group.icon) : 0))));
 	const pitch = bodyFont.size + 5;
-	const left = Math.max(config.leftMargin || 0, LAYOUT.labelX + Math.max(labelWidth, sectionWidth) + LAYOUT.labelPad + FACE_R + LAYOUT.plotGap);
+	const left = Math.max(config.leftMargin || 0, LAYOUT.labelX + Math.max(labelWidth, sectionWidth, widthOf(scoreCaption, labelFont)) + LAYOUT.labelPad + FACE_R + LAYOUT.plotGap);
 	const plotW = Math.max(140, width - left - LAYOUT.right);
 	const x0 = left, x1 = left + plotW, step = plotW / 4;
 	const sceneWidth = Math.ceil(Math.max(width, x1 + LAYOUT.right));
@@ -379,7 +374,12 @@ function layout(model, options = {}) {
 	}
 	if (legendRows.length) cursor += 10;
 	const scaleY = cursor + 8;
-	for (let score = 1; score <= SCALE.segments; score += 1) children.push(ctx.text(x0 + (score - 1) * step, scaleY, String(score), {
+	children.push(ctx.text(LAYOUT.labelX, scaleY, scoreCaption, {
+		...labelFont,
+		fill: muted,
+		"dominant-baseline": "middle"
+	}));
+	for (let score = 1; score <= MAX_SCORE; score += 1) children.push(ctx.text(x0 + (score - 1) * step, scaleY, String(score), {
 		...labelFont,
 		fill: muted,
 		anchor: "middle",
@@ -462,12 +462,14 @@ function layout(model, options = {}) {
 				stroke: grid,
 				"stroke-width": 1
 			}));
-			const faceX = x0 + (Math.min(SCALE.segments, Math.max(1, task.score)) - 1) * step;
+			const faceX = x0 + (task.score - 1) * step;
 			const taskTone = task.status ? ctx.design[task.status] : accent;
 			const face = ctx.circle(faceX, mid, FACE_R, {
 				fill: ctx.tint(paper, taskTone, .06),
 				stroke: taskTone,
 				"stroke-width": 1.4,
+				role: "img",
+				"aria-label": `${task.name}: ${scoreCaption} ${task.score}/${MAX_SCORE}`,
 				meta: {
 					kind: "node",
 					id: task.id,
@@ -482,13 +484,6 @@ function layout(model, options = {}) {
 				stroke: accent,
 				"stroke-width": 1.4,
 				"stroke-linecap": "round"
-			}));
-			const scaleX = Math.min(Math.max(faceX - SCALE.total / 2, x0), x1 - SCALE.total);
-			const filled = Math.min(SCALE.segments, Math.max(1, Math.round(task.score)));
-			for (let k = 0; k < SCALE.segments; k += 1) children.push(ctx.rect(scaleX + k * (SCALE.width + SCALE.gap), mid + 12, SCALE.width, SCALE.height, {
-				rx: 1.5,
-				fill: k < filled ? accent : grid,
-				"fill-opacity": k < filled ? .85 : .45
 			}));
 		}
 	}
