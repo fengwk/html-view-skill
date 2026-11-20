@@ -1,5 +1,5 @@
 // 渲染检查：把检查脚本注入页面，在 desktop / mobile / export / print 视口下收集失败项。
-// 检查等待 KChart ready 与当前媒体重排；同一 code 的同一元素在多个视口出现时合并成一条。
+// 检查等待 KChart ready 与当前媒体重排；跨视口合并同一元素的同类问题，保留不同的对比度测量。
 import { existsSync, readFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { withBrowser as defaultWithBrowser } from './browser.mjs';
@@ -17,7 +17,7 @@ const FIX = {
   TEXT_CLIP: '扩大文本元素或允许换行；若省略号截断是有意的，在元素上标记 data-allow-truncate',
   LOW_CONTRAST: '加深文字色或减淡底色；正文对比度至少 4.5:1',
   PAGE_OVERFLOW: '找出超宽元素（SVG、表格、长 URL），放进横向滚动容器或改成自适应宽度',
-  PRINT_CLIP: '调整表格列宽或换行；宽图可减少类别、缩短期间、拆图或换较窄的布局。必要时用 --paper a4-landscape 或 --paper a3-portrait，不缩小 SVG。',
+  PRINT_CLIP: '优先用 --paper a4-landscape 或 --paper a3-portrait 增加版心宽度；也可调整表格列宽或换行，给宽图换较窄的布局或拆图，不缩小 SVG。',
   PRINT_TALL_FIGURE: '图需要放在同一页。改用 --paper a3-portrait、拆图或单独交付完整 SVG，不缩小图或字号。',
   PRINT_UI_FRAME: '界面稿默认按设备尺寸打印；去掉 --paper，或交付保留交互和滚动的 HTML。',
   PRINT_UI_SCROLL: '更大的纸不会放宽设备画布内部。需要 PDF 时先重排表格或图；否则交付保留滚动的 HTML。',
@@ -493,34 +493,22 @@ function inspectPage(options) {
     }
   }
 
-  if (viewport !== 'print') {
-    for (const el of textElements()) {
-      const size = shownSize(el);
-      if (size < 12 - 0.01) push('SMALL_TEXT', el, `显示 ${round(size)}px，要求 ≥ 12px`);
-      const cs = getComputedStyle(el);
-      const colorValue = el instanceof SVGElement ? cs.fill : cs.color;
-      if (!isColor(colorValue)) continue;
-      const color = parseColor(colorValue);
-      if (color.a <= 0) continue;
-      const background = backgroundOf(el);
-      const contrast = ratio(over(color, background), background);
-      const weight = Number(cs.fontWeight) || 400;
-      const need = size >= 24 || (size >= 18.66 && weight >= 700) ? 3 : 4.5;
-      if (contrast < need - 0.005) push('LOW_CONTRAST', el, `对比度 ${round(contrast)}:1，要求 ≥ ${need}:1`);
-    }
-  } else {
-    for (const el of textElements()) {
-      const size = shownSize(el);
-      const cs = getComputedStyle(el);
-      const colorValue = el instanceof SVGElement ? cs.fill : cs.color;
-      if (!isColor(colorValue)) continue;
-      const color = parseColor(colorValue);
-      if (color.a <= 0) continue;
-      const background = backgroundOf(el);
-      const contrast = ratio(over(color, background), background);
-      const weight = Number(cs.fontWeight) || 400;
-      const need = size >= 24 || (size >= 18.66 && weight >= 700) ? 3 : 4.5;
-      if (contrast < need - 0.005) push('LOW_CONTRAST', el, `对比度 ${round(contrast)}:1，要求 ≥ ${need}:1`);
+  const rgb = ({ r, g, b }) => `rgb(${[r, g, b].map((v) => Math.round(v * 100) / 100).join(', ')})`;
+  for (const el of textElements()) {
+    const size = shownSize(el);
+    if (viewport !== 'print' && size < 12 - 0.01) push('SMALL_TEXT', el, `显示 ${round(size)}px，要求 ≥ 12px`);
+    const cs = getComputedStyle(el);
+    const colorValue = el instanceof SVGElement ? cs.fill : cs.color;
+    if (!isColor(colorValue)) continue;
+    const color = parseColor(colorValue);
+    if (color.a <= 0) continue;
+    const background = backgroundOf(el);
+    const foreground = over(color, background);
+    const contrast = ratio(foreground, background);
+    const weight = Number(cs.fontWeight) || 400;
+    const need = size >= 24 || (size >= 18.66 && weight >= 700) ? 3 : 4.5;
+    if (contrast < need - 0.005) {
+      push('LOW_CONTRAST', el, `对比度 ${contrast.toFixed(3)}:1，要求 ≥ ${need}:1；有效前景 ${rgb(foreground)}，有效背景 ${rgb(background)}`);
     }
   }
 
@@ -542,6 +530,32 @@ function inspectPage(options) {
         if (rect.width > 0 && rect.right > root.clientWidth + 1 && (!worst || rect.right > worst.right)) {
           worst = { el, right: rect.right };
         }
+      }
+      // 段落盒可能没有越界，未换行的文字却伸到了视口外。Range 不考虑裁切，检查时须包含文字自己的容器。
+      const nodes = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+      const range = document.createRange();
+      for (let node = nodes.nextNode(); node; node = nodes.nextNode()) {
+        const el = node.parentElement;
+        if (!(el instanceof HTMLElement) || !node.nodeValue.trim()
+          || el.closest('script, style, noscript, template, svg')
+          || getComputedStyle(el).visibility !== 'visible') continue;
+        range.selectNodeContents(node);
+        const minRight = worst?.right ?? root.clientWidth + 1;
+        let right = minRight;
+        for (const rect of range.getClientRects()) {
+          if (rect.width > 0 && rect.height > 0 && rect.right > right) right = rect.right;
+        }
+        if (right === minRight) continue;
+        let contained = false;
+        for (let parent = el; parent; parent = parent.parentElement) {
+          const cs = getComputedStyle(parent);
+          if (Number(cs.opacity) <= 0 || cs.position === 'fixed' || cs.contentVisibility === 'hidden'
+            || (parent !== root && cs.display !== 'inline' && cs.display !== 'contents' && cs.overflowX !== 'visible')) {
+            contained = true;
+            break;
+          }
+        }
+        if (!contained) worst = { el, right };
       }
       let target = worst ? worst.el : document.body;
       let targetRight = worst ? worst.right : root.clientWidth;
@@ -874,7 +888,7 @@ export async function renderCheck(file, { chromePath, browser, paper } = {}) {
 
       const merged = new Map();
       const add = (failure, viewport) => {
-        const key = `${failure.code}\u0000${failure.key}`;
+        const key = `${failure.code}\u0000${failure.key}${failure.code === 'LOW_CONTRAST' ? `\u0000${failure.detail}` : ''}`;
         const seen = merged.get(key);
         if (seen) {
           if (!seen.viewports.includes(viewport)) seen.viewports.push(viewport);
