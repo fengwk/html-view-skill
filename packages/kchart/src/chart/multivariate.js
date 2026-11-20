@@ -3,6 +3,7 @@
 import { register } from './registry.js';
 import { columnHeaders } from '../core/geometry.js';
 
+export const diagramCombo = Symbol('diagram combo');
 const finite = Number.isFinite;
 const number = (ctx, field, values, zero = false) => {
   const result = ctx.ticks(values.filter(finite), field, { zero });
@@ -291,10 +292,11 @@ const chart = (spec, ctx) => {
       children.push(ctx.text(x, p.y - 8 - index * 16, item.text, { anchor: item.anchor, size: 12, ...(item.fill ? { fill: item.fill } : {}) }));
     });
     catLabels(cats, p);
+    const showAxisInLegend = !spec[diagramCombo] || (leftFields.length > 0 && rightFields.length > 0);
     const lh = legend(layers.map((l, i) => {
       const meta = ctx.field(l.field), unit = meta.unit || (meta.format === 'percent' ? '%' : '');
       const axis = l.axis === 'right' ? msg('右轴', 'right axis') : msg('左轴', 'left axis');
-      return { label: [meta.label, unit, axis].filter(Boolean).join(' · '), color: ctx.color(`tone${i % 6 + 1}`) };
+      return { label: [meta.label, unit, showAxisInLegend ? axis : null].filter(Boolean).join(' · '), color: ctx.color(`tone${i % 6 + 1}`) };
     }), p.y + p.h + 36);
     const scene = endScene(p.y + p.h + 36 + lh);
     scene.width = Math.max(width, p.x + p.w + rightGutter);

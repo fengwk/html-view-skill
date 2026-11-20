@@ -80,6 +80,17 @@ test('mindmap does not break English words mid-word', () => {
   assert.match(svg, />Antidisestablishmentarianism<\/text>/);
 });
 
+// A deep bilateral tree should scroll rather than squeeze a readable sentence into a tall column.
+test('mindmap preserves a comfortable measure for borderless leaves', () => {
+  const parsed = parse(`root((mindmap))\n  origins{{Origins}}\n    history[Long history]\n      Popularisation\n      British popular psychology author Tony Buzan\n  research{{Research}}\n    uses[Uses]\n      Creative techniques`, { firstLine: 2 });
+  assert.deepEqual(parsed.errors, []);
+  for (const width of [800, 360]) {
+    const result = render(parsed.model, { width });
+    assert.match(result.svg, />British popular psychology<\/text>/);
+    assert.match(result.svg, />author Tony Buzan<\/text>/);
+  }
+});
+
 // Styling and icons share the same node without turning presentation statements into children.
 test('mindmap style icon and link decorations', () => {
   const parsed = parse('root[Root]\n  a[A &amp; B]\n    :::custom other\n    ::icon(fa fa-book)\n  b[B]\n    ::icon(not-real:totally-unknown)\nclassDef custom fill:#f00\nclick a href "https://example.org"', { firstLine: 2 });

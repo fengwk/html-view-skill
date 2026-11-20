@@ -7,6 +7,8 @@ const GAP_X = 44, COMPACT_GAP = 24, GAP_Y = 18, PAD_X = 14, PAD_Y = 9, TEXT_WIDT
 // 排版方案从宽松到紧凑：先收窄节点换行宽度（不低于 120px 可读下限），再收紧层距。
 // 取第一个放得进图框的方案；都放不下时用最紧凑的一档，保留所选布局，由宿主提供图内滚动。
 const PLANS = [GAP_X, COMPACT_GAP].flatMap(gap => [TEXT_WIDTH, 190, 160, 140, 120].map(cap => ({ gap, cap })));
+// Mermaid labels keep ~15em of text room. Tighten gaps before widening the scrolling scene, not by squeezing text.
+const DIAGRAM_PLANS = [GAP_X, COMPACT_GAP].map(gap => ({ gap, cap: TEXT_WIDTH }));
 const mindLayouts = ['bilateral', 'right', 'left', 'radial', 'org', 'brace', 'fishbone', 'timeline'];
 const treeLayouts = ['right', 'left', 'org', 'brace'];
 export const mindmapPresentation = Symbol('mindmap presentation');
@@ -334,7 +336,7 @@ function build(spec, ctx, isMindmap) {
   if (!(isMindmap ? mindLayouts : treeLayouts).includes(mode)) ctx.fit(`不支持布局 ${mode}`, '选择该图型的受控 layout');
   if (!['editorial', 'cards'].includes(variant)) ctx.fit(`不支持变体 ${variant}`, '选择该图型的受控 variant');
   let plan;
-  for (const option of PLANS) {
+  for (const option of spec[mindmapPresentation] ? DIAGRAM_PLANS : PLANS) {
     plan = arrange(spec, ctx, mode, option);
     if (plan.width <= ctx.width) break;
   }
