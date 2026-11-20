@@ -211,7 +211,7 @@ function parse(source, info) {
   // The implicit caller has its own leftmost lifeline, not a self-call on the callee.
   if (actors.has(STARTER)) participants.unshift(participants.splice(participants.indexOf(actors.get(STARTER)), 1)[0]);
   participants.forEach((actor, index) => { actor.index = index; });
-  return { model: { type: 'sequence', title, participants, statements, messages, clearFragmentLabels: true }, errors };
+  return { model: { type: 'sequence', title, participants, statements, messages, zenuml: true }, errors };
 }
 
 const shared = sequence.sequenceDiagram;

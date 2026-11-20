@@ -27,7 +27,14 @@ API-->>用户: 展示结果
 
 ## zenuml
 
-ZenUML 是 Mermaid 外部插件，KChart 不支持该插件。`zenuml` 只保留旧文档兼容：参与者、`Client->API: request`、`Client.call()` 和 `Client.call() { API.handle() }` 等简单写法，可用正文 `title`。没有专用配置键；不支持的语句（含通用样式和点击）报错。新图请用 `sequenceDiagram`。
+KChart 原生解析 Mermaid 12.3.0 文档中的 `zenuml`，不加载 Mermaid 的 ZenUML 插件。可用正文 `title` 或前言区标题。
+
+- 可写 `A` 声明参与者、`A as Alice` 设置别名，也可直接在消息中引用。`@Actor A`、`@Boundary B`、`@Control C`、`@Entity E`、`@Database DB`、`@Collections L`、`@Queue Q` 使用对应的时序图外观；如 `@EC2`、`@S3` 的其他注解用普通参与者显示，并汇总成一条警告。写 `@Actor User`，不要写 `@Actor(User)`。
+- `A->B: 请求` 是异步消息。`B.method(args)` 从当前调用者发出同步调用；顶层没有显式调用者时使用匿名角色。`A->B.method() { C.handle() }` 指定调用者并嵌套调用，激活条覆盖调用块。
+- 调用块里的 `return result` 向其调用者画虚线回复；`x = B.method()` 带标签 `x` 的回复。跨层可写 `@return A->B: result` 或 `@reply A->B: result`，也可把注解单独写在消息的上一行。`new C` / `new C(args)` 在首次使用处创建参与者，生命线从创建处开始。
+- 消息前的 `//` 注释作为消息上方的时序注释框显示，参与者注释忽略；保留 Markdown 强调的文字，不画强调样式。
+- `while`、`for`、`forEach`、`loop` 映射为 `loop`；`if` 映射为 `alt`，保留 `else if` / `else` 分支。`opt`、`par` 使用同名片段，`par` 的直接子语句按分支分隔。`try` / `catch` / `finally` 共用通用片段框与分隔线，保留原关键字，不使用插件专用异常图标。
+- 图形采用 KChart 的时序样式，不复刻插件的层级编号。没有专用配置键；未实现的扩展语法（包括通用样式和点击）会报错。
 
 ## usecase-beta
 

@@ -622,9 +622,12 @@ function layout(model, { measure, width, lang, compact }, info = {}) {
     if (event.destroy) while (active.get(event.destroy).length) stop(event.destroy, y, 0);
   }
   // 片段标题与分支标题要让开同一行的激活条：条画在框上，标题压到条上会看不清。
-  const labelObstacles = model.clearFragmentLabels
-    ? [...activations, ...actors.map(actor => ({ x: actor.x - 1, y: creations.get(actor.id) ?? top - 4, h: bottom }))]
-    : [...activations];
+  const labelObstacles = [...activations];
+  if (model.zenuml) for (const actor of actors) {
+    const created = creations.get(actor.id);
+    const y = created == null ? top - 4 : created + actor.head.h / 2;
+    labelObstacles.push({ x: actor.x - 1, y, h: bottom - y });
+  }
   const barsByX = labelObstacles.sort((a, b) => a.x - b.x);
   const labelXOf = (box, y, width) => {
     let x = box.x + 8;
@@ -673,6 +676,7 @@ function layout(model, { measure, width, lang, compact }, info = {}) {
   if (naturalWidth > width * 2 || actors.length > 60 || model.messages > 200) errors.push(warning('LARGE_DIAGRAM', lang, actors[0].line, '时序图较大，可滚动查看', 'Large sequence diagram; scroll to view it', '可将时序图拆分', 'Consider splitting the diagram'));
   return {
     type: 'sequence', width: canvas, height: snap(height), actors, events, activations, errors, title: model.title,
+    ...(model.zenuml ? { zenuml: true } : {}),
   };
 }
 function scene(layout, ctx) {
@@ -758,7 +762,9 @@ function scene(layout, ctx) {
     children.push({ ...ctx.el('g', {}, frame), meta: { kind: 'frame', id: `sequence-frame-${event.y}` } });
   };
   for (const event of layout.events) if (event.kind === 'open') paintFrame(event);
-  for (const actor of layout.actors) children.push(line(actor.life.x, actor.life.y1, actor.life.x, actor.life.y2, { stroke: theme.line2, 'stroke-width': 1 }));
+  for (const actor of layout.actors) children.push(line(actor.life.x, actor.life.y1, actor.life.x, actor.life.y2, layout.zenuml
+    ? { stroke: theme.fg3, 'stroke-width': 1, 'stroke-dasharray': '4 4' }
+    : { stroke: theme.line2, 'stroke-width': 1 }));
   for (const bar of layout.activations) if (bar.h > 0) children.push(ctx.rect(bar.x, bar.y, 10, bar.h, {
     fill: ctx.tint(theme.bg, sectionTone, .28), stroke: sectionTone, 'stroke-opacity': .45, 'stroke-width': 1,
   }));

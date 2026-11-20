@@ -1,7 +1,8 @@
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { diagram } from '../dist/esm/node.js';
+import { diagram, themes } from '../dist/esm/node.js';
+import { contrast } from '../src/core/color.js';
 import { implementations } from '../src/diagram/zenuml.js';
 import { checkScene } from './helpers/geometry.mjs';
 
@@ -109,4 +110,15 @@ test('ZenUML draws participant cards and messages inside a narrow scene', () => 
   const routes = nodes.filter(node => node.meta?.kind === 'message');
   assert.equal(routes.length, 2);
   assert.notEqual(routes[0].attrs['marker-end'], routes[1].attrs['marker-end']);
+});
+
+// Keep the original all-theme contrast guarantee for messages and lifelines.
+test('ZenUML routes and dashed lifelines contrast with each theme', () => {
+  for (const [theme, design] of Object.entries(themes)) {
+    const { scene } = diagram('zenuml\nClient->API: request\nClient->Client.call()', { theme, width: 600, frame: false });
+    assert.equal(scene.width, 600);
+    const routes = descendants(scene).filter(node => node.meta?.kind === 'message' || node.tag === 'line' && node.attrs['stroke-dasharray'] === '4 4');
+    assert.equal(routes.length, 4);
+    assert.ok(routes.every(({ attrs }) => contrast(attrs.stroke, design.surface) >= 3), theme);
+  }
 });
