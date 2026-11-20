@@ -181,13 +181,25 @@
     }
   },
   "diagram/gantt": {
-    "diagrams": { "gantt": { "topic": "time" } }
+    "diagrams": {
+      "gantt": {
+        "topic": "time"
+      }
+    }
   },
   "diagram/timeline": {
-    "diagrams": { "timeline": { "topic": "time" } }
+    "diagrams": {
+      "timeline": {
+        "topic": "time"
+      }
+    }
   },
   "diagram/journey": {
-    "diagrams": { "journey": { "topic": "flow" } }
+    "diagrams": {
+      "journey": {
+        "topic": "flow"
+      }
+    }
   },
   "diagram/time": {
     "diagrams": {
@@ -239,7 +251,9 @@
   "diagram/block": {
     "diagrams": {
       "block": {
-        "aliases": ["block-beta"],
+        "aliases": [
+          "block-beta"
+        ],
         "topic": "architecture"
       }
     }
@@ -251,7 +265,9 @@
       },
       "treemap": {
         "topic": "composition",
-        "aliases": ["treemap-beta"]
+        "aliases": [
+          "treemap-beta"
+        ]
       }
     }
   },
@@ -278,6 +294,37 @@
   "diagram/numeric-radar": {
     "diagrams": {
       "radar-beta": {
+        "topic": "matrix"
+      }
+    }
+  },
+  "diagram/ishikawa": {
+    "diagrams": {
+      "ishikawa": {
+        "topic": "causality",
+        "aliases": [
+          "ishikawa-beta"
+        ]
+      }
+    }
+  },
+  "diagram/treeview": {
+    "diagrams": {
+      "treeView-beta": {
+        "topic": "hierarchy"
+      }
+    }
+  },
+  "diagram/venn": {
+    "diagrams": {
+      "venn-beta": {
+        "topic": "composition"
+      }
+    }
+  },
+  "diagram/cynefin": {
+    "diagrams": {
+      "cynefin-beta": {
         "topic": "matrix"
       }
     }
