@@ -26,6 +26,10 @@ API-->>用户: 展示结果
 
 ## usecase-beta
 
-UML 用例图：`actor 名称("显示名")` 声明参与者，`systemBoundary "系统名" … end` 包住用例，`用例ID("名称")` 声明用例，`A --> B` 等关联箭头连接参与者与用例，`A ..> : include B`、`A ..> : extend B` 画虚线 «include» / «extend» 依赖；可用 `direction LR`。
+UML 用例图，默认 `LR`，可用 `direction TB` / `TD` / `BT` / `LR` / `RL`。`actor ID("显示名")` 声明参与者；`ID("名称")` 表示椭圆用例，`ID[名称]` 表示矩形用例。`systemBoundary "系统名" … end` 包住参与者和用例，不能嵌套；边界可用 `@{ type: package }` 显示页签。参与者支持 `@{ type: hollow }`、`@{ type: awesome }` 或 `@{ icon: "fa:user" }`；无法解析的图标会提示并回退为普通参与者。可加 `<<构造型>>`，普通/空心参与者与椭圆用例可加 `@{ business: true }`。
+
+在边界外写关系：`-->`、`<--`、`--`、`--o`、`o--`、`--x`、`x--`；`A -- "标签" --> B` 是带标签的关联，`A --|> B` 是同类元素间的泛化，`A ..> : include B` / `A ..> : extend B` 是用例间的虚线依赖。`note for ID "文字"` 添加注释，`json ID@{ "key": "value" }` 将严格 JSON 对象展开为表格。
+
+支持 `classDef`、`class`、`style`、`linkStyle`、`:::类名` 和安全链接。颜色映射到 KChart 状态色，不保留原 CSS 或执行点击回调、边动画。支持前言 `title` 与正文 `accTitle` / `accDescr`；`config.usecase` 中可调 `actorFontSize` / `usecaseFontSize`（限制为 12–16 px）和 `diagramPadding`。间距、字体家族、配色方案和 ELK 等布局选项不应用；窄容器横向滚动。
 
 时序图可使用前言区 `title`；`zenuml` 也可用正文 `title`。阅读文档的图题必须来自图源码，不支持的额外标题选项应删除，不要以外部段落替代。

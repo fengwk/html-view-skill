@@ -46,7 +46,11 @@ query -->|响应| result
 
 ## swimlane-beta
 
-Mermaid 泳道图：头行可带 `LR` / `TB`，每个 `subgraph 泳道名 … end` 是一条泳道，泳道内用 flowchart 写法声明节点，之后用 flowchart 连线连接任意泳道的节点。与原生 `swimlane` 是两种写法：已有 Mermaid 源码用本类型，从头起稿可用原生写法。
+Mermaid 泳道图。默认 `TB`；可在头行或单独的 `direction` 行用 `TB` / `TD` / `BT` / `LR` / `RL`，多处声明不得冲突。每个顶层 `subgraph 泳道名 … end` 或 `subgraph id [泳道名] … end` 定义一条泳道；在其中用 flowchart 写法声明节点。连线可跨泳道，但两端必须是节点。未归属节点放进独立泳道；简单嵌套子图显示为泳道内的组框。
+
+支持矩形、圆角矩形、菱形、胶囊和圆形；其他形状回退为圆角矩形。可使用带文字标签的连线、虚线、粗线和隐形排版连线 `~~~`。`:::类名`、`classDef`、`class`、`style` 和 `linkStyle` 的可映射颜色以 KChart 状态色呈现，不复刻 CSS；节点可加安全链接，节点和边标签可用可解析的内置图标。支持前言 `title` 与正文 `accTitle` / `accDescr`；不应用 Mermaid 专有的泳道布局或配色配置。
+
+最多 6 条泳道、3 条回边；过长节点标签须缩短至可排为 3 行。窄容器横向滚动，不缩小文字。这是 Mermaid 写法，不是原生 `swimlane` 的 `lane` 缩进语法。
 
 ## eventmodeling
 

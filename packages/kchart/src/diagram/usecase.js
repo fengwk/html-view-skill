@@ -320,7 +320,40 @@ function layout(model, options) {
   const errors = [];
   if (geometry.width > width * 2 || model.nodes.length > 60) errors.push(warning('LARGE_DIAGRAM', lang, model.nodes[0]?.line,
     '用例图较大，可拆成多张图', 'Large use case diagram; consider splitting it'));
+  attachRoutedLabels(geometry);
   return { ...geometry, diagrams, uml: model, errors };
+}
+
+// The shared router can repair an edge while leaving its label at the former route.
+// Reattach detached chips to a clear horizontal run without changing the route.
+function attachRoutedLabels(geometry) {
+  const segmentBox = ({ p0, p1, c1, c2 }) => {
+    const lowX = Math.min(p0.x, p1.x, c1.x, c2.x), lowY = Math.min(p0.y, p1.y, c1.y, c2.y);
+    return { x: lowX, y: lowY, w: Math.max(p0.x, p1.x, c1.x, c2.x) - lowX, h: Math.max(p0.y, p1.y, c1.y, c2.y) - lowY };
+  };
+  const touches = (a, b, gap = 0) => a.x < b.x + b.w + gap && b.x < a.x + a.w + gap && a.y < b.y + b.h + gap && b.y < a.y + a.h + gap;
+  const titleRects = geometry.frames.map(frame => frame.titleRect).filter(Boolean);
+  for (const edge of geometry.edges) {
+    const label = edge.labelRect;
+    if (!label || edge.segments.some(segment => touches(label, segmentBox(segment), 1))) continue;
+    const others = geometry.edges.filter(other => other !== edge);
+    const occupied = [...geometry.nodes, ...titleRects, ...others.map(other => other.labelRect).filter(Boolean),
+      ...others.flatMap(other => other.segments.map(segmentBox))];
+    let best = null, bestDistance = Infinity;
+    for (const segment of edge.segments) {
+      const run = segmentBox(segment);
+      if (run.h || run.w < label.w + 8) continue;
+      for (let x = run.x + 4; x + label.w <= run.x + run.w - 4; x += 8) {
+        const candidate = { ...label, x, y: run.y - label.h / 2 };
+        if (occupied.some(box => touches(candidate, box, 3))) continue;
+        if (geometry.frames.some(frame => touches(candidate, frame, 3) &&
+          (x < frame.x + 3 || x + label.w > frame.x + frame.w - 3 || candidate.y < frame.y + 3 || candidate.y + label.h > frame.y + frame.h - 3))) continue;
+        const distance = Math.hypot(candidate.x - label.x, candidate.y - label.y);
+        if (distance < bestDistance) { best = candidate; bestDistance = distance; }
+      }
+    }
+    if (best) edge.labelRect = best;
+  }
 }
 
 function markerDefs(ctx, a) {
