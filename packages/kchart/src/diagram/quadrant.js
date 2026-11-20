@@ -83,7 +83,9 @@ function layout(model, { ctx, width, renderOptions }, info = {}) {
   const W = (s, font = FONT.label) => ctx.measure(s || '', font.size, font.weight);
   const spanOf = values => (values || []).reduce((sum, text) => sum + W(text), 36);
   const pad = 18 + dimension('quadrantPadding', 5, 0, 48);
-  const xGap = 11 + dimension('xAxisLabelPadding', 5, 5, 48), yGap = 11 + dimension('yAxisLabelPadding', 5, 5, 48);
+  const dotClearance = Math.max(5, ...points.map(p => (p.style.radius ?? r) + (p.style['stroke-width'] ?? 1) / 2));
+  const xGap = dotClearance + 6 + dimension('xAxisLabelPadding', 5, 5, 48);
+  const yGap = dotClearance + 6 + dimension('yAxisLabelPadding', 5, 5, 48);
   const xRoom = xGap + 10, yRoom = yGap + 10;
   const top = pad + (titleInline ? 32 : 0) + (xTop && axes.x ? xRoom : 0);
   const left = pad + (!yRight && axes.y ? yRoom : 0);
@@ -104,7 +106,7 @@ function layout(model, { ctx, width, renderOptions }, info = {}) {
   }
   const dots = points.map(p => ({ ...p, cx: left + p.x * span, cy: bottom - p.y * h, r: p.style.radius ?? r }));
   const box = (x, y, hw, hh) => ({ x0: x - hw, x1: x + hw, y0: y - hh, y1: y + hh });
-  const free = b => occupied.every(a => a.x1 + 3 < b.x0 || a.x0 - 3 > b.x1 || a.y1 + 3 < b.y0 || a.y0 - 3 > b.y1);
+  const free = b => occupied.every(a => a.x1 + 3 <= b.x0 || a.x0 - 3 >= b.x1 || a.y1 + 3 <= b.y0 || a.y0 - 3 >= b.y1);
   dots.forEach(p => occupied.push(box(p.cx, p.cy, p.r + 2, p.r + 2)));
   captions.forEach((s, i) => {
     const x = left + (i === 0 || i === 3 ? .75 : .25) * span;
