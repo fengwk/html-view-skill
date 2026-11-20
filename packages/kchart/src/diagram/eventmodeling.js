@@ -1,6 +1,7 @@
 /* Event Modeling (Mermaid `eventmodeling`): lane × timeline grid of frames with inferred relations. */
 
 import { FONT, appearance as appearanceOf, error, maxWidthOf, message, snap, warning, wrapText } from './support.js';
+import { mapConfig, mapIcon, mapLabels } from './map-label.js';
 
 // shared-infra §9: only runtime work caps block; size limits warn and still render.
 const LIMITS = Object.freeze({ largeFrames: 60, dataLines: 12, workFrames: 600, chars: 200000 });
@@ -108,7 +109,8 @@ function parse(source, info = {}) {
   const raw = String(source ?? '').split('\n').map((line) => line.replace(/\r$/, ''));
   const errors = [], hints = [];
   const frames = [], dataBlocks = [], notes = [], gwt = [], entities = [];
-  let title;
+  const normalize = mapLabels(lang, item => hints.push(item));
+  let { text: title, icon: titleIcon } = info.title ? normalize(info.title, info.headerLine) : {};
 
   const issue = (line, zh, en, fixZh, fixEn) => errors.push(error(lang, line, zh, en, fixZh, fixEn));
   if (String(source ?? '').length > LIMITS.chars) {
@@ -229,7 +231,10 @@ function parse(source, info = {}) {
       continue;
     }
 
-    if (head === 'title') { title = text.replace(/^title\s*:?\s*/i, '').trim() || undefined; continue; }
+    if (head === 'title') {
+      if (!info.title) ({ text: title, icon: titleIcon } = normalize(text.replace(/^title\s*:?\s*/i, ''), line));
+      continue;
+    }
     if (head === 'acctitle' || head === 'accdescr') {
       if (/^accDescr\s*\{/i.test(text)) {
         while (i + 1 < raw.length && !/^\s*\}/.test(raw[i + 1])) i += 1;
@@ -269,7 +274,7 @@ function parse(source, info = {}) {
     hints.push(warning('DIAGRAM_HINT', lang, unused[0].line, `entity 声明未在 gwt 中使用：${unused.map((entry) => entry.name).join('、')}`, `Entities not used by any gwt statement: ${unused.map((entry) => entry.name).join(', ')}`, '在 gwt 中引用这些实体，或删除声明', 'Reference the entities in a gwt statement, or remove the declarations'));
   }
 
-  return { model: { type: 'eventmodeling', title, frames, dataBlocks, notes, gwt, entities }, errors: [...errors, ...hints] };
+  return { model: { type: 'eventmodeling', title, titleIcon, frames, dataBlocks, notes, gwt, entities }, errors: [...errors, ...hints] };
 }
 
 // Mermaid raises source-type violations as Langium errors; KChart keeps rendering and reports them.
@@ -320,6 +325,8 @@ function layout(model, options = {}, info = {}) {
   const lang = options.lang || info.lang || 'zh';
   const width = Math.max(1, Number(options.width) || 800);
   const narrow = width < 560;
+  const padding = mapConfig(mapConfig(info.config, 'eventmodeling'), 'padding');
+  const pad = typeof padding === 'number' && Number.isFinite(padding) ? Math.min(120, Math.max(8, padding)) : PAD;
   const measure = options.measure || ((value, font = FONT.body) => [...String(value ?? '')].length * font.size * 0.56);
   const errors = [];
   if (!model.frames.length) {
@@ -364,7 +371,7 @@ function layout(model, options = {}, info = {}) {
   // 3. Horizontal placement: each frame starts after the previous column and after its own lane's end.
   const labelWidth = Math.max(56, ...rows.map((lane) => Math.ceil(measure(lane.label, LANE_FONT))));
   const gutter = narrow ? LANE_PAD : labelWidth + 24;
-  const laneX = PAD, columnX = PAD + gutter;
+  const laneX = pad, columnX = pad + gutter;
   const laneRight = new Map();
   let previous = null;
   for (const box of boxes) {
@@ -377,7 +384,7 @@ function layout(model, options = {}, info = {}) {
     previous = box.r;
   }
   const contentRight = Math.max(...boxes.map((box) => box.r));
-  const laneRightX = Math.max(contentRight + LANE_PAD, PAD + labelWidth + 24);
+  const laneRightX = Math.max(contentRight + LANE_PAD, pad + labelWidth + 24);
 
   // 4. Relations: explicit ->> first, then the nearest earlier frame in a different lane.
   const rowOf = new Map(rows.map((lane, index) => [lane, index]));
@@ -515,9 +522,9 @@ function layout(model, options = {}, info = {}) {
     const depth = Math.max(0, ...tracks.map((item) => item.track));
     return tracks.length ? LANE_GAP + depth * TRACK : gap < rows.length - 1 ? LANE_GAP : 0;
   });
-  const title = info.title || model.title;
-  const titleLines = title ? wrapText(title, laneRightX - PAD, FONT.title, measure) : [];
-  let cursor = PAD + titleLines.length * 20;
+  const { title, titleIcon } = model;
+  const titleLines = title || titleIcon ? wrapText(title, laneRightX - pad - (titleIcon ? 20 : 0), FONT.title, measure) : [];
+  let cursor = pad + titleLines.length * 20;
   rows.forEach((lane, index) => {
     lane.y = cursor;
     lane.labelY = lane.y + (narrow ? 13 : lane.h / 2);
@@ -580,9 +587,9 @@ function layout(model, options = {}, info = {}) {
     pushCaption(label(['实体', 'Entities']), 'heading');
     for (const row of wrapText(model.entities.map(entity => entity.name).join(' · '), captionWidth, CAPTION_FONT, measure)) pushCaption(row, 'body');
   }
-  const height = (captions.length ? captionY + PAD - CAPTION_STEP + 4 : stackBottom + PAD);
+  const height = (captions.length ? captionY + pad - CAPTION_STEP + 4 : stackBottom + pad);
 
-  const sceneWidth = laneRightX + PAD, sceneHeight = snap(Math.max(1, height));
+  const sceneWidth = laneRightX + pad, sceneHeight = snap(Math.max(1, height));
   // shared-infra §9: large diagrams still render, they only suggest a split.
   if (model.frames.length > LIMITS.largeFrames || sceneWidth > width * 2) {
     errors.push(warning('LARGE_DIAGRAM', lang, info.firstLine || 1,
@@ -591,14 +598,20 @@ function layout(model, options = {}, info = {}) {
   }
   return {
     type: 'eventmodeling', width: sceneWidth, height: sceneHeight,
-    lanes: rows, boxes, edges, captions, errors, title, titleLines,
+    lanes: rows, boxes, edges, captions, errors, title, titleIcon, titleLines, pad,
   };
 }
 
 function scene(geometry, ctx) {
   const look = appearanceOf(ctx);
   const children = [];
-  children.push(ctx.textLines(PAD, PAD, geometry.titleLines, { ...FONT.title, leading: 20, fill: look.fg1 }));
+  const { pad, titleIcon, titleLines } = geometry;
+  if (titleLines.length) {
+    const y = Math.max(9, pad);
+    children.push(ctx.textLines(pad + (titleIcon ? 20 : 0), y, titleLines,
+      { ...FONT.title, leading: 20, fill: look.fg1, 'dominant-baseline': 'central' }));
+    if (titleIcon) children.push(mapIcon(ctx, titleIcon, pad + 7, y, look.fg1));
+  }
   const marker = 'em-arrow';
   children.push(ctx.el('defs', {}, [ctx.el('marker', {
     id: marker, viewBox: '0 0 8 8', refX: 7, refY: 4, markerWidth: 8, markerHeight: 8, markerUnits: 'userSpaceOnUse', orient: 'auto',
@@ -665,4 +678,5 @@ function scene(geometry, ctx) {
   return { width: geometry.width, height: geometry.height, title: geometry.title, children };
 }
 
-export const implementations = { eventmodeling: { parse, validate, layout, scene } };
+const honoredConfig = ['eventmodeling.padding'];
+export const implementations = { eventmodeling: { parse, validate, layout, scene, honoredConfig } };

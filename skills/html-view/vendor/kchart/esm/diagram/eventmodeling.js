@@ -1,5 +1,6 @@
 import { __exportAll } from "../_virtual/_rolldown/runtime.js";
 import { FONT, appearance, error, maxWidthOf, message, snap, warning, wrapText } from "./support.js";
+import { mapConfig, mapIcon, mapLabels } from "./map-label.js";
 // src/diagram/eventmodeling.js
 var eventmodeling_exports = /* @__PURE__ */ __exportAll({ implementations: () => implementations });
 var LIMITS = Object.freeze({
@@ -182,7 +183,8 @@ function parse(source, info = {}) {
 	const raw = String(source ?? "").split("\n").map((line) => line.replace(/\r$/, ""));
 	const errors = [], hints = [];
 	const frames = [], dataBlocks = [], notes = [], gwt = [], entities = [];
-	let title;
+	const normalize = mapLabels(lang, (item) => hints.push(item));
+	let { text: title, icon: titleIcon } = info.title ? normalize(info.title, info.headerLine) : {};
 	const issue = (line, zh, en, fixZh, fixEn) => errors.push(error(lang, line, zh, en, fixZh, fixEn));
 	if (String(source ?? "").length > LIMITS.chars) {
 		issue(start, `源码超过 ${LIMITS.chars} 个字符`, `Source exceeds ${LIMITS.chars} characters`, "拆成多张事件模型图", "Split the source into several event modeling diagrams");
@@ -336,7 +338,7 @@ function parse(source, info = {}) {
 			continue;
 		}
 		if (head === "title") {
-			title = text.replace(/^title\s*:?\s*/i, "").trim() || void 0;
+			if (!info.title) ({text: title, icon: titleIcon} = normalize(text.replace(/^title\s*:?\s*/i, ""), line));
 			continue;
 		}
 		if (head === "acctitle" || head === "accdescr") {
@@ -374,6 +376,7 @@ function parse(source, info = {}) {
 		model: {
 			type: "eventmodeling",
 			title,
+			titleIcon,
 			frames,
 			dataBlocks,
 			notes,
@@ -434,6 +437,8 @@ function layout(model, options = {}, info = {}) {
 	const lang = options.lang || info.lang || "zh";
 	const width = Math.max(1, Number(options.width) || 800);
 	const narrow = width < 560;
+	const padding = mapConfig(mapConfig(info.config, "eventmodeling"), "padding");
+	const pad = typeof padding === "number" && Number.isFinite(padding) ? Math.min(120, Math.max(8, padding)) : PAD;
 	const measure = options.measure || ((value, font = FONT.body) => [...String(value ?? "")].length * font.size * .56);
 	const errors = [];
 	if (!model.frames.length) {
@@ -491,7 +496,7 @@ function layout(model, options = {}, info = {}) {
 	});
 	const labelWidth = Math.max(56, ...rows.map((lane) => Math.ceil(measure(lane.label, LANE_FONT))));
 	const gutter = narrow ? LANE_PAD : labelWidth + 24;
-	const laneX = PAD, columnX = PAD + gutter;
+	const laneX = pad, columnX = pad + gutter;
 	const laneRight = /* @__PURE__ */ new Map();
 	let previous = null;
 	for (const box of boxes) {
@@ -504,7 +509,7 @@ function layout(model, options = {}, info = {}) {
 		previous = box.r;
 	}
 	const contentRight = Math.max(...boxes.map((box) => box.r));
-	const laneRightX = Math.max(contentRight + LANE_PAD, PAD + labelWidth + 24);
+	const laneRightX = Math.max(contentRight + LANE_PAD, pad + labelWidth + 24);
 	const rowOf = new Map(rows.map((lane, index) => [lane, index]));
 	const boxOf = new Map(boxes.map((box) => [box.frame.id, box]));
 	const relations = [];
@@ -665,9 +670,9 @@ function layout(model, options = {}, info = {}) {
 		const depth = Math.max(0, ...tracks.map((item) => item.track));
 		return tracks.length ? LANE_GAP + depth * TRACK : gap < rows.length - 1 ? LANE_GAP : 0;
 	});
-	const title = info.title || model.title;
-	const titleLines = title ? wrapText(title, laneRightX - PAD, FONT.title, measure) : [];
-	let cursor = PAD + titleLines.length * 20;
+	const { title, titleIcon } = model;
+	const titleLines = title || titleIcon ? wrapText(title, laneRightX - pad - (titleIcon ? 20 : 0), FONT.title, measure) : [];
+	let cursor = pad + titleLines.length * 20;
 	rows.forEach((lane, index) => {
 		lane.y = cursor;
 		lane.labelY = lane.y + (narrow ? 13 : lane.h / 2);
@@ -742,7 +747,7 @@ function layout(model, options = {}, info = {}) {
 		};
 	});
 	const captions = [];
-	const captionX = 24, captionWidth = Math.max(120, laneRightX - captionX - 12);
+	const captionX = laneX + 4, captionWidth = Math.max(120, laneRightX - captionX - 12);
 	let captionY = stackBottom + 18;
 	const pushCaption = (text, kind, fill) => {
 		captions.push({
@@ -783,8 +788,8 @@ function layout(model, options = {}, info = {}) {
 		pushCaption(label(["实体", "Entities"]), "heading");
 		for (const row of wrapText(model.entities.map((entity) => entity.name).join(" · "), captionWidth, CAPTION_FONT, measure)) pushCaption(row, "body");
 	}
-	const height = captions.length ? captionY + PAD - CAPTION_STEP + 4 : stackBottom + PAD;
-	const sceneWidth = laneRightX + PAD, sceneHeight = snap(Math.max(1, height));
+	const height = captions.length ? captionY + pad - CAPTION_STEP + 4 : stackBottom + pad;
+	const sceneWidth = laneRightX + pad, sceneHeight = snap(Math.max(1, height));
 	if (model.frames.length > LIMITS.largeFrames || sceneWidth > width * 2) errors.push(warning("LARGE_DIAGRAM", lang, info.firstLine || 1, `图较大（${model.frames.length} 个时间框、宽 ${sceneWidth}px），建议拆成多张`, `Large diagram (${model.frames.length} time frames, ${sceneWidth}px wide); consider splitting it`, "按业务阶段拆分时间线", "Split the timeline by business stage"));
 	return {
 		type: "eventmodeling",
@@ -796,17 +801,25 @@ function layout(model, options = {}, info = {}) {
 		captions,
 		errors,
 		title,
-		titleLines
+		titleIcon,
+		titleLines,
+		pad
 	};
 }
 function scene(geometry, ctx) {
 	const look = appearance(ctx);
 	const children = [];
-	children.push(ctx.textLines(PAD, PAD, geometry.titleLines, {
-		...FONT.title,
-		leading: 20,
-		fill: look.fg1
-	}));
+	const { pad, titleIcon, titleLines } = geometry;
+	if (titleLines.length) {
+		const y = Math.max(9, pad);
+		children.push(ctx.textLines(pad + (titleIcon ? 20 : 0), y, titleLines, {
+			...FONT.title,
+			leading: 20,
+			fill: look.fg1,
+			"dominant-baseline": "central"
+		}));
+		if (titleIcon) children.push(mapIcon(ctx, titleIcon, pad + 7, y, look.fg1));
+	}
 	const marker = "em-arrow";
 	children.push(ctx.el("defs", {}, [ctx.el("marker", {
 		id: marker,
@@ -916,6 +929,7 @@ var implementations = { eventmodeling: {
 	parse,
 	validate,
 	layout,
-	scene
+	scene,
+	honoredConfig: ["eventmodeling.padding"]
 } };
 export { eventmodeling_exports, implementations };

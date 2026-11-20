@@ -107,3 +107,17 @@ test('renders Event Modeling notes, entities and GWT captions', () => {
   assert.match(svg, />Entities</);
   assert.deepEqual(checkScene(scene), []);
 });
+
+// Shared directives update Event Modeling padding, the title renders as a normalized label, and data stays literal.
+test('honors Event Modeling padding and normalizes the title only', () => {
+  const body = 'title fa:fa-envelope <b>Mail &amp; Cart</b>\ntf 01 ui Cart "&amp;"';
+  const regular = draw(body, 360);
+  const { svg, scene, diagnostics } = api.diagram(`%%{init: {"eventmodeling":{"padding":120,"rowHeight":99}}}%%\n${source(body)}`, { width: 360, lang: 'en' });
+  assert.ok(scene.width > regular.scene.width && scene.height > regular.scene.height);
+  assert.deepEqual(diagnostics.map(d => d.code), ['IGNORED_CONFIG']);
+  assert.ok(elements(scene).some(node => node.attrs?.transform?.includes(' scale(')));
+  assert.match(svg, />Mail &amp; Cart</);
+  assert.match(svg, />&amp;amp;</);
+  assert.deepEqual(checkScene(scene), []);
+  assert.equal(draw('tf 01 ui Cart\nclick 01 https://example.test').svg, null);
+});

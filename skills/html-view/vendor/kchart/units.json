@@ -299,9 +299,10 @@
   "diagram/eventmodeling": {
     "file": "units/diagram/eventmodeling.js",
     "deps": [
-      "diagram/support"
+      "diagram/support",
+      "diagram/map-label"
     ],
-    "bytes": 19126
+    "bytes": 19648
   },
   "diagram/gantt-date": {
     "file": "units/diagram/gantt-date.js",
@@ -401,6 +402,13 @@
       "diagram/support"
     ],
     "bytes": 9881
+  },
+  "diagram/map-label": {
+    "file": "units/diagram/map-label.js",
+    "deps": [
+      "diagram/label"
+    ],
+    "bytes": 859
   },
   "diagram/mindmap": {
     "file": "units/diagram/mindmap.js",
@@ -634,9 +642,10 @@
   "diagram/wardley": {
     "file": "units/diagram/wardley.js",
     "deps": [
-      "diagram/support"
+      "diagram/support",
+      "diagram/map-label"
     ],
-    "bytes": 14373
+    "bytes": 15822
   },
   "interaction": {
     "file": "units/interaction.js",
