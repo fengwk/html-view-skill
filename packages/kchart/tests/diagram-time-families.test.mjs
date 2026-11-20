@@ -1,4 +1,5 @@
 import { test } from 'vitest';
+import { readFileSync } from 'node:fs';
 import assert from 'node:assert/strict';
 import { createDiagramApi } from '../src/diagram/registry.js';
 import { createContext } from '../src/core/context.js';
@@ -112,6 +113,65 @@ test('Gantt uses a fixed today marker only and packs free lanes', () => {
   assert.ok(!texts(direct('gantt', `todayMarker off\n${source}`, fixed)).some(t => t.text === 'Today'));
   const svg = () => api.diagram(`gantt\n${source}`, options).svg;
   assert.equal(svg(), svg());
+});
+
+// A compact lane places task captions inside, right, or left of their own mark and reserves each footprint.
+test('Gantt compact caption placement favors inside, right, then left', () => {
+  const source = '---\ndisplayMode: compact\n---\ngantt\ndateFormat X\naxisFormat %s\nsection Work\nWide: wide, 0, 30\nMid: mid, 38, 0s\nEnding: tail, 100, 0s';
+  for (const width of [800, 360]) {
+    const scene = sceneOf(source, { width });
+    const mark = id => scene.children.find(n => n.meta?.id === id);
+    const label = id => texts(scene).find(n => n.meta?.node === id);
+    const [wide, mid, end] = ['wide', 'mid', 'tail'].map(mark);
+    assert.equal(label('wide').meta.kind, 'node-label');
+    assert.ok(label('wide').attrs.x > wide.attrs.x && label('wide').attrs.x < wide.attrs.x + wide.attrs.width);
+    assert.equal(label('mid').meta.kind, 'edge-label');
+    assert.ok(label('mid').attrs.x > mid.attrs.x + mid.attrs.width);
+    assert.equal(label('tail').meta.kind, 'edge-label');
+    assert.ok(label('tail').attrs.x < end.attrs.x);
+    assert.equal(new Set([wide, mid, end].map(n => n.attrs.y)).size, 1);
+  }
+});
+
+// Guard the Issue1300 regression using its real front matter and inferred English status text.
+test('Gantt compact corpus captions identify the two bars and the milestone', () => {
+  const files = JSON.parse(readFileSync(new URL('./conformance/mermaid-12.3.0.json', import.meta.url)));
+  const source = files.find(f => f.id === 'gantt.md:524').source;
+  for (const width of [800, 360]) {
+    const scene = sceneOf(source, { width, lang: undefined });
+    const label = name => texts(scene).find(n => n.text === name);
+    const mark = id => scene.children.find(n => n.meta?.id === id);
+    assert.equal(label('94').meta.node, 'item94');
+    assert.equal(label('5').meta.node, 'item5');
+    assert.equal(label('0').meta.node, 'item0');
+    assert.equal(label('milestone').meta.node, 'item0');
+    assert.equal(label('94').attrs.y, mark('item94').attrs.y + 11);
+    assert.equal(label('5').attrs.y, mark('item5').attrs.y + 11);
+    assert.equal(label('milestone').attrs.x, label('0').attrs.x);
+    assert.ok(label('0').attrs.x > label('Issue1300').attrs.x);
+  }
+});
+
+// Compress many tiny marks against adjacent vertical guides without crossing captions.
+test('Gantt compact lanes split when captions compete for the same space', () => {
+  const tasks = Array.from({ length: 12 }, (_, i) => `Work ${i}: t${i}, ${i * 8}, 1s`);
+  const source = ['---', 'displayMode: compact', '---', 'gantt', 'dateFormat X', 'axisFormat %s', 'Start guide: vert, 0, 0s',
+    'Early guide: vert, 3, 0s', 'End guide: vert, 100, 0s', ...tasks].join('\n');
+  for (const width of [800, 360]) {
+    const scene = sceneOf(source, { width });
+    const marks = scene.children.filter(n => n.meta?.kind === 'node');
+    const captions = texts(scene).filter(n => n.meta?.node);
+    assert.equal(marks.length, tasks.length);
+    assert.deepEqual(new Set(captions.map(n => n.meta.node)), new Set(marks.map(n => n.meta.id)));
+    const lanes = new Set(marks.map(n => n.attrs.y));
+    assert.ok(lanes.size > 1 && lanes.size < tasks.length);
+    if (width === 800) {
+      const guides = scene.children.filter(n => n.meta?.kind === 'leader' && n.meta.id === 'task2');
+      const first = captions.find(n => n.meta.node === 't0');
+      assert.equal(guides.length, 2);
+      assert.ok(guides[0].attrs.y2 < first.attrs.y && guides[1].attrs.y1 > first.attrs.y);
+    }
+  }
 });
 
 // Keep inline and continued events distinct, including colons without a following space in an event.
