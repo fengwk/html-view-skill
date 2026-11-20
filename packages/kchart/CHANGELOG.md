@@ -13,6 +13,7 @@ Boards change visibly in this release, with additional Mermaid compatibility fix
 
 - Mermaid `radar-beta` supports 1–24 axes with measured label spacing and hints for degenerate or scrolling charts. Native radar remains limited to 3–6 dimensions. Mermaid `info` displays the current KChart package version.
 - Mermaid header near misses suggest the supported keyword, and Gantt reports tasks accidentally combined on one line.
+- Block, railroad, Wardley, and ZenUML diagnostics give localized, specific fixes, including examples of valid syntax.
 
 ## 0.1.1
 

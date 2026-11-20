@@ -98,3 +98,34 @@ test('gantt identifies glued tasks without rejecting HH:mm times', () => {
   }
   assert.ok(diagram('gantt\ndateFormat HH:mm\nA: 00:00, 00:40').svg);
 });
+
+// No lang override: the first blocking diagnostic and its fix must follow source-language inference.
+test('block, Wardley, ZenUML and all railroad dialects report localized, actionable first errors', () => {
+  const cases = [
+    ['block-beta', 'block:A["%s"]', 2, '复合块缺少 end', 'Composite block is missing end', /单独写一行 end/, /Put end on its own line/],
+    ['wardley-beta', 'title %s\n[A] --> [B]', 3, '无法识别 Wardley 地图语句', 'Unrecognized Wardley map statement', /"需求" --> "网关"/, /"Demand" --> "Gateway"/],
+    ['zenuml', 'title %s\n@Actor(User)\nA-->>User: reply\nUser', 3, 'ZenUML 不支持此注解：「@Actor(User)」', 'Unsupported ZenUML annotation: "@Actor(User)"', /单独一行 User/, /bare participant name User/],
+    ...[
+      ['railroad-beta', '=', '=', /item = terminal\("x"\);/],
+      ['railroad-ebnf-beta', '= 或 ::=', '= or ::=', /item = "x";/],
+      ['railroad-abnf-beta', '=', '=', /item = "x";/],
+      ['railroad-peg-beta', '<-', '<-', /item <- "x";/],
+    ].map(([kind, zh, en, rule]) => [kind, 'diagram-title: %s', 2, `规则名后应为 ${zh}`, `Expected ${en} after the rule name`, /title 标题/, /title My Grammar/, rule]),
+  ];
+  for (const [kind, body, line, zh, en, fixZh, fixEn, rule] of cases) {
+    for (const [title, message, fix] of [['这里是一段用于检查语言的中文标题', zh, fixZh], ['A sample diagram title', en, fixEn]]) {
+      const { svg, diagnostics } = diagram(`${kind}\n${body.replace('%s', title)}`);
+      assert.equal(svg, null, kind);
+      const first = diagnostics.find(d => d.severity === 'error');
+      assert.equal(first.line, line, kind);
+      assert.equal(first.message, message, kind);
+      assert.match(first.fix, fix, kind);
+      if (rule) assert.match(first.fix, rule, kind);
+      if (kind === 'zenuml') {
+        assert.equal(diagnostics[1].line, 4);
+        assert.equal(diagnostics[1].message, message === zh ? 'ZenUML 不支持消息箭头「-->>」' : 'Unsupported ZenUML message arrow "-->>"');
+        assert.match(diagnostics[1].fix, /A->User: reply/);
+      }
+    }
+  }
+});

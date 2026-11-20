@@ -27,6 +27,23 @@ const TYPE_WORDS = {
 };
 const validId = value => /^[\w.-]+$/u.test(value);
 const issue = (lang, line, text) => error(lang, line, `不支持或无效的关系图语句：「${text}」`, `Unsupported or invalid relation-diagram statement: "${text}"`, '按受支持子集修正；未实现语法不会被忽略', 'Use the supported subset; unsupported syntax is never ignored');
+function zenumlStatement(lang, line, text) {
+  const annotation = /^@\w+(?:\(([\w.-]+)\)|\s+([\w.-]+))$/u.exec(text);
+  if (annotation) {
+    const participant = annotation[1] || annotation[2];
+    return error(lang, line, `ZenUML 不支持此注解：「${text}」`, `Unsupported ZenUML annotation: "${text}"`,
+      `用单独一行 ${participant} 声明参与者，不加 @ 注解`, `Replace this line with the bare participant name ${participant}, without an @ annotation`);
+  }
+  const arrow = /^([\w.-]+?)\s*(-->>|-->|->>|<<--|<--|<-|==>|=>|\.\.>)\s*([\w.-]+)\s*:\s*(.+)$/u.exec(text);
+  if (arrow) {
+    const [, from, operator, to, label] = arrow;
+    const example = `${from}->${to}: ${label}`;
+    return error(lang, line, `ZenUML 不支持消息箭头「${operator}」`, `Unsupported ZenUML message arrow "${operator}"`,
+      `改用 ->，例如 ${example}`, `Use -> instead, as in ${example}`);
+  }
+  return error(lang, line, `无法识别 ZenUML 语句：「${text}」`, `Unrecognized ZenUML statement: "${text}"`,
+    '使用独立的参与者名称、Client->API: 请求 或 Client.call()', 'Use a bare participant name, Client->API: request, or Client.call()');
+}
 const unquote = value => String(value || '').trim().replace(/^("|')(.*)\1$/u, '$2');
 function splitArgs(source) {
   const result = []; let value = '', quote = '', depth = 0;
@@ -44,13 +61,19 @@ function parseFor(kind, source, info = {}) {
   const lang = info.lang || 'zh', firstLine = info.firstLine || 2;
   const errors = [], nodes = [], edges = [], groups = [], sequence = [], byId = new Map();
   let title = info.title || '', parent = null, classNode = null, requirement = null, columns = 1, blockGroup = null;
-  for (const key of Object.keys(info.options || {})) errors.push(issue(lang, firstLine - 1, `${kind} option ${key}`));
+  const zen = kind === 'zenuml';
+  const bad = (line, zh, en, fixZh, fixEn) => error(lang, line, zh, en, fixZh, fixEn);
+  for (const key of Object.keys(info.options || {})) errors.push(zen
+    ? bad(firstLine - 1, `ZenUML 头行不接受选项「${key}」`, `The ZenUML header does not accept option "${key}"`, '头行只保留 zenuml', 'Use only zenuml on the header line')
+    : issue(lang, firstLine - 1, `${kind} option ${key}`));
   const addNode = (id, label = id, type = 'node', line = firstLine, extra = {}) => {
     if (!validId(id)) { errors.push(issue(lang, line, id)); return null; }
     let found = byId.get(id);
     if (found) {
       if (extra.declared && found.implicit) Object.assign(found, { label: label || id, type, line, implicit: false, ...extra });
-      else if (extra.declared) errors.push(issue(lang, line, `duplicate declaration ${id}`));
+      else if (extra.declared) errors.push(zen
+        ? bad(line, `ZenUML 参与者「${id}」重复声明`, `Duplicate ZenUML participant "${id}"`, '删除这一行重复声明，其余消息可继续引用该名称', 'Remove this duplicate declaration; messages can still refer to the name')
+        : issue(lang, line, `duplicate declaration ${id}`));
       return found;
     }
     found = { id, label: label || id, type, line, parent, implicit: !extra.declared, attrs: [], methods: [], ...extra };
@@ -58,12 +81,20 @@ function parseFor(kind, source, info = {}) {
   };
   const addEdge = (from, to, label, line, type = 'relation', direction = 'both', extra = {}) => edges.push({ from, to, label: label || '', line, type, direction, ...extra });
   const lines = String(source ?? '').replace(/\r\n?/gu, '\n').split('\n');
-  if (lines.length > MAX.lines) errors.push(issue(lang, firstLine + MAX.lines, 'input line limit'));
+  if (lines.length > MAX.lines) errors.push(zen
+    ? bad(firstLine + MAX.lines, `ZenUML 正文超过 ${MAX.lines} 行`, `ZenUML body exceeds ${MAX.lines} lines`, `拆成正文最多 ${MAX.lines} 行的图`, `Split into diagrams of at most ${MAX.lines} body lines each`)
+    : issue(lang, firstLine + MAX.lines, 'input line limit'));
   for (let i = 0; i < Math.min(lines.length, MAX.lines); i++) {
     const text = lines[i].trim(), line = firstLine + i;
     if (!text || text.startsWith('%%')) continue;
     const titleMatch = /^title\s+(.+)$/iu.exec(text);
-    if (titleMatch) { if (title) errors.push(issue(lang, line, 'duplicate title')); else title = titleMatch[1]; continue; }
+    if (titleMatch) {
+      if (title) errors.push(zen
+        ? bad(line, 'ZenUML 标题重复', 'Duplicate ZenUML title', '删除这一行；只保留一个 title 或前置元数据标题', 'Remove this line; keep one title statement or front-matter title')
+        : issue(lang, line, 'duplicate title'));
+      else title = titleMatch[1];
+      continue;
+    }
     if (kind === 'classDiagram') {
       let m = /^class\s+([\w.-]+)(?:\s+as\s+(.+?))?\s*\{$/iu.exec(text);
       if (m) { classNode = addNode(m[1], unquote(m[2]) || m[1], 'class', line, { declared: true }); continue; }
@@ -123,7 +154,7 @@ function parseFor(kind, source, info = {}) {
       m = /^([\w.-]+)\.([\w.-]+)\(([^()]*)\)$/u.exec(text);
       if (m) { addNode(m[1], m[1], 'participant', line); sequence.push({ from: m[1], to: m[1], label: `${m[2]}(${m[3]})`, line, kind: 'call' }); continue; }
     }
-    errors.push(issue(lang, line, text));
+    errors.push(zen ? zenumlStatement(lang, line, text) : issue(lang, line, text));
   }
   if (classNode) errors.push(issue(lang, classNode.line, 'class block missing }'));
   if (requirement) errors.push(issue(lang, requirement.line, 'requirement block missing }'));
@@ -141,9 +172,13 @@ function parseFor(kind, source, info = {}) {
   }
   for (const node of nodes) if (node.parent && !byId.has(node.parent) && !groups.some(group => group.id === node.parent)) errors.push(issue(lang, node.line, `unknown group ${node.parent}`));
   if (kind === 'block-beta' && columns > 1 && nodes.length > columns) errors.push(issue(lang, nodes[columns].line, 'multi-row block grids are unsupported'));
-  if (nodes.length > MAX.nodes) errors.push(issue(lang, nodes[MAX.nodes].line, 'node limit exceeded'));
+  if (nodes.length > MAX.nodes) errors.push(zen
+    ? bad(nodes[MAX.nodes].line, `ZenUML 参与者超过 ${MAX.nodes} 个`, `ZenUML has more than ${MAX.nodes} participants`, `按对话拆分，每张图最多 ${MAX.nodes} 个参与者`, `Split by conversation into diagrams of at most ${MAX.nodes} participants each`)
+    : issue(lang, nodes[MAX.nodes].line, 'node limit exceeded'));
   if (edges.length > MAX.edges) errors.push(issue(lang, edges[MAX.edges].line, 'edge limit exceeded'));
-  if (!nodes.length) errors.push(issue(lang, firstLine, 'diagram must contain at least one node'));
+  if (!nodes.length) errors.push(zen
+    ? bad(firstLine, 'ZenUML 缺少参与者', 'ZenUML needs at least one participant', '添加参与者名称，例如 Client，或添加消息 Client->API: 请求', 'Add a participant name, such as Client, or a message such as Client->API: request')
+    : issue(lang, firstLine, 'diagram must contain at least one node'));
   return { model: { kind, title, nodes, edges, groups, sequence, columns }, errors };
 }
 function layoutSequence(model, ctx) {
