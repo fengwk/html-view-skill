@@ -411,11 +411,12 @@ function sankey(spec, ctx) {
 	const nodeSize = 18;
 	const labelSize = 12;
 	const labelCap = vertical ? 160 : 120;
+	const showValues = spec.showValues !== false;
 	const sum = (list) => list.reduce((total, e) => total + e.value, 0);
 	const wrapped = new Map(nodes.map((n) => {
 		const name = ctx.wrap(textOf(n), labelCap, labelSize, 400);
 		const total = Math.max(sum(edges.filter((e) => e.target === n.id)), sum(edges.filter((e) => e.source === n.id)));
-		const lines = name.length ? [...name, ctx.format(total, "edge.value")] : name;
+		const lines = showValues && name.length ? [...name, ctx.format(total, "edge.value")] : name;
 		const width = Math.max(12, ...lines.map((line) => ctx.measure(line, labelSize, 400)));
 		return [n.id, {
 			lines,
@@ -605,7 +606,7 @@ function sankey(spec, ctx) {
 				value: e.value
 			}
 		}));
-		if (thick >= 16) readouts.push({
+		if (showValues && thick >= 16) readouts.push({
 			edge: e,
 			text: ctx.format(e.value, "edge.value"),
 			labelAt

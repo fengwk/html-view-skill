@@ -1,24 +1,25 @@
 import { createContext } from './context.js';
-import { el, escapeXml, hash, validateAttribute, validateTag } from './scene.js';
+import { el, escapeXml, hash, validateAttribute, validateLink, validateTag } from './scene.js';
 
 function serializeElement(node, prefix) {
   validateTag(node?.tag);
   const attrs = { ...(node.attrs || {}) };
-  for (const [key] of Object.entries(attrs)) validateAttribute(key, { serialize: true });
+  for (const key of Object.keys(attrs)) validateAttribute(key, { serialize: true, tag: node.tag });
+  if (node.tag === 'a') validateLink(attrs);
   if (attrs.id) attrs.id = `${prefix}-${attrs.id}`;
   for (const [key, value] of Object.entries(attrs)) {
     if (typeof value === 'number' && !Number.isFinite(value)) throw new TypeError(`Invalid SVG geometry: ${key}`);
     if (['d', 'points', 'transform'].includes(key) && /NaN|Infinity/.test(String(value))) throw new TypeError(`Invalid SVG geometry: ${key}`);
     if (['width', 'height', 'r', 'rx', 'ry'].includes(key) && Number(value) < 0) throw new TypeError(`Negative SVG dimension: ${key}`);
   }
-  for (const [key, value] of Object.entries(attrs)) if (typeof value === 'string') {
+  for (const [key, value] of Object.entries(attrs)) if (typeof value === 'string' && key !== 'href' && key !== 'target' && key !== 'rel') {
     const refs = value.match(/url\([^)]*\)/gi) || [];
     if (refs.some((ref) => !/^url\(\s*#[\w.-]+\s*\)$/i.test(ref))) throw new TypeError(`Unsafe SVG resource reference: ${key}`);
     attrs[key] = value.replace(/url\(\s*#([\w.-]+)\s*\)/g, `url(#${prefix}-$1)`);
   }
   for (const [key, value] of Object.entries(node.meta || {})) attrs[`data-kc-${key}`] = Array.isArray(value) || (value && typeof value === 'object') ? JSON.stringify(value) : String(value);
   const attrText = Object.entries(attrs).map(([key, value]) => {
-    validateAttribute(key, { serialize: true, generated: true });
+    validateAttribute(key, { serialize: true, generated: true, tag: node.tag });
     return ` ${key}="${escapeXml(value)}"`;
   }).join('');
   const children = (node.children || []).map((child) => serializeElement(child, prefix)).join('');

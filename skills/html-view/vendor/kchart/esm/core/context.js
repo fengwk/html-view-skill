@@ -1,5 +1,5 @@
 import { __exportAll } from "../_virtual/_rolldown/runtime.js";
-import { el, hash, primitive } from "./scene.js";
+import { el, hash, link, primitive } from "./scene.js";
 import { defaultStyle, paletteOf, theme } from "./theme.js";
 import { contrast, isHex, luminance, mix, pushContrast, tint } from "./color.js";
 import { fallbackMeasure, wrapText } from "./text.js";
@@ -158,6 +158,7 @@ function createContext(options = {}) {
 		shape: primitive,
 		text,
 		titled,
+		link,
 		textColor,
 		textOn,
 		rect: (x, y, w, h, opts = {}) => primitive("rect", {

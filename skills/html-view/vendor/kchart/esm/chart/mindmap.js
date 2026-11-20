@@ -39,14 +39,124 @@ var LEAF_LINE_GAP = 8;
 var BRANCH_RADIUS = 7;
 var hasFrame = (variant, depth, children) => depth === 0 || Boolean(children?.length) || variant === "cards";
 var nodeTextX = (box, alignRight) => alignRight ? box.x + box.w - PAD_X : box.x + PAD_X;
+var NODE_SHAPES = [
+	"rounded",
+	"rect",
+	"circle",
+	"hexagon",
+	"bang",
+	"cloud",
+	"none"
+];
+var shapeOf = (source) => source.shape || "";
+var OUTLINE_INSET = 9;
+var frameOf = (shape, variant, depth, children) => shape === "none" ? false : shape ? true : hasFrame(variant, depth, children);
+var pointsOf = (points) => points.map(([x, y]) => `${x},${y}`).join(" ");
+function starPoints(x, y, w, h) {
+	const ix0 = x + OUTLINE_INSET, ix1 = x + w - OUTLINE_INSET, iy0 = y + OUTLINE_INSET, iy1 = y + h - OUTLINE_INSET;
+	const ox0 = x + 1, ox1 = x + w - 1, oy0 = y + 1, oy1 = y + h - 1;
+	const stepsX = Math.min(6, Math.max(2, Math.round((ix1 - ix0) / 30)));
+	const stepsY = Math.min(4, Math.max(2, Math.round((iy1 - iy0) / 24)));
+	const zigzag = (ax, ay, bx, by, cx, cy, dx, dy, steps) => {
+		const points = [];
+		for (let i = 0; i <= steps; i += 1) {
+			const t = i / steps;
+			points.push([ax + (bx - ax) * t, ay + (by - ay) * t]);
+			if (i === steps) break;
+			const u = (i + .5) / steps;
+			points.push([cx + (dx - cx) * u, cy + (dy - cy) * u]);
+		}
+		return points;
+	};
+	return [
+		...zigzag(ix0, iy0, ix1, iy0, ox0, oy0, ox1, oy0, stepsX),
+		...zigzag(ix1, iy0, ix1, iy1, ox1, oy0, ox1, oy1, stepsY),
+		...zigzag(ix1, iy1, ix0, iy1, ox1, oy1, ox0, oy1, stepsX),
+		...zigzag(ix0, iy1, ix0, iy0, ox0, oy1, ox0, oy0, stepsY)
+	];
+}
+function cloudPath(x, y, w, h) {
+	const ix0 = x + OUTLINE_INSET, ix1 = x + w - OUTLINE_INSET, iy0 = y + OUTLINE_INSET, iy1 = y + h - OUTLINE_INSET;
+	const ox0 = x + 1, ox1 = x + w - 1, oy0 = y + 1, oy1 = y + h - 1;
+	const stepsX = Math.min(6, Math.max(2, Math.round((ix1 - ix0) / 34)));
+	const stepsY = Math.min(4, Math.max(2, Math.round((iy1 - iy0) / 30)));
+	const bumps = (ax, ay, bx, by, cx, cy, dx, dy, steps) => {
+		let d = "";
+		for (let i = 0; i < steps; i += 1) {
+			const t0 = i / steps, t1 = (i + 1) / steps, mid = (t0 + t1) / 2;
+			d += ` Q${cx + (dx - cx) * mid} ${cy + (dy - cy) * mid} ${ax + (bx - ax) * t1} ${ay + (by - ay) * t1}`;
+		}
+		return d;
+	};
+	return `M${ix0} ${iy0}` + bumps(ix0, iy0, ix1, iy0, ox0, oy0, ox1, oy0, stepsX) + bumps(ix1, iy0, ix1, iy1, ox1, oy0, ox1, oy1, stepsY) + bumps(ix1, iy1, ix0, iy1, ox1, oy1, ox0, oy1, stepsX) + bumps(ix0, iy1, ix0, iy0, ox0, oy1, ox0, oy0, stepsY) + " Z";
+}
+function circleFits(textW, textH, w, h) {
+	const rx = w / 2 - 3, ry = h / 2 - 3;
+	return rx > 0 && ry > 0 && (textW / 2 / rx) ** 2 + (textH / 2 / ry) ** 2 <= .95;
+}
+function outlineOf(ctx, node, box, style, meta) {
+	const { x, y, w, h } = box, shape = node.shape;
+	if (shape === "none") return [];
+	if (shape === "rect") return [ctx.rect(x, y, w, h, {
+		...style,
+		rx: 1,
+		meta
+	})];
+	if (shape === "circle") {
+		const textH = node.lines.length * 16 + node.noteLines.length * 15;
+		if (circleFits(node.contentW, textH, w, h)) return [ctx.shape("ellipse", {
+			cx: x + w / 2,
+			cy: y + h / 2,
+			rx: w / 2,
+			ry: h / 2,
+			...style
+		}, meta)];
+		return [ctx.rect(x, y, w, h, {
+			...style,
+			rx: Math.min(w, h) / 2,
+			meta
+		})];
+	}
+	if (shape === "hexagon") {
+		const cut = Math.min(h / 2, w / 3);
+		return [ctx.shape("polygon", {
+			points: pointsOf([
+				[x + cut, y],
+				[x + w - cut, y],
+				[x + w, y + h / 2],
+				[x + w - cut, y + h],
+				[x + cut, y + h],
+				[x, y + h / 2]
+			]),
+			...style
+		}, meta)];
+	}
+	if (shape === "bang") return [ctx.shape("polygon", {
+		points: pointsOf(starPoints(x, y, w, h)),
+		...style
+	}, meta)];
+	if (shape === "cloud") return [ctx.path(cloudPath(x, y, w, h), {
+		...style,
+		"stroke-linejoin": "round",
+		meta
+	})];
+	return [ctx.rect(x, y, w, h, {
+		rx: node.depth === 0 ? 10 : 6,
+		...style,
+		meta
+	})];
+}
 /** 按节点换行上限 cap 与层距 gap 排出整棵树，返回已平移到正坐标的节点框与内容宽度。 */
 function arrange(spec, ctx, mode, { cap, gap }) {
 	const nodes = [];
 	const textWidth = cap - 28;
 	function visit(source, parent = null, depth = 0) {
 		if (source.icon) ctx.fit("此布局不支持节点图标", "删掉节点的 icon，保留文字标签");
+		const shape = shapeOf(source);
+		if (shape && !NODE_SHAPES.includes(shape)) ctx.fit(`不支持节点形状 ${shape}`, "选择受控形状或省略节点 shape");
 		const weight = depth === 0 ? 650 : 500;
-		const textOnly = mode === "bilateral" && !hasFrame(spec.variant, depth, source.children);
+		const frame = frameOf(shape, spec.variant, depth, source.children);
+		const textOnly = mode === "bilateral" && !frame;
 		const wrapOptions = { bounded: textOnly };
 		const marker = source.status ? statusMarks[source.status] : "";
 		const markerWidth = marker ? ctx.measure(marker, 12, 700) + 6 : 0;
@@ -66,6 +176,8 @@ function arrange(spec, ctx, mode, { cap, gap }) {
 			children: [],
 			lines,
 			noteLines,
+			shape,
+			frame,
 			w: Math.max(70, textOnly ? measuredWidth : Math.min(cap, measuredWidth)),
 			contentW: measuredWidth - 28,
 			h: Math.max(34, lines.length * 17 + noteLines.length * 15 + 18)
@@ -87,7 +199,9 @@ function arrange(spec, ctx, mode, { cap, gap }) {
 		cx: x + n.w / 2,
 		cy: y + n.h / 2,
 		w: n.w,
-		h: n.h
+		h: n.h,
+		contentW: n.contentW,
+		frame: n.frame
 	});
 	const levelWidths = (group) => Array.from({ length: maxDepth + 1 }, (_, d) => Math.max(0, ...group.filter((n) => n.depth === d).map((n) => n.w)));
 	const stack = (node, top, xOf) => {
@@ -250,11 +364,11 @@ function arrange(spec, ctx, mode, { cap, gap }) {
 		width
 	};
 }
-function bilateralPath(a, b, framed, gap) {
+function bilateralPath(a, b, parentIsRoot, gap) {
 	const left = b.cx < a.cx, direction = left ? -1 : 1;
-	const fromX = left ? a.x : a.x + a.w;
+	const fromX = a.frame ? left ? a.x : a.x + a.w : parentIsRoot ? a.cx + direction * (a.contentW / 2 + LEAF_LINE_GAP) : nodeTextX(a, left) + direction * (a.contentW + LEAF_LINE_GAP);
 	const childSide = left ? b.x + b.w : b.x;
-	const toX = framed ? childSide : nodeTextX(b, left) - direction * LEAF_LINE_GAP;
+	const toX = b.frame ? childSide : nodeTextX(b, left) - direction * LEAF_LINE_GAP;
 	const start = `M${fromX} ${a.cy}`, end = `L${toX} ${b.cy}`;
 	if (a.cy === b.cy) return `${start} ${end}`;
 	const turnX = childSide - direction * gap / 2;
@@ -292,7 +406,7 @@ function build(spec, ctx, isMindmap) {
 	for (const n of nodes) if (n.parent) {
 		const a = coords.get(n.parent), b = coords.get(n);
 		let d;
-		if (mode === "bilateral") d = bilateralPath(a, b, hasFrame(variant, n.depth, n.children), plan.gap);
+		if (mode === "bilateral") d = bilateralPath(a, b, n.parent === root, plan.gap);
 		else if (mode === "org") {
 			const top = {
 				x: a.cx,
@@ -336,19 +450,18 @@ function build(spec, ctx, isMindmap) {
 	const svgNodes = [], rootText = ctx.textOn(rootTone);
 	for (const n of nodes) {
 		const p = coords.get(n), rootNode = n === root, card = variant === "cards";
-		const framed = hasFrame(variant, n.depth, n.children);
+		const framed = n.frame;
 		if (framed) {
 			const fill = rootNode ? rootTone : ctx.tint(ctx.palette.bg, branchTone, card ? .035 : .12);
-			svgNodes.push(ctx.rect(p.x, p.y, n.w, n.h, {
-				rx: rootNode ? 10 : 6,
+			const stroke = rootNode ? rootTone : card ? ctx.color("axis") : ctx.tint(ctx.palette.bg, branchTone, .28);
+			svgNodes.push(...outlineOf(ctx, n, p, {
 				fill,
-				stroke: rootNode ? rootTone : card ? ctx.color("axis") : ctx.tint(ctx.palette.bg, branchTone, .28),
-				"stroke-width": rootNode || card ? 1 : .8,
-				meta: {
-					kind: isMindmap ? "mindmap" : "tree",
-					node: n.id,
-					related: descendants(n)
-				}
+				stroke,
+				"stroke-width": rootNode || card ? 1 : .8
+			}, {
+				kind: isMindmap ? "mindmap" : "tree",
+				node: n.id,
+				related: descendants(n)
 			}));
 		}
 		const leftLeaf = mode === "bilateral" && !framed && p.cx < rootPosition.cx;
@@ -363,7 +476,7 @@ function build(spec, ctx, isMindmap) {
 			anchor,
 			size: 13,
 			weight,
-			fill: rootNode ? rootText : ctx.color("fg"),
+			fill: rootNode && framed ? rootText : ctx.color("fg"),
 			meta: {
 				kind: isMindmap ? "mindmap" : "tree",
 				node: n.id,
@@ -375,7 +488,7 @@ function build(spec, ctx, isMindmap) {
 			anchor: "middle",
 			size: 12,
 			weight: 700,
-			fill: rootNode ? rootText : ctx.textColor(ctx.design[n.status]),
+			fill: rootNode && framed ? rootText : ctx.textColor(ctx.design[n.status]),
 			meta: {
 				kind: isMindmap ? "mindmap" : "tree",
 				node: n.id,
@@ -389,7 +502,7 @@ function build(spec, ctx, isMindmap) {
 			svgNodes.push(ctx.text(tx, y, line, {
 				anchor,
 				size: 12,
-				fill: rootNode ? rootText : ctx.color("muted"),
+				fill: rootNode && framed ? rootText : ctx.color("muted"),
 				meta: {
 					kind: isMindmap ? "mindmap" : "tree",
 					node: n.id,

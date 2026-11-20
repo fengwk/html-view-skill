@@ -47,8 +47,12 @@ C4、`architecture-beta`、`block-beta` 共用上限：40 个节点、60 条边�
 
 支持 `group id(icon)[名称]`、`service id(icon)[名称] in groupId`、`junction id` 以及带端口的关系。图标限 `cloud`、`database`、`disk`、`internet`、`server`、`browser`；端口仅 `L`、`R`、`T`、`B`。分组不能嵌套。未登记图标、未知节点或不支持语法会报错；不要把其他 Mermaid 图标名当作可用值。
 
-## block-beta
+## block
 
-支持 `columns N`（N 为 1–8）、`block` / `block:id` 单层分组、`space` 占位、`id["名称"]` 或裸 ID，以及受控连接符 `-->`、`<-->`、`<--`、`---`、`==`、`--x`。明确列数后节点数不得多于列数，否则会报错（多行网格不支持）。最多 40 个节点、60 条边、240 行。
+也接受 `block-beta`。块图按作者给定的网格排布：`columns N` 设列数，`id["名称"]` 等方括号写法声明块及形状，`id:2` 跨列，`space` / `space:N` 留空位，`block:id … end` 嵌套分组，`id<["标签"]>(right)` 画块状箭头，`A --> B` / `A -- 标签 --> B` 画连线。列数、顺序和跨列严格按源码落位；窄屏时扩宽画面并在图框内横向滚动，不重排网格。
 
-所有 Mermaid C4、`architecture-beta`、`block-beta` 示例可在源码中写前言区 `title`；关系图正文 `title` 也受支持。阅读文档须提供图题；应在源码写 `title`，而不是依赖图框外的说明。
+## wardley-beta
+
+Wardley 地图：`anchor 名称 [可见度, 演化]` 与 `component 名称 [可见度, 演化]` 放置组件，两个坐标都在 0–1 之间且须写小数点（如 `1.0`）；`A -> B` 表示依赖，可用正文 `title`。横轴为演化阶段，纵轴为价值链可见度；标签自动避让，不改变坐标语义。
+
+所有 Mermaid C4、`architecture-beta`、`block`、`wardley-beta` 示例可在源码中写前言区 `title`；关系图正文 `title` 也受支持。阅读文档须提供图题；应在源码写 `title`，而不是依赖图框外的说明。

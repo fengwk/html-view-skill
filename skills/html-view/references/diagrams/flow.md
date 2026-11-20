@@ -44,4 +44,12 @@ validate -->|通过| query
 query -->|响应| result
 ```
 
+## swimlane-beta
+
+Mermaid 泳道图：头行可带 `LR` / `TB`，每个 `subgraph 泳道名 … end` 是一条泳道，泳道内用 flowchart 写法声明节点，之后用 flowchart 连线连接任意泳道的节点。与原生 `swimlane` 是两种写法：已有 Mermaid 源码用本类型，从头起稿可用原生写法。
+
+## eventmodeling
+
+Event Modeling：`tf 序号 类型 名称`（也可写 `timeframe`）按时间帧逐行声明，类型为 `ui`、`cmd`、`evt`、`rmo`（读模型）、`pcr`（处理器）及其全称；未写来源时连到最近的前一帧，`->> 序号` 显式指定来源。图按界面/自动化、命令/读模型、事件三条泳道排布，连线正交。
+
 Mermaid flowchart、stateDiagram-v2 与 journey 可用前言区 `title`，阅读文档必须给图题。原生泳道也可用前言 `title`；无标题不应靠源码外的文字补足图自身的阅读语境。

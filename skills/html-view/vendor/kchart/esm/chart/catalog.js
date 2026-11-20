@@ -75,7 +75,8 @@ var rows = [
 		"pie",
 		"table",
 		["category", "value"],
-		["id"]
+		["id"],
+		{ sliceLabels: "boolean" }
 	],
 	[
 		"donut",
@@ -343,7 +344,11 @@ var rows = [
 		"table",
 		["label", "dimensions"],
 		["id"],
-		{},
+		{
+			rings: "number",
+			graticule: ["circle", "polygon"],
+			legend: "boolean"
+		},
 		{ arrayRoles: ["dimensions"] }
 	],
 	[
@@ -423,7 +428,11 @@ var rows = [
 		"network",
 		[],
 		[],
-		{ layout: ["right", "down"] }
+		{
+			layout: ["right", "down"],
+			tolerant: "boolean",
+			showValues: "boolean"
+		}
 	],
 	[
 		"threads",

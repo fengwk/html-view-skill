@@ -14,7 +14,6 @@ var TYPES = [
 	"C4Dynamic",
 	"C4Deployment",
 	"architecture-beta",
-	"block-beta",
 	"zenuml"
 ];
 var MAX = {

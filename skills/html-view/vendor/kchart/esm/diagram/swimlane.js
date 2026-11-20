@@ -3,7 +3,11 @@ import { statusMarks } from "../core/theme.js";
 import { FONT, appearance, error, labelText, maxWidthOf, snap, wrapText } from "./support.js";
 import { parseFlow } from "./graph-parse.js";
 // src/diagram/swimlane.js
-var swimlane_exports = /* @__PURE__ */ __exportAll({ implementations: () => implementations });
+var swimlane_exports = /* @__PURE__ */ __exportAll({
+	implementations: () => implementations,
+	layout: () => layout,
+	scene: () => scene
+});
 var LIMITS = {
 	lanes: 6,
 	nodes: 30,
@@ -381,6 +385,18 @@ function layout(model, { measure, width, lang }) {
 		const textH = lines.length * 20;
 		const diamond = node.shape === "diamond";
 		const room = portRoom(node.id);
+		if (model.mermaid && node.shape === "circle") {
+			const diameter = snap(Math.max(room, Math.hypot(textW + 16, textH + 12)));
+			nodes.push({
+				...node,
+				lines,
+				diamond,
+				step: stepOf.get(node.id),
+				w: diameter,
+				h: diameter
+			});
+			continue;
+		}
 		const cross = (diamond ? textW * 1.7 : textW) + NODE_PAD_X;
 		const along = (diamond ? textH * 1.7 : textH) + NODE_PAD_Y;
 		nodes.push({
@@ -410,7 +426,8 @@ function layout(model, { measure, width, lang }) {
 	for (const item of lanes) {
 		item.rooms = item.columns.map((column) => column.reduce((sum, node) => sum + crossOf(node), 0) + NODE_GAP * Math.max(0, column.length - 1));
 		const title = horizontal ? 0 : measure(item.lane.name, FONT.title) + 12;
-		item.size = snap(Math.max(0, ...item.rooms, title, horizontal ? MIN_LANE_LR : MIN_LANE_TB) + 12);
+		const groupHeadroom = horizontal ? 24 * (model.nested?.filter((group) => group.lane === item.lane.id).length || 0) : 0;
+		item.size = snap(Math.max(0, ...item.rooms, title, horizontal ? MIN_LANE_LR : MIN_LANE_TB) + 12 + groupHeadroom * 2);
 	}
 	let nominal = 0;
 	const nominalAt = lanes.map((item, index) => {
@@ -797,7 +814,7 @@ function layout(model, { measure, width, lang }) {
 		bandTracks.set(band, used + below);
 	}
 	const bands = Array.from({ length: maxStep + 1 }, (_, band) => capacity(bandTracks.get(band) || 0, STEP_GAP));
-	let alongCursor = horizontal ? snap(Math.max(HEADER, ...model.lanes.map((lane) => measure(lane.name, FONT.title) + 24))) : HEADER;
+	let alongCursor = horizontal ? snap(Math.max(HEADER, ...model.lanes.map((lane) => measure(lane.name, FONT.title) + 24))) : HEADER + 24 * (model.nested?.length || 0);
 	const alongAt = Array.from({ length: maxStep + 1 }, (_, index) => {
 		if (index) alongCursor += bands[index - 1] + steps[index - 1];
 		return alongCursor;
@@ -816,7 +833,9 @@ function layout(model, { measure, width, lang }) {
 	}
 	const portPoint = (node, cross, side) => {
 		const shift = Math.abs(cross - (node.cross + crossOf(node) / 2));
-		const depth = node.diamond ? Math.min(alongOf(node) / 2, shift * alongOf(node) / crossOf(node)) : 0;
+		const r = crossOf(node) / 2;
+		const curve = model.mermaid && node.shape === "circle" ? r : 0;
+		const depth = node.diamond ? Math.min(alongOf(node) / 2, shift * alongOf(node) / crossOf(node)) : curve ? r - Math.sqrt(Math.max(0, r * r - shift * shift)) : 0;
 		return point(cross, Math.round(side > 0 ? node.along + alongOf(node) - depth : node.along + depth));
 	};
 	const edges = plans.map((plan) => {
@@ -887,6 +906,15 @@ function layout(model, { measure, width, lang }) {
 		w: lanes[index].size,
 		h: canvasH
 	});
+	if (model.reverse) {
+		const axis = horizontal ? "x" : "y", size = horizontal ? "w" : "h";
+		const extent = horizontal ? canvasW : canvasH;
+		for (const box of [...nodes, ...edges.map((edge) => edge.label).filter(Boolean)]) box[axis] = extent - box[axis] - box[size];
+		for (const edge of edges) {
+			for (const point of [...edge.points, ...edge.hops]) point[axis] = extent - point[axis];
+			edge.d = pathData(edge.points, edge.hops);
+		}
+	}
 	return {
 		type: "swimlane",
 		direction: model.direction,
@@ -895,10 +923,14 @@ function layout(model, { measure, width, lang }) {
 		lanes: laneGeometry,
 		nodes,
 		edges,
-		errors: []
+		errors: [],
+		model
 	};
 }
 function scene(layout, ctx) {
+	const model = layout.model;
+	const mermaid = model?.mermaid;
+	const flowEdges = new Map(model?.edges.map((edge) => [edge.id, edge]));
 	const appearance$1 = appearance(ctx);
 	const palette = Array.from({ length: 6 }, (_, index) => ctx.frameTone(ctx.color(`tone${index + 1}`)));
 	const marker = "swimlane-arrow";
@@ -910,7 +942,7 @@ function scene(layout, ctx) {
 		markerWidth: 8,
 		markerHeight: 8,
 		markerUnits: "userSpaceOnUse",
-		orient: "auto"
+		orient: mermaid ? "auto-start-reverse" : "auto"
 	}, [ctx.path("M0 0 L8 4 L0 8 Z", { fill: appearance$1.fg4 })])])];
 	for (const [index, lane] of layout.lanes.entries()) {
 		const color = palette[index % palette.length];
@@ -919,32 +951,85 @@ function scene(layout, ctx) {
 			stroke: ctx.tint(appearance$1.bg, color, .45),
 			"stroke-width": 1,
 			rx: appearance$1.radius
-		}), ctx.text(layout.direction === "LR" ? 12 : lane.x + lane.w / 2, layout.direction === "LR" ? lane.y + lane.h / 2 : 18, lane.name, {
+		}), ctx.text(layout.direction === "LR" ? model?.reverse ? lane.w - 12 : 12 : lane.x + lane.w / 2, layout.direction === "LR" ? lane.y + lane.h / 2 : model?.reverse ? lane.h - 18 : 18, lane.name, {
 			size: FONT.title.size,
 			weight: FONT.title.weight,
 			fill: appearance$1.fg1,
-			anchor: layout.direction === "LR" ? "start" : "middle",
+			anchor: layout.direction === "LR" ? model?.reverse ? "end" : "start" : "middle",
 			"dominant-baseline": "central"
 		})]);
-		group.meta = { lane: lane.id };
+		group.meta = {
+			lane: lane.id,
+			...mermaid ? {
+				kind: "frame",
+				id: lane.id
+			} : {}
+		};
 		children.push(group);
 	}
-	for (const edge of layout.edges) children.push(ctx.path(edge.d, {
-		fill: "none",
-		stroke: appearance$1.fg4,
-		"stroke-width": 1.25,
-		"stroke-linejoin": "round",
-		...edge.style === "dashed" ? { "stroke-dasharray": "5 4" } : {},
-		"marker-end": `url(#${marker})`,
-		meta: {
-			edge: edge.id,
-			back: edge.back
+	if (mermaid) {
+		const nodes = new Map(layout.nodes.map((node) => [node.id, node]));
+		const groups = model.nested.filter((group) => group.nodes.length);
+		for (const [index, group] of groups.entries()) {
+			const members = group.nodes.map((id) => nodes.get(id));
+			const lane = layout.lanes.find((item) => item.id === group.lane);
+			const x = Math.min(...members.map((node) => node.x)) - 4;
+			const titleY = Math.min(...members.map((node) => node.y)) - 14 - groups.slice(index + 1).filter((item) => item.lane === group.lane).length * 20;
+			const y = Math.max(lane.y + 2, titleY - 8);
+			const titleWidth = ctx.measure(group.title, FONT.label.size, 600) + 12;
+			const w = Math.min(lane.x + lane.w - x - 2, Math.max(titleWidth, ...members.map((node) => node.x + node.w + 4 - x)));
+			const h = Math.max(...members.map((node) => node.y + node.h + 4 - y));
+			children.push(ctx.rect(x, y, w, h, {
+				fill: appearance$1.surface2,
+				stroke: appearance$1.line2,
+				rx: appearance$1.smallRadius,
+				meta: {
+					kind: "frame",
+					id: group.id
+				}
+			}));
+			children.push(ctx.text(x + 6, y + 9, group.title, {
+				size: FONT.label.size,
+				weight: 600,
+				anchor: "start",
+				"dominant-baseline": "central",
+				fill: appearance$1.fg2
+			}));
 		}
-	}));
+	}
+	for (const edge of layout.edges) {
+		const flow = flowEdges.get(edge.id);
+		if (mermaid && edge.style === "invisible") continue;
+		children.push(ctx.path(edge.d, {
+			fill: "none",
+			stroke: appearance$1.fg4,
+			"stroke-width": mermaid && edge.style === "bold" ? 2.5 : 1.25,
+			"stroke-linejoin": "round",
+			...edge.style === "dashed" ? { "stroke-dasharray": "5 4" } : {},
+			...!mermaid || flow.endArrow ? { "marker-end": `url(#${marker})` } : {},
+			...mermaid && flow.startArrow ? { "marker-start": `url(#${marker})` } : {},
+			meta: {
+				edge: edge.id,
+				back: edge.back,
+				...mermaid ? {
+					kind: "edge",
+					from: edge.from,
+					to: edge.to
+				} : {}
+			}
+		}));
+	}
 	for (const node of layout.nodes) {
 		const color = palette[Math.max(0, layout.lanes.findIndex((lane) => lane.id === node.lane)) % palette.length];
 		const stroke = node.class && appearance$1[node.class] ? appearance$1[node.class] : ctx.tint(appearance$1.bg, color, .4);
-		const shape = node.shape === "diamond" ? ctx.shape("polygon", {
+		const shape = mermaid && node.shape === "circle" ? ctx.shape("circle", {
+			cx: node.x + node.w / 2,
+			cy: node.y + node.h / 2,
+			r: node.w / 2,
+			fill: appearance$1.node,
+			stroke,
+			"stroke-width": 1
+		}) : node.shape === "diamond" ? ctx.shape("polygon", {
 			points: `${node.x + node.w / 2},${node.y} ${node.x + node.w},${node.y + node.h / 2} ${node.x + node.w / 2},${node.y + node.h} ${node.x},${node.y + node.h / 2}`,
 			fill: appearance$1.node,
 			stroke,
@@ -957,13 +1042,18 @@ function scene(layout, ctx) {
 			fill: appearance$1.node,
 			stroke,
 			"stroke-width": 1,
-			rx: appearance$1.smallRadius,
+			rx: mermaid && node.shape === "stadium" ? node.h / 2 : mermaid && node.shape === "rect" ? 0 : appearance$1.smallRadius,
 			meta: {
 				node: node.id,
 				shape: node.shape,
 				...node.class ? { status: node.class } : {}
 			}
 		});
+		if (mermaid) shape.meta = {
+			...shape.meta,
+			kind: "node",
+			id: node.id
+		};
 		const mark = statusMarks[node.class];
 		children.push(ctx.el("g", {}, [
 			shape,
@@ -994,7 +1084,14 @@ function scene(layout, ctx) {
 			anchor: "middle",
 			"dominant-baseline": "central"
 		}))]);
-		group.meta = { label: edge.id };
+		group.meta = {
+			label: edge.id,
+			...mermaid ? {
+				kind: "edge-label-group",
+				from: edge.from,
+				to: edge.to
+			} : {}
+		};
 		children.push(group);
 	}
 	return {
@@ -1008,4 +1105,4 @@ var implementations = { swimlane: {
 	layout,
 	scene
 } };
-export { implementations, swimlane_exports };
+export { implementations, layout, scene, swimlane_exports };

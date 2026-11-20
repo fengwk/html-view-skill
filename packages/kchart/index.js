@@ -6,6 +6,7 @@ import families from './src/families.json';
 import { loadFamily } from 'virtual:kchart-families';
 
 export { catalog, theme, themes };
+export { registerIcons } from './src/core/icons.js';
 
 const charts = new Map(), decorators = new Map(), diagrams = new Map();
 const types = [];

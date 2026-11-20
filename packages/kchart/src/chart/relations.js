@@ -356,11 +356,13 @@ function sankey(spec, ctx) {
   const labelCap = vertical ? 160 : 120;
   // 节点名下加一行节点总量（中间节点守恒，取流入、流出较大者）。太细、放不下读数的流带，
   // 读者仍能从两端节点总量和已标的流带读出它的值。与流带读数共用 edge.value 的格式和单位。
+  // showValues:false 是 Mermaid 的隐藏开关：去掉总量行和流带读数，只留名称。
+  const showValues = spec.showValues !== false;
   const sum = (list) => list.reduce((total, e) => total + e.value, 0);
   const wrapped = new Map(nodes.map((n) => {
     const name = ctx.wrap(textOf(n), labelCap, labelSize, 400);
     const total = Math.max(sum(edges.filter((e) => e.target === n.id)), sum(edges.filter((e) => e.source === n.id)));
-    const lines = name.length ? [...name, ctx.format(total, 'edge.value')] : name;
+    const lines = showValues && name.length ? [...name, ctx.format(total, 'edge.value')] : name;
     const width = Math.max(12, ...lines.map((line) => ctx.measure(line, labelSize, 400)));
     return [n.id, { lines, width, height: lines.length * 14, totalIndex: name.length ? name.length : -1 }];
   }));
@@ -521,7 +523,7 @@ function sankey(spec, ctx) {
         value: e.value,
       },
     }));
-    if (thick >= 16) readouts.push({ edge: e, text: ctx.format(e.value, 'edge.value'), labelAt });
+    if (showValues && thick >= 16) readouts.push({ edge: e, text: ctx.format(e.value, 'edge.value'), labelAt });
   }
   if (!vertical) for (const stage of stages) {
     const labels = nodes.filter(node => stageMap.get(node.id) === stage).map(node => ({

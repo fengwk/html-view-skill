@@ -6,12 +6,17 @@ var scene_exports = /* @__PURE__ */ __exportAll({
 	el: () => el,
 	escapeXml: () => escapeXml,
 	hash: () => hash,
+	link: () => link,
+	linkTargets: () => linkTargets,
 	primitive: () => primitive,
 	safeAttrs: () => safeAttrs,
+	safeHref: () => safeHref,
 	validateAttribute: () => validateAttribute,
+	validateLink: () => validateLink,
 	validateTag: () => validateTag
 });
 var allowedTags = /* @__PURE__ */ new Set([
+	"a",
 	"g",
 	"rect",
 	"circle",
@@ -50,12 +55,36 @@ function validateTag(tag) {
 	if (!allowedTags.has(tag)) throw new TypeError(`Unsafe SVG tag: ${tag}`);
 	return tag;
 }
-function validateAttribute(key, { serialize = false, generated = false } = {}) {
-	if (/^on/i.test(key) || !generated && !safeAttrs.has(key) || (serialize ? /^(?:href|xlink:href|style)$/i.test(key) : [
-		"style",
-		"href",
-		"xlink:href"
-	].includes(key)) || serialize && !/^(?:[a-zA-Z][\w:-]*)$/.test(key)) throw new TypeError(`Unsafe SVG attribute: ${key}`);
+var linkAttrs = /* @__PURE__ */ new Set([
+	"href",
+	"target",
+	"rel"
+]);
+var linkTargets = /* @__PURE__ */ new Set([
+	"_blank",
+	"_self",
+	"_parent",
+	"_top"
+]);
+var blankRel = "noopener noreferrer";
+function safeHref(url) {
+	if (typeof url !== "string" || !url || /[\s\p{Cc}\\]/u.test(url) || url.startsWith("//")) return null;
+	const scheme = /^[a-z][a-z\d+.-]*:/i.exec(url)?.[0];
+	if (!scheme) return url;
+	if (!/^(https?|mailto):$/i.test(scheme) || !URL.canParse(url)) return null;
+	return url;
+}
+function validateLink(attrs) {
+	if (!safeHref(attrs.href)) throw new TypeError("Unsafe SVG link href");
+	if (attrs.target != null && !linkTargets.has(attrs.target)) throw new TypeError("Unsafe SVG link target");
+	if (attrs.target === "_blank" ? attrs.rel !== blankRel : attrs.rel != null) throw new TypeError("Unsafe SVG link rel");
+}
+function validateAttribute(key, { serialize = false, generated = false, tag } = {}) {
+	if (linkAttrs.has(key)) {
+		if (tag !== "a") throw new TypeError(`Unsafe SVG attribute: ${key}`);
+		return key;
+	}
+	if (/^on/i.test(key) || !generated && !safeAttrs.has(key) || /^(?:href|xlink:href|style|target|rel)$/i.test(key) || serialize && !/^(?:[a-zA-Z][\w:-]*)$/.test(key)) throw new TypeError(`Unsafe SVG attribute: ${key}`);
 	return key;
 }
 function el(tag, attrs = {}, children = []) {
@@ -63,14 +92,26 @@ function el(tag, attrs = {}, children = []) {
 	const safe = {};
 	for (const [key, value] of Object.entries(attrs || {})) {
 		if (value == null) continue;
-		validateAttribute(key);
+		validateAttribute(key, { tag });
 		safe[key] = value;
 	}
+	if (tag === "a") validateLink(safe);
 	return {
 		tag,
 		attrs: safe,
 		...children?.length ? { children: [...children] } : {}
 	};
+}
+function link(href, children, { tooltip, target } = {}) {
+	const title = tooltip == null || tooltip === "" ? [] : [{
+		...el("title"),
+		text: String(tooltip)
+	}];
+	return el("a", {
+		href,
+		target,
+		rel: target === "_blank" ? blankRel : void 0
+	}, [...title, ...children]);
 }
 var primitive = (tag, attrs, meta) => {
 	const { meta: ignored, ...rest } = attrs || {};
@@ -190,4 +231,4 @@ function containText(scene, measure, { blockPadding = 0 } = {}) {
 		}
 	};
 }
-export { allowedTags, containText, el, escapeXml, hash, primitive, safeAttrs, scene_exports, validateAttribute, validateTag };
+export { allowedTags, containText, el, escapeXml, hash, link, linkTargets, primitive, safeAttrs, safeHref, scene_exports, validateAttribute, validateLink, validateTag };
