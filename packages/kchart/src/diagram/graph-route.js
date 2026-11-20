@@ -63,6 +63,15 @@ function crosses(a, b) {
     side(b.p0, b.p1, a.p0) * side(b.p0, b.p1, a.p1) < -1e-6;
 }
 
+// A side port should lead away from the node, not wrap back around its near corner.
+function cornerHook(points, box, axis) {
+  if (points.length < 4) return false;
+  const [port, lead, turn, next] = points;
+  const d = lead[axis] - port[axis];
+  const opposite = d * (next[axis] - turn[axis]) < 0;
+  return opposite && (d * (next[axis] - port[axis]) < 0 || hits(turn, next, expand(box, TRACK_GAP)));
+}
+
 // clearOf: parallel runs a forward route must keep EDGE_CLEAR away from (edges that read as one
 // line otherwise). Without it the old 1px tolerance applies, so a route is never lost.
 // lanes: x / y of the straight runs the edge had before repair. A detour tries them first.
@@ -139,7 +148,11 @@ function shortest(from, to, obstacles, occupied, type, bounds, label, original, 
       const compact = points.filter((p, i) => !i || i === points.length - 1 ||
         Math.abs(distance(points[i - 1], p) + distance(p, points[i + 1]) - distance(points[i - 1], points[i + 1])) > .001 ||
         (points[i - 1].x !== points[i + 1].x && points[i - 1].y !== points[i + 1].y));
-      const cost = length + (compact.length - 2) * 16;
+      const bends = compact.length - 2;
+      if (forward?.maxBends != null && bends > forward.maxBends) return;
+      if (forward?.refine && (cornerHook(compact, from, forward.lateral) ||
+          cornerHook(compact.slice(-4).reverse(), to, forward.lateral))) return;
+      const cost = length + bends * 16;
       // Cheap cost first: a leg that cannot beat the best route needs no obstacle tests.
       if (cost >= score) return;
       for (let i = 2; i < points.length - 1; i++) {
@@ -149,7 +162,7 @@ function shortest(from, to, obstacles, occupied, type, bounds, label, original, 
       const segments = compact.slice(1).map((p, i) => straight(compact[i], p));
       if (segments.some(({ p0, p1 }) => occupied.some(seg =>
         sharesRun(p0, p1, seg.p0, seg.p1, board ? EDGE_CLEAR : back ? TRACK_GAP : 1, board ? 0 : back ? 8 : 4)) ||
-        clearOf.some(seg => sharesRun(p0, p1, seg.p0, seg.p1, forward ? TRACK_GAP : EDGE_CLEAR, 4)) ||
+        clearOf.some(seg => sharesRun(p0, p1, seg.p0, seg.p1, forward && (forward.maxBends == null || from.parent !== to.parent) ? TRACK_GAP : EDGE_CLEAR, 4)) ||
         forward?.siblings.some(seg => crosses({ p0, p1 }, seg)) ||
         frameSides.some(seg => sharesRun(p0, p1, seg.p0, seg.p1, TRACK_CLEAR, 12)) ||
         arrivals.some(edge => edge.segments.some(seg => crosses({ p0, p1 }, seg) ||
@@ -158,6 +171,7 @@ function shortest(from, to, obstacles, occupied, type, bounds, label, original, 
       if (forward) for (const seg of segments) for (const other of occupied) {
         if (crosses(seg, other)) crossingPenalty += 1;
       }
+      if (forward?.maxBends != null && crossingPenalty) return;
       // Going upstream to find a gutter makes a hook at the endpoint. Prefer a gutter
       // that can be reached without doubling back, even when the route is longer.
       const retreat = forward ? segments.reduce((sum, seg) =>
@@ -186,15 +200,21 @@ function shortest(from, to, obstacles, occupied, type, bounds, label, original, 
       }
       best = { start: fromPort, end: toPort, labelRect, segments, ...(board ? { source, target } : {}) };
       score = flowCost;
-      needsDetour = crossingPenalty > 0 || retreat > .001;
+      needsDetour = crossingPenalty > 0 || retreat > .001 || (forward?.refine && bends > 2);
     };
     if (a.x === b.x || a.y === b.y) validate([]);
     if (sharedCoord !== undefined) return;
     validate([{ x: a.x, y: b.y }]); validate([{ x: b.x, y: a.y }]);
+    if (forward?.maxBends === 1) return;
     // Path length alone (before bends) already rules most tracks out; skip those without building
     // the path. The .01 margin keeps every track validate could still accept.
     const ends = distance(fromPort, a) + distance(b, toPort) - .01;
-    const xs = candidates(a, b, 'x', 'w'), ys = candidates(a, b, 'y', 'h');
+    const tracksNear = (key, span) => {
+      const middle = candidates(a, b, key, span);
+      return forward?.refine && forward.maxBends == null && !forward.straightOnly
+        ? new Set([...middle, ...candidates(a, a, key, span).slice(0, 6), ...candidates(b, b, key, span).slice(0, 6)]) : middle;
+    };
+    const xs = tracksNear('x', 'w'), ys = tracksNear('y', 'h');
     for (const x of xs) {
       if (ends + Math.abs(a.x - x) + Math.abs(a.y - b.y) + Math.abs(x - b.x) < score) validate([{ x, y: a.y }, { x, y: b.y }]);
     }
@@ -206,7 +226,7 @@ function shortest(from, to, obstacles, occupied, type, bounds, label, original, 
         // Try the outer gutter independently of the midpoint track limit. The two turns
         // can lie in different rank gaps, e.g. below a source frame and above a target.
         const axis = vertical(forward.exit) ? 'x' : 'y', along = axis === 'x' ? 'y' : 'x';
-        const rails = axis === 'x' ? xs : ys;
+        const rails = candidates(a, b, axis, axis === 'x' ? 'w' : 'h');
         const depth = axis === 'x' ? 'h' : 'w', span = axis === 'x' ? 'w' : 'h';
         const near = p => new Set([p[along], ...candidates(p, p, along, depth).slice(0, 9)]);
         const starts = near(a), endsAt = near(b);
@@ -229,11 +249,11 @@ function shortest(from, to, obstacles, occupied, type, bounds, label, original, 
       // edge's own earlier lanes (in a compact layout, the channel the outer layout kept beside that
       // subgraph) come first.
       const gapTracks = (list, key, span) => [...new Set([...lanes[key].filter(v => v >= 4 && v <= bounds[span] - 4), ...list.slice(0, 8)])];
-      for (const y of gapTracks(ys, 'y', 'h')) for (const x1 of aX) for (const x2 of bX) {
+      for (const y of gapTracks(candidates(a, b, 'y', 'h'), 'y', 'h')) for (const x1 of aX) for (const x2 of bX) {
         if (ends + Math.abs(a.x - x1) + Math.abs(a.y - y) + Math.abs(x1 - x2) + Math.abs(y - b.y) + Math.abs(x2 - b.x) >= score) continue;
         validate([{ x: x1, y: a.y }, { x: x1, y }, { x: x2, y }, { x: x2, y: b.y }]);
       }
-      for (const x of gapTracks(xs, 'x', 'w')) for (const y1 of aY) for (const y2 of bY) {
+      for (const x of gapTracks(candidates(a, b, 'x', 'w'), 'x', 'w')) for (const y1 of aY) for (const y2 of bY) {
         if (ends + Math.abs(a.y - y1) + Math.abs(a.x - x) + Math.abs(y1 - y2) + Math.abs(x - b.x) + Math.abs(y2 - b.y) >= score) continue;
         validate([{ x: a.x, y: y1 }, { x, y: y1 }, { x, y: y2 }, { x: b.x, y: y2 }]);
       }
@@ -273,13 +293,39 @@ function shortest(from, to, obstacles, occupied, type, bounds, label, original, 
   }
   const sources = forward ? sides.filter(side => side !== forward.enter) : sides;
   const targets = forward ? sides.filter(side => side !== forward.exit) : sides;
-  for (const source of sources) for (const target of targets) search(source, target, 0, 0, false);
+  for (const source of sources) for (const target of targets) {
+    search(source, target, 0, 0, false);
+    if (forward?.maxBends != null) {
+      const shift = (box, side) => {
+        const axis = vertical(side) ? 'x' : 'y', span = vertical(side) ? 'w' : 'h';
+        return lanes[axis].filter(coord => coord >= box[axis] + 6 && coord <= box[axis] + box[span] - 6)
+          .slice(0, 3).map(coord => (coord - box[axis]) / box[span] - .5);
+      };
+      for (const offset of shift(from, source)) search(source, target, offset, 0, false);
+      for (const offset of shift(to, target)) search(source, target, 0, offset, false);
+    }
+  }
+  if (forward?.maxBends != null) return best;
   // Parallel links may exhaust center ports. Try separated ports before longer paths.
   for (const offset of [-.2, .2, -.35, .35]) {
     if (best && !board && (!forward || !needsDetour)) break;
     for (const source of sources) for (const target of targets) for (const [u, v] of [[offset, 0], [0, offset], [offset, offset]]) {
       search(source, target, u, v, false);
     }
+  }
+  if (forward?.refine && needsDetour) {
+    // An obstacle-defined corridor may begin inside the facing side of the node.
+    // Try putting the port on that channel rather than adding two turns to reach it.
+    const axis = forward.lateral, span = axis === 'x' ? 'w' : 'h';
+    const offsets = box => {
+      const tracks = fixed[axis].filter(at => at >= box[axis] + 6 && at <= box[axis] + box[span] - 6).sort((a, b) => a - b);
+      const center = box[axis] + box[span] / 2;
+      const extremes = [...tracks.slice(0, 3), ...tracks.slice(-3)];
+      return [...new Set([...extremes, ...tracks.sort((a, b) => Math.abs(a - center) - Math.abs(b - center)).slice(0, 4)])]
+        .map(at => (at - center) / box[span]);
+    };
+    for (const offset of offsets(from)) for (const end of [0, -.2, .2]) search(forward.exit, forward.enter, offset, end, false);
+    for (const offset of offsets(to)) for (const start of [0, -.2, .2]) search(forward.exit, forward.enter, start, offset, false);
   }
   for (const offset of [0, -.2, .2]) {
     if (best && (!forward || !needsDetour)) break;
@@ -321,6 +367,8 @@ export function repairRoutes(geometry, redirects = new Map(), { board = false } 
   const straighten = !board && geometry.model?.variant !== 'agentflow' && (geometry.type === 'flowchart' || geometry.type === 'state');
   // Explicit frame routes already own their ports and tracks; retain their repair order.
   const projectForward = straighten && !geometry.model?.edges.some(edge => edge.fromFrame || edge.toFrame);
+  // Custom blocks (e.g. class cards) paint their own geometry on top of graph layout.
+  const polishFlow = projectForward && geometry.type === 'flowchart' && !geometry.model?.nodes.some(node => node.block);
   const coordinate = p => direction === 'LR' ? p.x : direction === 'RL' ? -p.x : direction === 'BT' ? -p.y : p.y;
   const back = e => e.reversed || (e.start && e.end && coordinate(e.start) > coordinate(e.end) + 1);
   // Reserve the forward tracks first; a back edge is the one that yields.
@@ -372,7 +420,15 @@ export function repairRoutes(geometry, redirects = new Map(), { board = false } 
     const jog = straighten && !redirect && !isBack && lateral && edge.segments.length > 2 &&
       Math.abs(edge.start[lateral] - edge.end[lateral]) < 24 &&
       edge.segments.every(seg => coordinate(seg.p0) <= coordinate(seg.p1) + .001);
-    if (!collision && !jog) { if (checkTracks) settled.push(...edge.segments); continue; }
+    // A side-to-main-axis route with a jog near an endpoint can often be drawn as an L.
+    // Limit this pass to routes with at most three turns (one segment per rounded corner).
+    const polish = polishFlow && !redirect && !isBack && lateral &&
+      edge.segments.length >= 3 && edge.segments.length <= 7 &&
+      edge.segments.filter(({ p0, p1 }) => Math.abs(p0.x - p1.x) < .01 || Math.abs(p0.y - p1.y) < .01).length >= 3 &&
+      Math.abs(edge.end[lateral] - edge.start[lateral]) >= TRACK_CLEAR &&
+      (Math.abs(edge.segments[0].p1[lateral] - edge.start[lateral]) > .01 ||
+       Math.abs(edge.end[lateral] - edge.segments.at(-1).p0[lateral]) > .01);
+    if (!collision && !jog && !polish) { if (checkTracks) settled.push(...edge.segments); continue; }
     const labelObstacles = geometry.edges.filter(other => other !== edge && other.labelRect && (!(board || projectForward) || !pending.has(other.id)))
       .map(other => expand(other.labelRect, 2));
     // A forward route keeps clear of other forward routes. Back edges yield later, so their current
@@ -386,12 +442,14 @@ export function repairRoutes(geometry, redirects = new Map(), { board = false } 
     }
     const boardPorts = board && { insideFrom: toAncestors.has(from.id), insideTo: fromAncestors.has(to.id),
       fromPorts: ports.get(from.id) ?? [], toPorts: ports.get(to.id) ?? [] };
-    const forward = ((projectForward && redirect) || jog) && !isBack && faces && { exit: faces[0], enter: faces[1], straightOnly: !!jog, coordinate,
+    const forward = ((projectForward && redirect) || jog || polish) && !isBack && faces && {
+      exit: faces[0], enter: faces[1], straightOnly: !!jog && !polish, coordinate, lateral,
+      maxBends: polish ? 1 : undefined, refine: polishFlow,
       siblings: geometry.edges.filter(other => other !== edge && other.from === from.id && other.style !== 'invisible' &&
         !pending.has(other.id)).flatMap(other => other.segments) };
     const route = (clearOf, rule) => shortest(from, to, [...obstacles, ...titles, ...labelObstacles], occupied ?? occupiedOf(), geometry.type,
       { w: geometry.width, h: geometry.height }, edge.labelRect, !redirect, isBack, frameSides, arrivals, clearOf, lanes, boardPorts, rule);
-    const replacement = (forward && (route(forwardRuns, forward) || (!jog && route([], forward)))) ||
+    const replacement = (forward && (route(forwardRuns, forward) || (redirect && route([], forward)))) ||
       (collision && ((forwardRuns.length && route(forwardRuns)) || route([])));
     if (replacement) {
       pending.delete(edge.id);

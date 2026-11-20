@@ -78,6 +78,23 @@ test('subgraph members follow their links to other subgraphs', () => {
   assert.ok(crossings(result) <= 2, `${crossings(result)} crossings`);
 });
 
+// A side port on a diamond can reach the branch with one elbow without
+// crossing the straight-through path or losing the branch label.
+test('a diamond side exit sheds its redundant jog', () => {
+  const result = layout(`flowchart TD
+    A[Start] --> B{Is it?}
+    B -->|Yes| C[OK]
+    C --> D[Rethink]
+    D --> B
+    B ---->|No| E[End]`);
+  const branch = result.edges.find(edge => edge.from === 'B' && edge.to === 'C');
+  const [exit, approach] = branch.segments;
+  assert.equal(branch.segments.length, 2);
+  assert.equal(exit.p0.y, exit.p1.y);
+  assert.equal(approach.p0.x, approach.p1.x);
+  assert.ok(branch.labelRect);
+});
+
 // A loose terminal node must not flatten the stages. A skip link may reserve a side
 // channel, but it must not displace the stages or cross the source's local chain.
 test('a mixed compound spine stays aligned around a skip link', () => {
