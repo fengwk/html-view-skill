@@ -12,6 +12,20 @@ const SILENT_CONFIG = new Set([
 ]);
 const DEFAULT_CONFIG = new Map([['look', 'classic'], ['layout', 'dagre'], ['theme', 'default']]);
 
+// Without an explicit lang, the words a figure adds (status names, legends, axis notes) and its diagnostics follow
+// the diagram's own text: English when English words are at least twice the CJK characters, as html-view decides
+// for documents. Front matter, directives, comments and URLs are configuration, not content, so they do not count.
+function inferLang(source) {
+  const text = String(source ?? '')
+    .replace(/^\s*---[^\n]*\n[\s\S]*?\n\s*(?:---|\.\.\.)[ \t]*(?:\n|$)/, '\n')
+    .replace(/%%\{[\s\S]*?\}%%/g, ' ')
+    .replace(/%%.*$/gm, ' ')
+    .replace(/https?:\/\/\S+/g, ' ');
+  const cjk = (text.match(/[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/gu) || []).length;
+  const latin = (text.match(/[A-Za-z]{2,}/g) || []).length;
+  return latin > 0 && latin >= cjk * 2 ? 'en' : 'zh';
+}
+
 function configWarning(info, implementation) {
   const honored = (implementation?.honoredConfig ?? []).map(key => key.toLowerCase());
   const ignored = [];
@@ -90,6 +104,7 @@ function createDiagramApi(implementations, types) {
   const headerLineOf = prepared => prepared.headerLine || prepared.firstLine || 1;
 
   function parseUnchecked(input, options = {}) {
+    options = { ...options, lang: options.lang || inferLang(input) };
     const syntax = options.syntax || 'mermaid';
     const keepsTrailingComments = (kind) => {
       const known = byAlias.get(kind.toLowerCase());
@@ -102,7 +117,7 @@ function createDiagramApi(implementations, types) {
     const optionResult = implementation?.optionMode === 'raw'
       ? { options: prepared.options || Object.create(null), errors: [] }
       : parseOptions(prepared.params, { lang: options.lang, line: prepared.headerLine || prepared.firstLine });
-    const info = { ...prepared, ...(optionResult.options ? { options: optionResult.options } : {}), kind: type?.kind || prepared.kind, syntax, lang: options.lang || 'zh' };
+    const info = { ...prepared, ...(optionResult.options ? { options: optionResult.options } : {}), kind: type?.kind || prepared.kind, syntax, lang: options.lang };
     const config = configWarning(info, implementation);
     const sourceErrors = prepared.errors.filter(item => item.code !== 'IGNORED_CONFIG');
     const presentation = implementation && implementation.acceptsPresentation !== true ? presentationErrors(info) : [];
@@ -152,7 +167,7 @@ function createDiagramApi(implementations, types) {
       const implementation = implementations[parsed.type.kind];
       if (typeof implementation.layout !== 'function') throw new TypeError(`Missing layout for diagram: ${parsed.type.kind}`);
       const width = Math.max(1, Number(options.width) || 800);
-      const ctx = createContext({ ...options, width, lang: options.lang || 'zh' });
+      const ctx = createContext({ ...options, width, lang: parsed.info.lang });
       const measure = measureOf(ctx);
       const renderOptions = { ...options, frame: options.frame ?? true };
       const geometry = implementation.layout(parsed.model, { width, lang: ctx.lang, measure, ctx, renderOptions }, parsed.info);

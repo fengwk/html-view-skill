@@ -29,6 +29,12 @@ var DEFAULT_CONFIG = /* @__PURE__ */ new Map([
 	["layout", "dagre"],
 	["theme", "default"]
 ]);
+function inferLang(source) {
+	const text = String(source ?? "").replace(/^\s*---[^\n]*\n[\s\S]*?\n\s*(?:---|\.\.\.)[ \t]*(?:\n|$)/, "\n").replace(/%%\{[\s\S]*?\}%%/g, " ").replace(/%%.*$/gm, " ").replace(/https?:\/\/\S+/g, " ");
+	const cjk = (text.match(/[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/gu) || []).length;
+	const latin = (text.match(/[A-Za-z]{2,}/g) || []).length;
+	return latin > 0 && latin >= cjk * 2 ? "en" : "zh";
+}
 function configWarning(info, implementation) {
 	const honored = (implementation?.honoredConfig ?? []).map((key) => key.toLowerCase());
 	const ignored = [];
@@ -110,6 +116,10 @@ function createDiagramApi(implementations, types) {
 	};
 	const headerLineOf = (prepared) => prepared.headerLine || prepared.firstLine || 1;
 	function parseUnchecked(input, options = {}) {
+		options = {
+			...options,
+			lang: options.lang || inferLang(input)
+		};
 		const syntax = options.syntax || "mermaid";
 		const keepsTrailingComments = (kind) => {
 			return implementations[byAlias.get(kind.toLowerCase())?.kind]?.trailingComments === false;
@@ -134,7 +144,7 @@ function createDiagramApi(implementations, types) {
 			...optionResult.options ? { options: optionResult.options } : {},
 			kind: type?.kind || prepared.kind,
 			syntax,
-			lang: options.lang || "zh"
+			lang: options.lang
 		};
 		const config = configWarning(info, implementation);
 		const sourceErrors = prepared.errors.filter((item) => item.code !== "IGNORED_CONFIG");
@@ -230,7 +240,7 @@ function createDiagramApi(implementations, types) {
 			const ctx = createContext({
 				...options,
 				width,
-				lang: options.lang || "zh"
+				lang: parsed.info.lang
 			});
 			const measure = measureOf(ctx);
 			const renderOptions = {

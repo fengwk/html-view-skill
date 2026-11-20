@@ -49,6 +49,20 @@ test('diagram renders one shared SVG with framed title and centered wide scene',
   assert.doesNotMatch(api.diagram('---\ntitle: Overview\n---\ngraph\nHello', { width: 300, frame: false }).svg, /<text x="16"/);
 });
 
+// Intent: without an explicit lang the diagram's own text picks the language; configuration and comments do not count.
+test('diagram language follows its text unless lang is given', () => {
+  let observed;
+  const api = createDiagramApi({ flowchart: implementation({ parse(body, info) { observed = info.lang; return { model: {}, errors: [] }; } }) }, types);
+  api.check('graph\nOrder service calls the payment gateway');
+  assert.equal(observed, 'en');
+  api.check('graph\n订单服务调用支付网关');
+  assert.equal(observed, 'zh');
+  api.check('---\nconfig:\n  theme: forest\n  flowchart:\n    curve: basis\n---\n%%{init: {"themeVariables": {"primaryColor": "#ffffff"}}}%%\ngraph\n订单 --> 支付 %% several English words in a comment');
+  assert.equal(observed, 'zh', 'front matter, directives and comments are not content');
+  api.check('graph\nOrder service calls the payment gateway', { lang: 'zh' });
+  assert.equal(observed, 'zh', 'an explicit lang wins');
+});
+
 // 意图：parseOptions 应写入 info.options 并使用 header 行号；raw 模式跳过通用选项解析。
 test('parse options feed info at header line and raw implementations bypass them', () => {
   let observed;
@@ -58,7 +72,7 @@ test('parse options feed info at header line and raw implementations bypass them
   assert.equal(api.check('\ngraph mode=wide\nbody').length, 0);
   assert.equal(observed.options.mode, 'wide');
   assert.deepEqual({ params: observed.params, line: observed.headerLine }, { params: 'mode=wide', line: 2 });
-  const [invalid] = api.check('\ngraph ???\nbody');
+  const [invalid] = api.check('\ngraph ???\nbody', { lang: 'zh' });
   assert.equal(invalid.line, 2);
   assert.match(invalid.message, /无效的图选项「\?\?\?」/);
   assert.deepEqual(api.check('rawmap ???\nbody'), []);
@@ -127,7 +141,7 @@ test('diagram distinguishes unknown type, syntax misuse, and unloaded implementa
   assert.match(api.check('mindmap\nbody')[0].message, /不支持语法/);
   assert.match(api.check('nonsense\nbody')[0].message, /未知结构图类型/);
   assert.match(api.check('pie:\n"A": 1')[0].message, /「pie:」/, 'an unrecognized header names its own word');
-  assert.match(api.check('flowchart ???')[0].message, /无效的图选项「\?\?\?」/);
+  assert.match(api.check('flowchart ???', { lang: 'zh' })[0].message, /无效的图选项「\?\?\?」/);
 });
 
 // 意图：只将 ExpectedDiagnostic 归一；内部错误应原样上抛。
