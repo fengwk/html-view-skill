@@ -1,6 +1,7 @@
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { implementations } from '../src/diagram/sequence.js';
+import { diagram } from '../dist/esm/node.js';
 import { createContext } from '../src/core/context.js';
 import { renderScene } from '../src/core/svg.js';
 import { measureOf } from '../src/diagram/support.js';
@@ -119,11 +120,71 @@ end`);
   assert.equal((svg.match(/fill-opacity="0.1"/g) || []).length, 3);
 });
 
-// Menus produce one non-blocking diagnostic and cannot introduce links or carry unsafe URL text into the SVG.
-test('menu statements accept and ignore URLs', () => {
-  const { errors, svg } = render('participant A\nlink A: Unsafe @ javascript:alert(1)\nlinks A: {"Docs": "https://example.test"}');
-  assert.deepEqual(errors.map(e => [e.line, e.code, e.severity]), [[3, 'IGNORED_INTERACTION', 'warning']]);
-  assert.doesNotMatch(svg, /<a\s|href=|javascript:|example\.test/);
+// Menu links skip unsafe entries and keep only the first safe URL for each participant.
+test('menu statements link participant cards without rendering a menu', () => {
+  const { errors, svg } = render(`participant A
+participant B
+link A: Unsafe @ javascript:alert(1)
+links A: {"Unsafe": "//bad.test", "Docs": "https://example.test", "Later": "/later"}
+link A: Other @ /other
+link B: Guide @ /guide#start`);
+  assert.deepEqual(errors.map(e => [e.line, e.code, e.severity]), [[4, 'IGNORED_INTERACTION', 'warning']]);
+  assert.match(svg, /<a href="https:\/\/example.test"/);
+  assert.match(svg, /<a href="\/guide#start"/);
+  assert.match(svg, /text-decoration="underline"/);
+  assert.doesNotMatch(svg, /javascript:|bad\.test|\/later|\/other/);
+});
+
+// Reverse endpoint order and intervening participants do not change the note's padded span.
+test('notes span all lifelines between their endpoints', () => {
+  for (const width of [360, 800]) {
+    const { layout } = render('participant A\nparticipant B\nparticipant C\nNote over C,A: shared', width);
+    const { note } = layout.events.find(e => e.kind === 'note');
+    assert.equal(note.x, layout.actors[0].x - 12);
+    assert.equal(note.x + note.w, layout.actors[2].x + 12);
+  }
+});
+
+// The public registry passes configuration and styles through to the sequence renderer, not just its parser.
+test('shared config, styling, links and label assets work through diagram()', () => {
+  const { svg, scene, diagnostics } = diagram(`---
+config:
+  sequence:
+    mirrorActors: false
+    showSequenceNumbers: true
+---
+sequenceDiagram
+participant A::icon(tabler:database) as <b>Source</b>
+participant B:::ok as fa:fa-nonexistent-sequence-icon Sink
+classDef alert fill:#ff0000
+class A alert
+style B fill:#00ff00
+click A href "/docs"
+linkStyle 0 stroke:#0000ff
+rect rgb(255, 0, 0)
+A->>B: fa:fa-user <i>Hello</i> &amp; #9829;
+end
+rect rgb(80, 80, 80)
+B->>A: done
+end`, { width: 360, theme: 'paper', lang: 'en' });
+  assert.deepEqual(diagnostics.map(d => d.code).sort(), ['IGNORED_ASSET', 'IGNORED_STYLE']);
+  assert.deepEqual(checkScene(scene), []);
+  const ctx = createContext({ width: 360, theme: 'paper' });
+  const nodes = [];
+  const visit = node => { nodes.push(node); node.children?.forEach(visit); };
+  scene.children.forEach(visit);
+  const frames = nodes.filter(n => n.meta?.kind === 'frame');
+  assert.deepEqual(frames.map(n => n.children[0].attrs.fill), [ctx.design.danger, ctx.design.fg4]);
+  const actors = nodes.filter(n => n.meta?.kind === 'participant');
+  assert.equal(actors.length, 2);
+  assert.equal(actors[0].children[0].attrs.stroke, ctx.frameTone(ctx.design.danger));
+  assert.equal(actors[1].children[0].attrs.stroke, ctx.frameTone(ctx.design.ok));
+  assert.ok(actors[0].children.some(n => n.attrs.transform?.includes('scale(')));
+  assert.ok(!actors[1].children.some(n => n.attrs.transform?.includes('scale(')));
+  assert.equal(nodes.find(n => n.meta?.kind === 'message').attrs.stroke, ctx.design.info);
+  assert.ok(nodes.some(n => n.meta?.kind === 'message-label' && n.text === '1'));
+  assert.match(svg, /href="\/docs"/);
+  assert.match(svg, /Hello &amp; ♥/);
 });
 
 // At the raised limits the scene scrolls instead of clipping stacked bars or participant heads.

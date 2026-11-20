@@ -1,4 +1,7 @@
-import { FONT, appearance, error, labelText, maxWidthOf, snap, warning, wrapText } from './support.js';
+import { resolveIconRef } from '../core/icons.js';
+import { normalizeLabel } from './label.js';
+import { presentation, roleOfColor, safeHref } from './presentation.js';
+import { FONT, appearance, error, maxWidthOf, snap, warning, wrapText } from './support.js';
 
 const LIMITS = Object.freeze({ participants: 20, messages: 200, fragmentDepth: 4, lines: 4 });
 const SECTIONS = new Set(['else', 'and', 'option']);
@@ -26,6 +29,8 @@ function splitLine(raw) {
   const parts = [];
   let start = 0;
   for (const match of raw.matchAll(/"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|&?#(?:x[\da-f]+|\w+);|&\w+;|%%|#|;/gi)) {
+    // A hash inside the URL of a single-link menu entry is a URL fragment.
+    if (match[0] === '#' && /^\s*link\s+[^\s:]+\s*:[^@]*@\s*\S*$/i.test(raw.slice(start, match.index))) continue;
     if (match[0] === ';' || match[0] === '#' || match[0] === '%%') {
       parts.push(raw.slice(start, match.index));
       if (match[0] !== ';') return parts;
@@ -35,15 +40,8 @@ function splitLine(raw) {
   parts.push(raw.slice(start));
   return parts;
 }
-function decodeText(raw) {
-  return labelText(raw.replace(/^(?:no)?wrap\s*:\s*/i, '')).replace(/#quot;|#infin;|&?#(x[\da-f]+|\d+);/gi, (_, code) => {
-    if (!code) return _.toLowerCase() === '#infin;' ? '∞' : '"';
-    const point = code[0].toLowerCase() === 'x' ? parseInt(code.slice(1), 16) : Number(code);
-    return point > 0 && point <= 0x10ffff && !(point >= 0xd800 && point <= 0xdfff) ? String.fromCodePoint(point) : _;
-  });
-}
 function metadata(raw = '') {
-  const pairs = raw.matchAll(/(?:^|,)\s*["']?(type|alias|wrap)["']?\s*:\s*("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|[^,]+)\s*(?=,|$)/g);
+  const pairs = raw.matchAll(/(?:^|,)\s*["']?(type|alias|icon)["']?\s*:\s*("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|[^,]+)\s*(?=,|$)/g);
   return Object.fromEntries(Array.from(pairs, ([, key, value]) => {
     value = value.trim();
     if (value.startsWith('"')) {
@@ -54,7 +52,9 @@ function metadata(raw = '') {
 }
 
 function parse(source, info) {
-  const { lang, options, firstLine } = info;
+  const { lang, options = {}, firstLine } = info;
+  const look = presentation({ lang });
+  const menuLinks = new Map(), ignoredColors = new Map();
   const errors = [];
   for (const key of Object.keys(options)) {
     errors.push(issue(lang, firstLine - 1, `sequenceDiagram 不支持选项「${key}」`, `Unsupported sequenceDiagram option: ${key}`, '删掉第一行的选项', 'Remove the option from the first line'));
@@ -70,6 +70,20 @@ function parse(source, info) {
     if (warned.has(code)) return;
     warned.add(code);
     errors.push(warning(code, lang, line, ...messages));
+  };
+  const recordWarning = d => {
+    const key = `${d.code}:${d.message}`;
+    if (!warned.has(key)) { warned.add(key); errors.push(d); }
+  };
+  const label = (raw, line) => {
+    const { text, icon, diagnostics } = normalizeLabel(raw.replace(/^(?:no)?wrap\s*:\s*/i, ''), { lang, line });
+    diagnostics.forEach(recordWarning);
+    return { text, icon };
+  };
+  const actorRef = (source, line) => {
+    const [id, ...classes] = source.split(':::');
+    if (classes.length) look.addClasses(id, classes, line);
+    return id;
   };
   const lifecycleError = ({ id, line }, zh, en) => errors.push(issue(lang, line, `${id}：${zh}`, `${id}: ${en}`, '修正下一条消息的参与者', 'Correct the participants in the next message'));
 
@@ -103,10 +117,35 @@ function parse(source, info) {
     }
     const line = raw.trim();
     const heading = /^title(?:\s*:\s*|\s+)(.+)$/i.exec(line);
-    if (heading) { title = decodeText(heading[1]); return; }
+    if (heading) { title = label(heading[1], lineNo).text; return; }
+    const menu = /^(link|links|properties|details)\s+([^\s:]+)\s*:\s*(.*)$/i.exec(line);
+    if (menu) {
+      const [, kind, id, body] = menu;
+      warnOnce('IGNORED_INTERACTION', lineNo, '已省略参与者菜单和详情界面；仅保留首个安全链接', 'Participant menus and details are omitted; only the first safe URL is kept', '把其他必要链接放在图外', 'Put other essential links outside the diagram');
+      if (!menuLinks.has(id)) {
+        let entries = [];
+        if (kind.toLowerCase() === 'link') {
+          const parts = /^(.*?)@\s*(.+)$/.exec(body);
+          if (parts) entries = [[parts[1].trim(), parts[2]]];
+        } else if (kind.toLowerCase() === 'links') {
+          try {
+            const value = JSON.parse(body);
+            if (value && typeof value === 'object' && !Array.isArray(value)) entries = Object.entries(value);
+          } catch { /* An invalid menu has no safe link to retain. */ }
+        }
+        for (const [tooltip, url] of entries) {
+          const href = typeof url === 'string' && safeHref(url.trim());
+          if (href) { menuLinks.set(id, { href, tooltip }); break; }
+        }
+      }
+      return;
+    }
+    if (look.accept(line, lineNo)) return;
     const decl = /^(?:(create)\s+)?(participant|actor)\s+([^\s@]+)(?:\s*@\{([^}]*)\})?(?:\s+as\s+(.+))?$/i.exec(line);
     if (decl) {
-      const [, create, keyword, id, rawMeta, alias] = decl;
+      const [, create, keyword, ref, rawMeta, alias] = decl;
+      const [, actorId, iconRef] = /^(.*?)::icon\(([^)]+)\)$/.exec(ref) ?? [];
+      const id = actorRef(actorId ?? ref, lineNo);
       const meta = metadata(rawMeta);
       if (!validId(id)) {
         errors.push(issue(lang, lineNo, '参与者 ID 无效', 'Invalid participant id', '写成 participant ID as 名称', 'Write participant ID as Name'));
@@ -120,7 +159,11 @@ function parse(source, info) {
       if (!actor) return;
       const kind = meta.type || keyword.toLowerCase();
       if (!TYPES.has(kind)) warnOnce('DIAGRAM_HINT', lineNo, '未知参与者类型，使用普通方框', 'Unknown participant type; using a standard participant', '检查 type', 'Check the type value');
-      Object.assign(actor, { name: decodeText(alias || meta.alias || id), kind: TYPES.has(kind) ? kind : 'participant', declared: true, line: lineNo });
+      const { text, icon } = label(alias || meta.alias || id, lineNo);
+      const explicit = iconRef || meta.icon;
+      const resolved = explicit ? resolveIconRef(explicit) : null;
+      if (explicit && !resolved) recordWarning(warning('IGNORED_ASSET', lang, lineNo, `未知图标 ${explicit}`, `Unknown icon ${explicit}`, '使用内置图标', 'Use a supported icon'));
+      Object.assign(actor, { name: text, icon: resolved || icon, kind: TYPES.has(kind) ? kind : 'participant', declared: true, line: lineNo });
       if (create) pendingCreate = { id, line: lineNo };
       if (stack.at(-1)?.type === 'box') stack.at(-1).members.push(id);
       statements.push({ type: 'participant', id, line: lineNo });
@@ -138,10 +181,6 @@ function parse(source, info) {
       statements.push({ type: 'numbering', start: numbering[1]?.toLowerCase() === 'off' ? null : Number(numbering[1] ?? 1), step: Number(numbering[2] ?? 1), line: lineNo });
       return;
     }
-    if (/^(?:links?|properties|details)\s+\S+\s*:/.test(line.toLowerCase())) {
-      warnOnce('IGNORED_INTERACTION', lineNo, '已忽略参与者菜单和交互详情', 'Participant menus and interactive details are ignored', '将必要链接放在图外', 'Put essential links outside the diagram');
-      return;
-    }
     if (/^activate\s+(\S+)$/i.test(line) || /^deactivate\s+(\S+)$/i.test(line)) {
       const [, word, id] = /^(activate|deactivate)\s+(\S+)$/i.exec(line);
       if (!ensure(id, lineNo)) return;
@@ -152,25 +191,30 @@ function parse(source, info) {
     if (note) {
       const ids = note[2] ? [note[2], note[3]].filter(Boolean) : [note[4] || note[5]];
       if (ids.some((id) => !ensure(id, lineNo))) return;
-      const text = decodeText(note[6].trim());
-      statements.push({ type: 'note', place: note[2] ? 'over' : (note[4] ? 'left' : 'right'), ids, text, line: lineNo });
+      statements.push({ type: 'note', place: note[2] ? 'over' : (note[4] ? 'left' : 'right'), ids, ...label(note[6].trim(), lineNo), line: lineNo });
       return;
     }
     const block = /^(alt|opt|loop|par_over|par|critical|break|rect|box|else|and|option|end)(?:\s+(.*)|$)/i.exec(line);
     if (block) {
       const word = block[1].toLowerCase().replace('par_over', 'par');
-      let rest = decodeText((block[2] || '').trim());
-      let color;
+      let rest = (block[2] || '').trim();
+      let color, status;
       if (word === 'box' || word === 'rect') {
         color = colorPattern.exec(rest)?.[0] || /^transparent\b/i.exec(rest)?.[0];
-        if (word === 'box' && !color) color = /^(?:black|white|gr[ae]y|red|orange|yellow|green|blue|indigo|violet|purple|pink|brown|cyan|magenta|teal|navy|silver|gold|lime|aqua|coral|salmon|(?:light|dark)(?:blue|cyan|gr[ae]y|green|red|orange))\b/i.exec(rest)?.[0];
-        if (color) rest = rest.slice(color.length).trim();
+        const token = rest.split(/\s/, 1)[0];
+        if (!color && (roleOfColor(token) || /^(?:black|white|(?:light|dark|slate|dim)?gr[ae]y|silver)$/i.test(token))) color = token;
+        if (color) {
+          status = roleOfColor(color);
+          if (!status && !/^transparent$/i.test(color) && !ignoredColors.has(color)) ignoredColors.set(color, lineNo);
+          rest = rest.slice(color.length).trim();
+        }
       }
       if (word === 'end') {
         if (rest) errors.push(issue(lang, lineNo, 'end 后面不能再写内容', 'end cannot have trailing text', '这一行只写 end', 'Leave only end on this line'));
         close(lineNo);
         return;
       }
+      const { text, icon } = label(rest, lineNo);
       if (SECTIONS.has(word)) {
         const open = stack.at(-1);
         const allowed = { else: ['alt'], and: ['par'], option: ['critical'] }[word];
@@ -178,30 +222,32 @@ function parse(source, info) {
           errors.push(issue(lang, lineNo, `「${word}」不能出现在当前片段里`, `"${word}" is not valid in the current fragment`, `把它放到对应的 ${allowed.join('/')} 片段中`, `Place it inside ${allowed.join('/')} before end`));
           return;
         }
-        statements.push({ type: 'section', keyword: word, text: rest, line: lineNo, owner: open });
-        open.sections.push({ keyword: word, text: rest, line: lineNo });
+        statements.push({ type: 'section', keyword: word, text, icon, line: lineNo, owner: open });
+        open.sections.push({ keyword: word, text, icon, line: lineNo });
         return;
       }
       if (stack.length >= LIMITS.fragmentDepth) {
         errors.push(issue(lang, lineNo, `组合片段最多嵌套 ${LIMITS.fragmentDepth} 层`, `Fragments nest at most ${LIMITS.fragmentDepth} levels`, '把内层片段拆到另一张图', 'Move the inner fragment to another diagram'));
         return;
       }
-      const node = { type: word === 'box' ? 'box' : (word === 'rect' ? 'rect' : 'fragment'), keyword: word, text: rest, color, line: lineNo, kind: word === 'box' || word === 'rect' ? word : 'fragment', sections: [], members: [] };
+      const node = { type: word === 'box' ? 'box' : (word === 'rect' ? 'rect' : 'fragment'), keyword: word, text, icon, color, status, line: lineNo, kind: word === 'box' || word === 'rect' ? word : 'fragment', sections: [], members: [] };
       statements.push(node);
       stack.push(node);
       return;
     }
-    const colon = line.indexOf(':');
-    const address = colon < 0 ? line : line.slice(0, colon);
+    const colon = Array.from(line.matchAll(/:::[\w-]+|:/g)).find(match => match[0] === ':')?.index;
+    const hasLabel = colon !== undefined;
+    const address = hasLabel ? line.slice(0, colon) : line;
     const match = arrowPattern.exec(address);
     if (match?.index > 0) {
       const arrow = ARROWS.get(match[0].toLowerCase());
       const left = /^(.*?)\s*(\(\))?\s*(\+)?$/.exec(address.slice(0, match.index).trim());
       const right = /^([+-])?\s*(\(\))?\s*(.*?)\s*(\+)?$/.exec(address.slice(match.index + match[0].length).trim());
-      const [, from, centralStart, before] = left;
+      const [, sender, centralStart, before] = left;
+      const from = actorRef(sender, lineNo);
       const [, prefix, centralEnd, to, after] = right;
       const signal = prefix || before || after || (to.endsWith('-') && !byId.has(to) ? '-' : '');
-      const recipient = signal === '-' && !prefix && to.endsWith('-') ? to.slice(0, -1) : to;
+      const recipient = actorRef(signal === '-' && !prefix && to.endsWith('-') ? to.slice(0, -1) : to, lineNo);
       if (!validId(from) || !validId(recipient)) {
         errors.push(issue(lang, lineNo, '消息的参与者写法无效', 'Invalid message participants', '写成 A->>B: 消息，自调用写成 A->>A: 消息', 'Write A->>B: message, or A->>A: message for a self call'));
         return;
@@ -226,7 +272,7 @@ function parse(source, info) {
       const deactivateOn = signal === '-' ? from : '';
       statements.push({
         type: 'message', from, to: recipient, style: arrow.style, arrow, centralStart: Boolean(centralStart), centralEnd: Boolean(centralEnd),
-        create, destroy, text: colon < 0 ? '' : decodeText(line.slice(colon + 1).trim()), line: lineNo,
+        create, destroy, ...label(hasLabel ? line.slice(colon + 1).trim() : '', lineNo), line: lineNo,
         activate: Boolean(activateOn), deactivate: Boolean(deactivateOn), activateOn, deactivateOn,
       });
       return;
@@ -234,6 +280,8 @@ function parse(source, info) {
     errors.push(issue(lang, lineNo, `无法识别的语句「${line.slice(0, 40)}」`, `Unrecognized statement: ${line.slice(0, 40)}`, '改成 participant、消息、Note、片段、rect、box 或 end', 'Use participant, a message, Note, a fragment, rect, box, or end'));
   }
   lines.forEach((raw, index) => {
+    // CSS colors and property separators belong to the shared presentation parser.
+    if (/^\s*(?:style|classDef|linkStyle)\s/i.test(raw) && look.accept(raw, firstLine + index)) return;
     for (const part of splitLine(raw)) statement(part, firstLine + index);
   });
   for (const pending of [pendingCreate, pendingDestroy]) if (pending) lifecycleError(pending, '缺少后续消息', 'Missing a following message');
@@ -253,10 +301,27 @@ function parse(source, info) {
     if (item.destroy) depth.delete(item.destroy);
   }
   if (!participants.length) errors.push(issue(lang, firstLine, '图中没有参与者', 'The diagram has no participants', '写 participant，或写一条 A->>B: 消息', 'Add a participant or a message such as A->>B: text'));
+  for (const actor of participants) {
+    actor.status = look.statusOf(actor.id);
+    actor.link = menuLinks.get(actor.id) ?? look.linkOf(actor.id);
+  }
+  let edgeIndex = 0;
+  for (const item of statements) if (item.type === 'message') item.status = look.edgeStatusOf(edgeIndex++);
+  errors.push(...look.diagnostics());
+  if (ignoredColors.size) {
+    const colors = [...ignoredColors.keys()].join(', ');
+    errors.push(warning('IGNORED_STYLE', lang, ignoredColors.values().next().value,
+      `区段颜色使用中性色：${colors}`, `Region colors rendered as neutral: ${colors}`, '使用有彩度的颜色', 'Use chromatic colors'));
+  }
   return { model: { type: 'sequence', participants, statements, title }, errors };
 }
 
-function layout(model, { measure, width, lang }) {
+const ICON_SPACE = 20;
+const iconSpace = item => item.icon ? ICON_SPACE : 0;
+
+function layout(model, { measure, width, lang }, info = {}) {
+  const config = info.config?.sequence;
+  const mirrorActors = config?.mirrorActors !== false;
   const errors = [];
   const actors = model.participants.map((item) => ({ ...item }));
   const actorAt = (id) => actors.find((item) => item.id === id);
@@ -266,7 +331,7 @@ function layout(model, { measure, width, lang }) {
     return { lines, w: snap(Math.max(64, maxWidthOf(lines, font, measure) + 24)), h: snap(Math.max(32, lines.length * 18 + 14 + (glyph ? 24 : 0))) };
   };
   for (const actor of actors) {
-    const glyph = actor.kind !== 'participant';
+    const glyph = actor.kind !== 'participant' || Boolean(actor.icon);
     actor.head = labelSize(actor.name, FONT.title, glyph);
     actor.foot = { ...actor.head };
     if (wrapText(actor.name, 168, FONT.title, measure).length > LIMITS.lines) {
@@ -280,10 +345,10 @@ function layout(model, { measure, width, lang }) {
   const events = [];
   const open = [];
   const push = (event) => { events.push(event); };
-  let number = null, step = 1;
+  let number = config?.showSequenceNumbers === true ? 1 : null, step = 1;
   for (const item of model.statements) {
     if (item.type === 'box' || item.type === 'rect' || item.type === 'fragment') {
-      const h = item.type === 'box' ? 8 : item.type === 'rect' && !item.text ? 8 : 28;
+      const h = item.type === 'box' ? 8 : item.type === 'rect' && !item.text && !item.icon ? 8 : 28;
       push({ ...item, kind: 'open', h, depth: open.length });
       open.push(events.at(-1));
     } else if (item.type === 'section') {
@@ -294,10 +359,12 @@ function layout(model, { measure, width, lang }) {
       if (started) started.close = events.at(-1);
     } else if (item.type === 'note') {
       const font = FONT.label;
-      const wrapped = wrapText(item.text, noteLimit, font, measure);
+      const span = item.place === 'over' ? Math.abs(actorAt(item.ids[0]).index - actorAt(item.ids.at(-1)).index) : 0;
+      const limit = Math.max(noteLimit, Math.min(180, span * 132));
+      const wrapped = wrapText(item.text, limit, font, measure);
       if (wrapped.length > LIMITS.lines) errors.push(issue(lang, item.line, `注释超过 ${LIMITS.lines} 行`, `Note exceeds ${LIMITS.lines} lines`, '缩短注释，或拆成多条 Note', 'Shorten the note or split it into several Note lines'));
       const lines = wrapped.slice(0, LIMITS.lines);
-      push({ ...item, kind: 'note', lines, h: snap(lines.length * 16 + 16), textW: maxWidthOf(lines, font, measure) });
+      push({ ...item, kind: 'note', lines, h: snap(Math.max(lines.length, item.icon ? 1 : 0) * 16 + 16), textW: maxWidthOf(lines, font, measure) + iconSpace(item) });
     } else if (item.type === 'participant') {
       push({ ...item, kind: 'participant', h: 0 });
     } else if (item.type === 'activate' || item.type === 'deactivate') {
@@ -312,7 +379,7 @@ function layout(model, { measure, width, lang }) {
       const limit = item.from === item.to ? Math.min(168, labelLimit) : Math.max(labelLimit, Math.min(200, span * 132));
       const wrapped = wrapText(item.text, limit, font, measure);
       if (item.text && wrapped.length > LIMITS.lines) errors.push(issue(lang, item.line, `消息「${item.text}」超过 ${LIMITS.lines} 行`, `Message "${item.text}" exceeds ${LIMITS.lines} lines`, '缩短消息，说明移到图外', 'Shorten the message and move details outside'));
-      const lines = item.text ? wrapped.slice(0, LIMITS.lines) : [];
+      const lines = item.text || item.icon ? wrapped.slice(0, LIMITS.lines) : [];
       const ordinal = number == null ? '' : String(Number(number.toPrecision(15)));
       if (number != null) number += step;
       const labelH = lines.length ? lines.length * 16 + 8 : 0;
@@ -321,7 +388,7 @@ function layout(model, { measure, width, lang }) {
       const selfReserve = item.from === item.to ? (ordinal ? 12 : !lines.length ? 8 : 0) : 0;
       const lineOffset = Math.max(above + (lines.length ? 2 : 10) + selfReserve, createdHeight + 8);
       const h = snap(Math.max(above + 20, lineOffset + createdHeight + 12));
-      push({ ...item, kind: 'message', lines, h, lineOffset, ordinal, textW: maxWidthOf([...lines, ordinal], font, measure) });
+      push({ ...item, kind: 'message', lines, h, lineOffset, ordinal, textW: Math.max(maxWidthOf(lines, font, measure) + iconSpace(item), measure(ordinal, font)) });
     }
   }
   if (errors.length) return { width, height: 0, errors };
@@ -409,9 +476,12 @@ function layout(model, { measure, width, lang }) {
   const noteBox = (event, xs) => {
     const a = xs[actorAt(event.ids[0]).index], b = xs[actorAt(event.ids.at(-1)).index];
     const w = snap(event.textW + 16);
-    const over = event.place === 'over';
-    const x = event.place === 'left' ? a - w - 16 : (event.place === 'right' ? b + 16 : (a + b) / 2 - w / 2);
-    return { x: over && a === b ? a + 16 : x, w, h: event.h - 8 };
+    const h = event.h - 8;
+    if (event.place === 'over' && a !== b) {
+      const span = Math.max(w, Math.abs(a - b) + 24);
+      return { x: (a + b - span) / 2, w: span, h };
+    }
+    return { x: event.place === 'left' ? a - w - 16 : a + 16, w, h };
   };
   const sectionLabel = event => [event.keyword, event.text].filter(Boolean).join(' ');
   const frameLabel = event => event.type !== 'fragment' ? event.text : `${event.keyword}${event.text ? ` [${event.text}]` : ''}`;
@@ -450,8 +520,9 @@ function layout(model, { measure, width, lang }) {
         }
       }
       // 标题与分支标题写在框内左上角，框宽必须容下最宽的一条。
-      const labels = [frameLabel(event), ...event.sections.map(sectionLabel)].filter(Boolean);
-      right = Math.max(right, left + 8 + Math.max(0, ...labels.map((label) => measure(label, FONT.label))) + 12);
+      const labelWidths = [measure(frameLabel(event), FONT.label) + iconSpace(event),
+        ...event.sections.map(section => measure(sectionLabel(section), FONT.label) + iconSpace(section))];
+      right = Math.max(right, left + 20 + Math.max(...labelWidths));
       frames.set(event, { left, right });
     }
     let left = xs[0] - leftExtent[0], right = xs[count - 1] + headHalf[count - 1];
@@ -498,7 +569,7 @@ function layout(model, { measure, width, lang }) {
     event.y = cursor;
     cursor += event.h;
   }
-  const foot = snap(Math.max(...actors.map((actor) => actor.foot.h)) + 12);
+  const foot = mirrorActors ? snap(Math.max(...actors.map((actor) => actor.foot.h)) + 12) : 0;
   const bottom = cursor + 8;
   const height = bottom + foot + 8;
   for (const event of events) {
@@ -549,17 +620,19 @@ function layout(model, { measure, width, lang }) {
   for (const event of events) {
     if (event.kind === 'open' && event.box && event.type !== 'box') {
       const text = frameLabel(event);
-      if (!text) continue;
-      event.labelX = labelXOf(event.box, event.box.y, measure(text, FONT.label));
-      event.box.w = Math.max(event.box.w, event.labelX + measure(text, FONT.label) + 12 - event.box.x);
+      if (!text && !event.icon) continue;
+      const w = measure(text, FONT.label) + iconSpace(event);
+      event.labelX = labelXOf(event.box, event.box.y, w);
+      event.box.w = Math.max(event.box.w, event.labelX + w + 12 - event.box.x);
       contentRight = Math.max(contentRight, event.box.x + event.box.w);
     }
     if (event.kind === 'section') {
       const { host } = event;
       if (!host?.box) continue;
       const text = sectionLabel(event);
-      event.labelX = labelXOf(host.box, event.y, measure(text, FONT.label));
-      host.box.w = Math.max(host.box.w, event.labelX + measure(text, FONT.label) + 12 - host.box.x);
+      const w = measure(text, FONT.label) + iconSpace(event);
+      event.labelX = labelXOf(host.box, event.y, w);
+      host.box.w = Math.max(host.box.w, event.labelX + w + 12 - host.box.x);
       contentRight = Math.max(contentRight, host.box.x + host.box.w);
     }
   }
@@ -569,7 +642,7 @@ function layout(model, { measure, width, lang }) {
     actor.head.y = created == null ? 8 : created - actor.head.h / 2;
     actor.life = { x: actor.x, y1: created == null ? top - 4 : created + actor.head.h / 2, y2: destroyed ?? bottom };
     actor.destroyed = destroyed != null;
-    if (actor.destroyed) actor.foot = null;
+    if (actor.destroyed || !mirrorActors) actor.foot = null;
     else {
       actor.foot.x = actor.x - actor.foot.w / 2;
       actor.foot.y = bottom + 8;
@@ -586,12 +659,28 @@ function layout(model, { measure, width, lang }) {
 }
 function scene(layout, ctx) {
   const theme = appearance(ctx), children = [];
-  const addText = (parent, { x, y, lines, font = FONT.label, anchor = 'middle', lineHeight = 16, fill = theme.fg2 }) => {
-    const rows = lines || [];
-    const nodes = rows.map((line, index) => ctx.text(x, y + (index - (rows.length - 1) / 2) * lineHeight, line, {
-      anchor, size: font.size, weight: font.weight, fill, 'dominant-baseline': 'central',
-    }));
-    parent.push(ctx.el('g', {}, nodes));
+  const drawIcon = (icon, x, y, fill) => {
+    const [left, top, w, h] = icon.viewBox.split(/\s+/).map(Number), scale = 16 / Math.max(w, h);
+    return ctx.el('g', { transform: `translate(${x - (left + w / 2) * scale} ${y - (top + h / 2) * scale}) scale(${scale})` },
+      icon.elements.map(({ tag, attrs }) => ctx.shape(tag, { ...attrs,
+        ...(icon.set === 'simple' ? { fill } : { fill: 'none', stroke: fill, 'stroke-width': 1.7, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }) })));
+  };
+  const addText = (parent, { x, y, lines, icon, meta, font = FONT.label, anchor = 'middle', lineHeight = 16, fill = theme.fg2, underline = false }) => {
+    const rows = lines.length ? lines : [''];
+    const firstY = y - (rows.length - 1) / 2 * lineHeight;
+    const nodes = [];
+    if (icon) {
+      const middle = anchor === 'middle';
+      const firstWidth = middle ? ctx.measure(rows[0], font.size, font.weight) : 0;
+      nodes.push(drawIcon(icon, middle ? x - firstWidth / 2 - (rows[0] ? 2 : 0) : x + 8, firstY, fill));
+      x += middle ? ICON_SPACE / 2 : ICON_SPACE;
+    }
+    rows.forEach((text, index) => {
+      if (!text) return;
+      const node = ctx.text(x, firstY + index * lineHeight, text, { anchor, size: font.size, weight: font.weight, fill, 'dominant-baseline': 'central', ...(underline ? { 'text-decoration': 'underline' } : {}) });
+      nodes.push(meta ? { ...node, meta } : node);
+    });
+    if (nodes.length) parent.push(ctx.el('g', {}, nodes));
   };
   const line = (x1, y1, x2, y2, attrs = {}) => ctx.line(x1, y1, x2, y2, attrs);
   const heads = {
@@ -599,16 +688,21 @@ function scene(layout, ctx) {
     top: 'M1 1 L8 5 H1 Z', bottom: 'M1 9 L8 5 H1 Z',
     'stick-top': 'M1 1 L8 5', 'stick-bottom': 'M1 9 L8 5',
   };
-  const markerId = head => head === 'arrow' ? 'seq-arrow' : `seq-arrow-${head}`;
+  const markerId = (head, status) => `seq-arrow${head === 'arrow' ? '' : `-${head}`}${status ? `-${status}` : ''}`;
   // auto-start-reverse rotates a marker by 180°, including its vertical half.
   const startHead = head => head?.replace(/top|bottom/, side => side === 'top' ? 'bottom' : 'top');
-  const usedHeads = new Set(layout.events.flatMap(event => event.arrow ? [event.arrow.head, startHead(event.arrow.start)] : []).filter(head => heads[head]));
-  if (usedHeads.size) children.push(ctx.el('defs', {}, [...usedHeads].map(head => ctx.el('marker', {
-    id: markerId(head), viewBox: '0 0 10 10', refX: head === 'cross' ? 5 : 8, refY: 5, markerWidth: 10, markerHeight: 10,
-    orient: 'auto-start-reverse', markerUnits: 'userSpaceOnUse',
-  }, [ctx.path(heads[head], {
-    fill: heads[head].endsWith('Z') ? theme.fg3 : 'none', stroke: theme.fg3, 'stroke-width': 1.2,
-  })]))));
+  const markers = new Map();
+  for (const event of layout.events) if (event.arrow) {
+    for (const head of [event.arrow.head, startHead(event.arrow.start)]) {
+      if (!heads[head]) continue;
+      const id = markerId(head, event.status), color = theme[event.status] ?? theme.fg3;
+      if (!markers.has(id)) markers.set(id, ctx.el('marker', {
+        id, viewBox: '0 0 10 10', refX: head === 'cross' ? 5 : 8, refY: 5, markerWidth: 10, markerHeight: 10,
+        orient: 'auto-start-reverse', markerUnits: 'userSpaceOnUse',
+      }, [ctx.path(heads[head], { fill: heads[head].endsWith('Z') ? color : 'none', stroke: color, 'stroke-width': 1.2 })]));
+    }
+  }
+  if (markers.size) children.push(ctx.el('defs', {}, [...markers.values()]));
   const glyphs = {
     actor: 'M12 1 a3 3 0 1 0 .01 0 M12 7 v7 m-6-4 h12 m-6 4 l-5 6 m5-6 l5 6',
     boundary: 'M16 3 a7 7 0 1 0 .01 0 M9 10 H3 M3 4 v12',
@@ -626,20 +720,22 @@ function scene(layout, ctx) {
     const frame = [];
     const boxFrame = event.type === 'box';
     const coloredRect = event.type === 'rect' && event.color;
+    const role = theme[event.status];
+    const groupTone = role ? ctx.frameTone(role) : event.color ? theme.line : boxTone;
     const fill = /^transparent$/i.test(event.color) ? 'none'
-      : coloredRect ? theme.fg4
+      : coloredRect ? role || theme.fg4
         : event.type === 'rect' ? ctx.tint(theme.bg, sectionTone, theme.soft)
-          : boxFrame ? ctx.tint(theme.bg, boxTone, .08) : ctx.mix(theme.bg, theme.fg4, .07);
-    const stroke = coloredRect ? 'none' : event.type === 'rect' ? sectionTone : boxFrame ? boxTone : theme.line;
+          : boxFrame ? ctx.tint(theme.bg, event.color && !role ? theme.fg4 : groupTone, .08) : ctx.mix(theme.bg, theme.fg4, .07);
+    const stroke = coloredRect ? 'none' : event.type === 'rect' ? sectionTone : boxFrame ? groupTone : theme.line;
     frame.push(ctx.rect(x, y, w, h, {
       fill, stroke, ...(coloredRect ? { 'fill-opacity': .1 } : event.type === 'rect' ? { 'stroke-opacity': .45 } : {}), 'stroke-width': 1, rx: theme.smallRadius,
       ...(boxFrame ? { 'stroke-dasharray': '5 4' } : {}),
     }));
     if (boxFrame) {
-      if (event.text) addText(children, { x: x + w / 2, y: y - 10, lines: [event.text] });
-    } else if (event.type !== 'rect' || event.text) {
+      if (event.text || event.icon) addText(children, { x: x + w / 2, y: y - 10, lines: [event.text], icon: event.icon });
+    } else if (event.type !== 'rect' || event.text || event.icon) {
       const label = event.type === 'rect' ? event.text : event.keyword + (event.text ? ' [' + event.text + ']' : '');
-      addText(frame, { x: event.labelX ?? x + 8, y: y + 12, lines: [label], anchor: 'start' });
+      addText(frame, { x: event.labelX ?? x + 8, y: y + 12, lines: [label], icon: event.icon, anchor: 'start' });
     }
     children.push({ ...ctx.el('g', {}, frame), meta: { kind: 'frame', id: `sequence-frame-${event.y}` } });
   };
@@ -656,12 +752,13 @@ function scene(layout, ctx) {
       const { host } = event;
       if (!host?.box) continue;
       children.push(line(host.box.x, event.y + 4, host.box.x + host.box.w, event.y + 4, { stroke: theme.line, 'stroke-dasharray': '3 3' }));
-      addText(children, { x: event.labelX ?? host.box.x + 8, y: event.y + 14, lines: [[event.keyword, event.text].filter(Boolean).join(' ')], anchor: 'start' });
+      addText(children, { x: event.labelX ?? host.box.x + 8, y: event.y + 14, lines: [[event.keyword, event.text].filter(Boolean).join(' ')], icon: event.icon, anchor: 'start' });
     }
     if (event.kind === 'note') {
       const { x, y, w, h } = event.note, note = [];
       note.push(ctx.rect(x, y, w, h, { fill: theme.surface, stroke: theme.line2, 'stroke-width': 1, rx: theme.smallRadius }));
-      addText(note, { x: x + 8, y: y + h / 2, lines: event.lines, anchor: 'start', lineHeight: 16 });
+      const spans = event.place === 'over' && event.ids[0] !== event.ids.at(-1);
+      addText(note, { x: spans ? x + w / 2 : x + 8, y: y + h / 2, lines: event.lines, icon: event.icon, anchor: spans ? 'middle' : 'start' });
       children.push(ctx.el('g', {}, note));
     }
     if (event.kind !== 'message') continue;
@@ -670,11 +767,12 @@ function scene(layout, ctx) {
     const self = from === to;
     const dir = to.x >= from.x ? 1 : -1;
     const { head, start, dashed } = event.arrow;
+    const color = theme[event.status] ?? theme.fg3;
     const lineAttrs = {
-      stroke: theme.fg3, 'stroke-width': 1.5, 'stroke-linecap': 'butt',
+      stroke: color, 'stroke-width': 1.5, 'stroke-linecap': 'butt',
       ...(dashed ? { 'stroke-dasharray': '5 4' } : {}),
-      ...(start ? { 'marker-start': `url(#${markerId(startHead(start))})` } : {}),
-      ...(head === 'none' ? {} : { 'marker-end': `url(#${markerId(head)})` }),
+      ...(start ? { 'marker-start': `url(#${markerId(startHead(start), event.status)})` } : {}),
+      ...(head === 'none' ? {} : { 'marker-end': `url(#${markerId(head, event.status)})` }),
     };
     const startX = event.centralStart ? from.x : event.fromBar ? event.fromBar.x + (dir > 0 ? 10 : 0) : from.x + dir * (self ? 6 : 8);
     const endX = event.create ? to.x - dir * to.head.w / 2
@@ -686,7 +784,7 @@ function scene(layout, ctx) {
     const route = self ? ctx.path(`M${tipStart} ${startY} h${40 + startX - tipStart} v18 H${tipEnd}`, { fill: 'none', ...lineAttrs })
       : line(tipStart, y, tipEnd, y, lineAttrs);
     children.push({ ...route, meta: { kind: 'message', from: from.id, to: to.id } });
-    const dot = (x, cy) => children.push(ctx.el('circle', { cx: x, cy, r: 3.5, fill: theme.fg3 }));
+    const dot = (x, cy) => children.push(ctx.el('circle', { cx: x, cy, r: 3.5, fill: color }));
     if (event.centralStart) dot(startX, startY);
     if (event.centralEnd) dot(endX, endY);
     const x = self ? from.x + 52 : event.create ? (startX + endX) / 2 : (from.x + to.x) / 2;
@@ -701,8 +799,9 @@ function scene(layout, ctx) {
       [box.x, box.x + box.w].some(edge => labelLeft - 2 < edge && edge < labelRight + 2))) {
       children.push(ctx.rect(labelLeft - 4, labelTop, event.textW + 8, labelBottom - labelTop, { fill: theme.bg, rx: theme.smallRadius }));
     }
-    if (event.lines.length) addText(children, { x, y: labelY, lines: event.lines, anchor: self ? 'start' : 'middle', lineHeight: 16 });
-    if (event.ordinal) addText(children, { x, y: ordinalY, lines: [event.ordinal], anchor: self ? 'start' : 'middle', fill: theme.fg3 });
+    const meta = { kind: 'message-label', from: from.id, to: to.id };
+    if (event.lines.length || event.icon) addText(children, { x, y: labelY, lines: event.lines, icon: event.icon, meta, anchor: self ? 'start' : 'middle' });
+    if (event.ordinal) addText(children, { x, y: ordinalY, lines: [event.ordinal], meta, anchor: self ? 'start' : 'middle', fill: theme.fg3 });
     if (event.destroy && !(head === 'cross' && event.destroy === to.id)) {
       const dx = actorAt(event.destroy).x;
       children.push(ctx.path(`M${dx - 4} ${y - 4} l8 8 m0 -8 l-8 8`, { fill: 'none', stroke: theme.fg3, 'stroke-width': 1.5 }));
@@ -711,13 +810,19 @@ function scene(layout, ctx) {
   for (const actor of layout.actors) for (const part of [actor.head, actor.foot].filter(Boolean)) {
     const group = [];
     const glyph = glyphs[actor.kind];
-    group.push(ctx.rect(part.x, part.y, part.w, part.h, { fill: theme.surface, stroke: theme.line, 'stroke-width': 1, rx: theme.smallRadius }));
-    if (glyph) group.push(ctx.path(glyph, { transform: `translate(${actor.x - 12} ${part.y + 6})`, fill: 'none', stroke: theme.fg3, 'stroke-width': 1.3, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }));
-    addText(group, { x: actor.x, y: part.y + part.h / 2 + (glyph ? 12 : 0), lines: part.lines, font: FONT.title, lineHeight: 18, fill: theme.fg1 });
-    children.push({ ...ctx.el('g', {}, group), meta: { kind: 'participant', id: actor.id } });
+    const role = theme[actor.status];
+    group.push(ctx.rect(part.x, part.y, part.w, part.h, { fill: role ? ctx.tint(theme.surface, role, .12) : theme.surface,
+      stroke: role ? ctx.frameTone(role) : theme.line, 'stroke-width': 1, rx: theme.smallRadius }));
+    if (actor.icon) group.push(drawIcon(actor.icon, actor.x, part.y + 16, theme.fg3));
+    else if (glyph) group.push(ctx.path(glyph, { transform: `translate(${actor.x - 12} ${part.y + 6})`, fill: 'none', stroke: theme.fg3, 'stroke-width': 1.3, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }));
+    addText(group, { x: actor.x, y: part.y + part.h / 2 + (glyph || actor.icon ? 12 : 0), lines: part.lines,
+      font: FONT.title, lineHeight: 18, fill: theme.fg1, underline: Boolean(actor.link) });
+    const card = { ...ctx.el('g', {}, group), meta: { kind: 'participant', id: actor.id } };
+    children.push(actor.link ? ctx.link(actor.link.href, [card], actor.link) : card);
   }
   return { width: layout.width, height: layout.height, children, title: layout.title, heading: layout.title };
 }
 
 export { LIMITS };
-export const implementations = { sequenceDiagram: { parse, layout, scene } };
+export const implementations = { sequenceDiagram: { parse, layout, scene, acceptsPresentation: true,
+  honoredConfig: ['sequence.mirrorActors', 'sequence.showSequenceNumbers'] } };
