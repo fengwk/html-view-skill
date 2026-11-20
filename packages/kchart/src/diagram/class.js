@@ -766,6 +766,8 @@ export function layoutCards(model, { ctx, width, lang, measure = (s, f) => ctx.m
       if (w > 199) frameMin.set(card.id, Math.max(frameMin.get(card.id) || 0, w + 2));
     }
   }
+  // A member row's 12px text box otherwise ends on the next divider.
+  const sectionGap = (rows, i, sections) => !requirements && rows.length && i < sections.length - 1 ? 5 : 0;
   const nodes = cards.map((card, seq) => {
     const wrap = (rows, members = false) => rows.flatMap(row => (members
       ? wrapAtSeparators(row.text, 328, s => measure(s, FONT.label), /(?<=,)|(?<=[^\s:])(?=\s*:(?!:))/u)
@@ -781,7 +783,8 @@ export function layoutCards(model, { ctx, width, lang, measure = (s, f) => ctx.m
     const w = Math.max(64, frameMin.get(card.id) || 0, 28 + Math.max(0, ...lines.map(s => measure(s, FONT.title)),
       ...detail.map(row => measure(row.text, FONT.body))));
     const rowCount = annotations.length + Number(Boolean(card.icon)) + sections.reduce((sum, rows) => sum + Math.max(1, rows.length), 0);
-    const h = Math.max(40, 20 + lines.length * 19 + (rowCount ? 5 + rowCount * 17 : 0));
+    const h = Math.max(40, 20 + lines.length * 19 + (rowCount ? 5 + rowCount * 17 : 0)
+      + sections.reduce((sum, rows, i) => sum + sectionGap(rows, i, sections), 0));
     return { id: card.id, seq, label, parent: card.parent,
       ...(card.hidden ? { kind: 'start' } : { block: { w, h } }) };
   });
@@ -906,7 +909,7 @@ export function layoutCards(model, { ctx, width, lang, measure = (s, f) => ctx.m
     for (const [i, rows] of sections.entries()) {
       items.push(ctx.line(x + (i ? 9 : 0), cursor, x + w - (i ? 9 : 0), cursor, { stroke: a.line2, 'stroke-width': .7 }));
       for (const [j, row] of rows.entries()) drawRow(row, x + 14, cursor + 11 + j * 17, {});
-      cursor += Math.max(1, rows.length) * 17;
+      cursor += Math.max(1, rows.length) * 17 + sectionGap(rows, i, sections);
     }
     if (card.link) boxes.push(ctx.link(card.link.href, items, card.link));
     else boxes.push(...items);

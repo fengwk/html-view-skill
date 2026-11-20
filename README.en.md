@@ -18,16 +18,15 @@ The skill covers more than layout. Given loose notes, meeting minutes or JSON, t
 
 ## Quick start
 
-**1. Install.** You need Git and Node.js 22+. Download the script, read it, then run it:
+**1. Install.** You need Git and Node.js 22+. On macOS, Linux or WSL, run this in a terminal:
 
 ```bash
-# macOS / Linux / WSL
-curl -fsSL --proto '=https' -o install-html-view.sh https://raw.githubusercontent.com/fengwk/html-view-skill/main/scripts/install.sh
-bash ./install-html-view.sh
+curl -fsSL https://raw.githubusercontent.com/fengwk/html-view-skill/main/scripts/install.sh | bash
 ```
 
+In Windows PowerShell, download the script, then run it:
+
 ```powershell
-# Windows PowerShell
 Invoke-WebRequest -UseBasicParsing -Uri 'https://raw.githubusercontent.com/fengwk/html-view-skill/main/scripts/install.ps1' -OutFile '.\install-html-view.ps1'
 .\install-html-view.ps1
 ```
@@ -659,7 +658,7 @@ Charts in HTML View are drawn by its bundled KChart library: **45 data charts, 3
 
 ## Install details
 
-The installer clones the repository to `~/.agents/skill-lib/html-view-skill` and links its `skills/html-view` folder into two places:
+The installer ([`scripts/install.sh`](scripts/install.sh), [`scripts/install.ps1`](scripts/install.ps1)) clones the repository to `~/.agents/skill-lib/html-view-skill` and links its `skills/html-view` folder into two places:
 
 | Link | Read by |
 |---|---|
@@ -669,6 +668,7 @@ The installer clones the repository to `~/.agents/skill-lib/html-view-skill` and
 Each tool chooses its own folder; the Agent Skills specification does not define a shared location. For other agents, link or copy `skills/html-view` into the folder they load skills from.
 
 - **Safe to rerun.** A valid existing clone is reused and never pulled automatically. A broken clone or one from another origin is reported, not replaced. Each link is checked on its own, and an existing file, folder or broken link with the same name is left untouched.
+- **An interrupted download installs nothing.** The script starts only once it has been read in full, so a dropped connection changes nothing.
 - **Manual clones work too.** Clone to the location above, then run the script to add the links.
 - **Native Windows** uses directory junctions instead of symbolic links. Whether each agent picks up a junction has not been tested on native Windows yet. WSL uses the `$HOME` of its Linux environment.
 - **If PowerShell blocks the script** only because it came from the internet under `RemoteSigned`, check it, run `Unblock-File -LiteralPath '.\install-html-view.ps1'`, then run it again. You don't need to change the system policy.

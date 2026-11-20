@@ -148,12 +148,29 @@ function arrange(spec, ctx, mode, { cap, gap }) {
     for (let d = 0; d < maxDepth; d++) col[d + 1] = col[d] + levelW[d] + gap;
     stack(root, 0, n => mode === 'left' ? -col[n.depth] - n.w : col[n.depth]);
   } else if (mode === 'bilateral') {
-    // 一级分支按叶子数交替分到左右两侧；每侧逐层取该侧最宽节点定列宽，根与各层之间都相隔 gap。
-    const sides = [[], []], mass = [0, 0];
-    for (const child of root.children) {
-      const side = mass[0] <= mass[1] ? 0 : 1;
-      sides[side].push(child);
-      mass[side] += leaves(child);
+    // Try the heaviest branches first, keeping source order within each side.
+    const partition = (branches, heaviestFirst = false) => {
+      const sides = [[], []], mass = [0, 0];
+      for (const child of branches) {
+        const preferRight = heaviestFirst && mass[0] === mass[1] && sides[0].length > 0;
+        const side = mass[0] < mass[1] || (mass[0] === mass[1] && !preferRight) ? 0 : 1;
+        sides[side].push(child);
+        mass[side] += leaves(child);
+      }
+      return { sides, mass };
+    };
+    const original = partition(root.children);
+    const ordered = [...root.children].sort((a, b) => leaves(b) - leaves(a));
+    const ranked = partition(ordered, true);
+    const imbalance = ({ mass }) => Math.abs(mass[0] - mass[1]);
+    // In a tie, avoid stacking more branches beside the heaviest one on the fuller side.
+    const heavySideMass = ({ sides, mass }) => mass[sides[0].includes(ordered[0]) ? 0 : 1];
+    const improves = imbalance(ranked) < imbalance(original) || (imbalance(ranked) === imbalance(original)
+      && heavySideMass(ranked) < heavySideMass(original));
+    const { sides, mass } = improves ? ranked : original;
+    for (let i = 0; i < sides.length; i++) {
+      const members = new Set(sides[i]);
+      sides[i] = root.children.filter(child => members.has(child));
     }
     const subtree = n => [n, ...n.children.flatMap(subtree)];
     place(root, 0, -root.h / 2);

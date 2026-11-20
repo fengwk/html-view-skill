@@ -134,7 +134,7 @@ function roundedRoute(points) {
   return `${d} L${points.at(-1).join(' ')}`;
 }
 
-function layout(model, { ctx, width, renderOptions }, info = {}) {
+function layout(model, { ctx, width, renderOptions, compact }, info = {}) {
   const { title, commits, branches, direction, config } = model, t = appearance(ctx);
   const vertical = direction !== 'LR', reverse = direction === 'BT';
   const showBranches = config.showBranches !== false, showLabels = config.showCommitLabel !== false;
@@ -145,10 +145,30 @@ function layout(model, { ctx, width, renderOptions }, info = {}) {
   const branchNames = branches.map(({ label }) => ctx.wrap(label, 128, FONT.label.size));
   const branchW = showBranches ? Math.max(...branchNames.map(W)) + 20 : 0;
   const branchH = showBranches ? Math.max(...branchNames.map(lines => lines.length)) * 16 + 10 : 0;
+  const wrapCommit = text => {
+    const limit = 130, size = FONT.label.size;
+    const fallback = () => ctx.wrap(text, limit, size);
+    if (!/\p{Script=Han}/u.test(text)) return fallback();
+    // Keep uninterrupted CJK runs together when the label can wrap at explicit word breaks.
+    const lines = [];
+    for (const paragraph of text.split('\n')) {
+      let line = '';
+      for (const part of paragraph.split(/(?<=[,.:;!?，。；：！？、])|(?=\s)/u)) {
+        const word = part.trim();
+        if (!word) continue;
+        if (ctx.measure(word, size) > limit) return fallback();
+        const next = line + (line && /^\s/u.test(part) ? ' ' : '') + word;
+        if (ctx.measure(next, size) > limit) { lines.push(line); line = word; }
+        else line = next;
+      }
+      lines.push(line);
+    }
+    return lines;
+  };
   const slots = [];
   const nodes = commits.map(c => {
-    const label = showLabels ? ctx.wrap(c.id ? c.label : (!c.merge && c.cherryOf == null ? `${c.seq + 1}` : ''), 130, FONT.label.size).filter(Boolean) : [];
-    const msg = c.msg ? ctx.wrap(c.msg, 130, FONT.label.size) : [];
+    const label = showLabels ? wrapCommit(c.id ? c.label : (!c.merge && c.cherryOf == null ? `${c.seq + 1}` : '')).filter(Boolean) : [];
+    const msg = c.msg ? wrapCommit(c.msg) : [];
     const tags = c.tags.map(tag => ctx.wrap(tag, 130, FONT.label.size));
     const slot = config.parallelCommits ? Math.max(-1, ...c.parents.map(p => slots[p])) + 1 : c.seq;
     slots.push(slot);
@@ -187,7 +207,7 @@ function layout(model, { ctx, width, renderOptions }, info = {}) {
     cross.forEach((edge, j) => { if (nodes[edge.from].lane === i) { tracks.set(j, pos); pos += 6; } });
   }
   const breadth = pos + (vertical ? pad : Math.max(0, pad - 12));
-  const w = Math.max(width, vertical ? breadth : timeline), height = heading + (vertical ? timeline : breadth);
+  const w = Math.max(compact ? 0 : width, vertical ? breadth : timeline), height = heading + (vertical ? timeline : breadth);
   const offset = (w - (vertical ? breadth : timeline)) / 2;
   const coords = (u, v) => vertical ? [offset + v, heading + (reverse ? timeline - u : u)] : [offset + u, heading + v];
   const centered = { ...FONT.label, anchor: 'middle', 'dominant-baseline': 'central' };

@@ -66,13 +66,25 @@ function reader(body, info, dialect, look, assets) {
     token = undefined;
     return next;
   }
-  function expect(kind, code = 'unexpected-token') {
+  function expect(kind, code = 'unexpected-token', ruleName) {
     const next = take(kind);
     if (next) return next;
     if (['"', "'"].includes(peek().kind) && !(abnf && peek().kind === "'")) {
       fail('unterminated-string', '字符串未闭合', 'Unterminated string', '添加对应的结束引号', 'Add the matching closing quote');
     }
-    fail(code, `应为「${kind}」`, `Expected ${kind}`, `在此处使用「${kind}」`, `Use ${kind} here`);
+    if (ruleName !== undefined) {
+      const example = dialect === 'ir' ? 'item = terminal("x");' : `item ${kind} "x";`;
+      const operator = dialect === 'ebnf' ? '= 或 ::=' : kind;
+      const operatorEn = dialect === 'ebnf' ? '= or ::=' : kind;
+      const title = ruleName === 'diagram-title' && peek().kind === ':';
+      fail(code, `规则名后应为 ${operator}`, `Expected ${operatorEn} after the rule name`,
+        title ? `标题请写 title 标题；规则请写成 ${example}` : `在规则名后使用 ${operator}，例如 ${example}`,
+        title ? `Write titles as title My Grammar; write rules as ${example}` : `Use ${operatorEn} after the rule name, as in ${example}`);
+    }
+    if (kind === 'id') fail(code, '此处需要名称', 'Expected a name', '使用字母开头的规则名或构造器名，例如 item', 'Use a rule or constructor name starting with a letter, such as item');
+    if (kind === 'string') fail(code, '此处需要带引号的字符串', 'Expected a quoted string', '用双引号包住文字，例如 "x"', 'Enclose the text in double quotes, as in "x"');
+    if (kind === ';') fail(code, '规则末尾缺少分号', 'Expected ; at the end of the rule', '在规则表达式结束处加分号 ;', 'End the rule expression with a semicolon (;)');
+    fail(code, `此处应为「${kind}」`, `Expected ${kind}`, `在此处补上「${kind}」`, `Insert ${kind} here`);
   }
   function checkDepth(depth) {
     if (depth > DEPTH) fail('depth-limit', '语法轨道嵌套过深', 'Railroad nesting is too deep', '将嵌套部分提取为规则', 'Extract nested expressions into rules');
@@ -151,10 +163,10 @@ function expression(r, dialect, hints) {
   function mismatch() {
     const kind = r.peek().kind;
     if (abnf && ['|', '+', '?', "'", '{'].includes(kind)) {
-      r.fail('abnf-unsupported', '此写法不属于 ABNF', 'This syntax is not ABNF', '使用 /、双引号和前置重复次数', 'Use /, double quotes and a repeat prefix');
+      r.fail('abnf-unsupported', '此写法不属于 ABNF', 'This syntax is not ABNF', '使用 / 分隔选项、双引号包住文字、将重复次数放在表达式前，例如 2*4"x" / "y"', 'Use / to separate alternatives, double quotes for text, and a repeat prefix, as in 2*4"x" / "y"');
     }
     if (peg && ['[', '{', '-', '|'].includes(kind)) {
-      r.fail('peg-unsupported', '此写法不属于 PEG', 'This syntax is not PEG', '使用 /、圆括号和后置 ?、*、+', 'Use /, parentheses and postfix ?, *, +');
+      r.fail('peg-unsupported', '此写法不属于 PEG', 'This syntax is not PEG', '使用 / 分隔选项，用圆括号分组，重复符号写在末尾，例如 ("x" / "y")+', 'Separate alternatives with /, group with parentheses, and put repetition operators last, as in ("x" / "y")+');
     }
   }
   function factor(depth) {
@@ -166,7 +178,7 @@ function expression(r, dialect, hints) {
       const [lo, hi] = count.value.split('*');
       const min = Number(lo), max = hi === undefined ? min : hi === '' ? Infinity : Number(hi);
       if (!Number.isSafeInteger(min) || (max !== Infinity && !Number.isSafeInteger(max)) || min > max) {
-        r.fail('abnf-bad-repeat', '无效的 ABNF 重复次数', 'Invalid ABNF repetition bounds', '使用递增的整数范围', 'Use an ascending integer range', count);
+        r.fail('abnf-bad-repeat', '无效的 ABNF 重复次数', 'Invalid ABNF repetition bounds', '先写最小次数，再写最大次数，例如 2*4"x"', 'Put the minimum before the maximum, as in 2*4"x"', count);
       }
       node = min === 0 && max === 1 ? optional(node) : repetition(node, min, max);
     }
@@ -211,7 +223,7 @@ function irExpression(r, depth = 1) {
   if (!build) r.fail('ir-unknown-constructor', `未知构造器「${name.value}」`, `Unknown constructor ${name.value}`,
     `使用 ${[...constructors.keys()].join('、')}`, `Use ${[...constructors.keys()].join(', ')}`, name);
   r.expect('(');
-  if (r.peek().kind === ')') r.fail('ir-arity', '构造器缺少参数', 'Constructor has no arguments', '添加构造器参数', 'Add a constructor argument');
+  if (r.peek().kind === ')') r.fail('ir-arity', '构造器缺少参数', 'Constructor has no arguments', '添加参数，例如 terminal("x") 或 optional(terminal("x"))', 'Add an argument, as in terminal("x") or optional(terminal("x"))');
   let node;
   if (['terminal', 'nonterminal', 'special'].includes(name.value)) {
     const token = r.expect('string');
@@ -241,7 +253,7 @@ function parseRules(body, info, dialect) {
   const abnf = dialect === 'abnf';
   const key = name => abnf ? name.toLowerCase() : name;
   try {
-    if (body.length > 200000) r.fail('source-limit', '语法文本过长', 'Railroad source is too large', '拆分语法图', 'Split the grammar into diagrams');
+    if (body.length > 200000) r.fail('source-limit', '语法文本过长', 'Railroad source is too long', '按规则拆分，每张图最多 200,000 个字符', 'Split by rule into diagrams of at most 200,000 characters');
     while (r.peek().kind !== 'end') {
       if (r.presentationLine()) continue;
       if (abnf && r.take(';')) { r.commentTail(); continue; }
@@ -262,15 +274,15 @@ function parseRules(body, info, dialect) {
       }
       const name = r.expect('id');
       const rule = r.decorate({ name: name.value, line: name.line, column: name.column }, name.value, name);
-      if (dialect === 'peg') r.expect('<-', 'peg-bad-operator');
-      else if (!(dialect === 'ebnf' && r.take('::='))) r.expect('=');
+      if (dialect === 'peg') r.expect('<-', 'peg-bad-operator', name.value);
+      else if (!(dialect === 'ebnf' && r.take('::='))) r.expect('=', 'unexpected-token', name.value);
       const definition = dialect === 'ir' ? irExpression(r) : expression(r, dialect, hints);
       r.expect(';', 'rule-expected');
       if (abnf) r.commentTail();
       const stack = [[definition, 1]];
       while (stack.length) {
         const [node, depth] = stack.pop();
-        if (++count > CAP) r.fail('node-limit', '语法图节点过多', 'Too many railroad nodes', '拆分语法图', 'Split the grammar into diagrams', name);
+        if (++count > CAP) r.fail('node-limit', '语法图节点过多', `Too many railroad nodes (limit ${CAP})`, `按规则拆分，每张图最多 ${CAP} 个节点`, `Split by rule into diagrams of at most ${CAP} nodes`, name);
         if (depth > DEPTH) r.fail('depth-limit', '语法轨道嵌套过深', 'Railroad nesting is too deep', '将嵌套部分提取为规则', 'Extract nested expressions into rules', name);
         for (const child of childrenOf(node)) stack.push([child, depth + 1]);
       }

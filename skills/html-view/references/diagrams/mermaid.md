@@ -5,3 +5,11 @@
 - **链接**：支持通用链接的图型可用 `click ID href "https://example.com"`；接受安全的 HTTP(S)、`mailto:` 和相对地址。不安全的地址（如 `javascript:` 或 `//…`）和回调会被忽略，并报 `IGNORED_INTERACTION`。
 - **标签与图标**：支持图标的标签可写 `fa:fa-…`，专用图标字段也可用 `tabler:…`、`simple-icons:…` 等名称。从内置图标集或宿主通过 `registerIcons` 注册的图标中解析；解析不到时忽略该图标并报 `IGNORED_ASSET`。支持规范化的标签会解码实体、将 `<br>` 转为换行；不加载远程图片，也不排版 KaTeX 公式（公式保留为文本）。
 - **诊断与大图**：错误会阻止渲染，请按位置修正；警告不阻止渲染，`DIAGRAM_HINT` 表示可继续的输入问题。宽图保留可读字号，在图框内滚动；出现 `LARGE_DIAGRAM` 时可考虑拆为总图和分图。工作量超限或无法排出可读图形仍可能报错。
+
+## info
+
+`info` 只画出一行渲染器版本（如 `KChart v0.2.0`），用来确认文档由 KChart 渲染；它不承载内容，交付文档里不要用。可选的 `showInfo` 不改变输出，其他语句会报错。
+
+```mermaid
+info
+```

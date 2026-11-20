@@ -93,7 +93,7 @@ function parse(body, info) {
   return { model, errors };
 }
 
-function layout(model, { width, ctx, measure, renderOptions }) {
+function layout(model, { width, ctx, measure, renderOptions, compact }) {
   const { design: d } = ctx, { items, config, sections } = model;
   const vertical = model.direction === 'TD';
   const finite = (value, fallback, floor) => Number.isFinite(Number(value)) ? Math.max(floor, Number(value)) : fallback;
@@ -101,8 +101,8 @@ function layout(model, { width, ctx, measure, renderOptions }) {
   const body = { ...FONT.body, size: finite(config.taskFontSize, 13, 12) }, period = { ...body, weight: 600 };
   const lh = body.size + 5, iconSize = 16, iconGap = 6;
   const occupied = sections.reduce((n, s) => n + (s.name || s.icon || s.items.length ? Math.max(1, s.items.length) : 0), 0);
-  const col = vertical ? Math.max(184, pad * 2 + 100) : Math.max(184, pad * 2 + 100, (width - left - 24) / occupied);
-  const eventW = vertical ? Math.max(204, width - left - col - 76, pad * 2 + 100) : col - 2 * pad - 14;
+  const col = vertical ? Math.max(184, pad * 2 + 100) : Math.max(184, pad * 2 + 100, compact ? 0 : (width - left - 24) / occupied);
+  const eventW = vertical ? Math.max(204, compact ? 0 : width - left - col - 76, pad * 2 + 100) : col - 2 * pad - 14;
   const w = vertical ? left + col + eventW + 76 : left + col * occupied + 24;
   const children = [], scene = { width: w, height: 0, title: model.title, children, ...(renderOptions?.frame ? { heading: model.title || undefined } : {}) };
   const add = (tag, attrs, meta) => children.push({ ...ctx.el(tag, attrs), ...(meta ? { meta } : {}) });

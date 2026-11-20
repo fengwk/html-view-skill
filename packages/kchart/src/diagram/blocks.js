@@ -216,7 +216,7 @@ function corridors(root, edges) {
   return plans;
 }
 
-function layout(model, { width, lang, measure }) {
+function layout(model, { width, lang, measure, compact }) {
   const errors = [], root = model.nodes.length === 1 ? model.nodes[0] : { kind: 'col', children: model.nodes, items: [] };
   const metrics = new Map();
   const short = (node, zh, en) => errors.push(error(lang, node.line, zh, en, '缩短文字，把说明移到图注', 'Shorten the text and move details to the caption'));
@@ -275,7 +275,7 @@ function layout(model, { width, lang, measure }) {
     const rim = MARGIN + pass * 16;
     const minimum = size(root).w + rim * 2;
     naturalWidth ??= minimum;
-    const canvas = Math.max(Math.floor(width), minimum);
+    const canvas = compact ? minimum : Math.max(Math.floor(width), minimum);
     // Build heights once for the allocated widths; placement can stretch rows without remeasuring.
     function compose(node, w) {
       const plan = sizes.get(node), { kind } = node;

@@ -1,7 +1,7 @@
 const isCJK = (ch) => /[\u2E80-\u9FFF\uF900-\uFAFF]/.test(ch);
 const isCJKPunct = (ch) => /[\u3000-\u303F\uFF00-\uFFEF]/.test(ch);
 function fallbackMeasure(text, size = 12, weight = 400) {
-  return [...String(text ?? '')].reduce((sum, ch) => sum + (/^[\u2e80-\u9fff\uf900-\ufaff\u3000-\u30ff\uac00-\ud7af]$/u.test(ch) ? 1 : 0.56) * size * (weight >= 600 ? 1.04 : 1), 0);
+  return [...String(text ?? '')].reduce((sum, ch) => sum + (/^[\u2e80-\u9fff\uf900-\ufaff\u3000-\u30ff\uac00-\ud7af\uff01-\uff60\uffe0-\uffe6]$/u.test(ch) ? 1 : 0.56) * size * (weight >= 600 ? 1.04 : 1), 0);
 }
 const NO_LINE_START = new Set([...'）)]］】」』〉》，,。、；;：:！!？?…%％']);
 const NO_LINE_END = new Set([...'（([［【「『〈《']);

@@ -52,6 +52,7 @@ description: 生成、检查和导出离线单文件 HTML 文档、数据报表�
 | 手头已有 Mermaid 数值图？ | `pie`、`xychart`、`sankey`、`radar-beta`、`treemap` | [Mermaid 数值图](references/diagrams/time.md#mermaid-数值图)；新数据图用上方 KChart 图型 |
 | 集合如何重叠、情境如何分类？ | `venn-beta`、`cynefin-beta` | [集合](references/charts/composition.md#venn-beta)、[情境](references/charts/matrix.md#cynefin-beta) |
 | 已有 ZenUML 语法的简单调用图？ | `zenuml`（受控语法子集，不支持 ZenUML 插件） | [ZenUML](references/diagrams/sequence.md#zenuml) |
+| 只想确认渲染器版本？ | Mermaid `info`（不用于交付） | [Mermaid 通则](references/diagrams/mermaid.md#info) |
 
 Markdown 用 `kchart`、`mermaid`、`layers`、`blocks`、`swimlane` 围栏；手写 HTML 用 `<pre data-viz="语法">`，转义其中的 HTML 特殊字符。文档图题写在声明中：KChart `title`，结构图前言 `title:` 或该语法支持的标题语句。图题和图中文字与正文用同一种语言。内置图族放不下或表达不了时，如嵌套过深、关系过多或机制示意，先拆成总图和分图；仍需手画时读[手写 SVG](references/guides/custom-svg.md)。
 

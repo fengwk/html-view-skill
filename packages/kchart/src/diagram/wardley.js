@@ -32,15 +32,15 @@ function parse(body, { lang, firstLine = 2, title = '', headerLine = 1 } = {}) {
   const normalize = mapLabels(lang, item => errors.push(item));
   const readLabel = (value, line) => normalize(readName(value), line);
   if (title) ({ text: model.title, icon: model.titleIcon } = normalize(title, headerLine));
-  const bad = (line, zh, en) => errors.push(error(lang, line, zh, en, '检查 Wardley 地图语法', 'Check Wardley map syntax'));
-  const hint = (key, line, zh, en) => {
+  const bad = (line, zh, en, fixZh, fixEn) => errors.push(error(lang, line, zh, en, fixZh, fixEn));
+  const hint = (key, line, zh, en, fixZh, fixEn) => {
     if (hints.has(key)) return;
     hints.add(key);
-    errors.push(warning('DIAGRAM_HINT', lang, line, zh, en));
+    errors.push(warning('DIAGRAM_HINT', lang, line, zh, en, fixZh, fixEn));
   };
   const percent = (raw, line) => {
     const value = Number(raw);
-    if (value > 100) bad(line, '坐标超出 0–100 范围', 'Coordinate is outside 0–100');
+    if (value > 100) bad(line, '坐标超出 0–100 范围', 'Coordinate is outside 0–100', '使用 0.0–1.0 的比例或 0.0–100.0 的百分数，例如 0.3', 'Use a decimal fraction from 0.0 to 1.0 or a percentage up to 100.0, such as 0.3');
     return value <= 1 ? value * 100 : value;
   };
   const coords = (v, e, line) => ({ visibility: percent(v, line), evolution: percent(e, line) });
@@ -49,7 +49,7 @@ function parse(body, { lang, firstLine = 2, title = '', headerLine = 1 } = {}) {
     const previous = nodes.get(node.id);
     if (previous) {
       if (previous.visibility !== node.visibility || previous.evolution !== node.evolution) {
-        bad(node.line, `「${node.id}」有不同的坐标`, `Conflicting coordinates for "${node.id}"`);
+        bad(node.line, `「${node.id}」有不同的坐标`, `Conflicting coordinates for "${node.id}"`, '保留一处声明，或给不同的节点使用不同的名称', 'Keep one declaration or give distinct nodes different names');
       }
       return;
     }
@@ -57,7 +57,7 @@ function parse(body, { lang, firstLine = 2, title = '', headerLine = 1 } = {}) {
     model.nodes.push(node);
   };
   if (body.length > 200000) {
-    bad(firstLine, '地图源文本过长', 'Map source exceeds 200,000 characters');
+    bad(firstLine, '地图源文本过长', 'Map source exceeds 200,000 characters', '拆成多张地图，每张最多 200,000 个字符', 'Split into maps of at most 200,000 characters each');
     return { model, errors };
   }
   const bareLinks = [];
@@ -69,13 +69,13 @@ function parse(body, { lang, firstLine = 2, title = '', headerLine = 1 } = {}) {
     let m;
     if (pipeline) {
       if (text === '}') {
-        if (!pipeline.children.length) bad(line, '演进管道没有组件', 'Pipeline needs at least one component');
+        if (!pipeline.children.length) bad(line, '演进管道没有组件', 'Pipeline needs at least one component', '在 } 前添加组件，例如 component Child [0.4]', 'Add a component before }, for example component Child [0.4]');
         pipeline = null;
       } else if ((m = childPattern.exec(text))) {
         const [, name, evo, dx, dy] = m, { text: label, icon } = readLabel(name, line);
         pipeline.children.push({ id: `${pipeline.parent}_${readName(name)}`, name: readName(name), label, icon, evolution: percent(evo, line),
           labelOffset: labelOffset(dx, dy), kind: 'pipeline', parent: pipeline.parent, line });
-      } else bad(line, '无效的演进管道组件', 'Invalid pipeline component');
+      } else bad(line, '无效的演进管道组件', 'Invalid pipeline component', '管道内只填写演进坐标，例如 component Child [0.4]', 'Use one evolution coordinate inside a pipeline, as in component Child [0.4]');
       continue;
     }
     if (accessibility) { if (text.includes('}')) accessibility = false; continue; }
@@ -85,13 +85,13 @@ function parse(body, { lang, firstLine = 2, title = '', headerLine = 1 } = {}) {
     else if (/^accDescr\s*\{/.test(text)) accessibility = !text.includes('}');
     else if ((m = sizePattern.exec(text))) {
       model.size = { width: Number(m[1]), height: Number(m[2]) };
-      if (Object.values(model.size).some(n => n > 16000)) bad(line, '地图尺寸超过 16000 像素', 'Map size exceeds 16,000 pixels');
+      if (Object.values(model.size).some(n => n > 16000)) bad(line, '地图尺寸超过 16000 像素', 'Map size exceeds 16,000 pixels', '减小 size [宽, 高]，两项均不得超过 16000', 'Reduce both dimensions in size [width, height] to at most 16000');
     } else if (text.startsWith('evolution ')) {
       const parts = text.slice(10).match(/"(?:\\.|[^"\\])*"|->|[^"-]+|-/g) || [];
       const stages = [''];
       for (const part of parts) part === '->' ? stages.push('') : stages[stages.length - 1] += part;
       const matches = stages.map(stage => stagePattern.exec(stage.trim()));
-      if (matches.length < 2 || matches.some(match => !match)) bad(line, '无效的演进阶段', 'Invalid evolution stages');
+      if (matches.length < 2 || matches.some(match => !match)) bad(line, '无效的演进阶段', 'Invalid evolution stages', '用 -> 分隔至少两个阶段，例如 evolution Genesis -> Product', 'Separate at least two stages with ->, as in evolution Genesis -> Product');
       else {
         model.stages = matches.map(([, name, end, second]) => {
           const primary = readLabel(name, line), secondary = second ? readLabel(second, line) : null;
@@ -100,7 +100,7 @@ function parse(body, { lang, firstLine = 2, title = '', headerLine = 1 } = {}) {
         });
         const ends = model.stages.map(stage => stage.boundary);
         if (ends.some(end => end !== null) && (ends.some((end, i) => end === null || end <= (ends[i - 1] ?? 0)) || ends.at(-1) !== 100)) {
-          hint('stages', line, '阶段边界不完整或未递增至 100；使用等宽阶段', 'Incomplete or unordered stage boundaries; using equal bands');
+          hint('stages', line, '阶段边界不完整或未递增至 100；使用等宽阶段', 'Incomplete or unordered stage boundaries; using equal bands', '为每个阶段写递增边界，例如 evolution Genesis @ 0.4 -> Product @ 1.0', 'Give each stage an increasing boundary, as in evolution Genesis @ 0.4 -> Product @ 1.0');
           for (const stage of model.stages) stage.boundary = null;
         }
       }
@@ -108,7 +108,7 @@ function parse(body, { lang, firstLine = 2, title = '', headerLine = 1 } = {}) {
       const [, kind, name, vis, evo, dx, dy, strategy, inertia] = m;
       const { text: label, icon } = readLabel(name, line), point = coords(vis, evo, line);
       if ((kind !== 'component' && (dx != null || strategy || inertia)) || (kind === 'note' && !name.startsWith('"'))) {
-        bad(line, '无效的装饰或备注', 'Invalid decorator or note');
+        bad(line, '无效的装饰或备注', 'Invalid decorator or note', '只给 component 添加装饰；备注使用 note "文字" [0.3, 0.2]', 'Apply decorators only to component; write notes as note "Text" [0.3, 0.2]');
       } else if (kind === 'note') model.notes.push({ text: label, icon, ...point, line });
       else if (kind.endsWith('accelerator')) model.forces.push({ kind, name: label, icon, ...point, line });
       else add({ id: readName(name), label, icon, kind, ...point, labelOffset: labelOffset(dx, dy), strategy: strategy ?? null, inertia: !!inertia, line });
@@ -118,7 +118,7 @@ function parse(body, { lang, firstLine = 2, title = '', headerLine = 1 } = {}) {
     } else if ((m = evolvePattern.exec(text))) model.trends.push({ nodeId: readName(m[1]), targetEvolution: percent(m[2], line), line });
     else if ((m = pinPattern.exec(text))) model.annotations.push({ number: m[1], ...coords(m[2], m[3], line), ...readLabel(m[4], line), line });
     else if ((m = boxPattern.exec(text))) {
-      if (model.annotationBox) hint('box', line, '只使用第一个注释框', 'Only the first annotation box is used');
+      if (model.annotationBox) hint('box', line, '只使用第一个注释框', 'Only the first annotation box is used', '只保留一条 annotations [x, y] 语句', 'Keep only one annotations [x, y] statement');
       else model.annotationBox = coords(m[1], m[2], line);
     } else if ((m = linkPattern.exec(text)) && (m[2] || m[3] || m[7] || m[8] || m[1].startsWith('"') || m[6].startsWith('"'))) {
       const [, from, sourcePort, arrow, flowLabel, arrowPort, to, targetPort, label] = m;
@@ -129,10 +129,10 @@ function parse(body, { lang, firstLine = 2, title = '', headerLine = 1 } = {}) {
         label: caption, icon, line });
     } else bareLinks.push({ text, line });
   }
-  if (pipeline) bad(pipeline.line, '演进管道缺少结束括号', 'Unclosed pipeline');
+  if (pipeline) bad(pipeline.line, '演进管道缺少结束括号', 'Unclosed pipeline', '在管道的最后一个组件之后单独写一行 }', 'Add } on its own line after the last pipeline component');
   for (const group of model.pipelines) {
     const parent = nodes.get(group.parent);
-    if (parent?.kind !== 'component') bad(group.line, `管道父级「${group.parent}」不是组件`, `Pipeline parent "${group.parent}" is not a component`);
+    if (parent?.kind !== 'component') bad(group.line, `管道父级「${group.parent}」不是组件`, `Pipeline parent "${group.parent}" is not a component`, '先声明同名 component，例如 component Parent [0.3, 0.2]', 'Declare a component with the same name, as in component Parent [0.3, 0.2]');
     else for (const child of group.children) add({ ...child, visibility: parent.visibility });
   }
   // Bare dependencies are ambiguous with multi-word names; resolve against declared names after parsing.
@@ -146,19 +146,23 @@ function parse(body, { lang, firstLine = 2, title = '', headerLine = 1 } = {}) {
       if (nodes.has(resolve(a)) && nodes.has(resolve(b))) { split = [a, b]; break; }
     }
     if (split) model.links.push({ from: split[0], to: split[1], dashed: false, flow: 'none', label: '', line });
-    else bad(line, '无法识别 Wardley 地图语句', 'Unrecognized Wardley map statement');
+    else bad(line, '无法识别 Wardley 地图语句', 'Unrecognized Wardley map statement',
+      '用 component "需求" [0.3, 0.2] 声明组件；连线使用 "需求" --> "网关"，名称外不要加方括号',
+      'Declare components as component "Demand" [0.3, 0.2]; link them as "Demand" --> "Gateway" without square brackets around names');
   }
   model.links.sort((a, b) => a.line - b.line);
   for (const link of model.links) {
     link.from = resolve(link.from); link.to = resolve(link.to);
-    if (!nodes.has(link.from) || !nodes.has(link.to)) bad(link.line, '依赖引用未定义的节点', 'Dependency references an undefined node');
+    const missing = [link.from, link.to].find(id => !nodes.has(id));
+    if (missing !== undefined) bad(link.line, `依赖引用未定义的节点「${missing}」`, `Dependency references undefined node "${missing}"`,
+      '声明同名组件，例如 component Gateway [0.4, 0.3]，或更正连线端点名称', 'Declare a matching component, as in component Gateway [0.4, 0.3], or correct the endpoint name');
   }
   for (const trend of model.trends) {
     trend.nodeId = resolve(trend.nodeId);
-    if (!nodes.has(trend.nodeId)) hint('trend', trend.line, '演进引用未定义的组件', 'Evolution references an undefined component');
+    if (!nodes.has(trend.nodeId)) hint('trend', trend.line, '演进引用未定义的组件', 'Evolution references an undefined component', '将 evolve 后的名称改为已声明的组件，例如 evolve Gateway 0.7', 'Use a declared component name after evolve, as in evolve Gateway 0.7');
   }
   if (model.nodes.length > 300 || model.links.length + model.trends.length > 600) {
-    bad(firstLine, '地图超过 300 个节点或 600 条连线，请拆分', 'Split maps exceeding 300 nodes or 600 connections');
+    bad(firstLine, '地图超过 300 个节点或 600 条连线，请拆分', 'Map exceeds 300 nodes or 600 connections', '按主题拆分地图，每张最多 300 个节点、600 条连线', 'Split the map by topic into maps of at most 300 nodes and 600 connections');
   }
   return { model, errors };
 }
@@ -490,7 +494,7 @@ function layout(model, { width, lang, ctx, compact = false }, info = {}) {
     footerY += rows.length * 16 + 8;
   }
   const errors = W > width * 2 || nodes.size > 60 ? [warning('LARGE_DIAGRAM', lang, info.headerLine || 1,
-    '地图较大，可拆成多张地图', 'Large map; consider splitting it into smaller maps')] : [];
+    '地图较大，可在图框内滚动', 'Large map; scroll inside the frame', '按主题拆分组件及其依赖', 'Split components and their dependencies into maps by topic')] : [];
   return { scene: { width: W, height: footerY + 8, title: model.title || undefined,
     children: [...guides, ...frames, ...lines, ...leaders, ...marks, ...labels] }, errors };
 }

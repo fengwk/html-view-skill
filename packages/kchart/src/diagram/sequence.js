@@ -321,7 +321,7 @@ const MESSAGE_PADDING = 36;
 const MESSAGE_END_GAP = 12;
 const iconSpace = item => item.icon ? ICON_SPACE : 0;
 
-function layout(model, { measure, width, lang }, info = {}) {
+function layout(model, { measure, width, lang, compact }, info = {}) {
   const config = info.config?.sequence;
   const mirrorActors = config?.mirrorActors !== false;
   const errors = [];
@@ -551,7 +551,7 @@ function layout(model, { measure, width, lang }, info = {}) {
   let xs = xsOf();
   let geometry = geometryOf(xs);
   // 在可用宽度内补足余宽：每段列间距最多再增 128px，避免参与者很少时拉出过大的空当。
-  for (let pass = 0; pass < 4; pass += 1) {
+  for (let pass = 0; !compact && pass < 4; pass += 1) {
     const slack = Math.floor(width) - 16 - (geometry.right - geometry.left);
     if (slack < 1) break;
     const add = Math.min(slack / (count + 1), 128);
@@ -666,7 +666,7 @@ function layout(model, { measure, width, lang }, info = {}) {
   }
   // 画布宽度取内容右边界与版心宽度的较小值；内容放不下时返回固有宽度，由宿主滚动。
   const naturalWidth = snap(contentRight + 8);
-  const canvas = naturalWidth <= width ? Math.floor(width) : naturalWidth;
+  const canvas = !compact && naturalWidth <= width ? Math.floor(width) : naturalWidth;
   if (naturalWidth > width * 2 || actors.length > 60 || model.messages > 200) errors.push(warning('LARGE_DIAGRAM', lang, actors[0].line, '时序图较大，可滚动查看', 'Large sequence diagram; scroll to view it', '可将时序图拆分', 'Consider splitting the diagram'));
   return {
     type: 'sequence', width: canvas, height: snap(height), actors, events, activations, errors, title: model.title,
