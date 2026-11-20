@@ -306,7 +306,7 @@ test('xychart and radar safety caps are bilingual and actionable', () => {
 });
 
 // Numeric charts above their comfortable size retain clean geometry and return a localized large-diagram advisory.
-test('xychart and radar large inputs render with one actionable warning', () => {
+test('large xychart warns; radar does not warn for curve count alone when it fits', () => {
   const xyInfo = info('xychart');
   const points = Array.from({ length: 61 }, (_, i) => i + 1).join(',');
   const xySource = `line [${points}]`;
@@ -322,8 +322,8 @@ test('xychart and radar large inputs render with one actionable warning', () => 
   const radarParsed = implementations['radar-beta'].parse(radarSource, radarInfo);
   assert.deepEqual(radarParsed.errors, []);
   const radarLayout = layout('radar-beta', radarParsed, radarInfo, { width: 800 });
-  assert.equal(radarLayout.errors.filter(item => item.code === 'LARGE_DIAGRAM').length, 1);
-  assert.match(radarLayout.errors.find(item => item.code === 'LARGE_DIAGRAM').fix, /拆分/);
+  assert.equal(radarLayout.width, 800);
+  assert.deepEqual(radarLayout.errors, []);
   assert.deepEqual(checkScene(radarLayout.scene, { source: radarSource }), []);
 });
 
