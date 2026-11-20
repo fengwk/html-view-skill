@@ -9,7 +9,7 @@
 import { error, warning } from './support.js';
 import { numericLabel, renderWith, validateWith } from './numeric-model.js';
 import '../chart/basic.js';
-import '../chart/multivariate.js';
+import { diagramCombo } from '../chart/multivariate.js';
 
 // Mermaid 的 NUMBER_WITH_DECIMAL：没有指数、也没有末尾小数点。
 const NUMBER = '[+-]?(?:\\d+(?:\\.\\d+)?|\\.\\d+)';
@@ -276,6 +276,7 @@ function specOf(model, info) {
     ]));
     return {
       chart: 'combo',
+      [diagramCombo]: true,
       ...(model.title ? { title: model.title } : {}),
       ...(subtitle ? { subtitle } : {}),
       data,

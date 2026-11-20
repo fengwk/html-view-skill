@@ -6,6 +6,7 @@ import { implementations as sankey } from '../src/diagram/numeric-sankey.js';
 import { implementations as radar } from '../src/diagram/numeric-radar.js';
 import { createContext } from '../src/core/context.js';
 import { renderScene } from '../src/core/svg.js';
+import { diagram } from '../dist/esm/node.js';
 
 const implementations = Object.assign({}, composition, xy, sankey, radar);
 const info = (kind, firstLine = 3, options = {}) => ({ kind, syntax: 'mermaid', header: kind, headerLine: firstLine - 1, firstLine, options, lang: 'zh' });
@@ -190,6 +191,18 @@ test('xychart numeric axis and point labels', () => {
   assert.match(svg, /Launch/);
   assert.match(svg, /Target Hit/);
   assert.equal(svgFor(layout('xychart', horizontal, cfg)), svg);
+});
+
+// A shared-axis bar/line legend omits the redundant axis name and inherits English from the source.
+test('xychart one-axis legend preserves inferred language without axis suffixes', () => {
+  const source = 'xychart\n  title "Sales Revenue"\n  x-axis [January, February, March]\n  bar [4, 6, 8]\n  line [3, 5, 7]';
+  for (const width of [800, 360]) {
+    const { svg, diagnostics } = diagram(source, { width });
+    assert.deepEqual(diagnostics, []);
+    assert.match(svg, />Series 1<\/text>/);
+    assert.match(svg, />Series 2<\/text>/);
+    assert.doesNotMatch(svg, /left axis|right axis|左轴|右轴/);
+  }
 });
 
 // XY columns expand a nonzero declared baseline, and the series cap points to the seventh plot.
