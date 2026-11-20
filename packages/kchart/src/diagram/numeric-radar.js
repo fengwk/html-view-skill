@@ -6,10 +6,11 @@
 
 import { error, warning } from './support.js';
 import { numericLabel, renderWith, validateWith } from './numeric-model.js';
+import { sizeBudget } from '../chart/spec.js';
 import '../chart/multivariate.js';
 
 const limit = 24;
-const MIN_AXES = 3, MAX_AXES = 6, MIN_RINGS = 2, MAX_RINGS = 8, DEFAULT_RINGS = 5;
+const MAX_AXES = 24, MIN_RINGS = 2, MAX_RINGS = 8, DEFAULT_RINGS = 5;
 const unquote = (value) => {
   const text = String(value).trim();
   return (text.startsWith('"') && text.endsWith('"')) || (text.startsWith("'") && text.endsWith("'"))
@@ -176,11 +177,17 @@ function parseRadar(source, info) {
   const showLegend = configFlag(radarConfig, 'showLegend') ?? options.showLegend ?? true;
   const graticule = String(configValue(radarConfig, 'graticule') ?? options.graticule ?? 'circle').toLowerCase();
 
-  if (axes.length < MIN_AXES || axes.length > MAX_AXES) {
-    errors.push(issue(info, axisLine || info.firstLine, `radar 需要 ${MIN_AXES}–${MAX_AXES} 个维度，当前 ${axes.length} 个`, `Radar needs ${MIN_AXES}–${MAX_AXES} axes, got ${axes.length}`,
-      `维度必须在 ${MIN_AXES}–${MAX_AXES} 个之间；合并维度或拆分图表`, `Keep axes between ${MIN_AXES} and ${MAX_AXES}; merge dimensions or split the chart`));
+  if (!axes.length) {
+    errors.push(issue(info, info.firstLine, 'radar 至少需要一个维度', 'Radar needs at least one axis', '添加 axis 语句', 'Add an axis statement'));
+  } else if (axes.length > MAX_AXES) {
+    errors.push(issue(info, axes[MAX_AXES].line, `radar 维度安全上限为 ${MAX_AXES} 个，当前 ${axes.length} 个`, `Radar safety cap is ${MAX_AXES} axes; got ${axes.length}`,
+      '将维度拆分到多张雷达图', 'Split the axes across multiple radar charts'));
+    return { model: null, errors };
+  } else if (axes.length < 3) {
+    errors.push(hint(info, axisLine, `radar 只有 ${axes.length} 个维度，无法形成面积`, `Radar has ${axes.length} axes and cannot enclose an area`,
+      '建议至少使用 3 个维度', 'Use at least 3 axes for an area'));
   }
-  if (!curves.length && !errors.length) errors.push(issue(info, info.firstLine, 'radar 至少需要一条 curve', 'Radar needs at least one curve'));
+  if (!curves.length && !errors.some(item => item.severity === 'error')) errors.push(issue(info, info.firstLine, 'radar 至少需要一条 curve', 'Radar needs at least one curve'));
   if (declaredMax !== null && declaredMax <= min) errors.push(issue(info, options.line || info.firstLine, 'radar max 必须大于 min', 'Radar max must be greater than min'));
 
   const resolved = resolveCurves(info, curves, axes, errors);
@@ -227,6 +234,7 @@ function parseRadar(source, info) {
 function toSpec(model) {
   return {
     chart: 'radar',
+    [sizeBudget]: { minDimensions: 1, maxDimensions: MAX_AXES },
     ...(model.title ? { title: model.title } : {}),
     data: model.rows,
     encode: { label: 'label', dimensions: model.fields.map(field => field.name) },
@@ -250,11 +258,10 @@ function lineFor(model, detail) {
 const validate = (model, info) => validateWith(toSpec(model), info, detail => lineFor(model, detail));
 const layout = (model, options, info) => {
   const result = renderWith(toSpec(model), options, info, detail => lineFor(model, detail));
-  if (result.scene && (model.rows.length > 12 || result.width > options.width * 2)) {
-    result.errors.push(warning('LARGE_DIAGRAM', info.lang, model.curveLines[0] || model.optionsLine,
-      `radar 有 ${model.rows.length} 条曲线，图表较大，可滚动查看`,
-      `The radar chart has ${model.rows.length} curves and is large; scroll to view`,
-      '按主题拆分为多张雷达图', 'Split the curves into smaller radar charts by topic'));
+  if (result.scene && result.width > options.width) {
+    result.errors.push(warning('LARGE_DIAGRAM', info.lang, model.optionsLine,
+      '雷达图超出可用宽度，可滚动查看', 'The radar chart exceeds the available width; scroll to view',
+      '缩短维度标签或拆分图表', 'Shorten axis labels or split the chart'));
   }
   return result;
 };

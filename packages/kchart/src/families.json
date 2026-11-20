@@ -165,6 +165,15 @@
       }
     }
   },
+  "diagram/info": {
+    "diagrams": {
+      "info": {
+        "syntax": "mermaid",
+        "topic": "diagram",
+        "aliases": []
+      }
+    }
+  },
   "diagram/eventmodeling": {
     "diagrams": {
       "eventmodeling": {

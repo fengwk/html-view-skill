@@ -665,7 +665,8 @@ const chart = (spec, ctx) => {
     }));
     // 换行宽度取相邻轴在标签半径上的弦长，长轴名折进自己的扇区，不再压到邻轴。
     const chord = 2 * Math.sin(Math.PI / dimensions.length);
-    const labelRoom = dimensions.length >= 6
+    const dense = dimensions.length > 6;
+    const labelRoom = dense ? 96 : dimensions.length === 6
       ? Math.max(48, Math.min(96, Math.ceil(width * chord * 0.42)))
       : Math.max(84, Math.min(140, Math.ceil(Math.max(72, width * 0.2) * chord)));
     const wrapped = axisLabels.map(item => ({
@@ -677,7 +678,33 @@ const chart = (spec, ctx) => {
       ...item.range.map(line => ctx.measure(line, 12, 400)),
     ]));
     const labelDepth = Math.max(...wrapped.map(item => (item.name.length + item.range.length) * 16));
-    const radius = Math.min(180, Math.max(72, (width - textWidth * 2 - 24) / 2));
+    const positionLabel = (angle, i, radius) => {
+      const cos = Math.cos(angle), sin = Math.sin(angle);
+      const horizontal = Math.abs(cos) >= Math.abs(sin);
+      const anchor = horizontal ? (cos < 0 ? 'end' : 'start') : 'middle';
+      const tx = horizontal ? cos * (radius + 10) : cos * radius;
+      const ty = horizontal ? sin * radius : sin * (radius + 10);
+      const block = wrapped[i].name.length + wrapped[i].range.length;
+      const firstY = horizontal ? ty - (block - 1) * 8 : sin < 0 ? ty - block * 16 - 4 : ty + 16;
+      return { anchor, tx, firstY, block };
+    };
+    let radius = Math.min(180, Math.max(72, (width - textWidth * 2 - 24) / 2));
+    if (dense) {
+      const widths = wrapped.map(item => Math.max(
+        ...item.name.map(line => ctx.measure(line, 12, 600)),
+        ...item.range.map(line => ctx.measure(line, 12, 400)),
+      ));
+      // Reserve the measured axis-name and range blocks, including ascent, descent and a small gap.
+      const labelsOverlap = () => {
+        const boxes = angles.map((angle, i) => {
+          const { anchor, tx, firstY, block } = positionLabel(angle, i, radius);
+          const x = tx - widths[i] * (anchor === 'end' ? 1 : anchor === 'middle' ? 0.5 : 0);
+          return { l: x - 3, r: x + widths[i] + 3, t: firstY - 15, b: firstY + (block - 1) * 16 + 6 };
+        });
+        return boxes.some((a, i) => boxes.slice(i + 1).some(b => a.l < b.r && b.l < a.r && a.t < b.b && b.t < a.b));
+      };
+      while (labelsOverlap()) radius += Math.max(8, radius * 0.05);
+    }
     const cx = Math.max(width / 2, textWidth + radius + 12);
     const cy = radius + labelDepth + 24;
     const chartWidth = Math.max(width, cx + radius + textWidth + 12);
@@ -693,21 +720,18 @@ const chart = (spec, ctx) => {
         continue;
       }
       const points = angles.map(angle => [cx + Math.cos(angle) * radius * ring / rings, cy + Math.sin(angle) * radius * ring / rings]);
-      children.push(ctx.el('polygon', {
+      if (points.length === 1) children.push(ctx.circle(...points[0], 1, { fill: ctx.color('grid') }));
+      else if (points.length === 2) children.push(ctx.line(...points[0], ...points[1], { stroke: ctx.color('grid') }));
+      else children.push(ctx.el('polygon', {
         points: points.map(point => point.join(',')).join(' '), fill: 'none', stroke: ctx.color('grid'),
       }));
     }
     angles.forEach((angle, i) => {
       const cos = Math.cos(angle), sin = Math.sin(angle);
       children.push(ctx.line(cx, cy, cx + cos * radius, cy + sin * radius, { stroke: ctx.color('axis') }));
-      const horizontal = Math.abs(cos) >= Math.abs(sin);
-      const anchor = horizontal ? (cos < 0 ? 'end' : 'start') : 'middle';
-      const tx = horizontal ? cx + cos * (radius + 10) : cx + cos * radius;
-      const ty = horizontal ? cy + sin * radius : cy + sin * (radius + 10);
-      const block = wrapped[i].name.length + wrapped[i].range.length;
-      const firstY = horizontal ? ty - (block - 1) * 8 : sin < 0 ? ty - block * 16 - 4 : ty + 16;
-      children.push(ctx.textLines(tx, firstY, wrapped[i].name, { anchor, size: 12, weight: 600, fill: ctx.color('fg') }));
-      children.push(ctx.textLines(tx, firstY + wrapped[i].name.length * 16, wrapped[i].range, { anchor, size: 12, weight: 400, fill: ctx.color('muted') }));
+      const { anchor, tx, firstY } = positionLabel(angle, i, radius);
+      children.push(ctx.textLines(cx + tx, cy + firstY, wrapped[i].name, { anchor, size: 12, weight: 600, fill: ctx.color('fg') }));
+      children.push(ctx.textLines(cx + tx, cy + firstY + wrapped[i].name.length * 16, wrapped[i].range, { anchor, size: 12, weight: 400, fill: ctx.color('muted') }));
     });
     data.forEach((row, rowIndex) => {
       const points = dimensions.map((field, i) => [
@@ -715,7 +739,8 @@ const chart = (spec, ctx) => {
         cy + Math.sin(angles[i]) * radiusAt(i, row[field]),
       ]);
       const color = ctx.color(`tone${rowIndex % 6 + 1}`);
-      children.push(ctx.el('polygon', {
+      if (points.length === 2) children.push(ctx.line(...points[0], ...points[1], { stroke: color, 'stroke-width': 2 }));
+      else if (points.length >= 3) children.push(ctx.el('polygon', {
         points: points.map(point => point.join(',')).join(' '), fill: color, 'fill-opacity': .14, stroke: color, 'stroke-width': 2,
       }));
       points.forEach((point, i) => children.push(ctx.circle(point[0], point[1], 3, {
