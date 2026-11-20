@@ -53,7 +53,7 @@ test('flattens lexical JSON paths and resolves a note declared first', () => {
 
 // Actor variants, business markings and literal versus Markdown labels retain their distinct roles.
 test('renders variants and physical Markdown line breaks without shrinking text', () => {
-  const body = `actor Clerk@{ type: hollow, business: true } <<Employee>>\nactor Lead@{ type: awesome }\nactor Other@{ icon: "not-registered:user" }\nReport("\`**Refund**\n#40;partial#41;\`")@{ business: true }\nClerk --> Report\nLead --> Report\nOther --> Report`;
+  const body = `actor Clerk@{ type: hollow, business: true } <<Employee>>\nactor Lead@{ type: awesome }\nactor Other@{ icon: "not-registered:no-such-uml-icon" }\nReport("\`**Refund**\n#40;partial#41;\`")@{ business: true }\nClerk --> Report\nLead --> Report\nOther --> Report`;
   const parsed = parse(body.replace('**Refund**\n', 'Refund<br>'));
   assert.deepEqual(parsed.model.nodes.filter(n => n.kind === 'actor').map(n => n.variant), ['hollow', 'awesome', 'normal']);
   const result = render(body);
@@ -62,6 +62,19 @@ test('renders variants and physical Markdown line breaks without shrinking text'
   assert.match(result.svg, /Refund<\/text>/);
   assert.match(result.svg, /\(partial\)<\/text>/);
   assert.match(result.svg, /«Employee»/);
+});
+
+// Styling an explicit edge ID, safe links, built-in actor icons and configured text size reach the scene.
+test('applies shared presentation and bounds use-case font sizes', () => {
+  const source = `---\nconfig:\n  usecase:\n    actorFontSize: 16\n    usecaseFontSize: 8\n    diagramPadding: 28\n---\nusecase-beta\nactor Clerk@{ icon: "fa:user" }\nClerk opens@--> Checkout("Review &amp; pay"):::urgent\nclassDef urgent fill:#dc322f\nstyle opens stroke:#268bd2\nclick Checkout href "/orders"`;
+  const result = diagram(source, { width: 360, lang: 'en' });
+  assert.deepEqual(result.diagnostics.map(item => item.code), ['IGNORED_CONFIG']);
+  assert.deepEqual(checkScene(result.scene), []);
+  assert.match(result.svg, /data-kc-status="danger"/);
+  assert.match(result.svg, /data-kc-status="info"/);
+  assert.match(result.svg, /href="\/orders"/);
+  assert.match(result.svg, /font-size="16"[^>]*>Clerk/);
+  assert.match(result.svg, /font-size="12"[^>]*>Review &amp; pay/);
 });
 
 // Invalid kind/shape pairings, nesting, and unresolved metadata still produce blocking diagnostics.
