@@ -1,7 +1,8 @@
 /* Mermaid requirementDiagram: requirements and elements as cards, joined by the seven SysML verbs only. */
 
 import { error, warning } from './support.js';
-import { layoutCards } from './class.js';
+import { finishCards, layoutCards } from './class.js';
+import { presentation } from './presentation.js';
 
 // Mermaid's header keyword and its shorter alias (requirementDiagram.jison:36). The family is registered in
 // src/families.json; these descriptors carry the same shape so a caller can register them itself.
@@ -40,7 +41,6 @@ const FIELD = /^([A-Za-z][\w-]*)\s*:\s*([\s\S]*)$/u;
 const CLASS_ONLY = new RegExp(`^(${NAME})\\s*:::\\s*([\\w,\\s]+)$`, 'u');
 // Mermaid's lexer matches `.*direction\s+(TB|BT|RL|LR)[^\n]*`, i.e. anywhere on a top-level line (jison:26-29).
 const DIRECTION = new RegExp(`\\bdirection\\s+(${directions.join('|')})\\b`, 'iu');
-const STYLE_STATEMENT = /^(classDef|class|style)\s/iu;
 const ACCESSIBILITY = /^acc(?:Title|Descr)\b/iu;
 
 const issue = (lang, line, zh, en, fixZh, fixEn, column = 1) => error(lang, line, zh, en, fixZh, fixEn, column);
@@ -59,13 +59,17 @@ const unquote = (value) => {
 // as `#quot;` or `&#9829;` are user text: they are the shared label module's to decode, so they stay.
 const ENTITY = /^&?#(?:x[\da-f]+|\d+|\w+);/iu;
 function stripComment(raw) {
+  const css = /^\s*(style|classDef|linkStyle)\s/iu.test(raw);
   let quote = false;
   for (let i = 0; i < raw.length; i += 1) {
     const ch = raw[i];
     if (ch === '"') { quote = !quote; continue; }
     if (quote) continue;
     if (ch === '%' && raw[i + 1] === '%') return raw.slice(0, i);
-    if (ch === '#' && !ENTITY.test(raw.slice(i))) return raw.slice(0, i);
+    if (ch === '#' && !ENTITY.test(raw.slice(i))) {
+      if (css && /^#[\da-f]{3,8}(?=[\s,;]|$)/iu.test(raw.slice(i))) continue;
+      return raw.slice(0, i);
+    }
   }
   return raw;
 }
@@ -84,7 +88,8 @@ function parse(source, info = {}) {
   }
 
   const cards = [], edges = [], byId = new Map();
-  const duplicates = [], styleLines = [], classNames = [];
+  const duplicates = [];
+  const look = presentation({ lang });
   let direction = 'TB', title = '', open = null, accessibilityBlock = false;
 
   const create = (id, line, declared, type) => {
@@ -161,6 +166,7 @@ function parse(source, info = {}) {
         errors.push(issue(lang, line, '需求或元素名称不能为空', 'A requirement or element needs a name', '在关键字后写上名称', 'Write a name after the keyword'));
         continue;
       }
+      if (classes.length) look.addClasses(name, classes, line);
       const existing = byId.get(name);
       if (existing?.declared) {
         // Mermaid silently keeps only the first definition. KChart keeps the first card, lets later fields correct
@@ -201,12 +207,11 @@ function parse(source, info = {}) {
     const heading = DIRECTION.exec(text);
     if (heading) { direction = heading[1].toUpperCase(); continue; }
 
-    if (STYLE_STATEMENT.test(text)) { styleLines.push({ line, text }); continue; }
+    if (look.accept(text, line)) continue;
     // `a:::cls` alone is a valid class assignment (jison:233) and only affects presentation, like ::: in a block.
     const classOnly = CLASS_ONLY.exec(text);
     if (classOnly) {
-      const target = byId.get(unquote(classOnly[1]));
-      classNames.push({ line, text, target: target?.name || null });
+      look.addClasses(unquote(classOnly[1]), classOnly[2].split(/\s*,\s*/u), line);
       continue;
     }
     errors.push(unknownStatement(lang, line, text));
@@ -224,19 +229,6 @@ function parse(source, info = {}) {
       `${duplicates.map((entry) => `"${entry.name}"`).join(', ')} declared more than once; one card is drawn and later fields win`,
       '每个需求或元素只声明一次',
       'Declare each requirement or element once'));
-  }
-  // style/classDef/class and ::: class names belong to the shared presentation module; until it is wired they are
-  // accepted and drawn with theme roles, never silently dropped (§4, phase 2 leftover).
-  if (styleLines.length || classNames.length) {
-    const first = [...styleLines, ...classNames].sort((a, b) => a.line - b.line)[0];
-    const parts = [];
-    if (classNames.length) parts.push({ zh: `${classNames.length} 个 ::: 类名`, en: `${classNames.length} ::: class name(s)` });
-    if (styleLines.length) parts.push({ zh: `${styleLines.length} 条样式语句`, en: `${styleLines.length} style statement(s)` });
-    warnings.push(warning('IGNORED_STYLE', lang, first.line,
-      `${parts.map((part) => part.zh).join('和')}未绘制，卡片配色由主题决定`,
-      `${parts.map((part) => part.en).join(' and ')} are not drawn; card colors come from the theme`,
-      '删掉 style/classDef/class 与 ::: 类名，或等表现层支持',
-      'Remove style/classDef/class and ::: class names, or wait for presentation support'));
   }
   if (cards.length > limits.large) {
     warnings.push(warning('LARGE_DIAGRAM', lang, cards[0]?.line || firstLine,
@@ -271,7 +263,7 @@ function parse(source, info = {}) {
       if (card.fields.docRef) rows.push({ text: `Doc Ref: ${card.fields.docRef}` });
     } else {
       if (card.fields.reqId) rows.push({ text: `ID: ${card.fields.reqId}` });
-      if (card.fields.text) rows.push({ text: `Text: ${card.fields.text}` });
+      if (card.fields.text) rows.push({ text: `Text: ${card.fields.text.replace(/(\*\*|\*|__|_)([^*_\n]+)\1/gu, '$2')}` });
       if (card.fields.risk) rows.push({ text: `Risk: ${card.fields.risk}` });
       if (card.fields.verifyMethod) rows.push({ text: `Verification: ${card.fields.verifyMethod}` });
     }
@@ -297,10 +289,11 @@ function parse(source, info = {}) {
   };
   // Warnings travel in `errors` like every other family (their severity keeps them non-blocking) and are also
   // returned on their own for callers that want them separated.
-  return { errors: [...errors, ...warnings], warnings, model };
+  errors.push(...finishCards(model, look, lang));
+  return { errors: [...errors, ...warnings], warnings: [...warnings, ...errors.filter(item => item.severity === 'warning')], model };
 }
 
-const implementation = { parse, layout: layoutCards };
+const implementation = { parse, layout: layoutCards, acceptsPresentation: true };
 export const implementations = { requirementDiagram: implementation };
 
 export { kind, kinds, limits, typeWords, riskLevels, verificationMethods, relationships, directions, parse, implementation };

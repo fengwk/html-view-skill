@@ -7,8 +7,6 @@ import { contrast } from '../src/core/color.js';
 import { diagram } from '../dist/esm/node.js';
 
 const samples = {
-  classDiagram: 'classDiagram\nclass Animal {\n+name: string\n+eat()\n}\nAnimal <|-- Dog\nDog "1" *-- "*" Paw : owns',
-  requirementDiagram: 'requirementDiagram\nfunctionalRequirement checkout {\nid: REQ-1\ntext: Finish checkout\n}\nAPI - satisfies -> checkout',
   C4Context: 'C4Context\nPerson(user, "Customer", "Uses app")\nSystem(app, "Shop", "Online shop")\nRel(user, app, "browses")',
   C4Container: 'C4Container\nPerson(user, "Customer")\nContainer(api, "API", "Node", "HTTP API")\nRel(user, api, "calls")',
   C4Component: 'C4Component\nSystem_Boundary(sys, "System") {\nComponent(ui, "UI")\n}\nComponent(api, "API")\nRel(ui, api, "calls")',
@@ -34,18 +32,7 @@ test('relation parsers preserve model identity and report unsupported syntax', (
     assert.ok(bad.errors.length > 0, kind);
     assert.equal(bad.errors[0].line, 2, kind);
   }
-  const optionError = implementations.classDiagram.parse('class A', { lang: 'en', firstLine: 2, options: { direction: 'LR' } });
-  assert.ok(optionError.errors.some(error => error.line === 1), 'unsupported relation-family options are diagnosed on the source header');
-  assert.ok(parse('classDiagram', 'class A\nclass A').errors.length, 'duplicate class declarations are rejected');
-  assert.ok(parse('classDiagram', 'class A {\n+field: string').errors.length, 'unclosed declaration blocks are diagnosed');
   assert.ok(parse('C4Context', 'Person(a, "A")\nRel(a, missing, "calls")').errors.length, 'relations cannot fabricate undeclared C4 endpoints');
-  assert.ok(parse('requirementDiagram', 'requirement r {\nunknown: value\n}').errors.length, 'unsupported declaration fields are reported');
-  const longText = '+veryLongMemberNameThatMustWrapAcrossMultipleVisibleRowsWithoutLosingAnyCharacters:string';
-  const longModel = parse('classDiagram', `class A {\n${longText}\n}`).model;
-  const longScene = plain(implementations.classDiagram.layout(longModel, { width: 360, measure: (s, f) => context.measure(s, f.size, f.weight), ctx: context }).scene);
-  const memberRows = longScene.children.filter(item => item.meta?.kind === 'node-detail' && item.meta.node === 'A').map(item => item.text);
-  assert.ok(memberRows.length > 1, `long member is wrapped inside its allocated node box: ${JSON.stringify(memberRows)}`);
-  assert.equal(memberRows.join(''), longText, 'wrapping preserves every member character');
 });
 
 // 窄宽度也不能把生命线参与者卡片的边框画到 SVG 左侧之外。

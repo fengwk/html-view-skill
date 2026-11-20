@@ -20,8 +20,7 @@ const card = (model, id) => model.cards.find((entry) => entry.id === id);
 const rowsOf = (model, id) => card(model, id).sections.filter(section => section.length).map((section) => section.map((item) => item.text));
 const frame = (model, id) => model.frames.find((entry) => entry.id === id);
 
-// Intent: the kind descriptor and the parse-only implementation are everything registration needs, so the
-// registry step stays separate while relations.js still lists classDiagram.
+// Intent: the canonical kind and alias both use the new parser and layout.
 test('class kind spec matches the family registry shape', () => {
   assert.deepEqual(kinds, [kind]);
   assert.equal(kind.kind, 'classDiagram');
@@ -414,39 +413,43 @@ test('a generic on a relation endpoint reaches the card title', () => {
   assert.equal(card(model, 'Wrapper').title, 'Wrapper<Shape>');
 });
 
-// Intent: phase 2 owns classDef/style/cssClass/click/link/callback/::: and icons, so they are accepted and
-// reported as non-blocking warnings instead of failing the diagram.
-test('presentation statements are accepted with one non-blocking warning per subject', () => {
+// Intent: class styles cascade, URLs stay clickable, and only unsupported assets, styles and callbacks warn.
+test('class presentation honors styles, links and known icons', () => {
   const source = [
     'class Animal:::someclass {',
     ' -int sizeInFeet',
     '}',
     'class Mineral',
-    'style Mineral fill:#bbf,stroke:#f66',
+    'style Mineral fill:#bbf,stroke:#f66,stroke-width:4px',
     'classDef someclass fill:#f96',
     'cssClass "Animal,Mineral" someclass',
     'Animal:::extra',
     'link Animal "https://example.com" "tip"',
     'click Mineral href "https://example.com"',
     'callback Animal "notify"',
-    '::icon(fa fa-book)',
+    'Animal::icon(fa fa-book)',
+    'Mineral::icon(not-a-real-icon)',
   ].join('\n');
   const { model, errors, blocking } = parse(source);
   assert.deepEqual(blocking, [], 'phase 2 statements never block');
   const codes = errors.filter((item) => item.severity === 'warning').map((item) => item.code);
   assert.deepEqual(codes.sort(), ['IGNORED_ASSET', 'IGNORED_INTERACTION', 'IGNORED_STYLE'], 'one warning per subject, not per line');
   const style = errors.find((item) => item.code === 'IGNORED_STYLE');
-  assert.equal(style.line, 2, 'the first style statement in source order carries the warning');
+  assert.equal(style.line, 6);
+  assert.equal(card(model, 'Animal').link.href, 'https://example.com');
+  assert.ok(card(model, 'Animal').icon?.elements.length);
+  assert.ok(card(model, 'Mineral').tone);
+  assert.equal(card(model, 'Mineral').icon, undefined);
   assert.deepEqual(model.cards.map((entry) => entry.id), ['Animal', 'Mineral'], '::: names never become cards');
   assert.deepEqual(rowsOf(model, 'Animal'), [['-int sizeInFeet']], 'the body after ::: still parses');
 });
 
-// Intent: a diagram that only uses phase 2 statements still yields a usable model, never an error.
-test('a phase-2-only diagram returns a model with warnings', () => {
+// Intent: a class that was never defined does not change the card or generate warnings.
+test('an undefined style class is silently ignored', () => {
   const { model, blocking, errors } = parse('class Animal:::styleClass');
   assert.deepEqual(blocking, []);
   assert.deepEqual(model.cards.map((entry) => entry.id), ['Animal']);
-  assert.deepEqual(errors.map((item) => item.code), ['IGNORED_STYLE']);
+  assert.deepEqual(errors, []);
 });
 
 // Intent: accessibility statements and their multi-line body belong to shared infrastructure.

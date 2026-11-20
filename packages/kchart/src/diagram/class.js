@@ -1,6 +1,9 @@
 /* Mermaid classDiagram: four-compartment cards, namespaces, notes and the complete relation marker table. */
 
-import { appearance, error, FONT, labelText, warning } from './support.js';
+import { appearance, error, FONT, warning } from './support.js';
+import { presentation } from './presentation.js';
+import { normalizeLabel } from './label.js';
+import { resolveIconRef } from '../core/icons.js';
 import { layoutGraph } from './graph-layout.js';
 import { cubicPath } from '../core/geometry.js';
 
@@ -65,11 +68,7 @@ const LABEL_SUFFIX = /^\[\s*"([^"]*)"\s*\]/u;
 const STYLE_SUFFIX = /^:::\s*([\w-]+(?:\s*,\s*[\w-]+)*)/u;
 // Mermaid matches `direction …` anywhere on the line and consumes the whole line (classDiagram.jison:24-27).
 const DIRECTION = new RegExp(`\\bdirection\\s+(${directions.join('|')})\\b`, 'iu');
-// Presentation statements belong to the shared presentation module (phase 2); today they are accepted here
-// and reported once per subject, never fatally (§2, §4).
-const PRESENTATION_STYLE = /^(classDef|cssClass|style|linkStyle)\b/iu;
-const PRESENTATION_LINK = /^(click|link|callback|href)\b/iu;
-const PRESENTATION_ASSET = /::icon\s*\(/u;
+const ICON_SUFFIX = /^::icon\s*\(\s*([^()]+?)\s*\)/u;
 const ACCESSIBILITY = /^acc(?:Title|Descr)\b/iu;
 // Mermaid's member classifier: `*` prints italic (abstract), `$` underlined (static) (classTypes.ts:136-145).
 const METHOD = /^([#+~-])?(.+)\((.*)\)([\s$*])?(.*)([$*])?$/u;
@@ -139,8 +138,9 @@ function processSet(input) {
   const chars = [...text];
   let first = chars.indexOf('~'), last = chars.lastIndexOf('~');
   while (first !== -1 && last !== -1 && first !== last) {
-    chars[first] = '<';
-    chars[last] = '>';
+    // Escape generated delimiters until normalizeLabel has handled authored HTML tags.
+    chars[first] = '&lt;';
+    chars[last] = '&gt;';
     first = chars.indexOf('~');
     last = chars.lastIndexOf('~');
   }
@@ -234,7 +234,7 @@ function parseClass(statements, info = {}) {
   const hideEmptyMembersBox = configFlag(info.config, 'hideEmptyMembersBox', false);
 
   const cards = [], byId = new Map(), namespaces = new Map(), edges = [], pendingNotes = [];
-  const ignored = { style: [], interaction: [], asset: [] };
+  const look = presentation({ lang, classKeyword: 'cssClass' });
   const stack = [];
   let direction = 'TB', open = null, accessibilityBlock = false, interfaceCount = 0, noteCount = 0;
 
@@ -419,7 +419,7 @@ function parseClass(statements, info = {}) {
         if (annotation) { card.annotations.push({ text: annotation[1].trim() }); rest = rest.slice(annotation[0].length).trim(); continue; }
         const style = STYLE_SUFFIX.exec(rest);
         if (style) {
-          ignored.style.push({ line, text });
+          look.addClasses(card.id, style[1].split(/\s*,\s*/u), line);
           rest = rest.slice(style[0].length).trim();
           continue;
         }
@@ -461,9 +461,13 @@ function parseClass(statements, info = {}) {
       continue;
     }
 
-    if (PRESENTATION_STYLE.test(text)) { ignored.style.push({ line, text }); continue; }
-    if (PRESENTATION_LINK.test(text)) { ignored.interaction.push({ line, text }); continue; }
-    if (PRESENTATION_ASSET.test(text)) { ignored.asset.push({ line, text }); continue; }
+    if (look.accept(text, line)) continue;
+    const iconAt = text.indexOf('::icon');
+    const iconSuffix = iconAt > 0 ? ICON_SUFFIX.exec(text.slice(iconAt)) : null;
+    if (iconSuffix && iconAt + iconSuffix[0].length === text.length && BARE_NAME.test(text.slice(0, iconAt).trimEnd())) {
+      declare(nameParts(text.slice(0, iconAt).trimEnd()), line).iconRef = iconSuffix[1];
+      continue;
+    }
     if (ACCESSIBILITY.test(text)) continue;
 
     // A colon before the arrow means the rest of the line is a member label, matching Mermaid's LABEL token.
@@ -498,8 +502,7 @@ function parseClass(statements, info = {}) {
     // `A:::name` is Mermaid's STYLE_SEPARATOR, which the lexer prefers over a `LABEL` colon.
     const classOnly = CLASS_ONLY.exec(text);
     if (classOnly) {
-      declare(nameParts(classOnly[1]), line);
-      ignored.style.push({ line, text });
+      look.addClasses(declare(nameParts(classOnly[1]), line).id, classOnly[2].split(/\s*,\s*/u), line);
       continue;
     }
 
@@ -544,31 +547,7 @@ function parseClass(statements, info = {}) {
   }
   edges.sort((a, b) => a.line - b.line);
 
-  const firstOf = (...groups) => groups.flat().sort((a, b) => a.line - b.line)[0];
-  if (ignored.style.length) {
-    const first = firstOf(ignored.style);
-    warnings.push(warning('IGNORED_STYLE', lang, first.line,
-      `${ignored.style.length} 条样式语句或 ::: 类名未绘制，卡片配色与字体由主题决定`,
-      `${ignored.style.length} style statement(s) or ::: class name(s) are not drawn; colors and type come from the theme`,
-      '删掉这些样式语句，或等表现层支持',
-      'Remove these style statements, or wait for presentation support'));
-  }
-  if (ignored.interaction.length) {
-    const first = firstOf(ignored.interaction);
-    warnings.push(warning('IGNORED_INTERACTION', lang, first.line,
-      `${ignored.interaction.length} 条链接或回调语句未实现，卡片不可点击`,
-      `${ignored.interaction.length} link or callback statement(s) are not wired; cards are not clickable`,
-      '删掉 click/link/callback 语句，或等表现层支持',
-      'Remove the click/link/callback statements, or wait for presentation support'));
-  }
-  if (ignored.asset.length) {
-    const first = firstOf(ignored.asset);
-    warnings.push(warning('IGNORED_ASSET', lang, first.line,
-      `${ignored.asset.length} 条图标语句未绘制`,
-      `${ignored.asset.length} icon statement(s) are not drawn`,
-      '删掉 ::icon(…) 语句，或等图标支持',
-      'Remove the ::icon(…) statements, or wait for icon support'));
-  }
+
   if (cards.length > limits.large) {
     warnings.push(warning('LARGE_DIAGRAM', lang, cards[0]?.line ?? firstLine,
       `${cards.length} 个类或注释，图会很大，建议拆分`,
@@ -601,7 +580,7 @@ function parseClass(statements, info = {}) {
   };
   const titleOf = (card) => {
     const generic = card.generic ? parseGenericTypes(card.generic) : '';
-    return generic ? `${card.label}<${generic}>` : card.label;
+    return generic ? `${card.label}&lt;${generic}&gt;` : card.label;
   };
   const frames = [];
   for (const namespace of namespaces.values()) {
@@ -629,6 +608,7 @@ function parseClass(statements, info = {}) {
         ...(parent ? { parent } : {}),
         ...(card.note ? { note: true } : {}),
         ...(card.hidden ? { hidden: true } : {}),
+        ...(card.iconRef ? { iconRef: card.iconRef } : {}),
         line: card.line,
       };
     }),
@@ -637,26 +617,74 @@ function parseClass(statements, info = {}) {
   };
   // Warnings travel in `errors` like every other family (their severity keeps them non-blocking) and are also
   // returned on their own for callers that want them separated.
-  return { errors: [...errors, ...warnings], warnings, model };
+  errors.push(...finishCards(model, look, lang));
+  return { errors: [...errors, ...warnings], warnings: [...warnings, ...errors.filter(item => item.severity === 'warning')], model };
+}
+
+export function finishCards(model, look, lang) {
+  const issues = new Map();
+  const remember = issue => {
+    if ((issues.get(issue.message)?.line ?? Infinity) > issue.line) issues.set(issue.message, issue);
+  };
+  const normalize = (item, key, owner = item) => {
+    if (item[key] == null) return;
+    const { text, icon, diagnostics } = normalizeLabel(item[key], { lang, line: owner.line });
+    item[key] = text;
+    if (icon) owner.icon ??= icon;
+    diagnostics.forEach(remember);
+  };
+  for (const card of model.cards) {
+    const tone = look.statusOf(card.id), link = look.linkOf(card.id);
+    if (tone) card.tone = tone;
+    if (link) card.link = link;
+    if (card.iconRef) {
+      const ref = card.iconRef;
+      const icon = resolveIconRef(ref);
+      if (icon) card.icon = icon;
+      else remember(warning('IGNORED_ASSET', lang, card.line, `未知图标 ${ref}`, `Unknown icon ${ref}`, '使用内置图标', 'Use a built-in icon'));
+      delete card.iconRef;
+    }
+    normalize(card, 'title');
+    for (const row of [...(card.annotations || []), ...card.sections.flat()]) normalize(row, 'text', card);
+  }
+  for (const frame of model.frames || []) normalize(frame, 'label');
+  for (const [index, edge] of model.edges.entries()) {
+    const tone = look.edgeStatusOf(index);
+    if (tone) edge.tone = tone;
+    for (const key of ['label', 'c1', 'c2']) normalize(edge, key);
+  }
+  return [...look.diagnostics(), ...issues.values()];
 }
 
 const overlaps = (a, b) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
 
-function cardMarkers(ctx, ink, surface, edges) {
+const markerId = (name, tone) => `uml-${name}${tone ? `-${tone}` : ''}`;
+
+function drawIcon(ctx, icon, x, y, ink) {
+  const [left, top, w, h] = icon.viewBox.split(/\s+/).map(Number);
+  const scale = 14 / Math.max(w, h);
+  return ctx.el('g', { transform: `translate(${x - (left + w / 2) * scale} ${y - (top + h / 2) * scale}) scale(${scale})` },
+    icon.elements.map(({ tag, attrs }) => ctx.shape(tag, { ...attrs, ...(icon.set === 'simple' ? { fill: ink }
+      : { fill: 'none', stroke: ink, 'stroke-width': 1.6, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }) })));
+}
+
+function cardMarkers(ctx, a, edges) {
+  const surface = a.surface;
   const shapes = {
     triangle: ['M2 2 L13 7 L2 12 Z', surface],
     hollowDiamond: ['M1 7 L7 2 L13 7 L7 12 Z', surface],
-    filledDiamond: ['M1 7 L7 2 L13 7 L7 12 Z', ink],
+    filledDiamond: ['M1 7 L7 2 L13 7 L7 12 Z', null],
     arrow: ['M4 3 L13 7 L4 11', 'none'],
     cross: ['M5 3 L13 11 M5 11 L13 3', 'none'],
     contains: ['M2 3 H10 V11 H2 Z M4 7 H8 M6 5 V9', surface],
   };
-  const used = new Set(edges.flatMap(edge => [edge.start, edge.end]).filter(Boolean));
-  return ctx.el('defs', {}, [...used].map(name => {
+  const used = new Map(edges.flatMap(edge => [edge.start, edge.end].filter(Boolean)
+    .map(name => [markerId(name, edge.tone), { name, ink: a[edge.tone] || a.fg4 }])));
+  return ctx.el('defs', {}, [...used].map(([id, { name, ink }]) => {
     const attrs = { stroke: ink, 'stroke-width': 1.25 };
     const shape = name === 'circle' ? ctx.circle(7, 7, 5, { ...attrs, fill: surface })
-      : ctx.path(shapes[name][0], { ...attrs, fill: shapes[name][1] });
-    return ctx.el('marker', { id: `uml-${name}`, viewBox: '0 0 14 14', refX: name === 'circle' ? 7 : 13,
+      : ctx.path(shapes[name][0], { ...attrs, fill: shapes[name][1] ?? ink });
+    return ctx.el('marker', { id, viewBox: '0 0 14 14', refX: name === 'circle' ? 7 : 13,
       refY: 7, markerWidth: 14, markerHeight: 14, markerUnits: 'userSpaceOnUse', orient: 'auto-start-reverse' }, [shape]);
   }));
 }
@@ -671,26 +699,34 @@ export function layoutCards(model, { ctx, width, lang, measure = (s, f) => ctx.m
   const cardById = new Map(cards.map(card => [card.id, card]));
   const rowsById = new Map();
   const nodes = cards.map((card, seq) => {
-    const wrap = rows => rows.flatMap(row => ctx.wrap(labelText(row.text), 172, FONT.label.size, FONT.label.weight)
+    const wrap = rows => rows.flatMap(row => ctx.wrap(row.text, 172, FONT.label.size, FONT.label.weight)
       .map(text => ({ ...row, text })));
     const [first, ...rest] = card.sections;
     const typeBand = first?.[0]?.role === 'stereotype';
     const annotations = wrap(typeBand ? first : (card.annotations || []).map(row => ({ ...row, text: `«${row.text}»` })));
     const sections = (typeBand ? rest : card.sections).map(wrap);
     rowsById.set(card.id, { annotations, sections });
-    const desc = [...annotations.map(row => row.text), ...sections.flatMap(rows => rows.length ? rows.map(row => row.text) : ['·'])];
-    return { id: card.id, seq, label: labelText(card.title) || ' ', desc, parent: card.parent,
+    const desc = [...(card.icon ? ['·'] : []), ...annotations.map(row => row.text), ...sections.flatMap(rows => rows.length ? rows.map(row => row.text) : ['·'])];
+    return { id: card.id, seq, label: card.title || '\u00a0', desc, parent: card.parent,
       ...(card.hidden ? { kind: 'start' } : {}) };
   });
   const graph = layoutGraph({ type: 'flowchart', direction, nodes,
-    subgraphs: frames.map((frame, seq) => ({ ...frame, seq, title: labelText(frame.label) })),
-    edges: edges.map((edge, seq) => ({ ...edge, seq, label: labelText(edge.label), style: edge.dashed ? 'dashed' : 'solid',
+    subgraphs: frames.map((frame, seq) => ({ ...frame, seq, title: frame.label })),
+    edges: edges.map((edge, seq) => ({ ...edge, seq, style: edge.dashed ? 'dashed' : 'solid',
       startArrow: Boolean(edge.start), endArrow: Boolean(edge.end) })),
   }, { measure, lang });
   const text = (x, y, value, opts = {}) => ctx.text(x, y, value, { 'dominant-baseline': 'central', fill: a.fg3, ...opts });
   const outlines = [], titles = [], paths = [], boxes = [], labels = [];
   const obstacles = [...graph.nodes, ...graph.frames.map(frame => frame.titleRect).filter(Boolean),
     ...graph.edges.map(edge => edge.labelRect).filter(Boolean)];
+  // A cubic stays within the bounds of its control points; reserve them so endpoint text
+  // cannot land on a neighboring route, including closely spaced parallel ports.
+  const routeBounds = graph.edges.flatMap(edge => edge.segments.map(({ p0, c1, c2, p1 }) => {
+    const xs = [p0.x, c1.x, c2.x, p1.x], ys = [p0.y, c1.y, c2.y, p1.y];
+    const x = Math.min(...xs), y = Math.min(...ys);
+    return { x: x - 1, y: y - 1, w: Math.max(...xs) - x + 2, h: Math.max(...ys) - y + 2 };
+  }));
+  const free = box => !obstacles.some(other => overlaps(box, other)) && !routeBounds.some(other => overlaps(box, other));
   for (const f of graph.frames) {
     outlines.push(ctx.rect(f.x, f.y, f.w, f.h, { rx: 7, fill: a.surface, stroke: a.line2, meta: { kind: 'frame', id: f.id } }));
     if (!f.titleRect) continue;
@@ -702,8 +738,9 @@ export function layoutCards(model, { ctx, width, lang, measure = (s, f) => ctx.m
     if (!route.segments?.length) continue;
     const edge = edges[route.id];
     paths.push(ctx.path(cubicPath(route.segments), {
-      fill: 'none', stroke: a.fg4, 'stroke-width': 1.25, 'stroke-dasharray': edge.dashed ? '5 4' : null,
-      'marker-start': edge.start ? `url(#uml-${edge.start})` : null, 'marker-end': edge.end ? `url(#uml-${edge.end})` : null,
+      fill: 'none', stroke: a[edge.tone] || a.fg4, 'stroke-width': 1.25, 'stroke-dasharray': edge.dashed ? '5 4' : null,
+      'marker-start': edge.start ? `url(#${markerId(edge.start, edge.tone)})` : null,
+      'marker-end': edge.end ? `url(#${markerId(edge.end, edge.tone)})` : null,
       meta: { kind: 'edge', from: edge.from, to: edge.to },
     }));
     const r = route.labelRect;
@@ -728,9 +765,9 @@ export function layoutCards(model, { ctx, width, lang, measure = (s, f) => ctx.m
             ? { x: p.x + (side < 0 ? -8 - w : 8), y: p.y + sign * distance - 7, w, h: 14 }
             : { x: p.x + (sign < 0 ? -distance - w : distance), y: p.y + side * 12 - 7, w, h: 14 };
           box = candidate;
-          if (!obstacles.some(other => overlaps(candidate, other))) break;
+          if (free(candidate)) break;
         }
-        if (!obstacles.some(other => overlaps(box, other))) break;
+        if (free(box)) break;
       }
       obstacles.push(box);
       labels.push(text(box.x, box.y + 7, value, { size: 12, meta: { kind: 'cardinality', endpoint: start ? 'start' : 'end' } }));
@@ -745,22 +782,29 @@ export function layoutCards(model, { ctx, width, lang, measure = (s, f) => ctx.m
     const fill = card.tone ? ctx.mix(a.node, stroke, a.soft) : a.node;
     const anchor = requirements || card.note ? 'start' : 'middle';
     const tx = anchor === 'start' ? x + 14 : x + w / 2;
-    const header = 20 + annotations.length * 17 + n.lines.length * 19;
-    boxes.push(ctx.rect(x, y, w, h, { rx: 7, fill, stroke, meta: { kind: 'node', id: card.id } }));
-    if (sections.length) boxes.push(ctx.rect(x + 1, y + 1, w - 2, header - 1, { rx: 6, fill: a.line1, 'fill-opacity': .3 }));
+    const header = 20 + (annotations.length + Number(Boolean(card.icon))) * 17 + n.lines.length * 19;
+    const items = [];
+    items.push(ctx.rect(x, y, w, h, { rx: 7, fill, stroke, meta: { kind: 'node', id: card.id } }));
+    if (sections.length) items.push(ctx.rect(x + 1, y + 1, w - 2, header - 1, { rx: 6, fill: a.line1, 'fill-opacity': .3 }));
     let cursor = y + 10;
-    const drawRow = (row, px, baseline, opts) => boxes.push(text(px, baseline, row.text, { size: FONT.label.size,
+    if (card.icon) {
+      items.push(drawIcon(ctx, card.icon, tx + (anchor === 'start' ? 7 : 0), cursor + 8.5, stroke));
+      cursor += 17;
+    }
+    const drawRow = (row, px, baseline, opts) => items.push(text(px, baseline, row.text, { size: FONT.label.size,
       'font-style': row.fontStyle, 'text-decoration': row.decoration, ...opts }));
     for (const row of annotations) { drawRow(row, tx, cursor + 8.5, { anchor }); cursor += 17; }
     for (const line of n.lines) {
-      boxes.push(text(tx, cursor + 9.5, line, { ...FONT.title, ...(card.note ? { weight: 400 } : {}), anchor, fill: a.fg1 })); cursor += 19;
+      items.push(text(tx, cursor + 9.5, line, { ...FONT.title, ...(card.note ? { weight: 400 } : {}), anchor, fill: a.fg1 })); cursor += 19;
     }
     cursor += 10;
     for (const [i, rows] of sections.entries()) {
-      boxes.push(ctx.line(x + (i ? 9 : 0), cursor, x + w - (i ? 9 : 0), cursor, { stroke: a.line2, 'stroke-width': .7 }));
+      items.push(ctx.line(x + (i ? 9 : 0), cursor, x + w - (i ? 9 : 0), cursor, { stroke: a.line2, 'stroke-width': .7 }));
       for (const [j, row] of rows.entries()) drawRow(row, x + 14, cursor + 11 + j * 17, {});
       cursor += Math.max(1, rows.length) * 17;
     }
+    if (card.link) boxes.push(ctx.link(card.link.href, items, card.link));
+    else boxes.push(...items);
   }
   // Interface names sit on the far side of the circle, not between the circle and its class.
   for (const route of graph.edges) {
@@ -777,11 +821,11 @@ export function layoutCards(model, { ctx, width, lang, measure = (s, f) => ctx.m
   const errors = graph.width > 2 * width && cards.length <= limits.large ? [warning('LARGE_DIAGRAM', lang, 1,
     '图较宽，将横向滚动', 'This diagram is wide and will scroll horizontally', '考虑拆分成多张图', 'Consider splitting it into several diagrams')] : [];
   const scene = { width: graph.width, height: graph.height, title: model.title || model.kind || model.type, heading: model.title,
-    children: [cardMarkers(ctx, a.fg4, a.surface, edges), ...outlines, ...paths, ...boxes, ...labels, ...titles] };
+    children: [cardMarkers(ctx, a, edges), ...outlines, ...paths, ...boxes, ...labels, ...titles] };
   return { width: graph.width, height: graph.height, geometry: graph, scene, errors };
 }
 
-const implementation = { parse: parseClass, layout: layoutCards,
+const implementation = { parse: parseClass, layout: layoutCards, acceptsPresentation: true,
   honoredConfig: ['class.hideEmptyMembersBox', 'class.hierarchicalNamespaces'] };
 export const implementations = { classDiagram: implementation };
 

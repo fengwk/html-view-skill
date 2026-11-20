@@ -14,8 +14,7 @@ const bodyOf = (source) => {
   return { ...prepared, body: prepared.body, firstLine: prepared.firstLine };
 };
 
-// Intent: the kind spec and the parse-only implementation are all the registry needs, so registration stays a
-// separate step (the old relations.js family still lists this kind, and two implementations of one kind are rejected).
+// Intent: the canonical kind and alias both use the new parser and layout.
 test('requirement kind spec matches the family registry shape', () => {
   assert.deepEqual(kinds, [kind]);
   assert.equal(kind.kind, 'requirementDiagram');
@@ -108,7 +107,7 @@ test('quoted and unquoted names, ids and values keep their exact text', () => {
   ].join('\n'));
   assert.deepEqual(blocking, []);
   assert.equal(card(model, '__test_req__').title, '__test_req__');
-  assert.deepEqual(linesOf(model, '__test_req__')[1], ['ID: 1.2.3', 'Text: *italicized text* **bold text**', 'Risk: High', 'Verification: Test']);
+  assert.deepEqual(linesOf(model, '__test_req__')[1], ['ID: 1.2.3', 'Text: italicized text bold text', 'Risk: High', 'Verification: Test']);
   assert.equal(card(model, 'my entity').title, 'my entity');
   assert.deepEqual(linesOf(model, 'my entity')[1], ['Type: test suite', 'Doc Ref: github.com/all_the_tests']);
 });
@@ -186,8 +185,8 @@ test('a redeclared requirement is reported once and later fields win', () => {
   assert.equal(hints[0].line, 5);
 });
 
-// Intent: phase 2 owns style/classDef/class and ::: classes, so they are honored as input and reported, never fatal.
-test('presentation statements are accepted with one non-blocking IGNORED_STYLE warning', () => {
+// Intent: inline and list classes compose with a later style override while unsupported CSS warns once.
+test('requirement presentation resolves class lists and style overrides', () => {
   const body = [
     'requirement test_req:::important {',
     'id: 1',
@@ -195,14 +194,15 @@ test('presentation statements are accepted with one non-blocking IGNORED_STYLE w
     'element test_entity {',
     'type: simulation',
     '}',
-    'classDef important font-weight:bold',
-    'class test_entity important',
-    'style test_entity fill:#f9f,stroke:#333',
+    'classDef important fill:#f96,font-weight:bold',
+    'class test_req,test_entity important,ok',
+    'style test_entity fill:#f00,stroke:#333',
     'test_entity:::extra',
   ].join('\n');
   const { model, errors, blocking } = parseBody(body);
   assert.deepEqual(blocking, []);
-  assert.deepEqual(card(model, 'test_req').classes, ['important']);
+  assert.equal(card(model, 'test_req').tone, 'ok');
+  assert.equal(card(model, 'test_entity').tone, 'danger');
   const warnings = errors.filter(error => error.code === 'IGNORED_STYLE');
   assert.equal(warnings.length, 1, 'one warning per diagram, not one per statement');
   assert.equal(warnings[0].severity, 'warning');
@@ -221,7 +221,7 @@ test('comments and entities are told apart, and direction is read anywhere on a 
   ].join('\n'));
   assert.deepEqual(blocking, []);
   assert.equal(model.direction, 'LR');
-  assert.deepEqual(linesOf(model, 'r')[1], ['ID: 1', 'Text: a #quot;quoted#quot; value']);
+  assert.deepEqual(linesOf(model, 'r')[1], ['ID: 1', 'Text: a "quoted" value']);
   assert.equal(parseBody('requirement r {\nid: 1\n}').model.direction, 'TB', 'the default direction is TB');
   for (const direction of ['TB', 'BT', 'RL', 'LR']) assert.equal(parseBody(`direction ${direction}`).model.direction, direction);
 });
