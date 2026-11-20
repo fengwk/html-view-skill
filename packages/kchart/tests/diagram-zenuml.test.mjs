@@ -112,6 +112,17 @@ test('ZenUML draws participant cards and messages inside a narrow scene', () => 
   assert.notEqual(routes[0].attrs['marker-end'], routes[1].attrs['marker-end']);
 });
 
+// A spanning message label must not have the middle participant's lifeline running through it.
+test('ZenUML leaves a gap in a lifeline crossed by a message label', () => {
+  const { scene } = diagram('zenuml\nA\nB\nC\nA->C: label across B', { width: 360, compact: true, frame: false });
+  const nodes = descendants(scene);
+  const label = nodes.find(node => node.meta?.kind === 'message-label');
+  const lifelines = nodes.filter(node => node.tag === 'line' && node.attrs['stroke-dasharray'] === '4 4');
+  const middle = lifelines.filter(node => node.attrs.x1 === label.attrs.x);
+  assert.equal(middle.length, 2);
+  assert.ok(middle[0].attrs.y2 < label.attrs.y - 7 && middle[1].attrs.y1 > label.attrs.y + 7);
+});
+
 // Keep the original all-theme contrast guarantee for messages and lifelines.
 test('ZenUML routes and dashed lifelines contrast with each theme', () => {
   for (const [theme, design] of Object.entries(themes)) {
