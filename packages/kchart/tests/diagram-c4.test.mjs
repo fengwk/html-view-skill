@@ -160,3 +160,16 @@ click b href "javascript:alert(1)"`);
   assert.deepEqual(all.filter(node => node.tag === 'a').map(node => node.attrs.href), ['https://example.org']);
   assert.deepEqual(diagnostics.map(d => d.code).sort(), ['IGNORED_ASSET', 'IGNORED_INTERACTION']);
 });
+
+// Intent: omitted lang lets the registry infer the language of C4's built-in stereotypes from the source.
+test('C4 element types follow the inferred diagram language', () => {
+  for (const [labels, expected] of [
+    [['Customer', 'Banking System', 'Payments API'], ['[Person]', '[Software System]', '[Container: HTTP]']],
+    [['客户', '银行系统', '支付接口'], ['[人员]', '[软件系统]', '[容器: HTTP]']],
+  ]) {
+    const { scene, diagnostics } = diagram(`C4Container\nPerson(p, "${labels[0]}")\nSystem(s, "${labels[1]}")\nContainer(c, "${labels[2]}", HTTP)`, { width: 800 });
+    assert.ok(scene, JSON.stringify(diagnostics));
+    const stereotypes = walk(scene).filter(node => node.tag === 'text' && node.text.startsWith('[')).map(node => node.text);
+    assert.deepEqual(stereotypes, expected);
+  }
+});
