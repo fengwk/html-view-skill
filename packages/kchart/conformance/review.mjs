@@ -50,7 +50,9 @@ function mermaidBundle(version) {
 const escapeHtml = (value) => String(value).replace(/[&<>"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[ch]);
 const reviewed = records.map((record, index) => {
   const { svg, scene, diagnostics } = diagram(record.source, { syntax: 'mermaid', width, theme: values.theme, prefix: `k${index}` });
-  const geometry = scene ? checkScene(scene) : [];
+  const orthogonal = record.type === 'block' || (record.type == null &&
+    /^(?:---\s*\n[\s\S]*?\n---\s*\n)?(?:\s*%%[^\n]*\n)*\s*block(?:-beta)?(?=\s|$)/i.test(record.source));
+  const geometry = scene ? checkScene(scene, { source: record.source, orthogonal }) : [];
   return { ...record, svg, diagnostics, geometry };
 });
 

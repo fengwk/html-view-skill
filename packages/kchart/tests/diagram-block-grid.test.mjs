@@ -7,7 +7,7 @@ const walk = children => children.flatMap(node => [node, ...walk(node.children ?
 function render(body, width = 360, kind = 'block') {
   const result = diagram(`${kind}\n${body}`, { width, lang: 'en' });
   assert.deepEqual(result.diagnostics.filter(d => d.severity === 'error'), []);
-  assert.deepEqual(checkScene(result.scene), []);
+  assert.deepEqual(checkScene(result.scene, { orthogonal: true }), []);
   return { ...result, elements: walk(result.scene.children) };
 }
 const byKind = (result, kind) => result.elements.filter(node => node.meta?.kind === kind);
@@ -100,6 +100,26 @@ test('compound block arrow', () => {
   }
 });
 
+// A wide label grows only its own gutter; the route stays a single horizontal run.
+test('label room does not widen the next unconnected gap', () => {
+  const result = render('columns 3\na b c\na --"A long connection label"--> b');
+  const { a, b, c } = rects(result);
+  assert.equal(a.y, b.y);
+  assert.equal(b.y, c.y);
+  assert.equal(c.x - b.x - b.width, 20);
+  const [plate] = byKind(result, 'edge-label-group')[0].children;
+  assert.ok(plate.attrs.x - (a.x + a.width) >= 8);
+  assert.ok(b.x - (plate.attrs.x + plate.attrs.width) >= 8);
+  assert.match(byKind(result, 'edge')[0].attrs.d, /^M\S+ (\S+) L\S+ \1$/);
+});
+
+// Opt-in orthogonality catches diagonal edges without affecting the default geometry gate.
+test('board geometry rejects diagonal edges', () => {
+  const scene = { width: 100, height: 100, children: [{ tag: 'path', attrs: { d: 'M10 10 H30 L40 25 V40' }, meta: { kind: 'edge' } }] };
+  assert.deepEqual(checkScene(scene), []);
+  assert.deepEqual(checkScene(scene, { orthogonal: true }).map(issue => issue.kind), ['diagonal-edge']);
+});
+
 // Inline edge declarations preserve labels, endpoint marker types and stroke variants.
 test('labeled and unlabelled edge syntax', () => {
   const result = render('columns 3\nA--"X"-->B\nC --o D\nE -.- F\nG == H\nI --- J\nK <--> L\nM --x N\nO ~~~ P');
@@ -182,7 +202,7 @@ test('block padding honors merged configuration', () => {
   const source = '---\nconfig:\n  block:\n    padding: 20\n---\n%%{init: {"block": {"padding": 30}}}%%\nblock\nblock:g\ncolumns 2\nA B\nend';
   const result = diagram(source, { width: 360 });
   assert.deepEqual(result.diagnostics, []);
-  assert.deepEqual(checkScene(result.scene), []);
+  assert.deepEqual(checkScene(result.scene, { orthogonal: true }), []);
   const shapes = { elements: walk(result.scene.children) };
   const { A, B } = rects(shapes), { g } = rects(shapes, 'frame');
   assert.equal(A.y - g.y, 30);

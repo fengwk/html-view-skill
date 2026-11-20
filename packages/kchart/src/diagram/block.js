@@ -1,6 +1,7 @@
 import { resolveIconRef } from '../core/icons.js';
 import { boardLook, drawEdge, drawFrame, drawLabel, frameTitle, markers, measureLabel, surfaceAt, titleRect } from './board-paint.js';
 import { routeBoard } from './board-route.js';
+import { TRACK_CLEAR, TRACK_GAP } from './graph-route.js';
 import { normalizeLabel } from './label.js';
 import { presentation } from './presentation.js';
 import { FONT, appearance, error, maxWidthOf, textBlock, warning, wrapText } from './support.js';
@@ -237,7 +238,8 @@ function parse(body, { lang, firstLine = 2, params = '', header = 'block' }) {
 }
 
 // Measure inside out; place outside in. Each container owns its tracks and row heights.
-function grid(group, measure, pad) {
+function grid(group, measure, pad, spacing) {
+  const gaps = spacing.get(group) ?? newGaps();
   const rows = [], columns = group.columns || Infinity;
   let col = 0, occupied = 0, unit = 72, row;
   const currentRow = () => row ??= { h: 36, cells: [] };
@@ -257,14 +259,16 @@ function grid(group, measure, pad) {
       }
       continue;
     }
-    const inner = node.children ? grid(node, measure, pad) : null;
+    const inner = node.children ? grid(node, measure, pad, spacing) : null;
     let cell, w, h;
     if (inner) {
       // A group's title sits in its top-left corner and replaces the top padding.
       const title = frameTitle({ title: node.label ?? '', icon: node.icon }, measure);
-      w = Math.max(title.minW, inner.w + 2 * pad);
-      h = inner.h + pad + (title.band || pad);
-      cell = { ...node, col, inner, title };
+      const inset = inner.gaps.inset.map((gap, i) => Math.max(gap, i === 0 && title.band ? title.band : pad));
+      const [top, right, bottom, left] = inset;
+      w = Math.max(title.minW, inner.w + left + right);
+      h = inner.h + top + bottom;
+      cell = { ...node, col, inner, title, inset };
     } else {
       const label = node.label ?? node.id;
       // Measure the label before sizing its tracks; neither a narrow viewport nor a span forces an early wrap.
@@ -291,16 +295,36 @@ function grid(group, measure, pad) {
     advance(Math.min(node.span, columns - col));
   }
   if (row) rows.push(row);
-  const h = rows.reduce((sum, item) => sum + item.h + GAP, -GAP);
-  return { rows, unit, columns: occupied, w: Math.max(0, occupied * (unit + GAP) - GAP), h: Math.max(0, h) };
+  const xGaps = Array.from({ length: Math.max(0, occupied - 1) }, (_, i) => gaps.x.get(i) ?? GAP);
+  const yGaps = rows.slice(1).map((_, i) => gaps.y.get(i) ?? GAP);
+  return { group, gaps, rows, xGaps, yGaps, columns: occupied,
+    w: occupied * unit + sum(xGaps), h: sum(rows.map(row => row.h)) + sum(yGaps) };
 }
 
-function place(grid, x, y, width, nodes, frames, pad, parent) {
+const sum = values => values.reduce((a, b) => a + b, 0);
+const newGaps = () => ({ x: new Map(), y: new Map(), inset: [0, 0, 0, 0] });
+
+function place(grid, x, y, width, nodes, frames, corridors, parent, outline) {
   if (!grid.columns) return;
-  const pitch = (width + GAP) / grid.columns;
-  for (const row of grid.rows) {
+  const unit = (width - sum(grid.xGaps)) / grid.columns;
+  const xs = [x];
+  const corridor = (axis, index, start, size, lo, hi, inset = false) => {
+    if (size > 0) corridors.push({ group: grid.group, axis, index, start, size, lo, hi, inset });
+  };
+  for (const [i, gap] of grid.xGaps.entries()) {
+    corridor('x', i, xs[i] + unit, gap, y, y + grid.h);
+    xs.push(xs[i] + unit + gap);
+  }
+  if (outline) {
+    corridor('y', 0, outline.y, y - outline.y, x, x + width, true);
+    corridor('x', 1, x + width, outline.x + outline.w - x - width, y, y + grid.h, true);
+    corridor('y', 2, y + grid.h, outline.y + outline.h - y - grid.h, x, x + width, true);
+    corridor('x', 3, outline.x, x - outline.x, y, y + grid.h, true);
+  }
+  for (const [r, row] of grid.rows.entries()) {
     for (const cell of row.cells) {
-      const box = { ...cell, x: x + cell.col * pitch, y, w: cell.span * pitch - GAP, h: row.h, ...(parent ? { parent } : {}) };
+      const end = cell.col + cell.span - 1;
+      const box = { ...cell, x: xs[cell.col], y, w: xs[end] - xs[cell.col] + unit, h: row.h, ...(parent ? { parent } : {}) };
       if (cell.diameter) {
         box.x += (box.w - cell.diameter) / 2;
         box.y += (box.h - cell.diameter) / 2;
@@ -313,11 +337,60 @@ function place(grid, x, y, width, nodes, frames, pad, parent) {
       nodes.set(box.id, box);
       if (box.inner) {
         frames.push(box);
-        place(box.inner, box.x + pad, y + (box.title.band || pad), box.w - 2 * pad, nodes, frames, pad, box.id);
+        const [top, right, , left] = cell.inset;
+        place(box.inner, box.x + left, y + top, box.w - left - right, nodes, frames, corridors, box.id, box);
       }
     }
-    y += row.h + GAP;
+    const gap = grid.yGaps[r] ?? 0;
+    corridor('y', r, y + row.h, gap, x, x + width);
+    y += row.h + gap;
   }
+}
+
+// Reserve room for simultaneous parallel runs and for any plate centred in the gutter.
+function widenCorridors(corridors, routes, relations, nodes, spacing) {
+  let changed = false;
+  for (const { group, axis, index, start, size, lo, hi, inset } of corridors) {
+    const along = axis === 'x' ? 'y' : 'x', span = axis === 'x' ? 'w' : 'h', end = start + size;
+    const inside = coord => start < coord && coord < end;
+    let required = size;
+    // A plate too wide for a facing gap can otherwise force a detour before we see its demand.
+    if (!inset) for (const { from, to, label } of relations) {
+      if (!label || label[span] + 2 * TRACK_CLEAR <= required) continue;
+      const crossSpan = axis === 'x' ? 'h' : 'w';
+      const a = nodes.get(from), b = nodes.get(to);
+      const [first, second] = a[axis] < b[axis] ? [a, b] : [b, a];
+      if (Math.abs(first[axis] + first[span] - start) < .01 && Math.abs(second[axis] - end) < .01 &&
+          Math.min(hi, a[along] + a[crossSpan], b[along] + b[crossSpan]) > Math.max(lo, a[along], b[along])) {
+        required = label[span] + 2 * TRACK_CLEAR;
+      }
+    }
+    const events = [];
+    for (const { points, labelRect: label } of routes) {
+      if (label && inside(label[axis] + label[span] / 2)) {
+        const crossSpan = axis === 'x' ? 'h' : 'w', at = label[along] + label[crossSpan] / 2;
+        if (lo <= at && at <= hi) required = Math.max(required, label[span] + 2 * TRACK_CLEAR);
+      }
+      for (let i = 1; i < points.length; i++) {
+        const a = points[i - 1], b = points[i];
+        if (a[axis] !== b[axis] || !inside(a[axis])) continue;
+        const first = Math.max(lo, Math.min(a[along], b[along])), last = Math.min(hi, Math.max(a[along], b[along]));
+        if (last > first) events.push([first, 1], [last, -1]);
+      }
+    }
+    let tracks = 0;
+    for (const [, delta] of events.sort(([a, da], [b, db]) => a - b || da - db)) {
+      tracks += delta;
+      if (tracks > 0) required = Math.max(required, 2 * TRACK_CLEAR + (tracks - 1) * TRACK_GAP);
+    }
+    if (required <= size + .01) continue;
+    const gaps = spacing.get(group) ?? newGaps();
+    spacing.set(group, gaps);
+    if (inset) gaps.inset[index] = Math.ceil(required);
+    else gaps[axis].set(index, Math.ceil(required));
+    changed = true;
+  }
+  return changed;
 }
 
 const polygons = {
@@ -380,21 +453,28 @@ function layout(model, { width, lang, measure }, info) {
   const padding = info.config?.block?.padding;
   const validPadding = Number.isFinite(padding) && padding >= 0 && padding <= 2000;
   const pad = validPadding ? padding : PAD;
-  const plan = grid(model.root, measure, pad), nodes = new Map(), frames = [], edges = [], errors = [];
+  const spacing = new Map(), edges = [], errors = [];
   if (padding !== undefined && !validPadding) {
     errors.push(warning('IGNORED_CONFIG', lang, info.configLines?.['block.padding'] ?? info.headerLine ?? 1,
       '已忽略无效的 block.padding', 'Ignored invalid block.padding', '使用 0 到 2000 之间的数值', 'Use a number from 0 to 2000'));
   }
-  place(plan, MARGIN, MARGIN, plan.w, nodes, frames, pad);
-  const boxes = [...nodes.values()], leaves = boxes.filter(box => !box.inner);
-  const naturalWidth = plan.w + 2 * MARGIN, height = plan.h + 2 * MARGIN;
   const labels = model.edges.map(edge => measureLabel(edge.label, measure, edge.icon));
-  const routed = routeBoard({
-    width: naturalWidth, height,
-    nodes: leaves.map(({ id, x, y, w, h, parent }) => ({ id, x, y, w, h, parent })),
-    frames: frames.map(frame => ({ id: frame.id, x: frame.x, y: frame.y, w: frame.w, h: frame.h, parent: frame.parent, titleRect: titleRect(frame, frame.title) })),
-    edges: model.edges.flatMap((edge, id) => edge.from === edge.to ? [] : [{ id, from: edge.from, to: edge.to, ...(labels[id] ? { label: labels[id] } : {}) }]),
-  });
+  const relations = model.edges.flatMap((edge, id) => edge.from === edge.to ? [] : [{ id, from: edge.from, to: edge.to, ...(labels[id] ? { label: labels[id] } : {}) }]);
+  let nodes, frames, leaves, naturalWidth, height, routed;
+  for (let pass = 0; pass < 3; pass++) {
+    const plan = grid(model.root, measure, pad, spacing), corridors = [];
+    nodes = new Map(); frames = [];
+    place(plan, MARGIN, MARGIN, plan.w, nodes, frames, corridors);
+    leaves = [...nodes.values()].filter(box => !box.inner);
+    naturalWidth = plan.w + 2 * MARGIN; height = plan.h + 2 * MARGIN;
+    routed = routeBoard({
+      width: naturalWidth, height,
+      nodes: leaves,
+      frames: frames.map(frame => ({ ...frame, titleRect: titleRect(frame, frame.title) })),
+      edges: relations,
+    });
+    if (pass === 2 || !widenCorridors(corridors, routed.edges, relations, nodes, spacing)) break;
+  }
   const routes = new Map(routed.edges.map(route => [route.id, route]));
   model.edges.forEach((edge, id) => {
     const route = routes.get(id), label = labels[id];
