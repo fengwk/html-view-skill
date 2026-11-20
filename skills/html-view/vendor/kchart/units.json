@@ -90,7 +90,7 @@
     "deps": [
       "chart/catalog"
     ],
-    "bytes": 40522
+    "bytes": 40656
   },
   "chart/stat-compare": {
     "file": "units/chart/stat-compare.js",

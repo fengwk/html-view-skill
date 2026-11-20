@@ -276,7 +276,7 @@ function validate(spec) {
 			const m = spec.data.map;
 			const builtin = obj(m) && Object.keys(m).length === 1 && ["world", "us-states"].includes(m.asset);
 			const external = obj(m) && obj(m.geojson) && m.geojson.type === "FeatureCollection" && Array.isArray(m.geojson.features) && typeof m.idProperty === "string" && Object.keys(m).every((k) => ["geojson", "idProperty"].includes(k));
-			if (!builtin && !external) err(errors, "/data/map", "map须是world、us-states或GeoJSON FeatureCollection");
+			if (!builtin && !external) err(errors, "/data/map", "map须是对象：{asset:'world'}、{asset:'us-states'}或{geojson:FeatureCollection,idProperty:'地区键字段'}", "内置地图写成 \"map\": {\"asset\": \"world\"}，不要只写地图名。");
 			if (external) {
 				const ids = /* @__PURE__ */ new Set();
 				for (const [i, f] of m.geojson.features.entries()) {

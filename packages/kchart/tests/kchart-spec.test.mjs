@@ -65,6 +65,15 @@ test('根级 id 只报一次，encode.id 仍可标识记录', () => {
   assert.match(errors[0].fix, /encode\.id/);
 });
 
+// Writing the bare map name is the usual mistake; the message must show the accepted object shapes.
+test('地图写成名称字符串时给出内置资产与外部 GeoJSON 的对象写法', () => {
+  const { errors } = K.validate({ chart: 'choropleth', data: { map: 'world', rows: [{ region: 'KOS', value: 1 }] }, encode: { region: 'region', value: 'value' } });
+  const issue = errors.find(({ path }) => path === '/data/map');
+  assert.match(issue.message, /\{asset:'world'\}/);
+  assert.match(issue.message, /idProperty/);
+  assert.match(issue.fix, /"asset": "world"/);
+});
+
 test('正负值按图型和变体区分，small-multiples两种编码形式均正确', () => {
   // 普通比较保留有符号数据；只有声明的构成/符号变体及目标图才要求非负。
   for (const chart of ['line','area','bar','column']) {

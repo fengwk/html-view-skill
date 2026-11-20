@@ -31,6 +31,7 @@ This release adds an opt-in compact embedding mode, one-page overview boards, na
 - Class member text keeps clear of compartment dividers. C4 relationship captions stay off boundary borders, and a caption moved aside never has a leader line crossing a card or title.
 - Git commit captions prefer breaking at spaces and punctuation. Bilateral mindmaps move branches between sides only when that strictly improves the balance.
 - Sankey labels lose their halo, and CJK quadrant y-axis labels stand upright. The fallback text measurer counts fullwidth forms as fullwidth glyphs.
+- A map given by name alone (`"map": "world"`) is rejected with the accepted shapes in the message: `{"asset": "world"}`, `{"asset": "us-states"}` or an external GeoJSON with `idProperty`.
 
 ## 0.1.1
 
