@@ -1,4 +1,6 @@
-import { FONT, appearance, error, labelText, textBlock, warning } from './support.js';
+import { normalizeLabel } from './label.js';
+import { presentation } from './presentation.js';
+import { FONT, appearance, error, textBlock, warning } from './support.js';
 
 const optionMode = 'raw';
 const honoredConfig = ['showBranches', 'showCommitLabel', 'mainBranchName', 'mainBranchOrder', 'parallelCommits', 'diagramPadding', 'titleTopMargin', 'rotateCommitLabel'].map(key => `gitGraph.${key}`);
@@ -16,17 +18,24 @@ function attributes(command, tokens) {
     else if (key !== 'msg') return null;
     const val = tokens[i++];
     if (key === 'type' ? !['NORMAL', 'REVERSE', 'HIGHLIGHT'].includes(val) : !quoted.test(val ?? '')) return null;
-    if (key === 'tag') attrs.tags.push(labelText(valueOf(val)));
+    if (key === 'tag') attrs.tags.push(valueOf(val));
     else attrs[key] = valueOf(val);
   }
   return attrs;
 }
 
 function parse(body, { lang, firstLine = 2, headerLine = firstLine - 1, title = '', params = '', config }) {
-  const errors = [], commits = [], byId = new Map();
+  const errors = [], commits = [], byId = new Map(), assets = new Set(), duplicateIds = new Set();
+  const look = presentation({ lang });
+  const clean = (value, line) => {
+    const { text, icon, diagnostics } = normalizeLabel(value, { lang, line });
+    if (icon) diagnostics.push(warning('IGNORED_ASSET', lang, line, 'Git 标签仅显示文本', 'Git labels display text only'));
+    for (const d of diagnostics) if (!assets.has(d.message)) { assets.add(d.message); errors.push(d); }
+    return text;
+  };
   config = config?.gitGraph || {};
   const main = typeof config.mainBranchName === 'string' && config.mainBranchName || 'main';
-  const branches = new Map([[main, { name: main, order: Number(config.mainBranchOrder) || 0 }]]);
+  const branches = new Map([[main, { name: main, label: clean(main, headerLine), order: Number(config.mainBranchOrder) || 0 }]]);
   let current = branches.get(main);
   const fail = (line, zh, en) => errors.push(error(lang, line, zh, en, '修正提交或分支声明', 'Fix the commit or branch declaration'));
   const direction = /^(?:(LR|TB|BT)\s*:|:)?$/i.exec(params);
@@ -36,9 +45,9 @@ function parse(body, { lang, firstLine = 2, headerLine = firstLine - 1, title = 
   let branchIndex = 0;
   for (const [i, raw] of body.split('\n').entries()) {
     const s = raw.trim(), line = firstLine + i;
-    if (!s || s.startsWith('%%')) continue;
+    if (!s || s.startsWith('%%') || look.accept(s, line)) continue;
     const heading = /^title(?:\s*:\s*|\s+)(.+)/i.exec(s);
-    if (heading) { title = labelText(heading[1]); continue; }
+    if (heading) { title = clean(heading[1], line); continue; }
     const tokens = [];
     for (const [token] of s.matchAll(/"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|%%.*|:|[^\s:"']+/g)) {
       if (token.startsWith('%%')) break;
@@ -53,7 +62,7 @@ function parse(body, { lang, firstLine = 2, headerLine = firstLine - 1, title = 
         if (branches.has(name) || (tokens.length && !Number.isSafeInteger(order))) { fail(line, '重复的分支或无效的顺序', 'Duplicate branch or invalid order'); continue; }
         if (branches.size === 2000) { fail(line, '分支超过 2000 个，请拆分图表', 'More than 2000 branches; split the diagram'); break; }
         const seq = ++branchIndex;
-        branches.set(name, current = { name, order: order ?? Number(`0.${seq}`), head: current.head });
+        branches.set(name, current = { name, label: clean(name, line), order: order ?? Number(`0.${seq}`), head: current.head });
         continue;
       }
       const other = branches.get(name);
@@ -78,7 +87,11 @@ function parse(body, { lang, firstLine = 2, headerLine = firstLine - 1, title = 
     if (other) parents.push(other.seq);
     const customId = command !== 'cherry-pick' && Boolean(attrs.id);
     const id = customId ? attrs.id : undefined;
-    if (customId && byId.has(id)) { fail(line, `重复的提交 ID：${id}`, `Duplicate commit ID: ${id}`); continue; }
+    if (customId && byId.has(id)) {
+      if (command === 'merge') { fail(line, `重复的合并提交 ID：${id}`, `Duplicate merge commit ID: ${id}`); continue; }
+      if (!duplicateIds.has(id)) errors.push(warning('DIAGRAM_HINT', lang, line, `重复的提交 ID：${id}`, `Duplicate commit ID: ${id}`, '使用不同的 ID', 'Use distinct IDs'));
+      duplicateIds.add(id);
+    }
     let cherryOf;
     if (command === 'cherry-pick') {
       const source = byId.get(attrs.id), parent = byId.get(attrs.parent);
@@ -90,13 +103,20 @@ function parse(body, { lang, firstLine = 2, headerLine = firstLine - 1, title = 
       cherryOf = source.id;
       if (!attrs.tags.length) attrs.tags.push(`cherry-pick:${source.id}${source.merge ? `|parent:${attrs.parent}` : ''}`);
     }
-    const commit = { id, seq, branch: current.name, parents, type: attrs.type, tags: attrs.tags,
-      msg: attrs.msg === undefined ? '' : labelText(attrs.msg), merge: command === 'merge', cherryOf };
+    const commit = { id, label: id && clean(id, line), seq, branch: current.name, parents, type: attrs.type,
+      tags: attrs.tags.map(tag => clean(tag, line)), msg: clean(attrs.msg, line), merge: command === 'merge', cherryOf };
     commits.push(commit);
     if (customId) byId.set(id, commit);
     current.head = commit;
   }
-  const ordered = [...branches.values()].sort((a, b) => a.order - b.order).map(({ name, order }) => ({ name, order }));
+  const presentationOf = id => ({ status: look.statusOf(id), link: look.linkOf(id) });
+  const ordered = [...branches.values()].sort((a, b) => a.order - b.order).map(({ name, label, order }) => ({ name, label, order, ...presentationOf(name) }));
+  let edge = 0;
+  for (const commit of commits) {
+    Object.assign(commit, presentationOf(commit.id ?? String(commit.seq + 1)));
+    commit.edgeStatuses = commit.parents.map(() => look.edgeStatusOf(edge++));
+  }
+  errors.push(...look.diagnostics());
   return { model: { type: 'gitGraph', commits, branches: ordered, title, direction: direction?.[1]?.toUpperCase() || 'LR', config }, errors };
 }
 
@@ -122,12 +142,12 @@ function layout(model, { ctx, width, renderOptions }, info = {}) {
   const titleInline = title && !renderOptions?.frame, heading = titleInline ? Math.max(30, Math.min(100, Number(config.titleTopMargin) || 30)) : 0;
   const W = lines => Math.max(0, ...lines.map(s => ctx.measure(s, FONT.label.size)));
   const laneOf = new Map(branches.map(({ name }, i) => [name, i]));
-  const branchNames = branches.map(({ name }) => ctx.wrap(labelText(name), 128, FONT.label.size));
+  const branchNames = branches.map(({ label }) => ctx.wrap(label, 128, FONT.label.size));
   const branchW = showBranches ? Math.max(...branchNames.map(W)) + 20 : 0;
   const branchH = showBranches ? Math.max(...branchNames.map(lines => lines.length)) * 16 + 10 : 0;
   const slots = [];
   const nodes = commits.map(c => {
-    const label = showLabels ? ctx.wrap(c.id ? labelText(c.id) : (!c.merge && c.cherryOf == null ? `${c.seq + 1}` : ''), 130, FONT.label.size).filter(Boolean) : [];
+    const label = showLabels ? ctx.wrap(c.id ? c.label : (!c.merge && c.cherryOf == null ? `${c.seq + 1}` : ''), 130, FONT.label.size).filter(Boolean) : [];
     const msg = c.msg ? ctx.wrap(c.msg, 130, FONT.label.size) : [];
     const tags = c.tags.map(tag => ctx.wrap(tag, 130, FONT.label.size));
     const slot = config.parallelCommits ? Math.max(-1, ...c.parents.map(p => slots[p])) + 1 : c.seq;
@@ -147,10 +167,12 @@ function layout(model, { ctx, width, renderOptions }, info = {}) {
     slotGaps[slots[edge.from]].outgoing.push(i);
     slotGaps[slots[edge.to]].incoming.push(i);
   });
-  const stepHalf = vertical ? Math.max(tagH, labelH) / 2 + 20 : textW / 2 + 18;
+  const slotWidth = Array(slotCount).fill(14);
+  nodes.forEach((n, i) => { slotWidth[slots[i]] = Math.max(slotWidth[slots[i]], W(n.label), ...n.tags.map(lines => W(lines) + 12)); });
   const times = [], depart = new Map(), arrive = new Map();
   let pos = pad + (vertical ? branchH : branchW) + 8;
-  for (const gap of slotGaps) {
+  for (const [index, gap] of slotGaps.entries()) {
+    const stepHalf = vertical ? Math.max(tagH, labelH) / 2 + 20 : slotWidth[index] / 2 + 18;
     for (const id of gap.incoming) { pos += 6; arrive.set(id, pos); }
     times.push(pos += stepHalf);
     pos += stepHalf;
@@ -172,16 +194,18 @@ function layout(model, { ctx, width, renderOptions }, info = {}) {
   const children = [];
   const tone = lane => ctx.color(`tone${lane % 6 + 1}`);
   if (titleInline) children.push(ctx.text(w / 2, heading / 2, title, { ...centered, ...FONT.title, fill: t.fg1 }));
-  if (showBranches) branches.forEach(({ name }, lane) => {
+  if (showBranches) branches.forEach(({ name, status, link }, lane) => {
     const v = laneCenters[lane], railStart = pad + (vertical ? branchH : branchW);
-    children.push(ctx.line(...coords(railStart, v), ...coords(timeline - pad, v), { stroke: t.grid, meta: { kind: 'frame', id: name } }));
+    children.push(ctx.line(...coords(railStart, v), ...coords(timeline - pad, v), { stroke: t.line, meta: { kind: 'frame', id: name } }));
     const [x, y] = coords(pad + (vertical ? branchH : branchW) / 2, v);
     const pw = vertical ? W(branchNames[lane]) + 20 : branchW, ph = vertical ? branchH : branchNames[lane].length * 16 + 10;
-    children.push(ctx.rect(x - pw / 2, y - ph / 2, pw, ph, { rx: t.smallRadius, fill: t.surface, stroke: ctx.frameTone(t.grid) }));
-    children.push(textBlock(ctx, { x, y, lines: branchNames[lane], font: FONT.label, lineHeight: 16 }));
+    const plate = [ctx.rect(x - pw / 2, y - ph / 2, pw, ph, { rx: t.smallRadius,
+      fill: ctx.tint(t.surface, t[status] || tone(lane), .1), stroke: ctx.frameTone(t[status] || t.line) }),
+      textBlock(ctx, { x, y, lines: branchNames[lane], font: FONT.label, lineHeight: 16 })];
+    children.push(...(link ? [ctx.link(link.href, plate, link)] : plate));
   });
   // Cross-lane links use their own tracks outside the glyph/label bands and cross lanes only between time slots.
-  for (const to of nodes) for (const parent of to.parents) {
+  for (const to of nodes) for (const [parentIndex, parent] of to.parents.entries()) {
     const from = nodes[parent], a = times[slots[parent]], b = times[slots[to.seq]], av = laneCenters[from.lane], bv = laneCenters[to.lane];
     let route;
     if (av === bv) route = [[a + 6, av], [b - 7, bv]];
@@ -194,13 +218,14 @@ function layout(model, { ctx, width, renderOptions }, info = {}) {
     const distance = Math.hypot(last[0] - prev[0], last[1] - prev[1]);
     const [dx, dy] = last.map((v, i) => (v - prev[i]) / distance);
     if (av !== bv) points[points.length - 1] = [last[0] - dx * 7, last[1] - dy * 7];
-    const [x, y] = points.at(-1), stroke = tone(from.lane);
+    const [x, y] = points.at(-1), stroke = t[to.edgeStatuses[parentIndex]] || tone(from.lane);
     children.push(ctx.path(roundedRoute(points), { fill: 'none', stroke, 'stroke-width': 1.5, meta: { kind: 'edge', from: parent, to: to.seq } }));
     children.push(ctx.path(`M${x - dx * 6 - dy * 3} ${y - dy * 6 + dx * 3} L${x} ${y} L${x - dx * 6 + dy * 3} ${y - dy * 6 - dx * 3} Z`, { fill: stroke }));
   }
   for (const n of nodes) {
     const [x, y] = coords(times[slots[n.seq]], laneCenters[n.lane]);
-    const stroke = tone(n.lane), meta = { kind: 'node', id: n.seq };
+    const first = children.length;
+    const stroke = t[n.status] || tone(n.lane), meta = { kind: 'node', id: n.seq };
     const highlight = n.type === 'HIGHLIGHT';
     children.push(highlight ? ctx.rect(x - 6, y - 6, 12, 12, { rx: 2, fill: stroke, meta }) :
       ctx.circle(x, y, 6, { fill: t.surface, stroke, 'stroke-width': 2, meta }));
@@ -218,15 +243,16 @@ function layout(model, { ctx, width, renderOptions }, info = {}) {
     for (const lines of n.tags) {
       const h = lines.length * 16 + 6, tw = W(lines) + 12;
       const tx = vertical ? x - 16 - tw / 2 : x;
-      children.push(ctx.rect(tx - tw / 2, tagY - h, tw, h, { rx: t.smallRadius, fill: ctx.tint(t.surface, stroke, .12), stroke: t.grid }));
+      children.push(ctx.rect(tx - tw / 2, tagY - h, tw, h, { rx: t.smallRadius, fill: ctx.tint(t.surface, stroke, .12), stroke: t.line }));
       children.push(textBlock(ctx, { x: tx, y: tagY - h / 2, lines, font: FONT.label, lineHeight: 16 }));
       tagY -= h + 2;
     }
+    if (n.link) children.push(ctx.link(n.link.href, children.splice(first), n.link));
   }
   const errors = w > width * 2 || commits.length + branches.length > 60 ? [warning('LARGE_DIAGRAM', ctx.lang, info.headerLine || 1,
     'Git 历史较大', 'Large Git history', '考虑拆分图表', 'Consider splitting the diagram')] : [];
   return { width: w, height, scene: { width: w, height, children, title, heading: title }, errors };
 }
 
-const implementations = { gitGraph: { parse, layout, optionMode, honoredConfig } };
+const implementations = { gitGraph: { parse, layout, optionMode, honoredConfig, acceptsPresentation: true } };
 export { implementations };

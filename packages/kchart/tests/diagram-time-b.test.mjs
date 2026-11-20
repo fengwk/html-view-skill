@@ -123,3 +123,26 @@ test('quadrant lays out endpoint and clustered labels without collisions', () =>
   for (let i = 0; i < 6; i++) assert.ok(nodes.some(n => n.text?.startsWith(`Cluster ${i}`)));
   assert.ok(parse('quadrantChart', 'Outside: [1.2, 0.3]').errors.length);
 });
+
+// Quadrant-specific class geometry composes with direct overrides and shared safe links.
+test('quadrant class styles and local point styles compose', () => {
+  const { model, nodes } = render('quadrantChart', 'A:::special: [0.25, 0.25] radius:4\nB:::special: [0.75,0.75]\nclassDef special color:#ff3300,radius:9\nclick B https://example.org');
+  assert.deepEqual(model.points.map(p => [p.style.radius, p.style.color]), [[4, 'danger'], [9, 'danger']]);
+  assert.ok(nodes.some(n => n.tag === 'a' && n.attrs.href === 'https://example.org'));
+});
+
+// Links and icons use shared graph primitives, and labels are normalized before measuring.
+test('kanban resolves card icons, semantic class colors and ticket links', () => {
+  const body = 'todo[To do]\n  a[<b>Write &amp; test</b>]@{ ticket: AB-1 }::icon(tabler:check):::ok\n  b[Fallback]::icon(logos:missing-example)';
+  const { model, nodes, errors } = render('kanban', body, { config: { kanban: { ticketBaseUrl: 'https://example.org/#TICKET#' } } });
+  assert.deepEqual(model.columns[0].cards.map(c => [c.label, Boolean(c.icon), c.status]), [['Write & test', true, 'ok'], ['Fallback', false, null]]);
+  assert.ok(nodes.some(n => n.tag === 'a' && n.attrs.href === 'https://example.org/AB-1'));
+  assert.equal(errors.filter(e => e.code === 'IGNORED_ASSET').length, 1);
+});
+
+// A duplicated ordinary Git ID retains both commits, with the latest one addressable by name.
+test('Git preserves repeated ordinary IDs with one hint', () => {
+  const { model, errors } = render('gitGraph', 'commit id:"same"\ncommit id:"same"\ncommit id:"same"');
+  assert.deepEqual(model.commits.map(c => c.parents), [[], [0], [1]]);
+  assert.equal(errors.filter(e => e.code === 'DIAGRAM_HINT').length, 1);
+});

@@ -1,7 +1,7 @@
 import { error } from './support.js';
 
 const MAX_ITEMS = 80, MAX_LINES = 240, MAX_PACKET_BIT = 4095;
-const kinds = ['gitGraph', 'kanban', 'packet-beta', 'quadrantChart'];
+const kinds = [];
 const issue = (lang, line, text) => error(lang, line,
   `无法识别或处理语句「${String(text).slice(0, 36)}」`,
   `Unrecognized or invalid statement: ${String(text).slice(0, 36)}`,
