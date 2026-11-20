@@ -180,6 +180,18 @@
       }
     }
   },
+  "diagram/ishikawa": {
+    "diagrams": { "ishikawa": { "topic": "causality", "aliases": ["ishikawa-beta"] } }
+  },
+  "diagram/treeview": {
+    "diagrams": { "treeView-beta": { "topic": "hierarchy" } }
+  },
+  "diagram/venn": {
+    "diagrams": { "venn-beta": { "topic": "composition" } }
+  },
+  "diagram/cynefin": {
+    "diagrams": { "cynefin-beta": { "topic": "matrix" } }
+  },
   "diagram/time": {
     "diagrams": {
       "gantt": {
