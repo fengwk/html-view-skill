@@ -6,7 +6,7 @@ import { normalizeLabel } from './label.js';
 import { presentation } from './presentation.js';
 import { flowOutlineName } from './shapes.js';
 import { ignoredConfigWarning, prepareSource } from './source.js';
-import { DIRECTIONS, FONT, appearance, error, warning } from './support.js';
+import { DIRECTIONS, FONT, appearance, error, warning, wrapText } from './support.js';
 
 const SHAPES = new Map(Object.entries({ task: 'rounded', tool: 'subroutine', input: 'lean-r',
   decision: 'diamond', refdoc: 'lin-doc', action: 'hexagon', connector: 'rect',
@@ -16,6 +16,7 @@ const UNSAFE_KEYS = new Set(['__proto__', 'prototype', 'constructor']);
 const EDGE_KINDS = new Map([['solid:point', 'sequence'], ['dashed:none', 'reference'], ['solid:cross', 'failure']]);
 const LIMITS = { nodes: 60, edges: 90, frames: 12, depth: 4, connectors: 8, lines: 400, metadataKeys: 24, metadataString: 400 };
 const valueText = value => typeof value === 'string' ? value : JSON.stringify(value);
+const ICON_PLACEHOLDER = '\u25cc';
 
 // Preserve source lines and keep delimiters inside labels and YAML out of the flow grammar.
 function statements(source, firstLine) {
@@ -116,8 +117,9 @@ function parse(body, info) {
     else fail(line, `无效的方向 ${value}`, `Invalid direction ${value}`);
     return null;
   };
-  const normalized = (raw, line) => {
-    const result = normalizeLabel(valueText(raw), { lang, line });
+  const normalized = (raw, line, type) => {
+    const text = valueText(raw) ?? '';
+    const result = normalizeLabel(type === 'markdown' && !text.startsWith('`') ? `\`${text}\`` : text, { lang, line });
     for (const item of result.diagnostics) {
       const key = `${item.code}:${item.message}`;
       if (!warnings.has(key) || warnings.get(key).line > item.line) warnings.set(key, item);
@@ -240,7 +242,9 @@ function parse(body, info) {
     const data = frame.metadata ?? {};
     if (data.view === 'collapsed') frame.view = data.view;
     else if (data.view != null && data.view !== 'expanded') ignore('view', frame.metadataLine);
-    frame.title = normalized(data.label ?? frame.title, data.label == null ? frame.line : frame.metadataLine).text;
+    const label = normalized(data.label ?? frame.title, data.label == null ? frame.line : frame.metadataLine, data.labelType);
+    frame.title = label.text;
+    frame.icon = label.icon;
     frame.class = look.statusOf(frame.id);
     frame.link = look.linkOf(frame.id);
   }
@@ -258,7 +262,7 @@ function parse(body, info) {
     }
     node.global = global.has(node.id);
     if (node.global) node.parent = null;
-    const label = normalized(data.label ?? node.label, data.label == null ? node.labelLine ?? node.line : node.metadataLine);
+    const label = normalized(data.label ?? node.label, data.label == null ? node.labelLine ?? node.line : node.metadataLine, data.labelType);
     node.label = label.text;
     const icon = resolveIconRef(data.icon);
     if (data.icon != null && !icon) warn('IGNORED_ASSET', node.metadataLine, `未知图标 ${valueText(data.icon)}`, `Unknown icon ${valueText(data.icon)}`);
@@ -271,8 +275,8 @@ function parse(body, info) {
     applyMetadata(edge);
     edge.fromFrame = frames.has(edge.from);
     edge.toFrame = frames.has(edge.to);
-    if (edge.label != null) {
-      const label = normalized(edge.label, edge.line);
+    if (edge.label != null || edge.metadata?.label != null) {
+      const label = normalized(edge.metadata?.label ?? edge.label, edge.metadata?.label == null ? edge.line : edge.metadataLine, edge.metadata?.labelType);
       edge.label = label.text;
       edge.icon = label.icon;
     }
@@ -305,18 +309,24 @@ function layout(model, options, info) {
   const nodes = model.nodes.map(node => {
     const { params, returns } = node.metadata ?? {};
     const value = [params, returns].filter(value => value != null).map(valueText).join(' → ');
-    return value && options.measure(value, FONT.body) <= wrappingWidth ? { ...node, desc: [value] } : node;
+    const desc = value && options.measure(value, FONT.body) <= wrappingWidth ? [value] : undefined;
+    const label = wrap == null ? node.label : wrapText(node.label, wrappingWidth, FONT.title, options.measure).join('\n');
+    return { ...node, label, desc };
   });
   const subgraphs = model.subgraphs.map(frame => {
-    if (frame.view !== 'collapsed') return frame;
+    if (frame.view !== 'collapsed') return frame.icon && !frame.title ? { ...frame, title: ICON_PLACEHOLDER, iconOnly: true } : frame;
     const count = counts.get(frame.id) ?? 0;
     return { ...frame, desc: [en ? `${count} ${count === 1 ? 'node' : 'nodes'}` : `${count} 个节点`] };
   });
+  const edges = model.edges.map(edge => edge.icon && !edge.label ? { ...edge, label: ICON_PLACEHOLDER, iconOnly: true } : edge);
+  const edgeIcons = edges.some(edge => edge.icon), frameIcons = subgraphs.some(frame => frame.icon);
   const graphOptions = { ...options, measure: (value, font) => {
     const measured = options.measure(value, font);
-    return font === FONT.title ? Math.max(68, measured + 22) : measured;
+    if (font === FONT.title) return Math.max(68, measured + 22); // 96px minimum; room for an inline icon.
+    if ((edgeIcons && font === FONT.label) || (frameIcons && font.size === 13 && font.weight === 600)) return measured + 20;
+    return measured;
   } };
-  const result = layoutGraph({ ...model, nodes, subgraphs }, graphOptions);
+  const result = layoutGraph({ ...model, nodes, subgraphs, edges }, graphOptions);
   if (result.width > options.width * 2 || model.nodes.length > 60) (result.errors ??= []).push(warning('LARGE_DIAGRAM', info.lang,
     info.headerLine, '图较宽，可在框中滚动', 'Large diagram; scroll within the frame', '考虑拆成多个图', 'Consider splitting it'));
   return result;
@@ -329,8 +339,19 @@ function drawIcon(ctx, icon, x, y, color) {
       ...(icon.set === 'simple' ? { fill: color } : { fill: 'none', stroke: color, 'stroke-width': 1.6, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }) })));
 }
 
+function placeIcon(ctx, group, lines, item, color) {
+  const first = lines[0];
+  if (!first) return;
+  const a = first.attrs, centered = a['text-anchor'] === 'middle';
+  const x = Number(a.x), y = Number(a.y);
+  const half = centered ? ctx.measure(first.text, a['font-size'], a['font-weight']) / 2 : 0;
+  if (item.iconOnly) first.text = '';
+  else for (const line of lines) line.attrs.x = Number(line.attrs.x) + (centered ? 10 : 20);
+  group.children.push(drawIcon(ctx, item.icon, item.iconOnly ? x + (centered ? 0 : 8) : x + (centered ? -half - 2 : 8), y, color));
+}
+
 function tooltip(item) {
-  return [item.label ?? item.title, ...Object.entries(item.metadata ?? {}).map(([key, value]) =>
+  return [item.iconOnly ? null : item.label ?? item.title, ...Object.entries(item.metadata ?? {}).map(([key, value]) =>
     `${key}: ${valueText(value)}`)].filter(Boolean).join('\n');
 }
 
@@ -361,10 +382,13 @@ function scene(geometry, ctx, info) {
         : [ctx.path('M0 0 L8 4 L0 8 Z', { fill: color })]));
       path.attrs['marker-end'] = `url(#${id})`;
     }
+    if (edge.iconOnly) group.children[0].text = `${route.from} → ${route.to}`;
     if (edge.metadata) group.children[0].text += `\n${tooltip(edge)}`;
     if (route.labelRect && route.labelLines?.length) {
       const label = labelsLayer.children[labelIndex++];
-      if (failure || edge.status) for (const item of label.children) if (item.tag === 'text') item.attrs.fill = color;
+      const lines = label.children.filter(item => item.tag === 'text');
+      if (failure || edge.status) for (const item of lines) item.attrs.fill = color;
+      if (edge.icon) placeIcon(ctx, label, lines, edge, color);
     }
   }
   const decorateNode = group => {
@@ -379,12 +403,8 @@ function scene(geometry, ctx, info) {
     const outline = group.children.find(item => ['rect', 'polygon'].includes(item.tag));
     if (outline && !node.class) outline.attrs.stroke = ctx.tint(a.node, a.frameInk || a.fg3, .32);
     if (node.icon) {
-      const first = title[0];
-      if (first) {
-        title.forEach(item => { item.attrs.x = Number(item.attrs.x) + 10; });
-        const x = Number(first.attrs.x) - ctx.measure(first.text, 13, 400) / 2 - 12;
-        group.children.push(drawIcon(ctx, node.icon, x, Number(first.attrs.y), a.fg3));
-      } else group.children.push(drawIcon(ctx, node.icon, box.x + box.w / 2, box.y + box.h / 2, a.fg3));
+      if (title.length) placeIcon(ctx, group, title, node, a.fg3);
+      else group.children.push(drawIcon(ctx, node.icon, box.x + box.w / 2, box.y + box.h / 2, a.fg3));
     }
     return node.link ? ctx.link(node.link.href, [group], node.link) : group;
   };
@@ -400,7 +420,9 @@ function scene(geometry, ctx, info) {
   });
   const frameTitles = scene.children.find(item => item.meta?.kind === 'frame-titles');
   if (frameTitles.children) frameTitles.children = frameTitles.children.map(item => {
-    const link = frames.get(item.meta.id)?.link;
+    const frame = frames.get(item.meta.id);
+    if (frame?.icon) placeIcon(ctx, item, item.children.filter(part => part.meta?.kind === 'frame-title'), frame, a.fg3);
+    const link = frame?.link;
     return link ? ctx.link(link.href, [item], link) : item;
   });
   return scene;

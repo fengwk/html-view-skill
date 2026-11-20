@@ -127,6 +127,22 @@ test('agentflow shares roles, links, rich labels and asset warnings', () => {
   expect(checkScene(result.scene)).toEqual([]);
 });
 
+// Icon-only edge labels and icon-bearing frame titles reserve their geometry without placeholder text.
+test('agentflow keeps icons on frames and edges', () => {
+  const result = diagram(`agentflow-beta
+    flow group["fa:fa-home Tasks"]
+      A -->|fa:fa-home| B
+    end`, { width: 360, lang });
+  expect(result.diagnostics).toEqual([]);
+  const parts = [...walk(result.scene)];
+  for (const kind of ['frame-title-group', 'edge-label-group']) {
+    const group = parts.find(part => part.meta?.kind === kind);
+    expect(group.children.some(part => part.tag === 'g' && / scale\(/.test(part.attrs.transform))).toBe(true);
+  }
+  expect(result.svg).not.toContain('◌');
+  expect(checkScene(result.scene)).toEqual([]);
+});
+
 // ELK is a warning, not an alternate layout; both render byte-identically with a fixed prefix.
 test('agentflow warns on unsupported layout but uses the same route', () => {
   const options = { lang, prefix: 'agentflow-config' };
