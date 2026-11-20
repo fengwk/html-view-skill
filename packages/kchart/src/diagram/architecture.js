@@ -147,6 +147,23 @@ function place({ items, nodes, edges, aligns }, preferStraight = true) {
   if (ids.length > 60 && !edges.length && !aligns.length) {
     return { xy: [new Map(ids.map(id => [id, 0])), new Map(ids.map((id, index) => [id, index]))] };
   }
+  // Free-standing services impose no constraints. In a large flat map, give
+  // them their own rows below the connected area rather than shifting and
+  // re-solving one collision at a time. Keep grouped placement unchanged.
+  if (ids.length > 60 && ids.length === items.size) {
+    const pinned = new Set(edges.flatMap(({ from, to }) => [from, to]));
+    for (const { members } of aligns) for (const id of members) pinned.add(id);
+    const free = ids.filter(id => !pinned.has(id));
+    if (free.length) {
+      const active = new Map([...items].filter(([id]) => pinned.has(id)));
+      const placement = place({ items: active, nodes: nodes.filter(node => pinned.has(node.id)), edges, aligns }, preferStraight);
+      if (!placement.xy) return placement;
+      const [columns, rows] = placement.xy;
+      let row = Math.max(-1, ...rows.values()) + 1;
+      for (const id of free) { columns.set(id, 0); rows.set(id, row++); }
+      return placement;
+    }
+  }
   const constraints = [[], []], perpendicular = [[], []];
   const add = (axis, relation) => {
     const rules = constraints[axis];

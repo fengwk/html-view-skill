@@ -32,6 +32,7 @@ export const families = {
   pie: [[100, 300], n => `pie\n${rows(n, i => `  "Item ${i}" : 1`)}`],
   timeline: [[100, 300], n => `timeline\n${rows(n, i => `  ${1900 + i} : Event ${i}`)}`],
   architecture: [[100, 300], n => `architecture-beta\n${rows(n, i => `  service n${i}(server)[Server ${i}]`)}`],
+  'architecture-mixed': [[150, 300], n => `${families.architecture[1](n)}\nn0:R -- L:n1`],
   agentflow: [[70, 150, 300], n => `agentflow-beta TB\n  flow work["Work"]\n${rows(n, i => `    N${i}["Task ${i}"]`)}\n${chain(n, '-->')}\n  end`],
   xychart: [[9, 20, 24, 60], n => `xychart\n  x-axis [A, B]\n${rows(n, i => `  bar [${i + 1}, ${i + 2}]`)}`],
   radar: [[9, 20, 24, 60], n => `radar-beta\n  axis a[A], b[B], c[C]\n${rows(n, i => `  curve r${i}[R${i}]{1, 2, 3}`)}`],

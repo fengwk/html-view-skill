@@ -9,7 +9,7 @@ test.each([
   ['sequence', 40], ['sequence-messages', 220], ['er', 40], ['er-relations', 60],
   ['mindmap', 100], ['mindmap-depth', 7], ['sankey', 60], ['sankey-flows', 150],
   ['treemap', 100], ['treemap-depth', 7], ['c4', 300], ['swimlane', 8],
-  ['agentflow', 70], ['xychart', 9], ['architecture', 300],
+  ['agentflow', 70], ['xychart', 9], ['architecture', 300], ['architecture-mixed', 150],
 ])('%s renders cleanly at size %i with one advisory', (family, size) => {
   const source = families[family][1](size);
   const { diagnostics, scene, svg } = diagram(source, { syntax: 'mermaid', width: 800, lang: 'en' });
