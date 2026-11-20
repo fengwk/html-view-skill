@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'vitest';
+import corpus from './conformance/mermaid-12.3.0.json';
 import { diagram } from '../dist/esm/node.js';
 import { implementations } from '../src/diagram/usecase.js';
 import { checkScene } from './helpers/geometry.mjs';
@@ -53,7 +54,7 @@ test('flattens lexical JSON paths and resolves a note declared first', () => {
 
 // Actor variants, business markings and literal versus Markdown labels retain their distinct roles.
 test('renders variants and physical Markdown line breaks without shrinking text', () => {
-  const body = `actor Clerk@{ type: hollow, business: true } <<Employee>>\nactor Lead@{ type: awesome }\nactor Other@{ icon: "not-registered:user" }\nReport("\`**Refund**\n#40;partial#41;\`")@{ business: true }\nClerk --> Report\nLead --> Report\nOther --> Report`;
+  const body = `actor Clerk@{ type: hollow, business: true } <<Employee>>\nactor Lead@{ type: awesome }\nactor Other@{ icon: "not-registered:no-such-uml-icon" }\nReport("\`**Refund**\n#40;partial#41;\`")@{ business: true }\nClerk --> Report\nLead --> Report\nOther --> Report`;
   const parsed = parse(body.replace('**Refund**\n', 'Refund<br>'));
   assert.deepEqual(parsed.model.nodes.filter(n => n.kind === 'actor').map(n => n.variant), ['hollow', 'awesome', 'normal']);
   const result = render(body);
@@ -62,6 +63,35 @@ test('renders variants and physical Markdown line breaks without shrinking text'
   assert.match(result.svg, /Refund<\/text>/);
   assert.match(result.svg, /\(partial\)<\/text>/);
   assert.match(result.svg, /«Employee»/);
+});
+
+// Styling an explicit edge ID, safe links, built-in actor icons and configured text size reach the scene.
+test('applies shared presentation and bounds use-case font sizes', () => {
+  const source = `---\nconfig:\n  usecase:\n    actorFontSize: 16\n    usecaseFontSize: 8\n    diagramPadding: 28\n---\nusecase-beta\nactor Clerk@{ icon: "fa:user" }\nClerk opens@--> Checkout("Review &amp; pay"):::urgent\nclassDef urgent fill:#dc322f\nstyle opens stroke:#268bd2\nclick Checkout href "/orders"`;
+  const result = diagram(source, { width: 360, lang: 'en' });
+  assert.deepEqual(result.diagnostics.map(item => item.code), ['IGNORED_CONFIG']);
+  assert.deepEqual(checkScene(result.scene), []);
+  assert.match(result.svg, /data-kc-status="danger"/);
+  assert.match(result.svg, /data-kc-status="info"/);
+  assert.match(result.svg, /href="\/orders"/);
+  assert.match(result.svg, /font-size="16"[^>]*>Clerk/);
+  assert.match(result.svg, /font-size="12"[^>]*>Review &amp; pay/);
+});
+
+// When the shared router reroutes a long edge, its chip stays on the new horizontal run.
+test('reattaches the ordering use-case label to its repaired route', () => {
+  const { source } = corpus.find(row => row.id === 'usecase.md:538');
+  const { scene } = diagram(source, { width: 800 });
+  const walk = item => [item, ...(item.children ?? []).flatMap(walk)];
+  const elements = scene.children.flatMap(walk);
+  const path = elements.find(item => item.meta?.kind === 'edge' && item.meta.from === 'Customer' && item.meta.to === 'Checkout');
+  const chip = elements.find(item => item.meta?.kind === 'edge-label-group' && item.meta.from === 'Customer' && item.meta.to === 'Checkout').children[0].attrs;
+  const points = path.attrs.d.split(/[MC]/).filter(Boolean).map(command => command.trim().split(/\s+/).map(Number));
+  assert.ok(points.some((segment, i) => {
+    if (!i) return false;
+    const [x0, y0] = points[i - 1].slice(-2), [x1, y1] = segment.slice(-2);
+    return y0 === y1 && y0 === chip.y + chip.height / 2 && Math.min(x0, x1) <= chip.x && Math.max(x0, x1) >= chip.x + chip.width;
+  }));
 });
 
 // Invalid kind/shape pairings, nesting, and unresolved metadata still produce blocking diagnostics.

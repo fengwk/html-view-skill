@@ -43,6 +43,18 @@ test('preserves invisible layout links and quoted punctuation', () => {
   assert.doesNotMatch(result.svg, /data-kc-kind="edge"/);
 });
 
+// The Mermaid adapter retains the shared class cascade, numbered link style, normalized text and safe href.
+test('renders Mermaid presentation without changing native swimlanes', () => {
+  const result = diagram(`swimlane-beta LR\nsubgraph Work\nA["fa:fa-user Review &amp; approve"]:::attention --> B[Done]\nend\nclassDef attention fill:#e9b824\nlinkStyle 0 stroke:#268bd2\nclick A href "/review"`, { width: 360 });
+  assert.deepEqual(result.diagnostics, []);
+  assert.deepEqual(checkScene(result.scene), []);
+  assert.match(result.svg, /data-kc-status="warn"/);
+  assert.match(result.svg, /data-kc-status="info"/);
+  assert.match(result.svg, /href="\/review"/);
+  assert.match(result.svg, /Review &amp; approve/);
+  assert.doesNotMatch(result.svg, /fa:fa-user/);
+});
+
 // Reverse flow mirrors geometry, not the text; bold relations and accessibility survive serialization.
 test('renders reversed flow with shapes and accessible labels', () => {
   for (const direction of ['RL', 'BT']) {

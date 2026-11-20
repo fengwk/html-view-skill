@@ -1,44 +1,14 @@
-import { parseFlow } from './graph-parse.js';
-import { layout as laneLayout, scene as laneScene } from './swimlane.js';
-import { error, labelText, warning } from './support.js';
-
-// Keep the flow parser's line numbers while translating invisible Mermaid rank links.
-function flowRows(text, line, hiddenLabel) {
-  const rows = [];
-  let quote = '', pipe = false, depth = 0, current = '';
-  for (let i = 0; i < text.length; i++) {
-    const ch = text[i];
-    if (quote) {
-      if (ch === '\\' && text[i + 1] === quote) current += ch + text[++i];
-      else { if (ch === quote) quote = ''; current += ch; }
-      continue;
-    }
-    if (ch === '"' || ch === "'") quote = ch;
-    else if (ch === '|' && depth === 0) pipe = !pipe;
-    else if (!pipe) {
-      if ('[({'.includes(ch)) depth++;
-      else if ('])}'.includes(ch)) depth--;
-      else if (!depth && text.startsWith('~~~', i)) { current += `---|${hiddenLabel}|`; i += 2; continue; }
-      else if (!depth && text.startsWith('%%', i)) break;
-      else if (!depth && ch === ';') {
-        if (current.trim()) rows.push({ text: current.trim(), line });
-        current = '';
-        continue;
-      }
-    }
-    current += ch;
-  }
-  if (current.trim()) rows.push({ text: current.trim(), line });
-  return rows;
-}
+import { parseGraph } from './graph-parse.js';
+import { layout as laneLayout, scene } from './swimlane.js';
+import { error, warning } from './support.js';
 
 function parse(body, info) {
-  const { lang, firstLine, headerLine } = info;
-  const errors = [], statements = [];
+  const { lang, firstLine, headerLine = firstLine - 1 } = info;
+  const errors = [];
   const fix = ['检查泳道声明', 'Check the swimlane declaration'];
   const fail = (line, zh, en) => errors.push(error(lang, line, zh, en, ...fix));
   const hint = (line, zh, en) => errors.push(warning('DIAGRAM_HINT', lang, line, zh, en, ...fix));
-  let direction, accTitle = info.accTitle, accDescr = info.accDescr, description;
+  let direction;
   function setDirection(value, line) {
     let next = value.toUpperCase();
     if (next === 'TD') next = 'TB';
@@ -50,39 +20,21 @@ function parse(body, info) {
     else if (direction && direction !== next) fail(line, '泳道方向声明冲突', 'Conflicting swimlane directions');
     else direction = next;
   }
-  let hiddenLabel = 'KCInvisibleRankLink';
-  while (body.includes(hiddenLabel)) hiddenLabel += '_';
   const params = info.params.trim();
   if (params) setDirection(params, headerLine);
-  for (const [i, raw] of body.split('\n').entries()) {
-    const text = raw.trim(), line = firstLine + i;
-    if (description) {
-      const close = text.indexOf('}');
-      if (close < 0) description.push(text);
-      else { description.push(text.slice(0, close)); accDescr = description.join('\n').trim(); description = null; }
-      continue;
-    }
-    if (!text || text.startsWith('%%')) continue;
-    const dir = /^direction\s+(\S+)$/i.exec(text);
-    const acc = /^acc(Title|Descr)\s*:\s*(.*)$/i.exec(text);
-    const block = /^accDescr\s*\{([^}]*)(\})?$/i.exec(text);
-    if (dir) setDirection(dir[1], line);
-    else if (acc) {
-      if (acc[1].toLowerCase() === 'title') accTitle = acc[2];
-      else accDescr = acc[2];
-    } else if (block) {
-      if (block[2]) accDescr = block[1].trim();
-      else description = [block[1].trim()];
-    } else statements.push(...flowRows(text, line, hiddenLabel));
-  }
-  if (description) fail(firstLine, '描述缺少右花括号', 'Unclosed accessibility description');
-  const flow = parseFlow(statements);
+  const source = body.split('\n').map((row, index) => {
+    const dir = /^\s*direction\s+(\S+)\s*$/i.exec(row);
+    if (!dir) return row;
+    setDirection(dir[1], firstLine + index);
+    return '';
+  }).join('\n');
+  // The Mermaid family also shares flowchart tokenization, presentation and label normalization.
+  const flow = parseGraph(source, { ...info, kind: 'flowchart', syntax: 'mermaid', headerLine, header: `flowchart ${direction || 'TB'}` });
   errors.push(...flow.errors);
   const groups = new Map(flow.model.subgraphs.map(group => [group.id, group]));
   const lanes = flow.model.subgraphs.filter(group => group.parent == null)
-    .map(group => ({ id: group.id, name: labelText(group.title), line: group.line, nodes: [] }));
-  if (lanes.length > 6) fail(lanes[6].line, '最多 6 条泳道', 'At most 6 lanes');
-  const nested = flow.model.subgraphs.filter(group => group.parent != null).map(group => ({ ...group, title: labelText(group.title), nodes: [] }));
+    .map(group => ({ ...group, name: group.title, nodes: [] }));
+  const nested = flow.model.subgraphs.filter(group => group.parent != null).map(group => ({ ...group, nodes: [] }));
   const nestedById = new Map(nested.map(group => [group.id, group]));
   const byLane = new Map(lanes.map(lane => [lane.id, lane]));
   let unassigned;
@@ -109,29 +61,26 @@ function parse(body, info) {
       lane = unassigned;
     }
     lane.nodes.push(node.id);
-    return { ...node, lane: lane.id, label: labelText(node.label) };
+    return { ...node, lane: lane.id };
   });
+  if (lanes.length > 6) fail(lanes[6].line, '最多 6 条泳道', 'At most 6 lanes');
   const unsupported = nodes.filter(node => !['rect', 'round', 'stadium', 'circle', 'diamond'].includes(node.shape));
   if (unsupported.length) hint(unsupported[0].line, '其他节点形状按圆角矩形绘制', 'Other node shapes are drawn as rounded rectangles');
   if (nested.length) hint(nested[0].line, '嵌套子图在所属泳道内绘制', 'Nested subgraphs are drawn within their enclosing lane');
   const edges = [];
   for (const edge of flow.model.edges) {
     if (edge.fromFrame || edge.toFrame) fail(edge.line, '连线必须连接泳道节点', 'Edges must connect swimlane nodes');
-    else if (edge.label === hiddenLabel) edges.push({ ...edge, id: `e${edge.seq}`, label: '', style: 'invisible' });
-    else edges.push({ ...edge, id: `e${edge.seq}`, label: labelText(edge.label) });
+    else edges.push({ ...edge, id: `e${edge.seq}` });
   }
-  return { model: { mermaid: true, direction: ['LR', 'RL'].includes(direction) ? 'LR' : 'TB', reverse: ['RL', 'BT'].includes(direction), lanes, nodes, edges, nested, accTitle, accDescr }, errors };
+  return { model: { mermaid: true, direction: ['LR', 'RL'].includes(flow.model.direction) ? 'LR' : 'TB',
+    reverse: ['RL', 'BT'].includes(flow.model.direction), lanes, nodes, edges, nested }, errors };
 }
 
 function layout(model, options) {
   const geometry = laneLayout(model, options);
-  if (!geometry.errors.length && geometry.width > options.width * 2) geometry.errors.push(warning('LARGE_DIAGRAM', options.lang,
+  if (!geometry.errors.length && (geometry.width > options.width * 2 || model.nodes.length > 60)) geometry.errors.push(warning('LARGE_DIAGRAM', options.lang,
     model.lanes[0]?.line, '泳道图较宽，可拆成多张图', 'Wide swimlane diagram; consider splitting it'));
   return geometry;
 }
 
-function scene(geometry, ctx) {
-  return { ...laneScene(geometry, ctx), title: geometry.model.accTitle, description: geometry.model.accDescr };
-}
-
-export const implementations = { 'swimlane-beta': { optionMode: 'raw', parse, layout, scene } };
+export const implementations = { 'swimlane-beta': { optionMode: 'raw', acceptsPresentation: true, parse, layout, scene } };
