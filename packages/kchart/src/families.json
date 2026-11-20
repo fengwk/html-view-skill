@@ -248,21 +248,17 @@
       }
     }
   },
-  "diagram/time": {
-    "diagrams": {
-      "gitGraph": {
-        "topic": "time"
-      },
-      "kanban": {
-        "topic": "time"
-      },
-      "packet-beta": {
-        "topic": "time"
-      },
-      "quadrantChart": {
-        "topic": "time"
-      }
-    }
+  "diagram/gitgraph": {
+    "diagrams": { "gitGraph": { "topic": "time" } }
+  },
+  "diagram/kanban": {
+    "diagrams": { "kanban": { "topic": "time" } }
+  },
+  "diagram/packet": {
+    "diagrams": { "packet": { "topic": "time", "aliases": ["packet-beta"] } }
+  },
+  "diagram/quadrant": {
+    "diagrams": { "quadrantChart": { "topic": "time" } }
   },
   "diagram/class": {
     "diagrams": {
