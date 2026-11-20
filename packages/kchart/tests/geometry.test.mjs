@@ -130,8 +130,35 @@ test('frame borders vs. endpoint attachment and grazing', () => {
   ]);
   const member = box({ x: 50, y: 45, width: 10, height: 10 });
   expect(kinds(frame, member, edge('M10 50 H50', 'route', 'card'))).toEqual([]);
-  expect(kinds(frame, edge('M10 40 H90'))).toEqual([]);
+  expect(kinds(frame, edge('M10 40 H90'))).toEqual(['edge-hugs-frame']);
   expect(kinds(frame, edge('M10 55 H30 M50 55 H60'))).toEqual([]);
+});
+
+// An attached route can enter a frame normally, but must not run along its border first.
+test('frame border clearance', () => {
+  const frame = el('rect', { x: 40, y: 40, width: 30, height: 30 }, { kind: 'frame', id: 'namespace' });
+  expect(inspect(frame, edge('M39 30 V55 H50'))).toEqual([
+    { kind: 'edge-hugs-frame', elements: ['route', 'namespace'], coordinates: [[39, 40], [39, 55]] },
+  ]);
+  expect(kinds(frame, edge('M37 30 V55 H50'))).toEqual([]);
+  expect(kinds(frame, edge('M10 55 H50'))).toEqual([]);
+  expect(kinds(frame, edge('M39 30 L41 68'))).toEqual([]);
+});
+
+// Only source-confirmed joins of consecutive, aligned rows in one block count as a split word.
+test('source-confirmed split words', () => {
+  const a = text('registere', 15, 25), b = text('d', 15, 42);
+  const scan = (source, ...children) => checkScene({ width: 120, height: 100, children }, { source });
+  const block = (...rows) => el('g', {}, {}, rows);
+  expect(scan('registered', block(a, b))).toEqual([
+    { kind: 'split-word', elements: ['registere', 'd'], coordinates: [[15, 25], [15, 42]] },
+  ]);
+  expect(scan('registered', block(a), block(b))).toEqual([]);
+  expect(scan('registered', block(a, text('d', 16, 42)))).toEqual([]);
+  expect(scan('registered', block(a, text('d', 15, 65)))).toEqual([]);
+  expect(scan('registered', block(a, text('d', 15, 42, { 'font-weight': 600 })))).toEqual([]);
+  expect(scan('registered; registere d', block(a, b))).toEqual([]);
+  expect(scan('British popular psychology', block(text('British popular', 15, 25), text('psychology', 15, 42)))).toEqual([]);
 });
 
 // A package's empty tab corner is not frame interior, but entering below it is.
