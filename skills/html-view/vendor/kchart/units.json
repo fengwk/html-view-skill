@@ -345,7 +345,7 @@
       "diagram/graph-route",
       "diagram/shapes"
     ],
-    "bytes": 64463
+    "bytes": 68597
   },
   "diagram/graph-parse": {
     "file": "units/diagram/graph-parse.js",

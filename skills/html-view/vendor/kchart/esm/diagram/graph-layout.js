@@ -1260,6 +1260,7 @@ function layoutCore(model, { measure = fallbackMeasure, lang, ctx, renderOptions
 			const totalSpan = Math.max(0, ...height.values());
 			const onLongest = (up, item) => level.get(up) + 1 + height.get(item) >= totalSpan ? 0 : 1;
 			const primaryUp = /* @__PURE__ */ new Map();
+			const balancedIn = /* @__PURE__ */ new Map();
 			for (const r of ranksAsc) {
 				if (r === 0) continue;
 				for (const item of rankItems.get(r) || []) {
@@ -1286,6 +1287,12 @@ function layoutCore(model, { measure = fallbackMeasure, lang, ctx, renderOptions
 					const byStyle = scored.filter((s) => s.style === bestStyle);
 					const bestCrit = Math.min(...byStyle.map((s) => s.crit));
 					const pool = byStyle.filter((s) => s.crit === bestCrit);
+					if (pool.length >= 4 && pool.length % 2 === 0) {
+						const row = rankItems.get(r - 1) || [];
+						balancedIn.set(item, pool.map((s) => s.up).sort((a, b) => row.indexOf(a) - row.indexOf(b)));
+						primaryUp.set(item, null);
+						continue;
+					}
 					const xs = pool.map((s) => s.x).sort((a, b) => a - b);
 					const mid = xs.length % 2 ? xs[(xs.length - 1) / 2] : (xs[xs.length / 2 - 1] + xs[xs.length / 2]) / 2;
 					pool.sort((a, b) => Math.abs(a.x - mid) - Math.abs(b.x - mid) || a.seq - b.seq);
@@ -1296,6 +1303,8 @@ function layoutCore(model, { measure = fallbackMeasure, lang, ctx, renderOptions
 			for (const r of ranksAsc) (rankItems.get(r) || []).forEach((item, index) => orderIndex.set(item, index));
 			const pairs = [];
 			const hasChild = /* @__PURE__ */ new Set();
+			const siblingRank = /* @__PURE__ */ new Map();
+			const balanced = /* @__PURE__ */ new Map();
 			for (const r of ranksAsc) {
 				if (r === 0) continue;
 				const entries = (rankItems.get(r) || []).map((item) => {
@@ -1308,16 +1317,36 @@ function layoutCore(model, { measure = fallbackMeasure, lang, ctx, renderOptions
 						crit: up ? onLongest(up, item) : 1
 					};
 				});
-				entries.sort((a, b) => a.crit - b.crit || a.style - b.style || anchorX(a.up || a.item) - anchorX(b.up || b.item) || a.item.seq - b.item.seq);
+				const siblings = /* @__PURE__ */ new Map();
+				for (const entry of entries) {
+					if (!entry.up) continue;
+					if (!siblings.has(entry.up)) siblings.set(entry.up, []);
+					siblings.get(entry.up).push(entry);
+				}
+				for (const [up, list] of siblings) {
+					const crit = Math.min(...list.map((entry) => entry.crit));
+					const style = Math.min(...list.filter((entry) => entry.crit === crit).map((entry) => entry.style));
+					const equal = list.filter((entry) => entry.crit === crit && entry.style === style).sort((a, b) => orderIndex.get(a.item) - orderIndex.get(b.item));
+					if (equal.length >= 4 && equal.length % 2 === 0) {
+						balanced.set(up, equal.map((entry) => entry.item));
+						continue;
+					}
+					const middle = (equal.length - 1) / 2;
+					equal.forEach((entry, index) => siblingRank.set(entry.item, Math.abs(index - middle)));
+				}
+				entries.sort((a, b) => a.crit - b.crit || a.style - b.style || anchorX(a.up || a.item) - anchorX(b.up || b.item) || (siblingRank.get(a.item) ?? 0) - (siblingRank.get(b.item) ?? 0) || a.item.seq - b.item.seq);
 				for (const entry of entries) {
 					const { item, up } = entry;
-					if (!up || hasChild.has(up)) continue;
+					if (!up || hasChild.has(up) || balanced.has(up)) continue;
 					const ui = orderIndex.get(up);
 					const vi = orderIndex.get(item);
 					let crossing = false;
-					for (const [pu, pv] of pairs) if ((orderIndex.get(pu) - ui) * (orderIndex.get(pv) - vi) < 0) {
-						crossing = true;
-						break;
+					for (const [pu, pv] of pairs) {
+						if (pv.rank !== item.rank) continue;
+						if ((orderIndex.get(pu) - ui) * (orderIndex.get(pv) - vi) < 0) {
+							crossing = true;
+							break;
+						}
 					}
 					if (crossing) continue;
 					pairs.push([up, item]);
@@ -1498,6 +1527,28 @@ function layoutCore(model, { measure = fallbackMeasure, lang, ctx, renderOptions
 			}
 			for (const [block, s] of spans) {
 				const x = Math.max(s.min, Math.min(s.max, pos.get(block)));
+				for (const item of block.items) item.centerX = x - (item.offsetCross || 0);
+			}
+			for (const r of ranksAsc) for (const parent of rankItems.get(r) || []) {
+				const children = balanced.get(parent) || balancedIn.get(parent);
+				const block = children && blockOf.get(parent);
+				if (!block || !spans.has(block)) continue;
+				const half = children.length / 2;
+				const target = (anchorX(children[half - 1]) + anchorX(children[half])) / 2;
+				const s = spans.get(block);
+				let min = s.min;
+				let max = s.max;
+				for (const item of block.items) {
+					const { group, index } = segmentEntry.get(item) || {};
+					if (!group) continue;
+					const prev = group.items.slice(0, index).reverse().find((other) => !block.items.includes(other));
+					const next = group.items.slice(index + 1).find((other) => !block.items.includes(other));
+					const offset = item.offsetCross || 0;
+					if (prev) min = Math.max(min, prev.centerX + prev.bw / 2 + hgap(prev, item) + item.bw / 2 + offset);
+					if (next) max = Math.min(max, next.centerX - next.bw / 2 - hgap(item, next) - item.bw / 2 + offset);
+				}
+				if (min > max + .01) continue;
+				const x = Math.max(min, Math.min(max, target));
 				for (const item of block.items) item.centerX = x - (item.offsetCross || 0);
 			}
 		}
@@ -1827,8 +1878,8 @@ function layoutCore(model, { measure = fallbackMeasure, lang, ctx, renderOptions
 			if (top.length <= capacity) continue;
 			const cx = rect.x + rect.w / 2;
 			top.sort((a, b) => Math.abs(adjacentX(a, "tgt") - cx) - Math.abs(adjacentX(b, "tgt") - cx) || a.seq - b.seq);
-			top.slice(capacity).forEach((route, index) => {
-				route.tgtEnd.side = index % 2 === 0 ? "left" : "right";
+			top.slice(capacity).forEach((route) => {
+				route.tgtEnd.side = adjacentX(route, "tgt") < cx ? "left" : "right";
 				route.tgtEnd.hardCross = 0;
 				route.tgtEnd.pref = 0;
 			});
@@ -2001,6 +2052,76 @@ function layoutCore(model, { measure = fallbackMeasure, lang, ctx, renderOptions
 					item.pos = fit(start + order * step);
 				});
 			}
+			if (!flowSide && n > 1) {
+				const sideX = side === "left" ? rect.x : rect.x + rect.w;
+				const laneOf = (item) => {
+					const { route, end, loop } = item.request;
+					if (loop || !route || route.kind !== "forward") return null;
+					return Math.abs((end === route.srcEnd ? adjacentX(route, "src") : adjacentX(route, "tgt")) - sideX);
+				};
+				for (const dir of [-1, 1]) {
+					const group = items.filter((item) => item.fixed == null && heading(item) === dir && laneOf(item) != null);
+					if (group.length < 2) continue;
+					const slots = group.map((item) => item.pos).sort((a, b) => (a - b) * dir);
+					group.sort((a, b) => laneOf(b) - laneOf(a) || a.request.seq - b.request.seq).forEach((item, index) => {
+						item.pos = slots[index];
+					});
+				}
+			}
+			if (flowSide && n > 1 && items.some((a) => items.some((b) => a.want < b.want - .5 && a.pos > b.pos + .01))) {
+				const order = items.slice().sort((a, b) => a.want - b.want || a.request.seq - b.request.seq || (a.request.order ?? 0) - (b.request.order ?? 0));
+				const runs = [];
+				let run = [];
+				let lo = min;
+				for (const item of order) {
+					if (item.fixed == null) {
+						run.push(item);
+						continue;
+					}
+					runs.push({
+						items: run,
+						lo,
+						hi: item.pos - gap
+					});
+					run = [];
+					lo = item.pos + gap;
+				}
+				runs.push({
+					items: run,
+					lo,
+					hi: max
+				});
+				if (runs.some((part) => part.items.length && part.lo + (part.items.length - 1) * gap > part.hi + .01)) {
+					const packedHalf = Math.min(half, gap * (n - 1) / 2);
+					order.forEach((item, index) => {
+						item.pos = center - packedHalf + 2 * packedHalf * index / (n - 1);
+					});
+				} else for (const part of runs) {
+					const count = part.items.length;
+					if (!count) continue;
+					const pools = [];
+					part.items.forEach((item, index) => {
+						pools.push({
+							sum: item.want - index * gap,
+							count: 1
+						});
+						while (pools.length > 1) {
+							const last = pools[pools.length - 1];
+							const prev = pools[pools.length - 2];
+							if (prev.sum / prev.count <= last.sum / last.count) break;
+							pools.pop();
+							prev.sum += last.sum;
+							prev.count += last.count;
+						}
+					});
+					const top = part.hi - (count - 1) * gap;
+					let index = 0;
+					for (const pool of pools) {
+						const base = Math.max(part.lo, Math.min(top, pool.sum / pool.count));
+						for (let k = 0; k < pool.count; k += 1, index += 1) part.items[index].pos = base + index * gap;
+					}
+				}
+			}
 			for (const item of items) {
 				item.request.pos = item.pos;
 				if (item.request.end) {
@@ -2024,6 +2145,7 @@ function layoutCore(model, { measure = fallbackMeasure, lang, ctx, renderOptions
 			for (const other of slot.items) {
 				if (other === slot.item || other.pos == null) continue;
 				if (Math.abs(other.pos - value) < slot.gap - .01) return false;
+				if (other.want < slot.item.want - .5 && other.pos > value || other.want > slot.item.want + .5 && other.pos < value) return false;
 			}
 			slot.item.pos = value;
 			end.pos = value;
@@ -2162,6 +2284,20 @@ function layoutCore(model, { measure = fallbackMeasure, lang, ctx, renderOptions
 					const vertexX = a - sign * SIDE_STUB;
 					if (!outward && (b - vertexX) * sign >= 3.99) route.lanes[0] = b;
 				}
+				if (route.kind === "forward" && route.lanes.length >= 2 && isFlowSide(route.srcEnd.side) && !isFlowSide(route.tgtEnd.side) && !route.tgtEnd.isFrame) {
+					const last = route.lanes.length - 1;
+					const a = route.lanes[last - 1];
+					const b = route.lanes[last];
+					const outward = route.tgtEnd.side === "right" ? a > b : a < b;
+					const lo = Math.min(a, b);
+					const hi = Math.max(a, b);
+					const blocked = allItems.some((item) => {
+						if (item === route.tgtEnd.item || item.rank !== route.tgtEnd.item.rank) return false;
+						const rect = tbRectOf(item);
+						return rect.x < hi + 8 && rect.x + rect.w > lo - 8;
+					});
+					if (outward && !blocked) route.lanes[last] = a;
+				}
 				if (route.kind === "back") {
 					for (const index of [0, route.lanes.length - 1]) if (Math.abs(route.lanes[index] - route.channelX) < PORT_GAP) route.lanes[index] = route.channelX;
 				}
@@ -2236,8 +2372,85 @@ function layoutCore(model, { measure = fallbackMeasure, lang, ctx, renderOptions
 					tgtTrack = trackAt(tgtGap, route, 1);
 				}
 				route.tracks = [srcTrack, tgtTrack];
+				if (srcGap === tgtGap && srcTrack && tgtTrack) srcTrack.after = tgtTrack;
 			}
 		}
+		const trackShape = (track) => {
+			const { route, index } = track;
+			const lanes = route.lanes;
+			if (route.kind === "forward") return {
+				up: lanes[index],
+				down: lanes[index + 1]
+			};
+			return index === 0 ? {
+				up: lanes[1],
+				down: lanes[0]
+			} : {
+				up: lanes[2],
+				down: lanes[1]
+			};
+		};
+		const orderTracks = (list) => {
+			const n = list.length;
+			if (n < 2) return;
+			const shapes = list.map((track) => {
+				const { up, down } = trackShape(track);
+				return {
+					up,
+					down,
+					lo: Math.min(up, down),
+					hi: Math.max(up, down)
+				};
+			});
+			const inside = (x, shape) => x > shape.lo + .5 && x < shape.hi - .5;
+			const cost = shapes.map((a) => shapes.map((b) => a === b ? 0 : Number(inside(b.up, a)) + Number(inside(a.down, b))));
+			const position = new Map(list.map((track, index) => [track, index]));
+			const must = list.map((track) => track.after && position.has(track.after) ? position.get(track.after) : -1);
+			const total = (order) => order.reduce((sum, a, i) => sum + order.slice(i + 1).reduce((acc, b) => acc + cost[a][b], 0), 0);
+			const identity = list.map((_, index) => index);
+			if (total(identity) === 0) return;
+			let order;
+			if (n <= 12) {
+				const full = (1 << n) - 1;
+				const best = new Float64Array(1 << n).fill(Infinity);
+				best[full] = 0;
+				const placeable = (set, t) => !(set & 1 << t) && (must[t] < 0 || set & 1 << must[t]);
+				const added = (set, t) => {
+					let sum = 0;
+					for (let s = 0; s < n; s += 1) if (set & 1 << s) sum += cost[s][t];
+					return sum;
+				};
+				for (let set = full - 1; set >= 0; set -= 1) for (let t = 0; t < n; t += 1) {
+					if (!placeable(set, t)) continue;
+					best[set] = Math.min(best[set], added(set, t) + best[set | 1 << t]);
+				}
+				order = [];
+				for (let set = 0; set !== full;) {
+					let next = -1;
+					for (let t = 0; t < n && next < 0; t += 1) if (placeable(set, t) && added(set, t) + best[set | 1 << t] === best[set]) next = t;
+					if (next < 0) return;
+					order.push(next);
+					set |= 1 << next;
+				}
+			} else {
+				order = identity.slice();
+				for (let pass = 0, swapped = true; swapped && pass < n; pass += 1) {
+					swapped = false;
+					for (let i = 0; i + 1 < order.length; i += 1) {
+						const a = order[i];
+						const b = order[i + 1];
+						if (must[b] === a || cost[b][a] >= cost[a][b]) continue;
+						order[i] = b;
+						order[i + 1] = a;
+						swapped = true;
+					}
+				}
+			}
+			if (total(order) >= total(identity)) return;
+			const sorted = order.map((index) => list[index]);
+			list.splice(0, n, ...sorted);
+		};
+		for (const list of gapTracks.values()) orderTracks(list);
 		const lineSeg = (a, b) => ({
 			p0: a,
 			p1: b,
@@ -2847,7 +3060,7 @@ function layoutCore(model, { measure = fallbackMeasure, lang, ctx, renderOptions
 		for (const [gap, list] of ortho.gapTracks) {
 			const window = trackWindow(gap);
 			gapWindow.set(gap, window);
-			const step = Math.max(12, Math.min(16, (window.hi - window.lo - 16) / Math.max(1, list.length - 1)));
+			const step = Math.max(12, Math.min(16, (window.hi - window.lo - 32) / Math.max(1, list.length - 1)));
 			const span = (list.length - 1) * step;
 			const start = window.lo + Math.max(16, (window.hi - window.lo - span) / 2);
 			list.forEach((track, index) => {
