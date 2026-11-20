@@ -1,7 +1,7 @@
 /* Mermaid journey diagrams: scored tasks grouped into themed section bands, drawn as a compact row model. */
 
 import { resolveIconRef } from '../core/icons.js';
-import { FONT, appearance as appearanceOf, error, warning } from './support.js';
+import { FONT, appearance as appearanceOf, error, isEn, warning } from './support.js';
 import { normalizeLabel } from './label.js';
 import { presentation } from './presentation.js';
 
@@ -16,7 +16,7 @@ const configKey = value => String(value).toLowerCase().replace(/[-_]/g, '');
 const FACE_R = 9;
 const ICON_SIZE = 14;
 const ICON_GAP = 4;
-const SCALE = { segments: 5, width: 4, gap: 2, height: 3, total: 5 * 4 + 4 * 2 };
+const MAX_SCORE = 5;
 const LAYOUT = { labelX: 12, labelPad: 12, plotGap: 6, right: 16, band: 10, bottom: 16, row: 48, chipR: 4, chipGap: 6 };
 LAYOUT.chip = LAYOUT.chipR * 2 + LAYOUT.chipGap;
 
@@ -220,6 +220,7 @@ function layout(model, options = {}) {
   const config = model.config || {};
   const bodyFont = { size: config.taskFontSize || FONT.body.size, weight: FONT.body.weight };
   const labelFont = { size: FONT.label.size, weight: FONT.label.weight };
+  const scoreCaption = isEn(ctx.lang) ? 'Score' : '评分';
   const titleSize = config.titleFontSize || FONT.title.size;
   const maxLabelWidth = config.maxLabelWidth || 360;
   const { tasks, actors } = model, groups = model.sections.filter(g => g.name || g.icon || g.tasks.length);
@@ -244,10 +245,10 @@ function layout(model, options = {}) {
   const sectionFont = font(FONT.body.size, 600);
   const sectionWidth = Math.max(0, ...groups.flatMap(group => group.name.split('\n').map((line, index) => widthOf(line, sectionFont) + (index === 0 ? iconSlot(group.icon) : 0))));
   const pitch = bodyFont.size + 5;
-  const left = Math.max(config.leftMargin || 0, LAYOUT.labelX + Math.max(labelWidth, sectionWidth) + LAYOUT.labelPad + FACE_R + LAYOUT.plotGap);
+  const left = Math.max(config.leftMargin || 0, LAYOUT.labelX + Math.max(labelWidth, sectionWidth, widthOf(scoreCaption, labelFont)) + LAYOUT.labelPad + FACE_R + LAYOUT.plotGap);
   // A five-stop scale needs room for a legible step; the scene widens (the host scrolls) instead of shrinking text.
   const plotW = Math.max(140, width - left - LAYOUT.right);
-  const x0 = left, x1 = left + plotW, step = plotW / 4;
+  const x0 = left, x1 = left + plotW, step = plotW / (MAX_SCORE - 1);
   const sceneWidth = Math.ceil(Math.max(width, x1 + LAYOUT.right));
 
   // 2. Top band: optional in-scene title, the actor legend, then the numbered 1–5 scale.
@@ -284,7 +285,8 @@ function layout(model, options = {}) {
   }
   if (legendRows.length) cursor += 10;
   const scaleY = cursor + 8;
-  for (let score = 1; score <= SCALE.segments; score += 1) {
+  children.push(ctx.text(LAYOUT.labelX, scaleY, scoreCaption, { ...labelFont, fill: muted, 'dominant-baseline': 'middle' }));
+  for (let score = 1; score <= MAX_SCORE; score += 1) {
     children.push(ctx.text(x0 + (score - 1) * step, scaleY, String(score), { ...labelFont, fill: muted, anchor: 'middle', 'dominant-baseline': 'middle' }));
   }
   cursor = scaleY + 14;
@@ -317,7 +319,7 @@ function layout(model, options = {}) {
     }));
   }
 
-  // 4. Rows: name and chips in the label column, a row rule, and the score face with its inline scale.
+  // 4. Rows: name and chips in the label column, a row rule, and the face at its score position.
   for (const band of bands) {
     band.sectionLines.forEach((line, i) => {
       const iconSlotWidth = i === 0 ? iconSlot(band.group.icon) : 0;
@@ -340,24 +342,17 @@ function layout(model, options = {}) {
         });
       }
       children.push(ctx.line(x0, mid, x1, mid, { stroke: grid, 'stroke-width': 1 }));
-      const score = Math.min(SCALE.segments, Math.max(1, task.score));
-      const faceX = x0 + (score - 1) * step;
+      const faceX = x0 + (task.score - 1) * step;
       const taskTone = task.status ? ctx.design[task.status] : accent;
       const face = ctx.circle(faceX, mid, FACE_R, { fill: ctx.tint(paper, taskTone, .06), stroke: taskTone, 'stroke-width': 1.4,
+        role: 'img', 'aria-label': `${task.name}: ${scoreCaption} ${task.score}/${MAX_SCORE}`,
         meta: { kind: 'node', id: task.id, ...(task.status ? { status: task.status } : {}) } });
       children.push(...linked(task.link, [face]));
       for (const eye of [-3, 3]) children.push(ctx.circle(faceX + eye, mid - 2.5, 1.2, { fill: muted }));
-      // The face only has three expressions, so a five-segment readout under it carries the exact score.
       const mouth = task.score > 3 ? `M${faceX - 4} ${mid + 2} Q${faceX} ${mid + 7} ${faceX + 4} ${mid + 2}`
         : task.score < 3 ? `M${faceX - 4} ${mid + 5.5} Q${faceX} ${mid + .5} ${faceX + 4} ${mid + 5.5}`
           : `M${faceX - 4} ${mid + 3.5} L${faceX + 4} ${mid + 3.5}`;
       children.push(ctx.path(mouth, { fill: 'none', stroke: accent, 'stroke-width': 1.4, 'stroke-linecap': 'round' }));
-      const scaleX = Math.min(Math.max(faceX - SCALE.total / 2, x0), x1 - SCALE.total);
-      const filled = Math.min(SCALE.segments, Math.max(1, Math.round(task.score)));
-      for (let k = 0; k < SCALE.segments; k += 1) {
-        children.push(ctx.rect(scaleX + k * (SCALE.width + SCALE.gap), mid + 12, SCALE.width, SCALE.height,
-          { rx: 1.5, fill: k < filled ? accent : grid, 'fill-opacity': k < filled ? .85 : .45 }));
-      }
     }
   }
 

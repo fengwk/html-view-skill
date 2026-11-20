@@ -219,6 +219,25 @@ test('Journey shows scores and a shared actor legend with per-task chips', () =>
   assert.equal(scene.children.filter(n => n.meta?.kind === 'frame').length, 2);
 });
 
+// Label the scale in the inferred language and expose fractional scores without a redundant strip of marks.
+test('Journey captions its scale and names each face with its exact score', () => {
+  for (const [name, caption] of [['Task', 'Score'], ['体验任务', '评分']]) {
+    for (const width of [800, 360]) {
+      const source = `journey\n${name}: 3.5`;
+      const opts = { width, lang: undefined };
+      const scene = sceneOf(source, opts);
+      const labels = texts(scene), axis = labels.find(n => n.text === caption);
+      assert.deepEqual(labels.filter(n => n.attrs.y === axis.attrs.y).map(n => n.text), [caption, '1', '2', '3', '4', '5']);
+      const face = scene.children.find(n => n.meta?.kind === 'node');
+      const midpoint = (labels.find(n => n.text === '3').attrs.x + labels.find(n => n.text === '4').attrs.x) / 2;
+      assert.ok(Math.abs(face.attrs.cx - midpoint) < 1e-6);
+      assert.equal(face.attrs['aria-label'], `${name}: ${caption} 3.5/5`);
+      assert.ok(api.diagram(source, { ...options, ...opts }).svg.includes(`aria-label="${name}: ${caption} 3.5/5"`));
+      assert.ok(!scene.children.some(n => n.tag === 'rect'));
+    }
+  }
+});
+
 // Reject out-of-range scores by line, warn once for decimals, and retain all rows in a narrow long journey.
 test('Journey validates scores and scrolls rather than dropping long rows', () => {
   assert.deepEqual(api.check('journey\nZero: 0\nNine: 9', options).map(d => [d.line, d.severity]), [[2, 'error'], [3, 'error']]);
