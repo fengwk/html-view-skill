@@ -102,8 +102,7 @@ function parseFlowNodeToken(text, start) {
     const ch = text[i];
     if (/\s/.test(ch)) break;
     if ('[](){}|&;:<>@'.includes(ch)) break;
-    if (ch === '-' && (text[i + 1] === '-' || text[i + 1] === '.')) break;
-    if (ch === '=' && text[i + 1] === '=') break;
+    if (/^(?:--|==|-\.|~~~)/.test(text.slice(i)) || (i > idStart && /^[ox](?:--|==|-\.)/.test(text.slice(i)))) break;
     i += 1;
   }
   const id = text.slice(idStart, i);
@@ -166,91 +165,53 @@ function parseFlowGroup(text, start) {
   return tokens.length ? { tokens, end: i } : null;
 }
 
+const marks = { '<': 'point', '>': 'point', o: 'circle', x: 'cross' };
+const linkToken = /^([<ox]?)(-{2,}|={2,}|-?\.+-|~{3,})([>ox]?)/;
+const labelToken = /"(?:\\.|[^"\\])*"|[^|]*/y;
+
 function parseOperator(text, start) {
-  const s = text.slice(start);
-  let m = /^<(-{2,}|={2,}|-\.-+)>(?:\|([^|]*)\|)?/.exec(s);
-  if (m) {
-    const body = m[1];
-    const style = body[0] === '=' ? 'bold' : body.includes('.') ? 'dashed' : 'solid';
-    const extra = style === 'dashed' ? 0 : Math.max(0, body.length - 2);
-    return {
-      style,
-      startArrow: true,
-      endArrow: true,
-      extra,
-      label: m[2] === undefined ? null : normalizeLabel(stripQuotes(m[2])),
-      end: start + m[0].length,
-    };
+  const identifier = /^[^\s"\[\](){}|@]+@(?=[<xo.\-=~])/.exec(text.slice(start));
+  const id = identifier?.[0].slice(0, -1) ?? null;
+  const offset = start + (identifier?.[0].length ?? 0);
+  const s = text.slice(offset);
+  const match = linkToken.exec(s);
+  const opener = /^([<ox]?)(--|==|-\.)(?![-=.>])/.exec(s);
+  if (!match && !opener) return null;
+  let [, prefix, body, suffix = ''] = match || opener;
+  let rawLabel = null, end = offset + (match || opener)[0].length;
+  const style = body[0] === '~' ? 'invisible' : body.includes('.') ? 'dashed' : body[0] === '=' ? 'bold' : 'solid';
+  if (opener && !s.slice(opener[0].length).trimStart().startsWith('|') && (!suffix || /[ox]/.test(suffix))) {
+    const tail = s.slice(opener[0].length);
+    const closing = style === 'dashed' ? /\.+-[>ox]?/ : style === 'bold' ? /={2,}[>ox]?/ : /-{2,}[>ox]?/;
+    const label = /^\s*("(?:\\.|[^"\\])*"|[^"[\]{}|]+?)(?=\s*(?:--|==|\.+-))/.exec(tail);
+    const close = label && new RegExp(`^\\s*(${closing.source})`).exec(tail.slice(label[0].length));
+    if (close && label[1].trim()) {
+      rawLabel = label[1];
+      prefix = opener[1];
+      [, , body, suffix] = linkToken.exec(close[1]);
+      if (prefix && marks[prefix] !== marks[suffix]) return null;
+      end = offset + opener[0].length + label[0].length + close[0].length;
+    }
   }
-  m = /^(-{2,})\s+([\s\S]+?)\s+(-{2,}>|-{2,}[ox]?)\s*/.exec(s);
-  if (m) {
-    const close = m[3];
-    return {
-      style: 'solid',
-      startArrow: false,
-      endArrow: /[>ox]$/.test(close),
-      extra: Math.max(0, (close.match(/-+/)?.[0].length || 2) - 2),
-      label: normalizeLabel(stripQuotes(m[2])),
-      end: start + m[0].length,
-    };
+  if (!match && rawLabel == null) return null;
+  const pipeStart = end + (/^\s*/.exec(text.slice(end))[0].length);
+  if (text[pipeStart] === '|' && rawLabel == null) {
+    labelToken.lastIndex = pipeStart + 1;
+    const label = labelToken.exec(text);
+    if (text[labelToken.lastIndex] !== '|') return null;
+    rawLabel = label[0];
+    end = labelToken.lastIndex + 1;
   }
-  m = /^(-\.)\s+([\s\S]+?)\s+(\.->|\.-)\s*/.exec(s);
-  if (m) {
-    return {
-      style: 'dashed',
-      startArrow: false,
-      endArrow: m[3] === '.->',
-      extra: 0,
-      label: normalizeLabel(stripQuotes(m[2])),
-      end: start + m[0].length,
-    };
-  }
-  m = /^(==)\s+([\s\S]+?)\s+(={2,}>|={2,})\s*/.exec(s);
-  if (m) {
-    const close = m[3];
-    return {
-      style: 'bold',
-      startArrow: false,
-      endArrow: close.endsWith('>'),
-      extra: Math.max(0, (close.match(/=+/)?.[0].length || 2) - 2),
-      label: normalizeLabel(stripQuotes(m[2])),
-      end: start + m[0].length,
-    };
-  }
-  m = /^(-{2,})([>ox])?(?:\|([^|]*)\|)?/.exec(s);
-  if (m) {
-    return {
-      style: 'solid',
-      startArrow: false,
-      endArrow: Boolean(m[2]),
-      extra: Math.max(0, m[1].length - 2),
-      label: m[3] === undefined ? null : normalizeLabel(stripQuotes(m[3])),
-      end: start + m[0].length,
-    };
-  }
-  m = /^(-\.)(->|-)(?:\|([^|]*)\|)?/.exec(s);
-  if (m) {
-    return {
-      style: 'dashed',
-      startArrow: false,
-      endArrow: m[2] === '->',
-      extra: 0,
-      label: m[3] === undefined ? null : normalizeLabel(stripQuotes(m[3])),
-      end: start + m[0].length,
-    };
-  }
-  m = /^(={2,})(>)?(?:\|([^|]*)\|)?/.exec(s);
-  if (m) {
-    return {
-      style: 'bold',
-      startArrow: false,
-      endArrow: Boolean(m[2]),
-      extra: Math.max(0, m[1].length - 2),
-      label: m[3] === undefined ? null : normalizeLabel(stripQuotes(m[3])),
-      end: start + m[0].length,
-    };
-  }
-  return null;
+  const endMark = style === 'invisible' ? 'none' : marks[suffix] || 'none';
+  const startMark = marks[prefix] === endMark ? endMark : 'none';
+  const len = style === 'dashed' ? body.split('.').length - 1
+    : body.length - 1 - (endMark === 'none' ? 1 : 0) + (prefix && startMark === 'none' ? 1 : 0);
+  return {
+    id, style, startMark, endMark,
+    startArrow: startMark !== 'none', endArrow: endMark !== 'none',
+    extra: Math.max(0, Math.min(10, len) - 1),
+    label: rawLabel == null ? null : normalizeLabel(stripQuotes(rawLabel)), end,
+  };
 }
 
 function parseSubgraphDecl(rest) {
@@ -356,11 +317,12 @@ function parseFlowchartBody(statements, errors, direction = 'TB', lang) {
     return { id: node.id, node };
   };
 
-  const addEdge = (from, to, op, line) => {
-    if (from.id === to.id && !from.frame && !to.frame && !op.selfAllowed) {
-      // 自环合法，保留
-    }
+  const edgeIds = new Map();
+  const edgeMetadata = [];
+  const addEdge = (from, to, op, line, requestedId) => {
+    const id = requestedId && !edgeIds.has(requestedId) ? requestedId : null;
     const edge = {
+      id,
       seq: edgeSeq++,
       from: from.id,
       to: to.id,
@@ -370,9 +332,12 @@ function parseFlowchartBody(statements, errors, direction = 'TB', lang) {
       style: op.style,
       startArrow: op.startArrow,
       endArrow: op.endArrow,
+      startMark: op.startMark,
+      endMark: op.endMark,
       extra: op.extra,
       line,
     };
+    if (id) edgeIds.set(id, edge);
     model.edges.push(edge);
     if (model.edges.length === LIMITS.edges + 1 && !edgeLimit) {
       edgeLimit = true;
@@ -462,8 +427,13 @@ function parseFlowchartBody(statements, errors, direction = 'TB', lang) {
       continue;
     }
     let cursor = group.end;
+    const [meta] = group.tokens;
+    if (cursor === text.length && group.tokens.length === 1 && meta.metadata &&
+        (edgeIds.has(meta.id) || ['animate', 'animation', 'curve', 'step'].some(key => key in meta.metadata))) {
+      edgeMetadata.push({ ...meta, line });
+      continue;
+    }
     let left = group.tokens.map((t) => resolveToken(t, line)).filter(Boolean);
-    let hasEdge = false;
     while (cursor < text.length) {
       while (cursor < text.length && /\s/.test(text[cursor])) cursor += 1;
       if (cursor >= text.length) break;
@@ -480,13 +450,26 @@ function parseFlowchartBody(statements, errors, direction = 'TB', lang) {
       }
       cursor = next.end;
       const right = next.tokens.map((t) => resolveToken(t, line)).filter(Boolean);
-      for (const a of left) for (const b of right) addEdge(a, b, op, line);
+      for (const a of left) for (const b of right) {
+        addEdge(a, b, op, line, a === left.at(-1) && b === right[0] ? op.id : null);
+      }
       left = right;
-      hasEdge = true;
     }
-    if (!hasEdge) left.forEach(() => {});
   }
 
+  for (const { id, metadata, line } of edgeMetadata) {
+    const edge = edgeIds.get(id);
+    if (!edge) {
+      errors.push(warning('DIAGRAM_HINT', lang, line, `未找到连线 ${id}`, `Unknown edge ${id}`));
+      continue;
+    }
+    const { animate, animation, step, curve } = metadata;
+    edge.anim = { animate: animate == null ? Boolean(animation) : animate === 'true', animation, step: Number(step) || null, curve };
+    if ((edge.anim.animate || step || curve) && !warned.has('edge-motion')) {
+      warned.add('edge-motion');
+      errors.push(warning('IGNORED_CONFIG', lang, line, '连线采用静态正交绘制', 'Edges use static orthogonal routes'));
+    }
+  }
   if (stack.length) {
     addError(statements[statements.length - 1].line, 'subgraph 没有结束的 end', '补上 end');
   }

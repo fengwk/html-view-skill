@@ -36,6 +36,14 @@ function defs(ctx, a) {
   }));
   return ctx.el('defs', {}, [
     arrow('graph-arrow', a.fg4), arrow('graph-arrow-bold', a.fg3), ...cards,
+    ...['circle', 'cross'].map(mark => ({
+      tag: 'marker', attrs: {
+        id: `graph-${mark}`, viewBox: '0 0 10 10', refX: 9, refY: 5,
+        markerWidth: 10, markerHeight: 10, markerUnits: 'userSpaceOnUse', orient: 'auto-start-reverse',
+      }, children: [mark === 'circle'
+        ? ctx.circle(5, 5, 3.375, { fill: a.surface, stroke: a.fg4, 'stroke-width': 1.25 })
+        : ctx.path('M2 2 L8.5 8 M2 8 L8.5 2', { fill: 'none', stroke: a.fg4, 'stroke-width': 1.25 })],
+    })),
   ]);
 }
 
@@ -47,21 +55,23 @@ function cardKey(card) {
 }
 
 function edgePath(edge, modelNodes, ctx, a) {
-  if (!edge.segments?.length) return null;
+  if (!edge.segments?.length || edge.style === 'invisible') return null;
   const d = cubicPath(edge.segments);
   const isEr = modelNodes.get(edge.from)?.kind === 'er' || modelNodes.get(edge.to)?.kind === 'er';
   const bold = edge.style === 'bold';
   const attrs = {
     fill: 'none', stroke: bold ? a.fg3 : a.fg4, 'stroke-width': bold ? 2 : 1.25,
-    ...(edge.style === 'dashed' ? { 'stroke-dasharray': '5 4' } : {}),
+    ...(edge.style === 'dashed' || edge.animated ? { 'stroke-dasharray': '5 4' } : {}),
   };
   if (isEr) {
     const start = edge.startCard && cardKey(edge.startCard), end = edge.endCard && cardKey(edge.endCard);
     if (start) attrs['marker-start'] = `url(#graph-card-${start})`;
     if (end) attrs['marker-end'] = `url(#graph-card-${end})`;
   } else {
-    if (edge.startArrow) attrs['marker-start'] = `url(#graph-arrow${bold ? '-bold' : ''})`;
-    if (edge.endArrow) attrs['marker-end'] = `url(#graph-arrow${bold ? '-bold' : ''})`;
+    for (const side of ['start', 'end']) {
+      const mark = edge[`${side}Mark`] ?? (edge[`${side}Arrow`] ? 'point' : 'none');
+      if (mark !== 'none') attrs[`marker-${side}`] = `url(#graph-${mark === 'point' ? `arrow${bold ? '-bold' : ''}` : mark})`;
+    }
   }
   const tip = `${edge.from} → ${edge.to}${edge.label ? `：${edge.label}` : ''}`;
   return group(ctx, [titleNode(ctx, tip), path(ctx, d, attrs, { kind: 'edge', from: edge.from, to: edge.to })], { kind: 'edge-group' });
