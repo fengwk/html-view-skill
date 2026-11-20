@@ -2,7 +2,8 @@
 
 import { catalog } from './catalog.js';
 
-const TOP = new Set(['chart','title','subtitle','source','note','data','encode','fields','unit','variant','layout','sort','emphasis','annotations','interaction','stack','unitMark','range','start','layers','period','directed']);
+const TOP = new Set(['chart','title','subtitle','source','note','data','encode','fields','unit','variant','layout','sort','emphasis','annotations','interaction','stack','unitMark','range','start','layers','period','directed',...Object.values(catalog).flatMap(c => Object.keys(c.special))]);
+const NODE_SHAPES = ['rect','rounded','circle','bang','cloud','hexagon','none'];
 const ENCODE = new Set(['category','value','series','id','lower','upper','intensity','panel','actual','target','before','after','open','close','low','high','delta','count','q1','median','q3','outliers','density','x','y','size','label','row','column','date','rank','dimensions','start','region','longitude','latitude']);
 const FIELD_KEYS = new Set(['label','type','unit','format','decimals','domain','scale']);
 // 只登记绘制时真正改变的图型、变体和身份类型；其余组合若被接受，读者会看到一张没有任何强调的图。空键是默认变体。
@@ -102,6 +103,7 @@ function validate(spec) {
       if (Array.isArray(allowed) && !allowed.includes(v)) err(errors, `/${field}`, `必须为 ${allowed.join('、')} 中的一项`);
       else if (allowed==='boolean' && typeof v!=='boolean') err(errors,`/${field}`,'必须是布尔值');
       else if (allowed==='number' && !finite(v)) err(errors,`/${field}`,'必须是有限数');
+      else if (field==='rings' && (!Number.isInteger(v) || v<2 || v>8)) err(errors,`/${field}`,'必须是 2 至 8 的整数');
       else if (allowed==='year' && (typeof v !== 'string' || !/^\d{4}$/.test(v))) err(errors,`/${field}`,'必须是YYYY年份');
       else if (allowed==='range' && !(Array.isArray(v)&&v.length===2&&v.every(finite)&&v[0]<v[1])) err(errors,`/${field}`,'必须是递增的有限数范围');
       else if (allowed==='layers' && (!Array.isArray(v)||!v.length||v.some(x=>!obj(x)||!['line','area','column'].includes(x.mark)||typeof x.field!=='string'||!['left','right'].includes(x.axis)))) err(errors,`/${field}`,'必须是有效 layers 数组');
@@ -115,7 +117,7 @@ function validate(spec) {
     if (['rungs','pictorial'].includes(spec.variant)&&spec.unitMark===undefined) err(errors,'/unitMark','该变体必须声明unitMark');
     if (spec.unitMark!==undefined&&!['bar','column','dumbbell','waterfall','histogram'].includes(c.name)) err(errors,'/unitMark','该图型不支持unitMark');
     if (shapeOk && c.shape === 'tree') checkTree(spec.data, c.name, errors);
-    if (shapeOk&&c.shape==='network') checkNetwork(spec.data,spec.chart,errors);
+    if (shapeOk&&c.shape==='network') checkNetwork(spec.data,spec.chart,errors,spec.tolerant===true);
     if (shapeOk&&c.shape==='paths') checkPaths(spec.data,errors);
     if (c.shape==='geo' && spec.data?.map) {
       const m=spec.data.map;
@@ -564,10 +566,11 @@ function checkTree(rootNode, chart, e) {
     count++;
     if (typeof node.label !== 'string' || !node.label) err(e, `${path}/label`, '节点label必填');
     for (const key of Object.keys(node)) {
-      if (!['label', 'children', 'value', 'id', 'icon', 'note', ...(['mindmap', 'tree'].includes(chart) ? ['status'] : [])].includes(key)) {
+      if (!['label', 'children', 'value', 'id', 'icon', 'note', ...(['mindmap', 'tree'].includes(chart) ? ['status','shape'] : [])].includes(key)) {
         err(e, `${path}/${key}`, '未知节点字段');
       }
     }
+    if (node.shape !== undefined && ['mindmap', 'tree'].includes(chart) && !NODE_SHAPES.includes(node.shape)) err(e, `${path}/shape`, '未知节点形状');
     if (node.status !== undefined && ['mindmap', 'tree'].includes(chart)
       && !['new', 'info', 'ok', 'warn', 'danger', 'ext'].includes(node.status)) {
       err(e, `${path}/status`, '无效节点状态');
@@ -595,7 +598,7 @@ function checkTree(rootNode, chart, e) {
   walk(rootNode, '/data', 1);
   if (count > 80) err(e, '/data', '超过80节点上限');
 }
-function checkNetwork(d,chart,e) {
+function checkNetwork(d,chart,e,tolerant=false) {
   const rawNodes=d.nodes||[],rawEdges=d.edges||[];
   rawNodes.forEach((n,i)=>{if(!obj(n))err(e,`/data/nodes/${i}`,'节点必须是对象');});
   rawEdges.forEach((x,i)=>{if(!obj(x))err(e,`/data/edges/${i}`,'边必须是对象');});
@@ -639,7 +642,7 @@ function checkNetwork(d,chart,e) {
     const ready=[...indegree].filter(([,n])=>n===0).map(([id])=>id);let visited=0;
     while(ready.length){const id=ready.pop();visited++;for(const to of next.get(id)){indegree.set(to,indegree.get(to)-1);if(indegree.get(to)===0)ready.push(to);}}
     if(visited!==nodes.length)err(e,'/data/edges','Sankey必须是DAG，不允许环');
-    for(const n of nodes){const a=ins.get(n.id)||0,b=outs.get(n.id)||0;if(a&&b&&Math.abs(a-b)>1e-9*Math.max(1,a,b))err(e,'/data/nodes','Sankey中间节点流量不守恒');}
+    for(const n of nodes){const a=ins.get(n.id)||0,b=outs.get(n.id)||0;if(!tolerant&&a&&b&&Math.abs(a-b)>1e-9*Math.max(1,a,b))err(e,'/data/nodes','Sankey中间节点流量不守恒');}
   }
 }
 function checkPaths(d,e){
@@ -730,6 +733,11 @@ function schema(chart){
   const schemaFor=value=>Array.isArray(value)?{enum:value}:value==='boolean'?{type:'boolean'}:value==='number'?{type:'number'}:value==='year'?{type:'string',pattern:'^[0-9]{4}$'}:value==='range'?{type:'array',minItems:2,maxItems:2,items:{type:'number'}}:value==='layers'?{type:'array',items:{type:'object',required:['mark','field','axis'],properties:{mark:{enum:['line','area','column']},field:{type:'string'},axis:{enum:['left','right']}},additionalProperties:false}}:{type:'string'};
   const allOf=entries.map(c=>{
     const special=Object.fromEntries(Object.entries(c.special).map(([k,v])=>[k,schemaFor(v)]));
+    if (special.rings) special.rings = {type:'integer',minimum:2,maximum:8};
+    for (const key of ['tolerant','showValues','rings','graticule','legend','sliceLabels']) {
+      if (special[key]) properties[key] ??= special[key];
+      else special[key] = false;
+    }
     if(['bar','column','dumbbell','waterfall','histogram'].includes(c.name)) special.unitMark={type:'object',required:['value','label'],properties:{value:{type:'number',exclusiveMinimum:0},label:{type:'string',minLength:1},icon:{type:'string'}},additionalProperties:false};
     for(const field of ['variant','stack','layout','directed','range','start','layers','period','unitMark']) if(special[field]===undefined) special[field]=false;
     return {if:{properties:{chart:{const:c.name}},required:['chart']},then:{properties:special,required:[...c.requiredSpecial,...Object.entries(c.special).filter(([,v])=>v==='range').map(([k])=>k)]}};
@@ -738,7 +746,7 @@ function schema(chart){
   if (chart === undefined || chart === 'mindmap' || chart === 'tree') {
     const nodeSchema = chartType => ({
       type:'object', required:['label'], additionalProperties:false,
-      properties:{ label:{type:'string'}, id:{type:'string'}, note:{type:'string'}, value:{type:'number',minimum:0}, icon:{type:'string'}, status:{enum:['new','info','ok','warn','danger','ext']}, children:{type:'array',items:{$ref:`#/$defs/${chartType}Node`}} },
+      properties:{ label:{type:'string'}, id:{type:'string'}, note:{type:'string'}, value:{type:'number',minimum:0}, icon:{type:'string'}, status:{enum:['new','info','ok','warn','danger','ext']}, shape:{enum:NODE_SHAPES}, children:{type:'array',items:{$ref:`#/$defs/${chartType}Node`}} },
     });
     schema.$defs = {};
     if (chart === undefined || chart === 'mindmap') schema.$defs.mindmapNode = nodeSchema('mindmap');

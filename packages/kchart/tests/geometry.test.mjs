@@ -90,3 +90,56 @@ test('swimlane crossover arc avoids a box', () => {
   expect(kinds(box({ x: 46, y: 42, width: 8, height: 16 }), hop)).toEqual([]);
   expect(kinds(box({ x: 46, y: 25, width: 8, height: 16 }), hop)).toEqual(['edge-crosses-node']);
 });
+
+// A route can enter its endpoint's frame, but must not cross an unrelated border or report mere contact.
+test('frame borders vs. endpoint attachment and grazing', () => {
+  const frame = el('g', { transform: 'translate(40 40)' }, { kind: 'group', group: 'cluster' }, [
+    el('rect', { width: 30, height: 30 }),
+  ]);
+  expect(inspect(frame, edge('M10 55 H40 H90'))).toEqual([
+    { kind: 'edge-crosses-frame', elements: ['route', 'cluster'], coordinates: [40, 55] },
+  ]);
+  const member = box({ x: 50, y: 45, width: 10, height: 10 });
+  expect(kinds(frame, member, edge('M10 50 H50', 'route', 'card'))).toEqual([]);
+  expect(kinds(frame, edge('M10 40 H90'))).toEqual([]);
+  expect(kinds(frame, edge('M10 55 H30 M50 55 H60'))).toEqual([]);
+});
+
+// A package's empty tab corner is not frame interior, but entering below it is.
+test('concave package frame', () => {
+  const frame = el('path', { d: 'M40 70 V30 H50 V40 H70 V70 Z' }, { kind: 'frame', id: 'package' });
+  expect(kinds(frame, edge('M55 35 H90'))).toEqual([]);
+  expect(inspect(frame, edge('M55 35 V90'))).toEqual([
+    { kind: 'edge-crosses-frame', elements: ['route', 'package'], coordinates: [55, 40] },
+  ]);
+});
+
+// A lane transition may traverse intermediate background bands, but not a nested group inside one.
+test('lane bands vs. nested frames', () => {
+  const lane = (id, y) => el('g', {}, { lane: id }, [el('rect', { x: 10, y, width: 80, height: 20 })]);
+  const lanes = [lane('start', 0), lane('middle', 30), lane('end', 60)];
+  const route = edge('M50 10 V70');
+  const nested = el('rect', { x: 30, y: 33, width: 40, height: 14 }, { kind: 'frame', id: 'nested' });
+  expect(kinds(...lanes, route)).toEqual([]);
+  expect(kinds(...lanes, nested, route)).toEqual(['edge-crosses-frame']);
+});
+
+// A route may cross its own label, but not another route's label or an ordinary label.
+test('route and text ownership', () => {
+  const route = edge('M10 50 H90');
+  const label = { ...text('label', 40, 50, { 'dominant-baseline': 'central' }), meta: { kind: 'edge-label', from: 'start', to: 'route' } };
+  expect(kinds(route, label)).toEqual([]);
+  expect(kinds(edge('M10 50 H90', 'other'), label)).toEqual(['edge-crosses-text']);
+  expect(kinds(route, text('label', 40, 50, { 'dominant-baseline': 'central' }))).toEqual(['edge-crosses-text']);
+  expect(kinds(edge('M38 50 H42', 'other'), label)).toEqual([]);
+});
+
+// A legacy Wardley leader can overprint text, unless a later opaque plate covers the crossing.
+test('visible leader stroke vs. opaque plate', () => {
+  const leader = el('line', { x1: 25, x2: 75, y1: 50, y2: 50, 'stroke-dasharray': '2 3', 'stroke-width': 1 });
+  const label = text('label', 35, 50, { 'dominant-baseline': 'central' });
+  const plate = el('rect', { x: 30, y: 40, width: 40, height: 20, fill: '#fff' });
+  expect(kinds(leader, label)).toEqual(['edge-crosses-text']);
+  expect(kinds(leader, plate, label)).toEqual([]);
+  expect(kinds(plate, leader, label)).toEqual(['edge-crosses-text']);
+});

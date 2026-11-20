@@ -3,7 +3,7 @@ import type {
   RenderOptions, RenderResult, Scene, Syntax, Theme, ThemeStyle, Tones,
 } from './index.js';
 export type * from './index.js';
-export { catalog, diagramTypes, theme, themes } from './index.js';
+export { catalog, diagramTypes, registerIcons, theme, themes } from './index.js';
 
 export function render(spec: ChartSpec, options?: RenderOptions): RenderResult;
 export function diagram(source: string, options?: DiagramOptions): RenderResult<DiagramDiagnostic>;
