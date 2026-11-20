@@ -287,7 +287,7 @@ var centerBox = (x, y, w, h) => box(x - w / 2, y - h / 2, w, h);
 var collides = (a, b) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
 var grow = (b, n) => box(b.x - n, b.y - n, b.w + n * 2, b.h + n * 2);
 var length = (a, b) => Math.hypot(b.x - a.x, b.y - a.y);
-function crosses(a, b, r) {
+function boxSpan(a, b, r) {
 	let lo = 0, hi = 1;
 	for (const [k, d] of [["x", "w"], ["y", "h"]]) {
 		const delta = b[k] - a[k];
@@ -300,9 +300,29 @@ function crosses(a, b, r) {
 		hi = Math.min(hi, Math.max(p, q));
 		if (lo > hi) return false;
 	}
-	return true;
+	return [lo, hi];
 }
-var segments = (points) => points.slice(1).map((point, i) => [points[i], point]);
+var crosses = (a, b, r) => Boolean(boxSpan(a, b, r));
+function visibleSpans(a, b, blockers, painted) {
+	const dx = b.x - a.x, dy = b.y - a.y, span = dx * dx + dy * dy;
+	if (!span) return [];
+	const hidden = blockers.map((rect) => boxSpan(a, b, rect)).filter(Boolean);
+	for (const pair of painted) {
+		if (!pair.every((p) => Math.abs(dx * (p.y - a.y) - dy * (p.x - a.x)) < 1e-5)) continue;
+		const [lo, hi] = pair.map((p) => (dx * (p.x - a.x) + dy * (p.y - a.y)) / span).sort((x, y) => x - y);
+		if (lo < 1 && hi > 0) hidden.push([Math.max(0, lo), Math.min(1, hi)]);
+	}
+	let cursor = 0;
+	const visible = [];
+	for (const [lo, hi] of [...hidden.sort((x, y) => x[0] - y[0]), [1, 1]]) {
+		if (lo - cursor > 1e-7) visible.push([cursor, lo]);
+		cursor = Math.max(cursor, hi);
+	}
+	return visible.map((pair) => pair.map((t) => ({
+		x: a.x + t * dx,
+		y: a.y + t * dy
+	})));
+}
 var move = (a, b, distance) => {
 	const t = distance / (length(a, b) || 1);
 	return {
@@ -408,35 +428,36 @@ function layout(model, { width, lang, ctx }, info = {}) {
 		});
 	}
 	for (const node of nodes.values()) {
-		obstacles.push({
-			id: node.id,
-			...centerBox(node.x, node.y, node.r * 2, node.r * 2)
-		});
-		if (node.inertia) obstacles.push({
-			id: node.id,
-			...centerBox(node.x + node.r + 6, node.y, 3, 20)
-		});
+		obstacles.push(centerBox(node.x, node.y, node.r * 2, node.r * 2));
+		if (node.inertia) obstacles.push(centerBox(node.x + node.r + 6, node.y, 3, 20));
 	}
-	const pins = annotations.map((item) => {
-		const p = project(item), radius = Math.max(9, ctx.measure(item.number, 12, 650) / 2 + 4);
+	const placeMarker = (item, radius) => {
+		const p = project(item);
 		const candidates = [p];
 		for (const distance of [
-			14,
+			radius + 5,
 			22,
 			32,
-			46
+			46,
+			64
 		]) for (const [dx, dy] of [
 			[0, -1],
 			[1, 0],
 			[-1, 0],
 			[0, 1],
 			[1, -1],
-			[-1, -1]
+			[-1, -1],
+			[1, 1],
+			[-1, 1]
 		]) candidates.push({
 			x: p.x + dx * distance,
 			y: p.y + dy * distance
 		});
-		const { x, y } = candidates.find((q) => !obstacles.some((b) => collides(grow(centerBox(q.x, q.y, radius * 2, radius * 2), 3), b))) || p;
+		const blockers = [...obstacles, ...occupied];
+		const { x, y } = candidates.find((q) => {
+			const b = grow(centerBox(q.x, q.y, radius * 2, radius * 2), 3);
+			return !blockers.some((o) => collides(b, o)) && !wires.some(([a, z]) => crosses(a, z, b)) && (q === p || !occupied.some((o) => crosses(p, q, grow(o, 2))));
+		}) || p;
 		obstacles.push(centerBox(x, y, radius * 2, radius * 2));
 		if (x !== p.x || y !== p.y) addLeader(p, move({
 			x,
@@ -448,7 +469,7 @@ function layout(model, { width, lang, ctx }, info = {}) {
 			y,
 			radius
 		};
-	});
+	};
 	const forces = model.forces.map((item) => {
 		const p = project(item);
 		obstacles.push(centerBox(p.x, p.y, 40, 20));
@@ -457,14 +478,9 @@ function layout(model, { width, lang, ctx }, info = {}) {
 			...p
 		};
 	});
-	const notes = model.notes.map((note) => ({
-		...note,
-		...project(note)
-	}));
-	for (const note of notes) obstacles.push(centerBox(note.x, note.y, 4, 4));
 	let footerY = H;
 	function place(text, p, options = {}) {
-		const { font = FONT.label, fill = t.fg1, radius = 6, preferred, plate, meta, icon } = options;
+		const { font = FONT.label, fill = t.fg1, radius = 6, preferred, fixed, plate, meta, icon } = options;
 		const rows = ctx.wrap(text, Math.min(260, plotW / 2) - iconGap(icon), font.size, font.weight);
 		const w = Math.max(...rows.map((row) => ctx.measure(row, font.size, font.weight))) + iconGap(icon) + (plate ? 14 : 4);
 		const h = rows.length * 16 + (plate ? 6 : 2);
@@ -507,8 +523,8 @@ function layout(model, { width, lang, ctx }, info = {}) {
 			const b = grow(centerBox(x, y, w, h), 2);
 			return b.x > 31 && b.x + b.w < W - 8 && b.y > top - 20 && b.y + b.h < bottom + 9 && !obstacles.some((o) => collides(b, o)) && !occupied.some((o) => collides(b, o)) && !wires.some(([a, z]) => crosses(a, z, b));
 		};
-		let chosen = candidates.find(fits);
-		const leader = chosen && leaderFor(chosen);
+		let chosen = fixed || candidates.find(fits);
+		const leader = !fixed && chosen && leaderFor(chosen);
 		if (leader) addLeader(...leader);
 		if (!chosen) {
 			chosen = {
@@ -520,6 +536,10 @@ function layout(model, { width, lang, ctx }, info = {}) {
 		const { x, y } = chosen, b = centerBox(x, y, w, h);
 		occupied.push(b);
 		const textNode = caption(x, y, rows, icon, font, fill);
+		if (fixed && wires.some(([a, z]) => crosses(a, z, b))) labels.push(ctx.rect(b.x, b.y, b.w, b.h, {
+			fill: t.bg,
+			rx: t.smallRadius
+		}));
 		labels.push(plate ? {
 			...ctx.el("g", {}, [ctx.rect(b.x, b.y, b.w, b.h, {
 				fill: t.bg,
@@ -529,102 +549,50 @@ function layout(model, { width, lang, ctx }, info = {}) {
 			...meta ? { meta } : {}
 		} : textNode);
 	}
-	const pendingLabels = [];
+	const pendingLabels = [], painted = [];
+	const nodeBoxes = [...nodes.values()].map((node) => ({
+		id: node.id,
+		...grow(centerBox(node.x, node.y, node.r * 2, node.r * 2), 2)
+	}));
 	function connect(a, b, link, trend = false) {
 		const color = trend ? t.danger : edge;
-		const clearance = (o) => grow(o, 2);
-		const blockers = obstacles.filter((o) => o.id !== a.id && (b.id == null || o.id !== b.id));
-		const routeClear = (points) => segments(points).every(([p, q]) => !blockers.some((o) => crosses(p, q, clearance(o))));
-		let route = [a, b];
-		if (a === b || length(a, b) < a.r + (b.r || 0) + 2) route = [
-			a,
-			{
-				x: a.x + 20,
-				y: a.y - 18
-			},
-			{
-				x: b.x - 20,
-				y: b.y - 18
-			},
-			b
-		];
-		else if (!routeClear(route)) {
-			const mid = move(a, b, length(a, b) / 2);
-			const dx = (b.y - a.y) / length(a, b), dy = (a.x - b.x) / length(a, b);
-			const variants = [];
-			for (const d of [
-				10,
-				-10,
-				18,
-				-18,
-				28,
-				-28,
-				42,
-				-42,
-				64,
-				-64,
-				96,
-				-96,
-				144,
-				-144
-			]) {
-				if (!trend) variants.push([
-					a,
-					{
-						x: mid.x + dx * d,
-						y: mid.y + dy * d
-					},
-					b
-				]);
-				variants.push([
-					a,
-					{
-						x: a.x + dx * d,
-						y: a.y + dy * d
-					},
-					{
-						x: b.x + dx * d,
-						y: b.y + dy * d
-					},
-					b
-				]);
-			}
-			route = variants.find(routeClear) || route;
-		}
-		const points = [
-			move(a, route[1], a.r + (a.square ? 2 : 1)),
-			...route.slice(1, -1),
-			b.r ? move(b, route.at(-2), b.r + (b.square ? 2 : 1)) : b
-		];
-		wires.push(...segments(points));
-		const path = points.map((p, i) => `${i ? "L" : "M"}${p.x} ${p.y}`).join(" ");
-		lines.push(ctx.path(path, {
-			fill: "none",
-			...stroke(color, {
-				"stroke-width": trend ? 1.5 : 1.2,
-				"stroke-linejoin": "round",
-				...link.dashed || trend ? { "stroke-dasharray": trend ? "5 4" : "3 4" } : {},
-				meta: {
-					kind: "edge",
-					from: a.id,
-					to: b.id ?? `trend:${a.id}`
-				}
-			})
-		}));
-		if (trend || link.flow === "forward" || link.flow === "bidirectional") lines.push(arrowhead(ctx, points.at(-2), points.at(-1), color));
-		if (link.flow === "backward" || link.flow === "bidirectional") lines.push(arrowhead(ctx, points[1], points[0], color));
-		if (link.label || link.icon) {
-			const [p, q] = segments(points).reduce((best, pair) => length(...pair) > length(...best) ? pair : best);
-			pendingLabels.push({
-				link,
-				point: move(p, q, length(p, q) / 2)
+		const distance = length(a, b);
+		const inset = (p, q) => p.r ? Math.min(distance / 2, (p.square || p.kind === "anchor" ? p.r * distance / Math.max(Math.abs(p.x - q.x), Math.abs(p.y - q.y), 1e-9) : p.r) + 1) : 0;
+		const start = move(a, b, inset(a, b)), end = move(b, a, inset(b, a));
+		const visible = visibleSpans(start, end, nodeBoxes.filter((box) => box.id !== a.id && box.id !== b.id), painted);
+		painted.push(...visible);
+		wires.push(...visible);
+		const path = visible.map(([p, q]) => `M${p.x} ${p.y} L${q.x} ${q.y}`).join(" ");
+		if (path) {
+			const edgePath = ctx.path(path, {
+				fill: "none",
+				...stroke(color, {
+					"stroke-width": trend ? 1.5 : 1.2,
+					...link.dashed || trend ? { "stroke-dasharray": trend ? "5 4" : "3 4" } : {},
+					meta: {
+						kind: "edge",
+						from: a.id,
+						to: b.id ?? `trend:${a.id}`
+					}
+				})
 			});
+			const clipped = visible.length !== 1 || length(visible[0][0], start) > 1e-5 || length(visible[0][1], end) > 1e-5;
+			lines.push(!trend && clipped ? ctx.titled(edgePath, `${a.label} → ${b.label}`) : edgePath);
 		}
+		if (trend || link.flow === "forward" || link.flow === "bidirectional") lines.push(arrowhead(ctx, start, end, color));
+		if (link.flow === "backward" || link.flow === "bidirectional") lines.push(arrowhead(ctx, end, start, color));
+		if (link.label || link.icon) pendingLabels.push({
+			link,
+			point: move(start, end, length(start, end) / 2)
+		});
 	}
-	for (const link of [...pipelineEdges, ...model.links]) {
-		const a = nodes.get(link.from), b = nodes.get(link.to);
-		if (a && b && a.parent !== b.id && b.parent !== a.id) connect(a, b, link);
-	}
+	const dependencies = [...pipelineEdges, ...model.links].map((link) => ({
+		link,
+		a: nodes.get(link.from),
+		b: nodes.get(link.to)
+	})).filter(({ a, b }) => a && b && a.parent !== b.id && b.parent !== a.id);
+	dependencies.sort((p, q) => length(p.a, p.b) - length(q.a, q.b));
+	for (const { a, b, link } of dependencies) connect(a, b, link);
 	for (const { nodeId, targetEvolution } of model.trends) {
 		const a = nodes.get(nodeId);
 		if (!a) continue;
@@ -646,6 +614,23 @@ function layout(model, { width, lang, ctx }, info = {}) {
 		if (i) guides.push(ctx.line(x, top, x, bottom, stroke(grid)));
 		rows.forEach(({ text, icon }, j) => guides.push(caption((x + end) / 2, bottom + 25 + j * 16, [text], icon, FONT.label, t.fg2)));
 	});
+	const placeComponent = (node) => {
+		const fixed = node.labelOffset && {
+			x: node.x + node.labelOffset.dx,
+			y: node.y + node.labelOffset.dy
+		};
+		const above = node.kind === "anchor" || node.square;
+		place(node.label, node, {
+			radius: node.r,
+			fixed,
+			icon: node.icon,
+			above,
+			font: above ? bold : FONT.label
+		});
+	};
+	for (const node of nodes.values()) if (node.labelOffset) placeComponent(node);
+	const pins = annotations.map((item) => placeMarker(item, Math.max(9, ctx.measure(item.number, 12, 650) / 2 + 4)));
+	const notes = model.notes.map((item) => placeMarker(item, 2));
 	for (const { link, point } of pendingLabels) place(link.label, point, {
 		plate: true,
 		above: true,
@@ -684,17 +669,7 @@ function layout(model, { width, lang, ctx }, info = {}) {
 			rx: 1,
 			fill: edge
 		}));
-		const preferred = node.labelOffset && {
-			x: x + node.labelOffset.dx,
-			y: y + node.labelOffset.dy
-		};
-		place(node.label, node, {
-			radius: r,
-			preferred,
-			icon: node.icon,
-			above: anchor || square,
-			font: anchor || square ? bold : FONT.label
-		});
+		if (!node.labelOffset) placeComponent(node);
 	}
 	for (const note of notes) {
 		marks.push(ctx.circle(note.x, note.y, 2, { fill: edge }));

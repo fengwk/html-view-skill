@@ -112,14 +112,39 @@ test('renders Wardley maps past the old proposed limit', () => {
   assert.deepEqual(checkScene(scene), []);
 });
 
-// The dense map must expose its annotation leaders to the gate without crossing Auth Service or another label.
-test('keeps the Wardley strategy map leaders clear at both widths', () => {
-  const record = corpus.find(({ id }) => id === 'wardley.md:399');
-  for (const width of [800, 360]) {
+const center = ({ attrs: a }) => a.cx == null ? [a.x + a.width / 2, a.y + a.height / 2] : [a.cx, a.cy];
+
+// Every visible dependency fragment must lie on its two authored endpoints' centerline, with no label crossings.
+test('keeps every Wardley corpus dependency straight at both widths', () => {
+  for (const record of corpus.filter(({ id }) => id.startsWith('wardley.md:'))) for (const width of [800, 360]) {
+    const tag = `${record.id} @ ${width}`;
     const { scene } = api.diagram(record.source, { width });
-    assert.ok(elements(scene).some(node => node.meta?.kind === 'leader'));
-    assert.deepEqual(checkScene(scene), []);
+    assert.deepEqual(checkScene(scene), [], tag);
+    const nodes = new Map(points(scene).map(node => [node.meta.id, center(node)]));
+    const edges = elements(scene).filter(node => node.meta?.kind === 'edge');
+    for (const { from, to } of api.parse(record.source).model.links) {
+      assert.ok(edges.some(edge => edge.meta.from === from && edge.meta.to === to), `${tag}: ${from} → ${to}`);
+    }
+    for (const { attrs, meta: { from, to } } of edges) {
+      const values = [...attrs.d.matchAll(/[ML]([^ ]+) ([^ ]+)/g)].map(([, x, y]) => [Number(x), Number(y)]);
+      const [ax, ay] = nodes.get(from), [bx, by] = nodes.get(to) ?? [ax + 1, ay];
+      assert.ok(values.length >= 2 && values.every(([x, y]) => Math.abs((x - ax) * (by - ay) - (y - ay) * (bx - ax)) < 1e-6),
+        `${tag}: ${from} → ${to}`);
+    }
   }
+});
+
+// A collision does not move the authored Web App label; the note leaders still participate in geometry checks.
+test('preserves the authored Wardley label offset when it crosses straight links', () => {
+  const { source } = corpus.find(({ id }) => id === 'wardley.md:399');
+  const { scene } = api.diagram(source, { width: 800 });
+  const [x, y] = center(points(scene).find(node => node.meta.id === 'Web App'));
+  const parts = elements(scene);
+  const label = parts.find(node => node.tag === 'text' && node.text === 'Web App');
+  assert.equal(label.attrs.x, x - 60);
+  assert.equal(label.attrs.y, y + 10);
+  assert.ok(parts.some(node => node.meta?.kind === 'leader'));
+  assert.ok(parts.some(node => node.tag === 'title' && node.text === 'API Gateway → Database'));
 });
 
 // Label normalization leaves reference identities intact; geometry config and SVG accessibility use the shared registry.
