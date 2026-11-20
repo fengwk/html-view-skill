@@ -17,6 +17,16 @@ const decode = value => value.replace(/(?:&#([0-9]+|[xX][\da-fA-F]+)|#([0-9]+)|[
 });
 
 const html = /<\/?(br|img|b|i|u|em|strong|small|sup|sub|span|code|mark|font|s|del|ins|kbd|a)(?=[\s/>])(?:"[^"]*"|'[^']*'|[^<>"'])*>/gi;
+
+// Mermaid Markdown strings: **bold**, __bold__, *italic* and _italic_ keep their text; the emphasis is not drawn.
+// As in CommonMark, underscores inside a word (snake_case, 中_文) and markers next to spaces stay literal.
+function stripEmphasis(text) {
+  return String(text)
+    .replace(/\*\*([\s\S]*?)\*\*/g, '$1')
+    .replace(/(^|[^\p{L}\p{N}_])__(?=\S)([\s\S]*?\S)__(?![\p{L}\p{N}_])/gu, '$1$2')
+    .replace(/\*([^*]+)\*/g, '$1')
+    .replace(/(^|[^\p{L}\p{N}_])_(?=\S)([^_\n]*?\S)_(?![\p{L}\p{N}_])/gu, '$1$2');
+}
 const iconToken = /(?<![\w:-])fa[bsrlk]?:fa-[a-z\d]+(?:-[a-z\d]+)*/gi;
 
 // Each label is stateless. Diagram parsers deduplicate returned warnings by subject across labels.
@@ -30,7 +40,7 @@ function normalizeLabel(raw, { lang, line = 1 } = {}) {
   };
   let source = String(raw ?? '');
   const markdown = /^(?:"`([\s\S]*)`"|`([\s\S]*)`)$/.exec(source);
-  if (markdown) source = (markdown[1] ?? markdown[2]).replace(/\*\*([\s\S]*?)\*\*/g, '$1').replace(/\*([^*]+)\*/g, '$1');
+  if (markdown) source = stripEmphasis(markdown[1] ?? markdown[2]);
   // Treat math as literal TeX rather than stripping apparent tags or icon tokens inside it.
   const text = source.split(/(\$\$[\s\S]*?\$\$)/).map((part, index) => {
     if (index % 2) {
@@ -51,4 +61,4 @@ function normalizeLabel(raw, { lang, line = 1 } = {}) {
   return { text, icon, diagnostics };
 }
 
-export { normalizeLabel };
+export { normalizeLabel, stripEmphasis };

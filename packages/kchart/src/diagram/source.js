@@ -1,4 +1,5 @@
 import { error, warning } from './support.js';
+import { stripEmphasis } from './label.js';
 const quoteValue = value => {
   const v = value.trim();
   if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) return v.slice(1, -1);
@@ -253,8 +254,7 @@ function normalizeMarkdown(source) {
   let result = '', cursor = 0, match;
   while ((match = pattern.exec(source))) {
     const lineBreaks = (match[0].match(/\n/g) || []).length;
-    const text = match[1].replace(/\*\*([\s\S]*?)\*\*/g, '$1').replace(/\*([^*]+)\*/g, '$1')
-      .replaceAll('"', '&quot;').replaceAll('\n', '<br/>');
+    const text = stripEmphasis(match[1]).replaceAll('"', '&quot;').replaceAll('\n', '<br/>');
     const replacement = `"${text}"`;
     result += source.slice(cursor, match.index);
     if (!lineBreaks) {

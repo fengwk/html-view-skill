@@ -1,5 +1,6 @@
 import { __exportAll } from "../_virtual/_rolldown/runtime.js";
 import { error, warning } from "./support.js";
+import { stripEmphasis } from "./label.js";
 // src/diagram/source.js
 var source_exports = /* @__PURE__ */ __exportAll({
 	ignoredConfigWarning: () => ignoredConfigWarning,
@@ -333,7 +334,7 @@ function normalizeMarkdown(source) {
 	let result = "", cursor = 0, match;
 	while (match = pattern.exec(source)) {
 		const lineBreaks = (match[0].match(/\n/g) || []).length;
-		const replacement = `"${match[1].replace(/\*\*([\s\S]*?)\*\*/g, "$1").replace(/\*([^*]+)\*/g, "$1").replaceAll("\"", "&quot;").replaceAll("\n", "<br/>")}"`;
+		const replacement = `"${stripEmphasis(match[1]).replaceAll("\"", "&quot;").replaceAll("\n", "<br/>")}"`;
 		result += source.slice(cursor, match.index);
 		if (!lineBreaks) {
 			result += replacement;

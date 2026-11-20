@@ -407,7 +407,7 @@
       "core/icons",
       "diagram/support"
     ],
-    "bytes": 4203
+    "bytes": 4411
   },
   "diagram/layers": {
     "file": "units/diagram/layers.js",
@@ -589,9 +589,10 @@
   "diagram/source": {
     "file": "units/diagram/source.js",
     "deps": [
-      "diagram/support"
+      "diagram/support",
+      "diagram/label"
     ],
-    "bytes": 10085
+    "bytes": 10072
   },
   "diagram/support": {
     "file": "units/diagram/support.js",

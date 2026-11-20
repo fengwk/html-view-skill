@@ -8,6 +8,9 @@ test('normalize entities and inline markup', () => {
     text: '"#♥\n© € &lt;\n© 🚀\n<i>', icon: null, diagnostics: [],
   });
   expect(normalizeLabel('"`**strong** and *emphasis*\ntext`"').text).toBe('strong and emphasis\ntext');
+  // Underscore emphasis keeps its text too, while snake_case, 中_文 and markers beside spaces stay literal.
+  expect(normalizeLabel('"`This is _Markdown_, __strong__, snake_case_name, 中_文_字, a _ b _ c`"').text)
+    .toBe('This is Markdown, strong, snake_case_name, 中_文_字, a _ b _ c');
   expect(normalizeLabel('<br>text<br/>').text).toBe('\ntext\n');
 });
 
