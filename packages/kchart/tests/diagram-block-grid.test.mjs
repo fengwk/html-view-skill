@@ -49,6 +49,25 @@ test('colspan and row-end overflow', () => {
   assert.ok(spill.d.y > spill.c.y);
 });
 
+// Medium labels fit on one line; genuinely long labels wrap without changing the authored column span.
+test('content sizes its tracks before wrapping at a readable maximum', () => {
+  const label = 'This is the text in the box';
+  const long = 'The full label stays readable without a very wide block '.repeat(3).trim();
+  for (const width of [800, 360]) {
+    for (const shape of [`("${label}")`, `[["${label}"]]`]) {
+      const [node] = byKind(render(`a${shape}`, width), 'node');
+      assert.deepEqual(walk(node.children).filter(item => item.tag === 'text').map(item => item.text), [label]);
+    }
+    const result = render(`columns 3\na["${long}"]:2 b\nc d e`, width);
+    const { a, b, c, d, e } = rects(result);
+    assert.equal(a.width, c.width + d.x - c.x);
+    assert.equal(b.x, e.x);
+    const lines = walk(byKind(result, 'node')[0].children).filter(item => item.tag === 'text');
+    assert.ok(lines.length > 1);
+    assert.equal(lines.map(item => item.text).join(' '), long);
+  }
+});
+
 // Reservation consumes exact tracks, including empty row starts, row ends and wrapped space runs.
 test('space is an unpainted cell, not an inter-node gap', () => {
   const { ida, idb, idc } = rects(render('ida space:3 idb idc'));
