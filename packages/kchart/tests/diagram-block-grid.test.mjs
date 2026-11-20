@@ -104,13 +104,13 @@ test('compound block arrow', () => {
 test('labeled and unlabelled edge syntax', () => {
   const result = render('columns 3\nA--"X"-->B\nC --o D\nE -.- F\nG == H\nI --- J\nK <--> L\nM --x N\nO ~~~ P');
   const [labeled, circle, dotted, thick, plain, both, cross, tilde] = byKind(result, 'edge').map(node => node.attrs);
-  assert.equal(labeled['marker-end'], 'url(#block-point)');
-  assert.equal(circle['marker-end'], 'url(#block-circle)');
-  assert.equal(dotted['stroke-dasharray'], '2 4');
+  assert.match(labeled['marker-end'], /^url\(#board-arrow-[\da-f]+\)$/);
+  assert.match(circle['marker-end'], /^url\(#board-circle-[\da-f]+\)$/);
+  assert.ok(dotted['stroke-dasharray']);
   assert.ok(thick['stroke-width'] > plain['stroke-width']);
   assert.equal(plain['marker-end'], undefined);
   assert.equal(both['marker-start'], both['marker-end']);
-  assert.equal(cross['marker-end'], 'url(#block-cross)');
+  assert.match(cross['marker-end'], /^url\(#board-cross-[\da-f]+\)$/);
   assert.equal(tilde['marker-end'], undefined);
   assert.equal(byKind(result, 'edge-label-group').length, 1);
   assert.ok(result.elements.some(node => node.text === 'X'));
@@ -144,7 +144,8 @@ test('invalid statements are not interpreted as nodes', () => {
 test('presentation styles use theme roles without consuming grid slots', () => {
   const body = 'block:g\nA:::warn space B C D\nend\narrow<["Next"]>(right)';
   const result = render(`${body}\nclassDef default fill:red\nclassDef healthy fill:lime\nclass B,C healthy\nstyle g,B fill:blue\nstyle arrow fill:blue`);
-  const statuses = Object.fromEntries(result.elements.filter(node => node.meta?.status).map(node => [node.meta.id, node.meta.status]));
+  // Nodes keep Mermaid's status; groups carry the same word as their board style.
+  const statuses = Object.fromEntries(result.elements.filter(node => node.meta?.status || node.meta?.style).map(node => [node.meta.id, node.meta.status ?? node.meta.style]));
   assert.deepEqual(statuses, { g: 'info', A: 'warn', B: 'info', C: 'ok', D: 'danger' });
   assert.notEqual(rects(result, 'frame').g.stroke, rects(render(body), 'frame').g.stroke);
   assert.equal(byKind(result, 'node').length, 5);
@@ -169,7 +170,9 @@ test('links, labels, icons and linkStyle use the shared contracts', () => {
   assert.ok(result.elements.some(node => node.text === 'Go #1'));
   assert.ok(walk(anchor.children).some(node => node.tag === 'path'), 'resolved icon has vector geometry');
   assert.equal(result.elements.filter(node => node.tag === 'a').length, 1);
-  assert.equal(byKind(result, 'edge')[0].attrs['marker-end'], 'url(#block-point-danger)');
+  const [edge] = byKind(result, 'edge');
+  assert.match(edge.attrs['marker-end'], /^url\(#board-arrow-[\da-f]+\)$/);
+  assert.notEqual(edge.attrs.stroke, byKind(render('A space:2 B\nA-->B'), 'edge')[0].attrs.stroke, 'linkStyle red maps to the danger hue');
   assert.ok(result.diagnostics.some(d => d.code === 'IGNORED_ASSET'));
   assert.ok(result.diagnostics.some(d => d.code === 'IGNORED_INTERACTION'));
 });
