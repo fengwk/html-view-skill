@@ -37,7 +37,7 @@ function parse(body, { lang, firstLine = 2, title = '', config, options = {} }) 
   return { model: { type: 'packet', title, fields, config: config?.packet || {} }, errors };
 }
 
-function layout(model, { width, ctx, renderOptions, compact }, info = {}) {
+function layout(model, { width, ctx, renderOptions, compact, embedHeading }, info = {}) {
   const { title, fields, config } = model, t = appearance(ctx);
   const perRow = Number.isInteger(config.bitsPerRow) && config.bitsPerRow >= 1 && config.bitsPerRow <= 128 ? config.bitsPerRow : 32;
   const showBits = config.showBits !== false, descending = config.bitOrder === 'descending';
@@ -62,7 +62,7 @@ function layout(model, { width, ctx, renderOptions, compact }, info = {}) {
   const w = Math.max(compact ? 0 : width, perRow * pitch + 2 * pad), left = (w - perRow * pitch) / 2;
   const children = [];
   let y = pad;
-  if (title && !renderOptions?.frame) {
+  if (title && !renderOptions?.frame && !embedHeading) {
     children.push(ctx.text(w / 2, y + 8, title, { ...FONT.title, anchor: 'middle', fill: t.fg1, 'dominant-baseline': 'central' }));
     y += 30;
   }

@@ -93,7 +93,7 @@ function parse(body, info) {
   return { model, errors };
 }
 
-function layout(model, { width, ctx, measure, renderOptions, compact }) {
+function layout(model, { width, ctx, measure, renderOptions, compact, embedHeading }) {
   const { design: d } = ctx, { items, config, sections } = model;
   const vertical = model.direction === 'TD';
   const finite = (value, fallback, floor) => Number.isFinite(Number(value)) ? Math.max(floor, Number(value)) : fallback;
@@ -104,7 +104,7 @@ function layout(model, { width, ctx, measure, renderOptions, compact }) {
   const col = vertical ? Math.max(184, pad * 2 + 100) : Math.max(184, pad * 2 + 100, compact ? 0 : (width - left - 24) / occupied);
   const eventW = vertical ? Math.max(204, compact ? 0 : width - left - col - 76, pad * 2 + 100) : col - 2 * pad - 14;
   const w = vertical ? left + col + eventW + 76 : left + col * occupied + 24;
-  const children = [], scene = { width: w, height: 0, title: model.title, children, ...(renderOptions?.frame ? { heading: model.title || undefined } : {}) };
+  const children = [], scene = { width: w, height: 0, title: model.title, children, ...(renderOptions?.frame || embedHeading ? { heading: model.title || undefined } : {}) };
   const add = (tag, attrs, meta) => children.push({ ...ctx.el(tag, attrs), ...(meta ? { meta } : {}) });
   const text = (value, x, y, font, fill, anchor = 'start', meta) => children.push(ctx.text(x, y, value, { ...font, fill, anchor, 'dominant-baseline': 'central' }, meta));
   const wrap = (value, max, font) => wrapText(value, max, font, measure);
@@ -119,7 +119,7 @@ function layout(model, { width, ctx, measure, renderOptions, compact }) {
   };
   const boxColor = (status, fallback) => (status && d[status]) || fallback;
   const titleSlot = model.titleIcon ? iconSize + iconGap : 0;
-  const title = !renderOptions?.frame && (model.title || model.titleIcon) ? wrap(model.title, w - 48 - titleSlot, FONT.title) : [];
+  const title = !renderOptions?.frame && !embedHeading && (model.title || model.titleIcon) ? wrap(model.title, w - 48 - titleSlot, FONT.title) : [];
   if (title.length && model.titleIcon) children.push(drawIcon(model.titleIcon, 24 + iconSize / 2, 24, d.fg1));
   lines(title, 24 + titleSlot, 24, FONT.title, d.fg1, 'start', 20);
   const top = title.length ? 24 + title.length * 20 : 24;

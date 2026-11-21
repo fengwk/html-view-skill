@@ -211,7 +211,7 @@ function drawIcon(ctx, icon, x, y, size = ICON_SIZE, color = ctx.color('fg')) {
 }
 
 function layout(model, options = {}) {
-  const { width = 800, ctx, renderOptions = {}, compact } = options;
+  const { width = 800, ctx, renderOptions = {}, compact, embedHeading } = options;
   if (!ctx) throw new TypeError('journey layout needs a theme context');
   const look = appearanceOf(ctx);
   const measure = options.measure || ((value, font) => ctx.measure(value, font.size, font.weight));
@@ -252,7 +252,7 @@ function layout(model, options = {}) {
   const sceneWidth = Math.ceil(Math.max(compact ? 0 : width, x1 + LAYOUT.right));
 
   // 2. Top band: optional in-scene title, the actor legend, then the numbered 1–5 scale.
-  const inSceneTitle = Boolean(model.title) && !renderOptions?.frame;
+  const inSceneTitle = Boolean(model.title) && !renderOptions?.frame && !embedHeading;
   if (inSceneTitle) {
     const titleText = ctx.text(LAYOUT.labelX + iconSlot(model.titleIcon), titleSize + 12, model.title, { size: titleSize, weight: 600, fill: ink });
     const titleParts = [...(model.titleIcon ? [drawIcon(ctx, model.titleIcon, LAYOUT.labelX, titleSize + 12 - ICON_SIZE / 2)] : []), titleText];
@@ -368,7 +368,7 @@ function layout(model, options = {}) {
   const scene = {
     width: sceneWidth, height, children,
     ...(model.title ? { title: model.title } : {}),
-    ...(renderOptions?.frame && model.title ? { heading: model.title } : {}),
+    ...((renderOptions?.frame || embedHeading) && model.title ? { heading: model.title } : {}),
   };
   return { width: sceneWidth, height, scene, errors };
 }

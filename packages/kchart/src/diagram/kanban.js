@@ -100,13 +100,13 @@ function drawIcon(ctx, icon, x, y, ink) {
     stroke: solid ? 'none' : ink, 'stroke-width': 1.6, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }, icon.elements.map(({ tag, attrs }) => ctx.shape(tag, attrs)));
 }
 
-function layout(model, { width, ctx, renderOptions, compact }, info = {}) {
+function layout(model, { width, ctx, renderOptions, compact, embedHeading }, info = {}) {
   const { columns, config, title, count } = model, t = appearance(ctx), gap = 14, pad = 18;
   const colWidth = Math.max(180, Math.min(560, Number(config.sectionWidth) || 220));
   const inset = Math.max(8, Math.min(28, Number(config.padding) || 10));
   const colsWidth = columns.length * (colWidth + gap) - gap;
   const w = Math.max(compact ? 0 : width, colsWidth + 2 * pad), left = (w - colsWidth) / 2;
-  const titleInline = title && !renderOptions?.frame, top = titleInline ? 52 : pad;
+  const titleInline = title && !renderOptions?.frame && !embedHeading, top = titleInline ? 52 : pad;
   const cardWidth = colWidth - 2 * inset, cardPad = 12, inner = cardWidth - 2 * cardPad;
   const headers = columns.map(c => ctx.wrap(c.label, cardWidth - (c.icon ? 22 : 0), FONT.title.size, FONT.title.weight));
   const headerHeight = Math.max(...headers.map(lines => lines.length)) * 18 + 22;

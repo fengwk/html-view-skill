@@ -23,7 +23,7 @@ const bars = await render({
 
 `render(spec, options?)` 和 `diagram(source, options?)` 返回 Promise，结果为 `{ svg, scene, diagnostics }`。输入无效或无法布局时，`svg` 和 `scene` 均为 `null`；意外错误会拒绝 Promise。每条结构图诊断带 `severity`：`error` 阻止渲染；`warning` 会随 SVG 一起返回，例如跳过回调或建议拆分大图。`check(source, { syntax, lang }?)` 仅解析和校验，不执行布局，异步返回含警告在内的诊断数组。结构图默认使用 `mermaid` 语法，原生结构图使用 `layers`、`blocks` 或 `swimlane`。`catalog` 和 `diagramTypes` 可同步查询支持的图型及结构图别名。
 
-渲染选项包括 `width`、`lang`、`theme`、`media`、`frame`、`prefix` 和 `measure(text, size, weight, fontFamily)`。宿主已有图框时可设置 `frame: false`。每个内联 SVG 应使用不同的 `prefix`；结构图可能宽于请求值，建议让容器可以横向滚动。
+渲染选项包括 `width`、`lang`、`theme`、`media`、`frame`、`prefix` 和 `measure(text, size, weight, fontFamily)`。宿主已有图框时可设置 `frame: false`，此时题名由宿主显示：数据图取规格中的 `title`、`subtitle`；结构图把题名放在 `scene.heading` 返回，图内不再绘制（下文的 compact 嵌入模式除外，会在图形上方画一次）。每个内联 SVG 应使用不同的 `prefix`；结构图可能宽于请求值，建议让容器可以横向滚动。
 
 嵌入页面时，可在异步或同步 `diagram()`、或 Mermaid 适配器的 `render()` 中传入 `compact: true`。布局宽度上限为 720px，画布贴合可见内容、不再居中，文字使用 12–14px。同时设置 `frame: false` 时，不绘制外层图框；有标题的图只在图形上方显示一次标题，左对齐并按布局宽度换行。`compact` 默认关闭。
 

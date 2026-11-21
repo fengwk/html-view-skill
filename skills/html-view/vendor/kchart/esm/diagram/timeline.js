@@ -136,7 +136,7 @@ function parse(body, info) {
 		errors
 	};
 }
-function layout(model, { width, ctx, measure, renderOptions, compact }) {
+function layout(model, { width, ctx, measure, renderOptions, compact, embedHeading }) {
 	const { design: d } = ctx, { items, config, sections } = model;
 	const vertical = model.direction === "TD";
 	const finite = (value, fallback, floor) => Number.isFinite(Number(value)) ? Math.max(floor, Number(value)) : fallback;
@@ -158,7 +158,7 @@ function layout(model, { width, ctx, measure, renderOptions, compact }) {
 		height: 0,
 		title: model.title,
 		children,
-		...renderOptions?.frame ? { heading: model.title || void 0 } : {}
+		...renderOptions?.frame || embedHeading ? { heading: model.title || void 0 } : {}
 	};
 	const add = (tag, attrs, meta) => children.push({
 		...ctx.el(tag, attrs),
@@ -209,7 +209,7 @@ function layout(model, { width, ctx, measure, renderOptions, compact }) {
 	};
 	const boxColor = (status, fallback) => status && d[status] || fallback;
 	const titleSlot = model.titleIcon ? 22 : 0;
-	const title = !renderOptions?.frame && (model.title || model.titleIcon) ? wrap(model.title, w - 48 - titleSlot, FONT.title) : [];
+	const title = !renderOptions?.frame && !embedHeading && (model.title || model.titleIcon) ? wrap(model.title, w - 48 - titleSlot, FONT.title) : [];
 	if (title.length && model.titleIcon) children.push(drawIcon(model.titleIcon, 32, 24, d.fg1));
 	lines(title, 24 + titleSlot, 24, FONT.title, d.fg1, "start", 20);
 	const top = title.length ? 24 + title.length * 20 : 24;

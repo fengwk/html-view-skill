@@ -30,32 +30,33 @@
 ---
 title: 每周复盘：问题怎么变成补丁
 ---
-row
-  box 输入
-    col
-      card 会话记录
-        所有仓库的会话
-      card 上期记录 {@last}
-        待验证的改动
-  box 复盘循环 {accent}
-    grid 2
-      card 收集数据 {accent #01}
-        脚本跑指标
-      card 找失败点 {accent #02}
-        介入、无效震荡
-      card 落地验证 {accent #04}
-        回放题重放
-      card 诊断选药 {accent #03}
-        动态补丁优先
-  col
-    box 产出 {ok}
+col
+  row
+    box 输入
       col
-        card 前置检查脚本 {ok}
-        card 拦截钩子 {ok}
+        card 会话记录
+          所有仓库的会话
+        card 上期记录 {@last}
+          待验证的改动
+    box 复盘循环 {accent}
+      grid 2
+        card 收集数据 {accent #01}
+          脚本跑指标
+        card 找失败点 {accent #02}
+          介入、无效震荡
+        card 落地验证 {accent #04}
+          回放题重放
+        card 诊断选药 {accent #03}
+          动态补丁优先
+  row
     legend
       accent: 循环步骤
       ok: 沉淀资产
       =>: 主流程
+    box 产出 {ok}
+      row
+        card 前置检查脚本 {ok}
+        card 拦截钩子 {ok}
 会话记录 => 收集数据
 收集数据 => 找失败点
 找失败点 => 诊断选药

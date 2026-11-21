@@ -150,10 +150,10 @@ function parse(body, info, kind) {
 }
 const text = (ctx, value, x, y, size = 13, fill = ctx.color('ink'), anchor = 'start', weight = 400) => ctx.text(x, y, value, { size, fill, anchor, weight, 'dominant-baseline': 'middle' });
 const wrap = (ctx, value, width, size) => ctx.wrap(String(value), Math.max(size, width), size, 400);
-function layout(model, { measure, width, ctx, renderOptions }) {
-  // Without a frame the title is drawn in the scene; an untitled diagram starts near the top instead of
-  // printing its Mermaid keyword. Gantt month ticks and the journey score scale need a row above the body.
-  const inSceneTitle = !renderOptions?.frame && Boolean(model.title);
+function layout(model, { measure, width, ctx, renderOptions, embedHeading }) {
+  // Without a frame the title is drawn in the scene unless the host shows it; an untitled diagram starts near
+  // the top instead of printing its Mermaid keyword. Gantt month ticks and the journey score scale need a row above the body.
+  const inSceneTitle = !renderOptions?.frame && !embedHeading && Boolean(model.title);
   const headRow = ['gantt', 'journey'].includes(model.type) ? 14 : 0;
   const right = 24, top = renderOptions?.frame ? 54 : (inSceneTitle ? 54 : 24) + headRow, rowH = 54;
   // 甘特图状态词按图的语言写出，不显示 Mermaid 关键字。
@@ -177,7 +177,7 @@ function layout(model, { measure, width, ctx, renderOptions }) {
   const rect = (x, y, w, h, fill = colors.bg, stroke = colors.grid, rx = 4) => scene.children.push(el('rect', { x, y, width: w, height: h, fill, stroke, rx }));
   const line = (x1, y1, x2, y2, stroke = colors.grid, sw = 1) => scene.children.push(el('line', { x1, y1, x2, y2, stroke, 'stroke-width': sw }));
   if (inSceneTitle) label(model.title, 22, 24, 17, colors.ink, 'start', 650);
-  else if (renderOptions?.frame) scene.heading = model.title || undefined;
+  else if (renderOptions?.frame || embedHeading) scene.heading = model.title || undefined;
   if (model.type === 'gantt') {
     // 分组名单独占一行，任务名不再重复前缀；任务名与条形同一中线。
     const headerH = 30, rows = [];

@@ -11,7 +11,7 @@
 title: 订单包含多条订单项
 ---
 erDiagram
-  ORDER ||--|{ ORDER_ITEM : contains
+  ORDER ||--|{ ORDER_ITEM : 包含
   ORDER {
     string id PK
     string status

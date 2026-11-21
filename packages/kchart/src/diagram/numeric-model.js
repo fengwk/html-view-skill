@@ -25,11 +25,11 @@ function validateWith(spec, info, lineFor) {
   return diagnostics(validateSpec(spec).errors, info, lineFor);
 }
 
-// frame:false 时图族 Scene 自己画题名，避免共享外框重复一行。
+// frame:false 时图族 Scene 自己画副标题（如轴名）；题名只在宿主不显示时才画，避免与外框或宿主图题重复。
 function addVisibleHeader(scene, options) {
   if (options.renderOptions?.frame) return scene;
   const { ctx } = options;
-  const heading = scene.heading || '';
+  const heading = options.embedHeading ? '' : scene.heading || '';
   const subtitle = scene.subtitle || '';
   if (!heading && !subtitle) return scene;
   const available = Math.max(24, scene.width - 32), children = [];

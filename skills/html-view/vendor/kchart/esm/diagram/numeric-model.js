@@ -20,7 +20,7 @@ function validateWith(spec, info, lineFor) {
 function addVisibleHeader(scene, options) {
 	if (options.renderOptions?.frame) return scene;
 	const { ctx } = options;
-	const heading = scene.heading || "";
+	const heading = options.embedHeading ? "" : scene.heading || "";
 	const subtitle = scene.subtitle || "";
 	if (!heading && !subtitle) return scene;
 	const available = Math.max(24, scene.width - 32), children = [];

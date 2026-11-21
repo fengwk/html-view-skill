@@ -48,6 +48,7 @@ export interface RenderOptions {
   lang?: string;
   theme?: string | Theme;
   media?: Media;
+  /** Draw the outer frame and its title (default true). With false the host shows the title; see Scene.heading. */
   frame?: boolean;
   prefix?: string;
   measure?: (text: string, size: number, weight: number, fontFamily: string) => number;
@@ -87,6 +88,7 @@ export interface Scene {
   height: number;
   children: SceneNode[];
   title?: string;
+  /** Visible diagram title. With frame: false (and no compact) the drawing leaves it out for the host to show. */
   heading?: string;
   subtitle?: string;
   source?: string;

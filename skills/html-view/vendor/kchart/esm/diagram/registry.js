@@ -247,8 +247,9 @@ function createDiagramApi(implementations, types) {
 				...options,
 				frame: options.frame ?? true
 			};
-			const embedHeading = compact && renderOptions.frame === false;
-			const layoutOptions = embedHeading ? {
+			const embedHeading = renderOptions.frame === false;
+			const sharedHeading = compact && embedHeading;
+			const layoutOptions = sharedHeading ? {
 				...renderOptions,
 				frame: true
 			} : renderOptions;
@@ -271,7 +272,7 @@ function createDiagramApi(implementations, types) {
 			if (!laid || !Number.isFinite(laid.width) || !Number.isFinite(laid.height) || !Array.isArray(laid.children)) throw new TypeError(`Invalid scene for diagram: ${parsed.type.kind}`);
 			const heading = parsed.info.title || laid.heading;
 			const header = [];
-			if (embedHeading && (heading || laid.subtitle)) {
+			if (sharedHeading && (heading || laid.subtitle)) {
 				const wrap = (value, size, weight) => wrapText(value, Math.max(14, layoutWidth - 4), ctx.font(size, weight), (text, font) => ctx.measureInk(text, font.size, font.weight), { bounded: true });
 				const lines = heading ? wrap(heading, 16, 650) : [];
 				if (lines.length) header.push(ctx.textLines(0, 0, lines, {
@@ -289,8 +290,8 @@ function createDiagramApi(implementations, types) {
 				}));
 			}
 			const headingNode = header.length ? el("g", {}, header) : null;
-			const contained = compact ? cropInk(laid, embedHeading ? ctx.measureInk : ctx.measureRendered, {
-				fullText: embedHeading,
+			const contained = compact ? cropInk(laid, sharedHeading ? ctx.measureInk : ctx.measureRendered, {
+				fullText: sharedHeading,
 				heading: headingNode
 			}) : containText(laid, ctx.measure, { blockPadding: 4 });
 			const sceneWidth = compact ? contained.width : Math.max(width, contained.width);

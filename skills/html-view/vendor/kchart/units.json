@@ -47,7 +47,7 @@
     "deps": [
       "chart/registry"
     ],
-    "bytes": 12424
+    "bytes": 12459
   },
   "chart/mindmap": {
     "file": "units/chart/mindmap.js",
@@ -348,7 +348,7 @@
       "diagram/support",
       "diagram/gantt-date"
     ],
-    "bytes": 16515
+    "bytes": 16542
   },
   "diagram/gitgraph": {
     "file": "units/diagram/gitgraph.js",
@@ -357,7 +357,7 @@
       "diagram/presentation",
       "diagram/support"
     ],
-    "bytes": 10651
+    "bytes": 10672
   },
   "diagram/graph-layout": {
     "file": "units/diagram/graph-layout.js",
@@ -423,7 +423,7 @@
       "diagram/label",
       "diagram/presentation"
     ],
-    "bytes": 12343
+    "bytes": 12370
   },
   "diagram/kanban": {
     "file": "units/diagram/kanban.js",
@@ -433,7 +433,7 @@
       "diagram/presentation",
       "diagram/support"
     ],
-    "bytes": 6708
+    "bytes": 6727
   },
   "diagram/label": {
     "file": "units/diagram/label.js",
@@ -492,7 +492,7 @@
       "chart/registry",
       "core/diagnostics"
     ],
-    "bytes": 1908
+    "bytes": 1926
   },
   "diagram/numeric-parse": {
     "file": "units/diagram/numeric-parse.js",
@@ -543,7 +543,7 @@
       "diagram/presentation",
       "diagram/support"
     ],
-    "bytes": 4084
+    "bytes": 4103
   },
   "diagram/presentation": {
     "file": "units/diagram/presentation.js",
@@ -560,7 +560,7 @@
       "diagram/presentation",
       "diagram/support"
     ],
-    "bytes": 7207
+    "bytes": 7226
   },
   "diagram/railroad-parse": {
     "file": "units/diagram/railroad-parse.js",
@@ -592,7 +592,7 @@
       "core/text",
       "core/diagnostics"
     ],
-    "bytes": 8276
+    "bytes": 8280
   },
   "diagram/requirement": {
     "file": "units/diagram/requirement.js",
@@ -656,7 +656,7 @@
     "deps": [
       "diagram/support"
     ],
-    "bytes": 15019
+    "bytes": 15043
   },
   "diagram/timeline": {
     "file": "units/diagram/timeline.js",
@@ -666,7 +666,7 @@
       "diagram/presentation",
       "diagram/support"
     ],
-    "bytes": 7862
+    "bytes": 7884
   },
   "diagram/tree-family-icon": {
     "file": "units/diagram/tree-family-icon.js",

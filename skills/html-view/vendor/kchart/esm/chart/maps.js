@@ -128,9 +128,10 @@ function coordinateBounds(features, rows, enc, inset, projection) {
 	};
 }
 var INDEX_TOP = 98;
+var INDEX_TOP_BARE = 28;
 var INDEX_ROW = 16;
 var INDEX_CAP = 24;
-function makePlot(spec, ctx, features, rows = []) {
+function makePlot(spec, ctx, features, rows = [], indexTop = INDEX_TOP) {
 	const width = ctx.width;
 	const inset = spec.data.map.asset === "us-states";
 	const projection = ctx.assets?.projection || "equirectangular";
@@ -138,7 +139,7 @@ function makePlot(spec, ctx, features, rows = []) {
 	const ll = project(bounds.west, bounds.south, projection), ur = project(bounds.east, bounds.north, projection);
 	const margin = width <= 360 ? 12 : 32;
 	const indexRows = Math.min(rows.length, INDEX_CAP);
-	const bottom = indexRows ? 126 + Math.ceil(indexRows / (width < 420 ? 1 : 2)) * INDEX_ROW : 112;
+	const bottom = indexRows ? indexTop + 28 + Math.ceil(indexRows / (width < 420 ? 1 : 2)) * INDEX_ROW : 112;
 	const availableW = width - margin * 2;
 	const budgetH = Math.max(180, Math.round(width * .64) - (indexRows ? 120 : 80));
 	const scale = Math.min(availableW / Math.max(1e-9, ur[0] - ll[0]), budgetH / Math.max(1e-9, ur[1] - ll[1]));
@@ -418,7 +419,8 @@ function choropleth(spec, ctx) {
 }
 function scatter(spec, ctx) {
 	const { features } = featuresFor(spec, ctx), rows = spec.data.rows, enc = spec.encode;
-	const layout = makePlot(spec, ctx, features, rows), c = palette(ctx), { children, projectPoint } = layout;
+	const indexTop = enc.value ? INDEX_TOP : INDEX_TOP_BARE;
+	const layout = makePlot(spec, ctx, features, rows, indexTop), c = palette(ctx), { children, projectPoint } = layout;
 	for (const feature of features) {
 		const id = feature.properties.id || null;
 		const point = layout.inset && ["US-AK", "US-HI"].includes(id) ? (lon, lat) => insetPoint(layout, id, lon, lat) : projectPoint;
@@ -483,7 +485,7 @@ function scatter(spec, ctx) {
 		});
 	});
 	if (valueField) bottomLegend(children, ctx, layout, min, max, valueField, true);
-	const indexY = layout.height - layout.bottom + INDEX_TOP, localized = ctx.lang.startsWith("en");
+	const indexY = layout.height - layout.bottom + indexTop, localized = ctx.lang.startsWith("en");
 	children.push(ctx.text(24, indexY, localized ? "Locations" : "地点索引", {
 		size: 12,
 		weight: 600,
@@ -500,8 +502,8 @@ function scatter(spec, ctx) {
 		const x = 24 + column * ((layout.width - 48) / columns);
 		const y = columnHeights[column];
 		const name = item.label || item.id || `#${item.index + 1}`;
-		const readout = item.zero ? localized ? `${formattedValue(ctx, 0, valueField)} (no marker)` : `${formattedValue(ctx, 0, valueField)}（无点）` : item.value == null ? localized ? "no value" : "无数值" : formattedValue(ctx, item.value, valueField);
-		const lines = ctx.wrap(`${name} · ${readout}`, columnWidth, 12, 400);
+		const readout = !valueField ? "" : item.zero ? localized ? `${formattedValue(ctx, 0, valueField)} (no marker)` : `${formattedValue(ctx, 0, valueField)}（无点）` : item.value == null ? localized ? "no value" : "无数值" : formattedValue(ctx, item.value, valueField);
+		const lines = ctx.wrap(readout ? `${name} · ${readout}` : name, columnWidth, 12, 400);
 		lines.forEach((line, lineIndex) => children.push(ctx.text(x, y + lineIndex * INDEX_ROW, line, {
 			size: 12,
 			fill: c.ink,
@@ -527,7 +529,7 @@ function scatter(spec, ctx) {
 		}));
 		indexBottom += 20;
 	}
-	const reservedIndex = layout.bottom - INDEX_TOP;
+	const reservedIndex = layout.bottom - indexTop;
 	const usedIndex = indexBottom - indexY + 16;
 	if (usedIndex > reservedIndex) layout.height += usedIndex - reservedIndex;
 	if (outside.length) {

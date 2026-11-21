@@ -96,6 +96,21 @@ test('map canvases follow the drawn map height and reserve room for every index 
   assert.ok(rowsY.every((y, i) => i === 0 || y - rowsY[i - 1] >= 16), `index, outside and source lines keep a full line apart: ${rowsY.join('/')}`);
 });
 
+// 意图：没有数值字段时不预留面积图例，索引紧接地图且只写名称；有数值字段时缺值仍写明“无数值”。
+test('geo-scatter without a value field lists names right below the map', () => {
+  const map = fc([feature('land', 'Land', -1, -1)]);
+  const rows = [{ lon: 0, lat: 0, name: '上海' }, { lon: 0.5, lat: 0.5, name: '北京' }];
+  const layoutOf = (spec) => K.layout(spec, { width: 600, assets: { world: map } });
+  const bare = layoutOf({ chart: 'geo-scatter', data: { map: { asset: 'world' }, rows }, encode: { longitude: 'lon', latitude: 'lat', label: 'name' } });
+  const valued = layoutOf({ chart: 'geo-scatter', data: { map: { asset: 'world' }, rows: rows.map((row, i) => ({ ...row, stores: i ? null : 12 })) }, encode: { longitude: 'lon', latitude: 'lat', label: 'name', value: 'stores' } });
+  const index = (scene) => scene.children.filter((node) => node.meta?.kind === 'geo-scatter-index').map((node) => node.text);
+  assert.deepEqual(index(bare), ['上海', '北京']);
+  assert.deepEqual(index(valued), ['上海 · 12', '北京 · 无数值']);
+  const heading = (scene) => scene.children.find((node) => node.tag === 'text' && node.text === '地点索引').attrs.y;
+  assert.ok(heading(bare) < heading(valued) - 60, 'no empty band is reserved for a size legend');
+  assert.ok(bare.height < valued.height - 60);
+});
+
 // 意图：覆盖投影有效范围、散点场景、经纬网和缺失值样式；Mercator极区裁剪不可生成无限坐标。
 test('projection helpers and geo-scatter produce finite offline scenes with graticule and legend', () => {
   assert.deepEqual(JSON.parse(JSON.stringify(K.maps.project(10, 20))), [10 * Math.PI / 180, 20 * Math.PI / 180]);

@@ -330,11 +330,11 @@ function compactRows(items, { bounds, caption, markerXs, left, width }) {
 	}
 	return rows;
 }
-function layout(model, { width, ctx, measure, renderOptions, compact: compactOption }) {
+function layout(model, { width, ctx, measure, renderOptions, compact: compactOption, embedHeading }) {
 	const { design: d, lang } = ctx, { items, sections, today } = model;
 	const compact = compactOption === true;
 	const compactRowsMode = model.compact || compact;
-	const errors = [], children = [], title = model.title, naked = !renderOptions?.frame && title;
+	const errors = [], children = [], title = model.title, naked = !renderOptions?.frame && !embedHeading && title;
 	const body = FONT.body, small = FONT.label, titleFont = compact ? {
 		...FONT.title,
 		size: 13
@@ -653,7 +653,7 @@ function layout(model, { width, ctx, measure, renderOptions, compact: compactOpt
 		height,
 		title,
 		children,
-		...renderOptions?.frame ? { heading: title || void 0 } : {}
+		...renderOptions?.frame || embedHeading ? { heading: title || void 0 } : {}
 	};
 	return {
 		width: w,

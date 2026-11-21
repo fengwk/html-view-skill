@@ -55,8 +55,30 @@ for (const { kind, aliases } of diagramTypes) {
       assert.ok(regular.svg);
       assert.doesNotMatch(regular.svg, /data-kc-kind="diagram-title"/);
     }
+    // A frameless host shows scene.heading as its caption, so the drawing must not repeat it.
+    const hosted = diagram(source, { compact: false, frame: false, syntax, width: opts.width });
+    assert.equal(hosted.scene.heading, title);
+    assert.equal(all(hosted.scene).filter(node => node.tag === 'text' && node.text === title).length, 0);
   });
 }
+
+// 意图：无框且非 compact 时题名只交给宿主图题；正文 title 语句不再在 SVG 里画第二遍，数值图的轴名副标题仍留在图内。
+test('frameless hosts get body titles as heading and the drawing leaves them out', () => {
+  const kinds = ['packet', 'gantt', 'timeline', 'journey', 'gitGraph', 'quadrantChart', 'pie', 'xychart', 'radar-beta',
+    'sequenceDiagram', 'zenuml', 'eventmodeling', 'treeView-beta', 'venn-beta', 'wardley-beta', 'cynefin-beta'];
+  for (const kind of kinds) {
+    const [syntax, source] = diagramExample([kind]);
+    const { scene, svg, diagnostics } = diagram(source.replace('\n', '\ntitle Body caption\n'), { syntax, width: 760, frame: false });
+    assert.ok(svg, `${kind}: ${JSON.stringify(diagnostics)}`);
+    assert.equal(scene.heading, 'Body caption', kind);
+    assert.equal(all(scene).filter(node => node.tag === 'text' && node.text === 'Body caption').length, 0, kind);
+  }
+  const chart = diagram('xychart-beta\n    title "Body caption"\n    x-axis [A, B]\n    y-axis "Seconds" 0 --> 10\n    bar [2, 4]', { width: 760, frame: false });
+  assert.equal(chart.scene.heading, 'Body caption');
+  assert.doesNotMatch(chart.svg, /<text [^>]+>Body caption<\/text>/);
+  assert.match(chart.svg, /<title id="[^"]+">Body caption<\/title>/);
+  assert.match(chart.svg, /<text [^>]+>Seconds<\/text>/);
+});
 
 test('body titles, accessible titles and numeric subtitles remain distinct', () => {
   // Body-only headings previously disappeared for sequence and were drawn by the Venn family itself.

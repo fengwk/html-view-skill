@@ -54,6 +54,21 @@ test('对比度：报告接近阈值的实测值和屏幕、打印各自的合�
   ]);
 });
 
+// 先描边后填字的光晕是文字实际的底色；太细的描边或压在字形上的描边不算，仍按形状底色判断。
+test('对比度：SVG 文字光晕作为底色，过细或未先画的描边不算', { skip }, async (t) => {
+  const label = (y, attrs) => `<text x="12" y="${y}" font-size="14" fill="#5f5e58" ${attrs}>${attrs ? 'halo' : 'bare'} ${y}</text>`;
+  const failures = await check(t, `
+    <h2>光晕</h2>
+    <svg width="240" height="140"><rect width="240" height="140" fill="#e2c3b2"/>
+      ${label(24, '')}
+      ${label(56, 'stroke="#faf9f5" stroke-width="4" paint-order="stroke"')}
+      ${label(88, 'stroke="#faf9f5" stroke-width="1" paint-order="stroke"')}
+      ${label(120, 'stroke="#faf9f5" stroke-width="4"')}
+    </svg>`);
+  const contrast = failures.filter(({ code }) => code === 'LOW_CONTRAST').map(({ where }) => where).sort();
+  assert.deepEqual(contrast, ['光晕 › text「bare 24」', '光晕 › text「halo 120」', '光晕 › text「halo 88」']);
+});
+
 // 宽图仍走原有的盒溢出路径；打印改法优先调整纸型和布局，不要求丢弃数据。
 test('宽图：保留盒溢出定位，打印优先建议更宽版心', { skip }, async (t) => {
   const failures = await check(t, '<h2>宽图</h2><svg width="800" height="80"></svg>');

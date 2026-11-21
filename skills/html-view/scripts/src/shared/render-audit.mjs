@@ -220,8 +220,21 @@ function inspectPage(options) {
     if (el instanceof SVGElement) {
       const under = svgUnderlay(el);
       if (under) base = over(under, base);
+      // 先描边再填字的光晕紧贴字形；每侧至少 1px 时，读者看到的文字底色就是光晕。
+      const halo = svgHalo(el);
+      if (halo) base = over(halo, base);
     }
     return base;
+  };
+  const svgHalo = (el) => {
+    const cs = getComputedStyle(el);
+    if (!/^stroke\b/.test(cs.paintOrder) || !isColor(cs.stroke)) return null;
+    const matrix = (el.closest('text') || el).getScreenCTM?.();
+    const width = parseFloat(cs.strokeWidth) * (matrix ? Math.hypot(matrix.a, matrix.b) : 1);
+    if (!(width >= 2)) return null;
+    const color = parseColor(cs.stroke);
+    color.a *= Number(cs.strokeOpacity) || 0;
+    return color.a > 0 ? color : null;
   };
   /** 点是否落在形状及其祖先的 clip-path 裁剪区域内；被裁掉的部分不算文字底色。只支持 userSpaceOnUse（SVG 默认）。 */
   const insideClip = (shape, point) => {

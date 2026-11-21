@@ -232,11 +232,11 @@ function compactRows(items, { bounds, caption, markerXs, left, width }) {
   return rows;
 }
 
-function layout(model, { width, ctx, measure, renderOptions, compact: compactOption }) {
+function layout(model, { width, ctx, measure, renderOptions, compact: compactOption, embedHeading }) {
   const { design: d, lang } = ctx, { items, sections, today } = model;
   const compact = compactOption === true;
   const compactRowsMode = model.compact || compact;
-  const errors = [], children = [], title = model.title, naked = !renderOptions?.frame && title;
+  const errors = [], children = [], title = model.title, naked = !renderOptions?.frame && !embedHeading && title;
   const body = FONT.body, small = FONT.label, titleFont = compact ? { ...FONT.title, size: 13 } : FONT.title, bold = { ...body, weight: 600 };
   const texts = value => value.split('\n');
   const states = item => item.flags.map(flag => flags[flag][isEn(lang) ? 1 : 0]).join(' · ');
@@ -421,7 +421,7 @@ function layout(model, { width, ctx, measure, renderOptions, compact: compactOpt
   }
   if (items.length === 0) text(isEn(lang) ? 'No scheduled tasks' : '暂无排期任务', w / 2, top + 36, body, d.fg2, 'middle');
   if (w > 2 * width || items.length > 60) errors.push(warning('LARGE_DIAGRAM', lang, model.firstLine, '甘特图较大，可滚动查看', 'Large Gantt chart; scroll to view', '可拆成多张图', 'Consider splitting the chart'));
-  const scene = { width: w, height, title, children, ...(renderOptions?.frame ? { heading: title || undefined } : {}) };
+  const scene = { width: w, height, title, children, ...(renderOptions?.frame || embedHeading ? { heading: title || undefined } : {}) };
   return { width: w, height, scene, errors };
 }
 

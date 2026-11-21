@@ -176,9 +176,13 @@ function createDiagramApi(implementations, types) {
       const ctx = createContext({ ...options, width: layoutWidth, compact, lang: parsed.info.lang });
       const measure = measureOf(ctx);
       const renderOptions = { ...options, frame: options.frame ?? true };
-      const embedHeading = compact && renderOptions.frame === false;
-      // Use framed layout to reserve titles for the shared heading, but render without the outer frame.
-      const layoutOptions = embedHeading ? { ...renderOptions, frame: true } : renderOptions;
+      // Without a frame the title is shown outside the family's drawing, so every family gets embedHeading:
+      // it leaves the title out and returns it as heading. Compact output draws that heading once below (and
+      // lays out as framed); any other host shows scene.heading as its caption. A family subtitle, such as
+      // xychart's axis names, carries data and stays in the drawing.
+      const embedHeading = renderOptions.frame === false;
+      const sharedHeading = compact && embedHeading;
+      const layoutOptions = sharedHeading ? { ...renderOptions, frame: true } : renderOptions;
       const geometry = implementation.layout(parsed.model, { width: layoutWidth, compact, embedHeading, lang: ctx.lang, measure, ctx, renderOptions: layoutOptions }, parsed.info);
       const diagnostics = merge(parsed.diagnostics, normalize(geometry?.errors, parsed.type));
       if (diagnostics.some(blocking)) return { svg: null, scene: null, diagnostics };
@@ -187,7 +191,7 @@ function createDiagramApi(implementations, types) {
       // 裸 SVG 在宿主图框内可能被裁切；保留字体 ascent/descent 超出 em 估算的余量。
       const heading = parsed.info.title || laid.heading;
       const header = [];
-      if (embedHeading && (heading || laid.subtitle)) {
+      if (sharedHeading && (heading || laid.subtitle)) {
         const wrap = (value, size, weight) => wrapText(value, Math.max(14, layoutWidth - 4), ctx.font(size, weight),
           (text, font) => ctx.measureInk(text, font.size, font.weight), { bounded: true });
         const lines = heading ? wrap(heading, 16, 650) : [];
@@ -197,7 +201,7 @@ function createDiagramApi(implementations, types) {
           { size: 12, weight: 400, leading: 18, fill: ctx.color('muted') }));
       }
       const headingNode = header.length ? el('g', {}, header) : null;
-      const contained = compact ? cropInk(laid, embedHeading ? ctx.measureInk : ctx.measureRendered, { fullText: embedHeading, heading: headingNode })
+      const contained = compact ? cropInk(laid, sharedHeading ? ctx.measureInk : ctx.measureRendered, { fullText: sharedHeading, heading: headingNode })
         : containText(laid, ctx.measure, { blockPadding: 4 });
       const sceneWidth = compact ? contained.width : Math.max(width, contained.width);
       const offset = Math.max(0, (sceneWidth - contained.width) / 2);

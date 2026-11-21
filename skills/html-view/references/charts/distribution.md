@@ -36,6 +36,7 @@
     { "cost": 18, "rate": 4.2 },
     { "cost": 25, "rate": 4.8 }
   ],
-  "encode": { "x": "cost", "y": "rate" }
+  "encode": { "x": "cost", "y": "rate" },
+  "fields": { "cost": { "label": "投放成本", "unit": "万元" }, "rate": { "label": "转化率", "unit": "%" } }
 }
 ```

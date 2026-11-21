@@ -62,6 +62,7 @@ Mermaid 维恩图：`set 名称` 或 `set id["标签"]` 声明集合，`union A,
     { "source": "其他", "visits": 17 }
   ],
   "encode": { "category": "source", "value": "visits" },
-  "unit": "次"
+  "unit": "次",
+  "fields": { "visits": { "label": "访问次数" } }
 }
 ```

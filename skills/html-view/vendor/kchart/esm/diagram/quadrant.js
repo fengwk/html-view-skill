@@ -136,12 +136,12 @@ function parse(body, { lang, title = "", firstLine = 2, config, options = {} }) 
 		errors
 	};
 }
-function layout(model, { ctx, width, renderOptions, compact = false }, info = {}) {
+function layout(model, { ctx, width, renderOptions, compact = false, embedHeading }, info = {}) {
 	const { title, captions, axes, points, config } = model, t = appearance(ctx);
 	const dimension = (key, fallback, min, max) => Number.isFinite(config[key]) ? Math.min(max, Math.max(min, config[key])) : fallback;
 	const size = dimension("pointLabelFontSize", 12, 12, 24);
 	const r = dimension("pointRadius", 5, 3, 12);
-	const titleInline = title && !renderOptions?.frame;
+	const titleInline = title && !renderOptions?.frame && !embedHeading;
 	const xTop = config.xAxisPosition ? config.xAxisPosition === "top" : !points.length;
 	const yRight = config.yAxisPosition === "right";
 	const centered = {

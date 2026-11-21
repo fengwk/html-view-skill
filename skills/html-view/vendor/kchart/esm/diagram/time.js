@@ -403,8 +403,8 @@ var text = (ctx, value, x, y, size = 13, fill = ctx.color("ink"), anchor = "star
 	"dominant-baseline": "middle"
 });
 var wrap = (ctx, value, width, size) => ctx.wrap(String(value), Math.max(size, width), size, 400);
-function layout(model, { measure, width, ctx, renderOptions }) {
-	const inSceneTitle = !renderOptions?.frame && Boolean(model.title);
+function layout(model, { measure, width, ctx, renderOptions, embedHeading }) {
+	const inSceneTitle = !renderOptions?.frame && !embedHeading && Boolean(model.title);
 	const headRow = ["gantt", "journey"].includes(model.type) ? 14 : 0;
 	const right = 24, top = renderOptions?.frame ? 54 : (inSceneTitle ? 54 : 24) + headRow, rowH = 54;
 	const FLAG = /^en\b/i.test(ctx.lang || "zh") ? {
@@ -469,7 +469,7 @@ function layout(model, { measure, width, ctx, renderOptions }) {
 		"stroke-width": sw
 	}));
 	if (inSceneTitle) label(model.title, 22, 24, 17, colors.ink, "start", 650);
-	else if (renderOptions?.frame) scene.heading = model.title || void 0;
+	else if (renderOptions?.frame || embedHeading) scene.heading = model.title || void 0;
 	if (model.type === "gantt") {
 		const headerH = 30, rows = [];
 		let section;

@@ -271,7 +271,7 @@ function drawIcon(ctx, icon, x, y, size = ICON_SIZE, color = ctx.color("fg")) {
 	}, icon.elements.map(({ tag, attrs }) => ctx.shape(tag, attrs)));
 }
 function layout(model, options = {}) {
-	const { width = 800, ctx, renderOptions = {}, compact } = options;
+	const { width = 800, ctx, renderOptions = {}, compact, embedHeading } = options;
 	if (!ctx) throw new TypeError("journey layout needs a theme context");
 	const look = appearance(ctx);
 	const measure = options.measure || ((value, font) => ctx.measure(value, font.size, font.weight));
@@ -314,7 +314,7 @@ function layout(model, options = {}) {
 	const plotW = compact ? 140 : Math.max(140, width - left - LAYOUT.right);
 	const x0 = left, x1 = left + plotW, step = plotW / 4;
 	const sceneWidth = Math.ceil(Math.max(compact ? 0 : width, x1 + LAYOUT.right));
-	const inSceneTitle = Boolean(model.title) && !renderOptions?.frame;
+	const inSceneTitle = Boolean(model.title) && !renderOptions?.frame && !embedHeading;
 	if (inSceneTitle) {
 		const titleText = ctx.text(LAYOUT.labelX + iconSlot(model.titleIcon), titleSize + 12, model.title, {
 			size: titleSize,
@@ -498,7 +498,7 @@ function layout(model, options = {}) {
 			height,
 			children,
 			...model.title ? { title: model.title } : {},
-			...renderOptions?.frame && model.title ? { heading: model.title } : {}
+			...(renderOptions?.frame || embedHeading) && model.title ? { heading: model.title } : {}
 		},
 		errors
 	};

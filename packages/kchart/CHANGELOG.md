@@ -2,13 +2,14 @@
 
 ## 0.2.0
 
-This release adds an opt-in compact embedding mode, one-page overview boards, native ZenUML rendering and clearer diagnostics. Outside boards and the layout fixes listed below, diagrams render as in 0.1.1.
+This release adds an opt-in compact embedding mode, one-page overview boards, native ZenUML rendering and clearer diagnostics. Apart from boards, frameless titles and the layout fixes listed below, diagrams render as in 0.1.1.
 
 ### Compact embedding
 
 - `diagram()` and the Mermaid facade accept opt-in `compact: true` for diagrams placed inline with text. The layout is capped at 720px, the SVG is cropped to the drawing and left-aligned instead of centered, and text uses 12–14px, so output is the same for every host width of 720px or more.
 - Structure diagrams keep their natural size instead of spreading to fill the host width. Mermaid charts (pie, XY, quadrant, radar, Sankey, treemap, Venn, Gantt, Wardley, Cynefin) are sized from their data; a single-leaf treemap is a small tile.
 - Without an outer frame (`frame: false`), a compact diagram shows its title once, as a left-aligned heading above the drawing.
+- Without a frame and without `compact`, the host shows the title. Every diagram returns it as `scene.heading` and leaves it out of the drawing; before, titled Gantt, timeline, journey, packet, Git, quadrant, pie, XY and radar diagrams also drew it, so pages that captioned the figure showed it twice. Axis names on Mermaid XY charts stay in the drawing.
 
 ### Boards
 
@@ -32,6 +33,7 @@ This release adds an opt-in compact embedding mode, one-page overview boards, na
 - Git commit captions prefer breaking at spaces and punctuation. Bilateral mindmaps move branches between sides only when that strictly improves the balance.
 - Sankey labels lose their halo, and CJK quadrant y-axis labels stand upright. The fallback text measurer counts fullwidth forms as fullwidth glyphs.
 - A map given by name alone (`"map": "world"`) is rejected with the accepted shapes in the message: `{"asset": "world"}`, `{"asset": "us-states"}` or an external GeoJSON with `idProperty`.
+- A geo-scatter map without a value field lists its places by name directly below the map, instead of leaving room for a size legend and marking every place "no value".
 
 ## 0.1.1
 

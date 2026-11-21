@@ -72,8 +72,8 @@ p { margin: 0 0 var(--sp-3); text-wrap: pretty; }
 strong { color: var(--fg-1); font-weight: 600; }
 ul, ol { margin: 0 0 var(--sp-3); padding-left: 1.4em; }
 li { margin: var(--sp-1) 0; }
-/* 长标识符在正文内折行，不改变原文；代码块和表格仍有各自的溢出规则。 */
-p, li, .note > div { overflow-wrap: anywhere; }
+/* 长标识符在正文、标题和图题内折行，不改变原文；代码块和表格仍有各自的溢出规则。 */
+p, li, .note > div, h1, h2, h3, h4, h5, h6, figcaption { overflow-wrap: anywhere; }
 li::marker { color: var(--accent-mark); }
 code { padding: 0 .35em; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--code-bg); color: var(--fg-1); font-family: var(--font-mono); font-size: max(12px, .86em); overflow-wrap: anywhere; }
 kbd { display: inline-block; min-width: 1.7em; padding: 0 5px; border: 1px solid var(--line-2); border-bottom-width: 2px; border-radius: var(--radius-sm); background: var(--code-bg); color: var(--fg-1); font: 500 var(--fs-micro)/1.6 var(--font-mono); text-align: center; }

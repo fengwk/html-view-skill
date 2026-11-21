@@ -241,12 +241,12 @@ function roundedRoute(points) {
 	}
 	return `${d} L${points.at(-1).join(" ")}`;
 }
-function layout(model, { ctx, width, renderOptions, compact }, info = {}) {
+function layout(model, { ctx, width, renderOptions, compact, embedHeading }, info = {}) {
 	const { title, commits, branches, direction, config } = model, t = appearance(ctx);
 	const vertical = direction !== "LR", reverse = direction === "BT";
 	const showBranches = config.showBranches !== false, showLabels = config.showCommitLabel !== false;
 	const pad = Math.max(12, Math.min(60, Number(config.diagramPadding) || 18));
-	const titleInline = title && !renderOptions?.frame, heading = titleInline ? Math.max(30, Math.min(100, Number(config.titleTopMargin) || 30)) : 0;
+	const titleInline = title && !renderOptions?.frame && !embedHeading, heading = titleInline ? Math.max(30, Math.min(100, Number(config.titleTopMargin) || 30)) : 0;
 	const W = (lines) => Math.max(0, ...lines.map((s) => ctx.measure(s, FONT.label.size)));
 	const laneOf = new Map(branches.map(({ name }, i) => [name, i]));
 	const branchNames = branches.map(({ label }) => ctx.wrap(label, 128, FONT.label.size));
