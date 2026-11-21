@@ -101,7 +101,7 @@ test('UI shell preserves select/date required-value-change behavior, navigation,
       charts: charts.map(svg => ({
         device: svg.closest('.ui-shot').dataset.w,
         width: Number(svg.getAttribute('width')),
-        displayWidth: Math.round(svg.getBoundingClientRect().width),
+        displayWidth: svg.getBoundingClientRect().width,
         label: svg.getAttribute('aria-labelledby'),
       })),
       dataTables: document.querySelectorAll('.ui-shot .viz-data').length,
@@ -116,7 +116,8 @@ test('UI shell preserves select/date required-value-change behavior, navigation,
   assert.equal(print.dataTables, 0, 'clones reuse UI host options');
   assert.equal(new Set(print.charts.map(({ label }) => label)).size, 8, 'clones have independent SVG reference IDs');
   for (const { device, width, displayWidth } of print.charts) {
-    assert.equal(width, displayWidth, 're-layout, not SVG scaling');
+    // A chart in a card is laid out at the card's sub-pixel content width; only scaling would move the drawn width.
+    assert.ok(Math.abs(width - displayWidth) < 0.1, `re-layout, not SVG scaling: ${width} vs ${displayWidth}`);
     assert.ok(device === 'mobile' ? width <= 390 : width >= 900, `${device} rendered at ${width}px`);
   }
   await page.setMedia('screen');

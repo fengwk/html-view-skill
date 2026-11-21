@@ -1207,7 +1207,8 @@ code {
   font-weight: 600;
   line-height: 1;
 }
-.stat { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+/* 阅读页的 .stat 是带底色的指标块；界面稿里指标写在卡片内，不再嵌一层内边距和底色。 */
+.stat { display: flex; flex-direction: column; gap: 2px; min-width: 0; padding: 0; border-radius: 0; background: none; }
 .stat-v { color: var(--fg-1); font-size: var(--ui-fs-24); font-weight: 600; line-height: 1.2; }
 .stat-l { color: var(--fg-3); font-size: var(--ui-fs-12); line-height: 1.4; }
 
@@ -1773,8 +1774,14 @@ a.chip { cursor: pointer; }
 [data-mode="export"] .top-bar,
 [data-mode="export"] .tab-bar { position: static; }
 
-/* 图卡嵌入已有卡片时使用父卡片间距，不能再叠一层外边距。 */
-.card > .viz.viz-figure { margin: 0; }
+/* 图卡嵌入已有卡片时沿用父卡片的间距和底色：图题、图身与卡片文字左对齐，不再叠一层内衬。
+   卡片已有 section-title 时由它做标题，图题不再显示；SVG 自带的 title 仍供读屏使用。 */
+.card > .viz.viz-figure { margin: 0; border-radius: 0; background: none; }
+.card > .viz-figure > figcaption { padding: 0; }
+.card > .viz-figure > .viz-body.fig-body { padding: 12px 0 0; }
+.card > .viz-figure > .fig-meta { margin-top: 8px; }
+.card:has(> .section-title) > .viz-figure > figcaption { display: none; }
+.card:has(> .section-title) > .viz-figure > .viz-body.fig-body { padding-top: 0; }
 
 .ui-shot { display: flex; flex-direction: column; width: 390px; margin: 0 auto; container-type: inline-size; }
 .ui-shot[data-w="desktop"] { width: 1280px; }
