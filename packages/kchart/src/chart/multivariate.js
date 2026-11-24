@@ -707,7 +707,8 @@ const chart = (spec, ctx) => {
       while (labelsOverlap()) radius += Math.max(8, radius * 0.05);
     }
     const cx = Math.max(width / 2, textWidth + radius + 12);
-    const cy = radius + labelDepth + 24;
+    // 顶轴首行基线至少为 16px，给 12px 标签的字体上伸留空间，不依赖外框留白。
+    const cy = radius + labelDepth + 30;
     const chartWidth = Math.max(width, cx + radius + textWidth + 12);
     const radiusAt = (axis, value) => {
       const [lo, hi] = domains[axis];

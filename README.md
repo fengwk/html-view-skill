@@ -216,15 +216,15 @@ HTML View 的图表由自带的 KChart 库绘制。图谱展示 **45 种数据�
 <table>
 <tr>
 <td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/zh-CN/chart-share.svg"><img src="docs/showcase/gallery/zh-CN/chart-share.svg" width="360" alt="占比条"></a><br><b>占比条</b><br><sub><code>share</code></sub></td>
-<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/zh-CN/chart-waffle.svg"><img src="docs/showcase/gallery/zh-CN/chart-waffle.svg" width="360" alt="百格图"></a><br><b>百格图</b><br><sub><code>waffle</code></sub></td>
-</tr>
-<tr>
-<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/zh-CN/chart-pie.svg"><img src="docs/showcase/gallery/zh-CN/chart-pie.svg" width="360" alt="饼图"></a><br><b>饼图</b><br><sub><code>pie</code></sub></td>
 <td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/zh-CN/chart-funnel.svg"><img src="docs/showcase/gallery/zh-CN/chart-funnel.svg" width="360" alt="漏斗"></a><br><b>漏斗</b><br><sub><code>funnel</code></sub></td>
 </tr>
 <tr>
+<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/zh-CN/chart-pie.svg"><img src="docs/showcase/gallery/zh-CN/chart-pie.svg" width="360" alt="饼图"></a><br><b>饼图</b><br><sub><code>pie</code></sub></td>
 <td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/zh-CN/chart-donut.svg"><img src="docs/showcase/gallery/zh-CN/chart-donut.svg" width="360" alt="环形图"></a><br><b>环形图</b><br><sub><code>donut</code></sub></td>
+</tr>
+<tr>
 <td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/zh-CN/chart-radial-share.svg"><img src="docs/showcase/gallery/zh-CN/chart-radial-share.svg" width="360" alt="份额与强度"></a><br><b>份额与强度</b><br><sub><code>radial-share</code></sub></td>
+<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/zh-CN/chart-waffle.svg"><img src="docs/showcase/gallery/zh-CN/chart-waffle.svg" width="360" alt="百格图"></a><br><b>百格图</b><br><sub><code>waffle</code></sub></td>
 </tr>
 <tr>
 <td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/zh-CN/chart-rose.svg"><img src="docs/showcase/gallery/zh-CN/chart-rose.svg" width="360" alt="玫瑰图"></a><br><b>玫瑰图</b><br><sub><code>rose</code></sub></td>
@@ -381,13 +381,11 @@ HTML View 的图表由自带的 KChart 库绘制。图谱展示 **45 种数据�
 <td colspan="2" align="center"><a href="docs/showcase/gallery/zh-CN/diagram-railroad-beta.svg"><img src="docs/showcase/gallery/zh-CN/diagram-railroad-beta.svg" width="780" alt="函数式"></a><br><b>函数式</b><br><sub><code>railroad-beta</code></sub></td>
 </tr>
 <tr>
-<td colspan="2" align="center"><a href="docs/showcase/gallery/zh-CN/diagram-railroad-ebnf-beta.svg"><img src="docs/showcase/gallery/zh-CN/diagram-railroad-ebnf-beta.svg" width="780" alt="EBNF"></a><br><b>EBNF</b><br><sub><code>railroad-ebnf-beta</code></sub></td>
+<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/zh-CN/diagram-railroad-ebnf-beta.svg"><img src="docs/showcase/gallery/zh-CN/diagram-railroad-ebnf-beta.svg" width="360" alt="EBNF"></a><br><b>EBNF</b><br><sub><code>railroad-ebnf-beta</code></sub></td>
+<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/zh-CN/diagram-railroad-peg-beta.svg"><img src="docs/showcase/gallery/zh-CN/diagram-railroad-peg-beta.svg" width="360" alt="PEG"></a><br><b>PEG</b><br><sub><code>railroad-peg-beta</code></sub></td>
 </tr>
 <tr>
 <td colspan="2" align="center"><a href="docs/showcase/gallery/zh-CN/diagram-railroad-abnf-beta.svg"><img src="docs/showcase/gallery/zh-CN/diagram-railroad-abnf-beta.svg" width="780" alt="ABNF"></a><br><b>ABNF</b><br><sub><code>railroad-abnf-beta</code></sub></td>
-</tr>
-<tr>
-<td colspan="2" align="center"><a href="docs/showcase/gallery/zh-CN/diagram-railroad-peg-beta.svg"><img src="docs/showcase/gallery/zh-CN/diagram-railroad-peg-beta.svg" width="360" alt="PEG"></a><br><b>PEG</b><br><sub><code>railroad-peg-beta</code></sub></td>
 </tr>
 </table>
 
@@ -458,14 +456,14 @@ HTML View 的图表由自带的 KChart 库绘制。图谱展示 **45 种数据�
 <table>
 <tr>
 <td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/zh-CN/diagram-pie.svg"><img src="docs/showcase/gallery/zh-CN/diagram-pie.svg" width="360" alt="饼图"></a><br><b>饼图</b><br><sub><code>pie</code></sub></td>
+<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/zh-CN/diagram-sankey.svg"><img src="docs/showcase/gallery/zh-CN/diagram-sankey.svg" width="360" alt="桑基图"></a><br><b>桑基图</b><br><sub><code>sankey</code></sub></td>
+</tr>
+<tr>
+<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/zh-CN/diagram-xychart.svg"><img src="docs/showcase/gallery/zh-CN/diagram-xychart.svg" width="360" alt="XY 图"></a><br><b>XY 图</b><br><sub><code>xychart</code></sub></td>
 <td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/zh-CN/diagram-treemap.svg"><img src="docs/showcase/gallery/zh-CN/diagram-treemap.svg" width="360" alt="矩形树图"></a><br><b>矩形树图</b><br><sub><code>treemap</code></sub></td>
 </tr>
 <tr>
-<td colspan="2" align="center"><a href="docs/showcase/gallery/zh-CN/diagram-xychart.svg"><img src="docs/showcase/gallery/zh-CN/diagram-xychart.svg" width="360" alt="XY 图"></a><br><b>XY 图</b><br><sub><code>xychart</code></sub></td>
-</tr>
-<tr>
-<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/zh-CN/diagram-sankey.svg"><img src="docs/showcase/gallery/zh-CN/diagram-sankey.svg" width="360" alt="桑基图"></a><br><b>桑基图</b><br><sub><code>sankey</code></sub></td>
-<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/zh-CN/diagram-radar-beta.svg"><img src="docs/showcase/gallery/zh-CN/diagram-radar-beta.svg" width="360" alt="雷达图"></a><br><b>雷达图</b><br><sub><code>radar-beta</code></sub></td>
+<td colspan="2" align="center"><a href="docs/showcase/gallery/zh-CN/diagram-radar-beta.svg"><img src="docs/showcase/gallery/zh-CN/diagram-radar-beta.svg" width="360" alt="雷达图"></a><br><b>雷达图</b><br><sub><code>radar-beta</code></sub></td>
 </tr>
 </table>
 
@@ -567,15 +565,15 @@ HTML View 的图表由自带的 KChart 库绘制。图谱展示 **45 种数据�
 </tr>
 <tr>
 <td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/zh-CN/variant-donut-solid.svg"><img src="docs/showcase/gallery/zh-CN/variant-donut-solid.svg" width="360" alt="环形图 · 实心"></a><br><b>环形图 · 实心</b><br><sub><code>donut / solid</code></sub></td>
-<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/zh-CN/variant-funnel-hourglass.svg"><img src="docs/showcase/gallery/zh-CN/variant-funnel-hourglass.svg" width="360" alt="漏斗 · 沙漏"></a><br><b>漏斗 · 沙漏</b><br><sub><code>funnel / hourglass</code></sub></td>
-</tr>
-<tr>
 <td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/zh-CN/variant-donut-ticks.svg"><img src="docs/showcase/gallery/zh-CN/variant-donut-ticks.svg" width="360" alt="环形图 · 刻度"></a><br><b>环形图 · 刻度</b><br><sub><code>donut / ticks</code></sub></td>
-<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/zh-CN/variant-waffle-field.svg"><img src="docs/showcase/gallery/zh-CN/variant-waffle-field.svg" width="360" alt="百格图 · 疏朗点阵"></a><br><b>百格图 · 疏朗点阵</b><br><sub><code>waffle / field</code></sub></td>
 </tr>
 <tr>
 <td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/zh-CN/variant-funnel-bars.svg"><img src="docs/showcase/gallery/zh-CN/variant-funnel-bars.svg" width="360" alt="漏斗 · 横条"></a><br><b>漏斗 · 横条</b><br><sub><code>funnel / bars</code></sub></td>
+<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/zh-CN/variant-funnel-hourglass.svg"><img src="docs/showcase/gallery/zh-CN/variant-funnel-hourglass.svg" width="360" alt="漏斗 · 沙漏"></a><br><b>漏斗 · 沙漏</b><br><sub><code>funnel / hourglass</code></sub></td>
+</tr>
+<tr>
 <td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/zh-CN/variant-waffle-dots.svg"><img src="docs/showcase/gallery/zh-CN/variant-waffle-dots.svg" width="360" alt="百格图 · 点阵"></a><br><b>百格图 · 点阵</b><br><sub><code>waffle / dots</code></sub></td>
+<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/zh-CN/variant-waffle-field.svg"><img src="docs/showcase/gallery/zh-CN/variant-waffle-field.svg" width="360" alt="百格图 · 疏朗点阵"></a><br><b>百格图 · 疏朗点阵</b><br><sub><code>waffle / field</code></sub></td>
 </tr>
 </table>
 

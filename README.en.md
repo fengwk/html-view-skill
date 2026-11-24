@@ -246,14 +246,14 @@ Charts in HTML View are drawn by its bundled KChart library: **45 data charts, 3
 <table>
 <tr>
 <td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/en/chart-histogram.svg"><img src="docs/showcase/gallery/en/chart-histogram.svg" width="360" alt="Histogram"></a><br><b>Histogram</b><br><sub><code>histogram</code></sub></td>
-<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/en/chart-boxplot.svg"><img src="docs/showcase/gallery/en/chart-boxplot.svg" width="360" alt="Box plot"></a><br><b>Box plot</b><br><sub><code>boxplot</code></sub></td>
-</tr>
-<tr>
-<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/en/chart-violin.svg"><img src="docs/showcase/gallery/en/chart-violin.svg" width="360" alt="Violin"></a><br><b>Violin</b><br><sub><code>violin</code></sub></td>
 <td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/en/chart-scatter.svg"><img src="docs/showcase/gallery/en/chart-scatter.svg" width="360" alt="Scatter"></a><br><b>Scatter</b><br><sub><code>scatter</code></sub></td>
 </tr>
 <tr>
-<td colspan="2" align="center"><a href="docs/showcase/gallery/en/chart-strip.svg"><img src="docs/showcase/gallery/en/chart-strip.svg" width="780" alt="Strip plot"></a><br><b>Strip plot</b><br><sub><code>strip</code></sub></td>
+<td colspan="2" align="center"><a href="docs/showcase/gallery/en/chart-boxplot.svg"><img src="docs/showcase/gallery/en/chart-boxplot.svg" width="360" alt="Box plot"></a><br><b>Box plot</b><br><sub><code>boxplot</code></sub></td>
+</tr>
+<tr>
+<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/en/chart-violin.svg"><img src="docs/showcase/gallery/en/chart-violin.svg" width="360" alt="Violin"></a><br><b>Violin</b><br><sub><code>violin</code></sub></td>
+<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/en/chart-strip.svg"><img src="docs/showcase/gallery/en/chart-strip.svg" width="360" alt="Strip plot"></a><br><b>Strip plot</b><br><sub><code>strip</code></sub></td>
 </tr>
 </table>
 
@@ -263,11 +263,11 @@ Charts in HTML View are drawn by its bundled KChart library: **45 data charts, 3
 
 <table>
 <tr>
-<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/en/chart-heatmap.svg"><img src="docs/showcase/gallery/en/chart-heatmap.svg" width="360" alt="Heatmap"></a><br><b>Heatmap</b><br><sub><code>heatmap</code></sub></td>
-<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/en/chart-bubble-matrix.svg"><img src="docs/showcase/gallery/en/chart-bubble-matrix.svg" width="360" alt="Bubble matrix"></a><br><b>Bubble matrix</b><br><sub><code>bubble-matrix</code></sub></td>
+<td colspan="2" align="center"><a href="docs/showcase/gallery/en/chart-heatmap.svg"><img src="docs/showcase/gallery/en/chart-heatmap.svg" width="360" alt="Heatmap"></a><br><b>Heatmap</b><br><sub><code>heatmap</code></sub></td>
 </tr>
 <tr>
-<td colspan="2" align="center"><a href="docs/showcase/gallery/en/chart-radar.svg"><img src="docs/showcase/gallery/en/chart-radar.svg" width="780" alt="Radar"></a><br><b>Radar</b><br><sub><code>radar</code></sub></td>
+<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/en/chart-bubble-matrix.svg"><img src="docs/showcase/gallery/en/chart-bubble-matrix.svg" width="360" alt="Bubble matrix"></a><br><b>Bubble matrix</b><br><sub><code>bubble-matrix</code></sub></td>
+<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/en/chart-radar.svg"><img src="docs/showcase/gallery/en/chart-radar.svg" width="360" alt="Radar"></a><br><b>Radar</b><br><sub><code>radar</code></sub></td>
 </tr>
 <tr>
 <td colspan="2" align="center"><a href="docs/showcase/gallery/en/chart-parallel.svg"><img src="docs/showcase/gallery/en/chart-parallel.svg" width="780" alt="Parallel coordinates"></a><br><b>Parallel coordinates</b><br><sub><code>parallel</code></sub></td>
@@ -385,13 +385,11 @@ Charts in HTML View are drawn by its bundled KChart library: **45 data charts, 3
 <td colspan="2" align="center"><a href="docs/showcase/gallery/en/diagram-railroad-beta.svg"><img src="docs/showcase/gallery/en/diagram-railroad-beta.svg" width="780" alt="Function style"></a><br><b>Function style</b><br><sub><code>railroad-beta</code></sub></td>
 </tr>
 <tr>
-<td colspan="2" align="center"><a href="docs/showcase/gallery/en/diagram-railroad-ebnf-beta.svg"><img src="docs/showcase/gallery/en/diagram-railroad-ebnf-beta.svg" width="780" alt="EBNF"></a><br><b>EBNF</b><br><sub><code>railroad-ebnf-beta</code></sub></td>
+<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/en/diagram-railroad-ebnf-beta.svg"><img src="docs/showcase/gallery/en/diagram-railroad-ebnf-beta.svg" width="360" alt="EBNF"></a><br><b>EBNF</b><br><sub><code>railroad-ebnf-beta</code></sub></td>
+<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/en/diagram-railroad-peg-beta.svg"><img src="docs/showcase/gallery/en/diagram-railroad-peg-beta.svg" width="360" alt="PEG"></a><br><b>PEG</b><br><sub><code>railroad-peg-beta</code></sub></td>
 </tr>
 <tr>
 <td colspan="2" align="center"><a href="docs/showcase/gallery/en/diagram-railroad-abnf-beta.svg"><img src="docs/showcase/gallery/en/diagram-railroad-abnf-beta.svg" width="780" alt="ABNF"></a><br><b>ABNF</b><br><sub><code>railroad-abnf-beta</code></sub></td>
-</tr>
-<tr>
-<td colspan="2" align="center"><a href="docs/showcase/gallery/en/diagram-railroad-peg-beta.svg"><img src="docs/showcase/gallery/en/diagram-railroad-peg-beta.svg" width="360" alt="PEG"></a><br><b>PEG</b><br><sub><code>railroad-peg-beta</code></sub></td>
 </tr>
 </table>
 
@@ -577,17 +575,15 @@ Charts in HTML View are drawn by its bundled KChart library: **45 data charts, 3
 </tr>
 <tr>
 <td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/en/variant-donut-solid.svg"><img src="docs/showcase/gallery/en/variant-donut-solid.svg" width="360" alt="Donut · Solid"></a><br><b>Donut · Solid</b><br><sub><code>donut / solid</code></sub></td>
-<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/en/variant-funnel-bars.svg"><img src="docs/showcase/gallery/en/variant-funnel-bars.svg" width="360" alt="Funnel · Bars"></a><br><b>Funnel · Bars</b><br><sub><code>funnel / bars</code></sub></td>
-</tr>
-<tr>
 <td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/en/variant-donut-ticks.svg"><img src="docs/showcase/gallery/en/variant-donut-ticks.svg" width="360" alt="Donut · Ticks"></a><br><b>Donut · Ticks</b><br><sub><code>donut / ticks</code></sub></td>
+</tr>
+<tr>
+<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/en/variant-funnel-bars.svg"><img src="docs/showcase/gallery/en/variant-funnel-bars.svg" width="360" alt="Funnel · Bars"></a><br><b>Funnel · Bars</b><br><sub><code>funnel / bars</code></sub></td>
+<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/en/variant-funnel-hourglass.svg"><img src="docs/showcase/gallery/en/variant-funnel-hourglass.svg" width="360" alt="Funnel · Hourglass"></a><br><b>Funnel · Hourglass</b><br><sub><code>funnel / hourglass</code></sub></td>
+</tr>
+<tr>
 <td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/en/variant-waffle-dots.svg"><img src="docs/showcase/gallery/en/variant-waffle-dots.svg" width="360" alt="Waffle · Dots"></a><br><b>Waffle · Dots</b><br><sub><code>waffle / dots</code></sub></td>
-</tr>
-<tr>
-<td colspan="2" align="center"><a href="docs/showcase/gallery/en/variant-funnel-hourglass.svg"><img src="docs/showcase/gallery/en/variant-funnel-hourglass.svg" width="780" alt="Funnel · Hourglass"></a><br><b>Funnel · Hourglass</b><br><sub><code>funnel / hourglass</code></sub></td>
-</tr>
-<tr>
-<td colspan="2" align="center"><a href="docs/showcase/gallery/en/variant-waffle-field.svg"><img src="docs/showcase/gallery/en/variant-waffle-field.svg" width="360" alt="Waffle · Open field"></a><br><b>Waffle · Open field</b><br><sub><code>waffle / field</code></sub></td>
+<td align="center" valign="top" width="50%"><a href="docs/showcase/gallery/en/variant-waffle-field.svg"><img src="docs/showcase/gallery/en/variant-waffle-field.svg" width="360" alt="Waffle · Open field"></a><br><b>Waffle · Open field</b><br><sub><code>waffle / field</code></sub></td>
 </tr>
 </table>
 

@@ -24,6 +24,17 @@ const cases = [
 const plain = x => JSON.parse(JSON.stringify(x));
 const visit = nodes => nodes.flatMap(node => [node, ...(node.children ? visit(node.children) : [])]);
 
+test('radar leaves headroom for the top axis label without a frame', () => {
+  // Chrome 的中文回退字体在 12px 标签上量得 14px 上伸；无外框时画布也要留出这段空间。
+  const radar = cases.find(({ chart }) => chart === 'radar');
+  const spec = { ...radar, fields: { ...radar.fields, a: { ...radar.fields.a, label: '甜感' } } };
+  for (const width of [338, 758]) {
+    const { scene } = renderer.render(spec, { width, frame: false });
+    const label = visit(scene.children).find(node => node.tag === 'text' && node.text === '甜感');
+    assert.ok(label.attrs.y >= 16, 'leave room above the font ascent, regardless of plot width');
+  }
+});
+
 test('十图均注册为专用布局并通过各自DSL契约', () => {
   // 单纯使用同一renderer名称会在本测试的几何检查中失败；这里先锁定精确图型集合和校验。
   assert.deepEqual([...K.layouts.keys()].sort(), cases.map(c => c.chart).sort());

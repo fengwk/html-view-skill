@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.2
+
+- Reserve room above the top radar axis label so it stays inside the SVG even without an outer frame.
+
 ## 0.2.1
 
 - Leave at least 3 px between solid bars in the same horizontal group, keeping each value label centered on its bar.

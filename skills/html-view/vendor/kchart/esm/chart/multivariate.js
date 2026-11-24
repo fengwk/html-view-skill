@@ -939,7 +939,7 @@ var chart = (spec, ctx) => {
 			while (labelsOverlap()) radius += Math.max(8, radius * .05);
 		}
 		const cx = Math.max(width / 2, textWidth + radius + 12);
-		const cy = radius + labelDepth + 24;
+		const cy = radius + labelDepth + 30;
 		const chartWidth = Math.max(width, cx + radius + textWidth + 12);
 		const radiusAt = (axis, value) => {
 			const [lo, hi] = domains[axis];
