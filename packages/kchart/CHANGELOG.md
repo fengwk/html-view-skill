@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.1
+
+- Leave at least 3 px between solid bars in the same horizontal group, keeping each value label centered on its bar.
+- Bring solid column groups closer together when the plot has spare width, while leaving room for category and value labels. Plots without spare width, stacked charts, and annotated column charts keep their existing spacing.
+
 ## 0.2.0
 
 This release adds an opt-in compact embedding mode, one-page overview boards, native ZenUML rendering and clearer diagnostics. Apart from boards, frameless titles and the layout fixes listed below, diagrams render as in 0.1.1.

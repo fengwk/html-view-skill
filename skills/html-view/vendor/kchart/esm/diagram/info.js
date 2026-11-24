@@ -13,7 +13,7 @@ function parse(body, info) {
 	};
 }
 function layout(_model, { ctx }) {
-	const label = `KChart v0.2.0`;
+	const label = `KChart v0.2.1`;
 	return { scene: {
 		width: Math.ceil(ctx.measure(label, 13, 400)) + 24,
 		height: 40,
