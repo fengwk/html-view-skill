@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.3
+
+- No runtime changes. This release verifies the npm Trusted Publishing workflow.
+
 ## 0.2.2
 
 - Reserve room above the top radar axis label so it stays inside the SVG even without an outer frame.
