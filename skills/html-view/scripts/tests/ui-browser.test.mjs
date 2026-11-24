@@ -130,6 +130,55 @@ test('UI shell preserves select/date required-value-change behavior, navigation,
   assert.deepEqual(restored, { shots: 0, screen: false, svg: true });
 });
 
+// Real pointer events exercise the browser's label activation and the popup's outside-click handling.
+test('UI picker labels open and close only the custom popup', async (t) => {
+  const dir = mkdtempSync(join(tmpdir(), 'htmlview-ui-labels-'));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const file = join(dir, 'labels.html');
+  const content = `
+<section class="screen" id="scr-demo" data-title="筛选">
+  <div class="app"><div class="app-body stack">
+    <div class="field"><label for="channel" id="channel-label">渠道</label>
+      <select id="channel" required><option value="">请选择</option><option value="direct">直接访问</option></select></div>
+    <label class="field"><span id="date-caption">日期</span><input id="date" type="date" required></label>
+  </div></div>
+</section>
+<section class="screen" id="scr-next" data-title="下一屏"></section>`;
+  writeFileSync(file, renderUi({ title: '筛选', lang: 'zh-CN', device: 'mobile', content }, renderShell).html);
+  const browser = await launchBrowser();
+  t.after(() => browser.close());
+  const page = await browser.newPage();
+  t.after(() => page.close());
+  await page.setViewport({ width: 390, height: 844 });
+  await page.goto(pathToFileURL(file).href);
+
+  for (const [label, native] of [['#channel-label', '#channel'], ['#date-caption', '#date'], ['.ui-tool-label', '#ui-bar select']]) {
+    await page.evaluate(`(() => {
+      const field = document.querySelector(${JSON.stringify(native)});
+      window.nativePickerClicks = 0;
+      field.addEventListener('click', () => window.nativePickerClicks++);
+    })()`);
+    const state = () => page.json(`JSON.stringify((() => {
+      const button = document.querySelector(${JSON.stringify(native)}).parentElement.querySelector('.ui-combo');
+      const popup = document.getElementById(button.getAttribute('aria-controls'));
+      return { expanded: button.getAttribute('aria-expanded') === 'true', visible: !popup.hidden,
+        focused: document.activeElement === button, nativeClicks: window.nativePickerClicks };
+    })())`);
+    const point = await page.json(`JSON.stringify((() => {
+      const { left, top, width, height } = document.querySelector(${JSON.stringify(label)}).getBoundingClientRect();
+      return { x: left + width / 2, y: top + height / 2 };
+    })())`);
+    const clickLabel = async () => {
+      await page.send('Input.dispatchMouseEvent', { type: 'mousePressed', ...point, button: 'left', clickCount: 1 });
+      await page.send('Input.dispatchMouseEvent', { type: 'mouseReleased', ...point, button: 'left', clickCount: 1 });
+    };
+    await clickLabel();
+    assert.deepEqual(await state(), { expanded: true, visible: true, focused: true, nativeClicks: 0 }, label);
+    await clickLabel();
+    assert.deepEqual(await state(), { expanded: false, visible: false, focused: true, nativeClicks: 0 }, label);
+  }
+});
+
 // Drive inline handlers in real Chrome, including a pointer click that would hit a leftover scrim.
 test('inline UI API shares navigation, state, dialog, toast and change events', async (t) => {
   const dir = mkdtempSync(join(tmpdir(), 'htmlview-ui-api-'));

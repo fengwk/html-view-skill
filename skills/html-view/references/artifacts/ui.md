@@ -44,7 +44,7 @@
 
 ## 自绘下拉与日期控件
 
-普通单选 `<select>` 会增强为可点击、可键盘操作的自绘列表；`input[type="date"]` 会增强为自绘月历。增强后，原生表单控件仍保留为实际值和校验源，因此 `value`、`required`、表单提交前校验和 `change` 事件语义保持有效。下拉支持方向键、Enter、Esc 和首字跳转；月历支持方向键按日/周移动、PageUp/PageDown 翻月、Shift 配合翻年，并遵守 `min`、`max`。非必填日期可以清除。
+普通单选 `<select>` 会增强为自绘列表，`input[type="date"]` 会增强为自绘月历。点击控件或关联的 `<label>` 都会打开同一个面板。原生字段仍负责 `value`、`required`、表单校验和 `change` 事件。下拉支持方向键、Enter、Esc 和首字跳转；月历支持方向键按日/周移动、PageUp/PageDown 翻月、Shift 配合翻年，并遵守 `min`、`max`。非必填日期可以清除。
 
 脚本如需改动已增强控件的值，应设置原生控件的 `.value`，然后派发冒泡的 `change` 事件，使显示值和可访问状态同步：
 

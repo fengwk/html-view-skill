@@ -1,10 +1,10 @@
 import { createHash } from 'node:crypto';
-import { browserSource, createRenderer, runtimeSource, theme as resolveTheme, DEFAULT_THEME } from '../../../vendor/kchart/esm/node.js';
+import { browserSource, createRenderer, runtimeSource, theme as resolveTheme, DEFAULT_THEME as KCHART_DEFAULT_THEME } from '../../../vendor/kchart/esm/node.js';
 import { ToolError } from './output.mjs';
 import { decodeEntities, lineAt, scanElements } from './html-util.mjs';
 import { contentMarkerRegions, contentMarkers, START, END } from './content-regions.mjs';
 import { readAsset } from './assets.mjs';
-import { readingCss } from './themes.mjs';
+import { DEFAULT_THEME, readingCss } from './themes.mjs';
 import { restoreTheme, THEME_META } from './theme-file.mjs';
 import { auditContent, auditOuterResources } from './static-audit.mjs';
 import { auditViz, collectViz, modulesForContent } from './viz.mjs';
@@ -91,7 +91,7 @@ export function renderShell({
   if ([before, content, after].some(fragment => !contentMarkers(fragment).next().done)) throw new TypeError('内容不能包含外壳内容标记');
   const externalMeta = metaMarkup(asText(extraHead));
   const staticViz = kind === 'viz';
-  if (!staticViz) throwVizFailures(auditViz(content, { lang, theme: themeSnapshot ?? selectedTheme ?? DEFAULT_THEME, contentLine: 1 }));
+  if (!staticViz) throwVizFailures(auditViz(content, { lang, theme: themeSnapshot ?? selectedTheme ?? KCHART_DEFAULT_THEME, contentLine: 1 }));
   const declarations = staticViz ? [] : sourceDeclarations(content);
   const modules = staticViz ? [] : modulesForContent(content);
   const scheme = themeInfo?.scheme ?? suppliedAttrs['data-scheme'] ?? null;
@@ -228,7 +228,7 @@ export async function auditShell(html, { expected, lang, theme, requireTitle = f
   const required = staticViz ? [] : modulesForContent(shell.content);
   const missing = required.filter((name) => !shell.modules.includes(name));
   if (missing.length) failures.push({ code: 'VIZ_MODULES', line: shell.contentLine, detail: `外壳缺少图形模块：${missing.join(', ')}`, fix: '运行 htmlview style 重新组装外壳。' });
-  const vizResult = staticViz ? { failures: [], notes: [] } : auditViz(shell.content, { lang: lang ?? shell.lang, theme: shell.themeSnapshot ?? shell.theme ?? DEFAULT_THEME, requireTitle: requireTitle && shell.kind === 'doc', contentLine: shell.contentLine });
+  const vizResult = staticViz ? { failures: [], notes: [] } : auditViz(shell.content, { lang: lang ?? shell.lang, theme: shell.themeSnapshot ?? shell.theme ?? KCHART_DEFAULT_THEME, requireTitle: requireTitle && shell.kind === 'doc', contentLine: shell.contentLine });
   if (!vizResult.failures.length) {
     const declarations = staticViz ? [] : sourceDeclarations(shell.content);
     const currentStyles = [readingCss(shell.themeSnapshot), readAsset('page/viz.css'), ...shell.styles.slice(2)];

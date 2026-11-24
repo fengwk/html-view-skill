@@ -1,5 +1,7 @@
-import { themes as KTHEMES, theme as resolveTheme, DEFAULT_THEME, defaultStyle, structureRoles } from '../../../vendor/kchart/esm/node.js';
+import { themes as KTHEMES, theme as resolveTheme, defaultStyle, structureRoles } from '../../../vendor/kchart/esm/node.js';
 import { readAsset } from './assets.mjs';
+
+export const DEFAULT_THEME = 'terminal';
 
 const builtins = Object.values(KTHEMES);
 const tokens = {

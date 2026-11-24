@@ -1,5 +1,6 @@
 import { createRenderer, modulesFor, parse } from '../../../vendor/kchart/esm/node.js';
 import { decodeEntities, scanElements } from './html-util.mjs';
+import { DEFAULT_THEME } from './themes.mjs';
 
 export const VIZ_SYNTAXES = Object.freeze(['kchart', 'mermaid', 'layers', 'blocks', 'swimlane']);
 const esc = (value) => String(value).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
@@ -43,7 +44,7 @@ function vizFailure(item, contentLine, detail) {
 }
 
 /** 校验并布局真实 KChart 源码；不触碰旧图表引擎或表格图数据模型。 */
-export function auditViz(content, { lang = 'zh-CN', theme = 'claude', requireTitle = false, contentLine = 1, width = 800 } = {}) {
+export function auditViz(content, { lang = 'zh-CN', theme = DEFAULT_THEME, requireTitle = false, contentLine = 1, width = 800 } = {}) {
   const items = collectViz(content);
   const failures = [];
   const notes = [];

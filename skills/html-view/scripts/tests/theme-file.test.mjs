@@ -27,6 +27,22 @@ function run(args, status = 0, cli = bin) {
 const custom = { id: 'test-harbor', extends: 'paper', accent: '#12635e', frameInk: '#677471', style: { radius: 12, numberColor: 'accent' } };
 const read = (file) => readFileSync(file, 'utf8');
 
+// New output uses Terminal without a theme flag; rebuilds and explicit choices keep their own theme.
+test('CLI defaults to Terminal only when no named theme is selected', (t) => {
+  const at = temp(t), md = at('source.md'), out = at('doc.html'), report = at('report.html');
+  writeFileSync(md, '# Fictional release\n\n## Review\n\nA short status update.\n');
+  assert.equal(run(['viz', 'palette']).theme, 'terminal');
+  assert.equal(run(['doc', 'new', at('new.html'), '--type', 'doc', '--title', 'Draft']).theme, 'terminal');
+  assert.equal(run(['doc', 'build', md, '--out', out]).theme, 'terminal');
+  assert.equal(parseShell(read(out)).theme, 'terminal');
+  assert.equal(run(['style', out, '--theme', 'paper']).theme, 'paper');
+  assert.equal(run(['doc', 'build', md, '--out', out]).theme, 'paper');
+  assert.equal(run(['style', out]).theme, 'paper');
+  run(['data', 'init', at('report')]);
+  run(['data', 'build', at('report/report.json'), '--out', report]);
+  assert.equal(parseShell(read(report)).theme, 'terminal');
+});
+
 // Different entry points must produce the same snapshot ID. The output also has no path back to the external file.
 test('theme files round-trip through document audit, rebuild and style', (t) => {
   const at = temp(t), config = at('harbor.json'), md = at('source.md'), out = at('doc.html');

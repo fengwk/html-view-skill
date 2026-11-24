@@ -387,11 +387,11 @@
     return html.getAttribute('data-fidelity') === 'wireframe' ? t('wireframe') : t('mockup');
   }
 
-  function buildSelectTool(label) {
-    var wrap = el('label', { class: 'ui-tool' });
-    var caption = el('span', { class: 'ui-tool-label' }, label);
+  function buildSelectTool(id, label) {
+    var wrap = el('div', { class: 'ui-tool' });
+    var caption = el('label', { class: 'ui-tool-label', for: id }, label);
     var box = el('span', { class: 'ui-select-wrap' });
-    var select = el('select', { class: 'ui-select', 'aria-label': label });
+    var select = el('select', { id: id, class: 'ui-select' });
     box.appendChild(select);
     wrap.appendChild(caption);
     wrap.appendChild(box);
@@ -427,8 +427,8 @@
     var idBox = el('div', { class: 'ui-bar-id' }, [title, meta]);
     var tools = el('div', { class: 'ui-bar-tools' });
 
-    var screenTool = buildSelectTool(t('screens'));
-    var stateTool = buildSelectTool(t('state'));
+    var screenTool = buildSelectTool('ui-screen-select', t('screens'));
+    var stateTool = buildSelectTool('ui-state-select', t('state'));
     var widthTool = buildSegTool(t('width'), [
       { value: 'mobile', label: t('mobile') },
       { value: 'tablet', label: t('tablet') },
@@ -885,6 +885,33 @@
     }
   }
 
+  function bindPickerTrigger(control, box, open, onKey) {
+    var button = box.button;
+    var labels = Array.from(control.labels);
+    if (labels.length) {
+      var names = labels.map(function (label, index) {
+        if (!label.id) label.id = box.id + '-label' + index;
+        // 标签激活可见按钮，而不是仍参与表单校验的隐藏控件。
+        label.htmlFor = button.id;
+        return label.id;
+      });
+      // 包裹式标签的内容已包含按钮上的当前值。
+      if (!labels.some(function (label) { return label.contains(button); })) names.push(box.value.id);
+      button.setAttribute('aria-labelledby', names.join(' '));
+    } else if (control.hasAttribute('aria-label')) {
+      button.setAttribute('aria-label', control.getAttribute('aria-label'));
+    }
+    if (control.required) button.setAttribute('aria-required', 'true');
+    // 校验只转移焦点，不展开面板。
+    control.addEventListener('focus', function () { button.focus(); });
+    button.addEventListener('click', function () {
+      button.focus();
+      if (combo.open === box) closeCombo(false);
+      else open(box);
+    });
+    button.addEventListener('keydown', function (event) { onKey(box, event); });
+  }
+
   function enhanceSelect(select) {
     if (select.__uiCombo || select.multiple || select.size > 1) return;
     var id = 'ui-combo-' + (++combo.seq);
@@ -896,33 +923,19 @@
     select.setAttribute('aria-hidden', 'true');
     var value = el('span', { class: 'ui-combo-value', id: id + '-value', 'data-allow-truncate': '' });
     var button = el('button', {
+      id: id + '-trigger',
       type: 'button',
       class: 'ui-combo' + (select.classList.contains('ui-select') ? ' ui-combo-tool' : ''),
       'aria-haspopup': 'listbox',
       'aria-expanded': 'false',
       'aria-controls': id + '-list',
     }, [value, el('span', { class: 'ui-combo-chevron', 'aria-hidden': 'true' })]);
-    // 可访问名称：沿用 select 的 label 或 aria-label，再拼上当前值。
-    var labels = Array.prototype.slice.call(select.labels || []);
-    if (labels.length) {
-      labels.forEach(function (label, index) { if (!label.id) label.id = id + '-label' + index; });
-      button.setAttribute('aria-labelledby', labels.map(function (label) { return label.id; }).join(' ') + ' ' + value.id);
-    } else if (select.getAttribute('aria-label')) {
-      button.setAttribute('aria-label', select.getAttribute('aria-label'));
-    }
-    if (select.required) button.setAttribute('aria-required', 'true');
     host.appendChild(button);
     var list = el('div', { class: 'ui-combo-list', id: id + '-list', role: 'listbox', hidden: '' });
     document.body.appendChild(list);
     var box = { id: id, select: select, button: button, value: value, list: list, items: [], active: 0 };
     select.__uiCombo = box;
-    button.addEventListener('click', function () {
-      if (combo.open === box) closeCombo(false);
-      else openCombo(box);
-    });
-    button.addEventListener('keydown', function (event) { comboKey(box, event); });
-    // label 点击、表单校验聚焦会落到隐藏的 select：转给按钮。
-    select.addEventListener('focus', function () { button.focus(); });
+    bindPickerTrigger(select, box, openCombo, comboKey);
     select.addEventListener('change', function () { syncCombo(select); });
     if (select.form) select.form.addEventListener('reset', function () { setTimeout(function () { syncCombo(select); }, 0); });
     syncCombo(select);
@@ -1137,31 +1150,19 @@
     var icon = el('span', { class: 'ui-date-icon', 'aria-hidden': 'true' });
     icon.innerHTML = iconSvg('calendar');
     var button = el('button', {
+      id: id + '-trigger',
       type: 'button',
       class: 'ui-combo ui-date',
       'aria-haspopup': 'dialog',
       'aria-expanded': 'false',
       'aria-controls': id + '-list',
     }, [value, icon]);
-    var labels = Array.prototype.slice.call(input.labels || []);
-    if (labels.length) {
-      labels.forEach(function (label, index) { if (!label.id) label.id = id + '-label' + index; });
-      button.setAttribute('aria-labelledby', labels.map(function (label) { return label.id; }).join(' ') + ' ' + value.id);
-    } else if (input.getAttribute('aria-label')) {
-      button.setAttribute('aria-label', input.getAttribute('aria-label'));
-    }
-    if (input.required) button.setAttribute('aria-required', 'true');
     host.appendChild(button);
     var list = el('div', { class: 'ui-combo-list ui-date-panel', id: id + '-list', role: 'dialog', 'aria-label': t('datePicker'), hidden: '' });
     document.body.appendChild(list);
     var box = { kind: 'date', id: id, input: input, button: button, value: value, list: list, active: new Date(), cap: 420 };
     input.__uiDate = box;
-    button.addEventListener('click', function () {
-      if (combo.open === box) closeCombo(false);
-      else openDate(box);
-    });
-    button.addEventListener('keydown', function (event) { dateKey(box, event); });
-    input.addEventListener('focus', function () { button.focus(); });
+    bindPickerTrigger(input, box, openDate, dateKey);
     input.addEventListener('change', function () { syncDate(input); });
     input.addEventListener('input', function () { syncDate(input); });
     if (input.form) input.form.addEventListener('reset', function () { setTimeout(function () { syncDate(input); }, 0); });
@@ -1176,6 +1177,8 @@
     var box = combo.open;
     if (!box || !(event.target instanceof Node)) return;
     if (box.list.contains(event.target) || box.button.contains(event.target)) return;
+    var label = event.target instanceof Element ? event.target.closest('label') : null;
+    if (label?.control === box.button) return;
     closeCombo(false);
   }, true);
   // 页面或容器滚动、窗口缩放时列表跟着按钮重新定位；按钮滚出可见区域才收起。列表自身滚动不算。

@@ -213,6 +213,7 @@ test('viz render 用 Chrome 实测 KChart JSON 并输出 SVG', { skip: browserSk
   const payload = JSON.parse(result.stdout);
   assert.equal(result.exitCode, 0, `${result.stdout}\n${result.stderr}`);
   assert.equal(payload.format, 'svg');
+  assert.equal(payload.theme, 'terminal');
   assert.ok(payload.width > 0 && payload.height > 0);
   assert.match(readFileSync(out, 'utf8'), /^<svg\b/);
 });

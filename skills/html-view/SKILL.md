@@ -7,6 +7,20 @@ description: 生成、检查和导出离线单文件 HTML 文档、数据报表�
 
 `node <skill-dir>/scripts/htmlview` 是跨平台命令入口；以下用 `htmlview` 简写。需 Node.js 22+；浏览器检查、截图、导出和独立图渲染还需 Chrome 或 Chromium。找不到浏览器时按 `error.next` 处理。
 
+## 主题
+
+文档、报表和独立图默认使用 `terminal`。
+
+| 主题 | 特点 |
+|---|---|
+| `terminal` | 黑绿终端风、荧光绿 |
+| `claude` | 象牙白、陶土色、衬线标题 |
+| `paper` | 纯白底、细灰线、蓝色点缀 |
+| `obsidian` | 近黑紫底、浅紫点缀 |
+| `tokyo` | 靛蓝夜色 |
+| `kanagawa` | 复古暖暗色、米白字 |
+| `cloudmusic` | 白底墨黑字、鲜红点缀 |
+
 ## 已有 HTML：只换主题
 
 - **htmlview 产物**：文档、报表或单图页用 `htmlview style file.html --theme cloudmusic`（`htmlview style --list` 查主题）；界面稿用 `--scheme` 或 `--brand`。`style` 原位更新，只重组外壳和派生图。要输出新文件，先在同目录复制到一个未使用的文件名，对副本运行 `style`，然后用 `htmlview diff` 对照内容。
@@ -67,7 +81,7 @@ Markdown 用 `kchart`、`mermaid`、`layers`、`blocks`、`swimlane` 围栏；�
 | 为文档或界面稿重新装入图模块 | `htmlview style file.html`（保留现有主题与内容） |
 | 显示检查、截图、导出 | `htmlview check file.html`；`htmlview shot file.html --select 'figure'`；`htmlview export file.html --format pdf`；整页长图 `htmlview export file.html --format png` |
 | 读取正文、内嵌本地资源 | `htmlview read file.html [--outline 或 --section id]`；`htmlview embed file.html` |
-| 独立图、字段约束、主题色、手写图量字 | `htmlview viz render spec.json --out chart.svg`；`htmlview viz schema bar`；`htmlview viz palette --theme paper`；`htmlview viz measure '订单服务' --size 13` |
+| 独立图、字段约束、主题色、手写图量字 | `htmlview viz render spec.json --out chart.svg`；`htmlview viz schema bar`；`htmlview viz palette`；`htmlview viz measure '订单服务' --size 13` |
 
 用户自带配色时用 `--theme-file <JSON>`，字段和示例见[主题文件](references/guides/themes.md)。主题随 HTML 内嵌；界面稿使用独立品牌配色。
 
