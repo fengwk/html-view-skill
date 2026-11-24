@@ -4,7 +4,7 @@
     "deps": [
       "chart/registry"
     ],
-    "bytes": 28407
+    "bytes": 28695
   },
   "chart/catalog": {
     "file": "units/chart/catalog.js",

@@ -416,6 +416,58 @@ const boxesOf = (nodes) => nodes.map((node) => {
 });
 const separated = (boxes) => boxes.every((a, i) => boxes.slice(i + 1).every((b) => a.right <= b.left + 1 || b.right <= a.left + 1 || a.bottom <= b.top + 1 || b.bottom <= a.top + 1));
 
+// 意图：分组横条留出真实间隙，读数仍与各自条形居中；宽屏和窄屏使用同一纵向规则。
+test('solid grouped bars leave room between adjacent series', () => {
+  for (const width of [360, 800]) for (const fields of [['a', 'b'], ['a', 'b', 'c']]) {
+    const data = [
+      { label: 'Alpha', a: 82, b: 24, c: 32 },
+      { label: 'Beta', a: 2, b: 36, c: 11 },
+      { label: 'Gamma', a: 56, b: 13, c: 31 },
+    ];
+    const scene = K.layout(table('bar', data, { category: 'label', value: fields }), { width });
+    const bars = elements(scene, 'rect').filter(({ meta }) => meta?.kind === 'record');
+    const readouts = elements(scene, 'text').filter(({ meta }) => meta?.kind === 'value');
+    assert.equal(bars.length, data.length * fields.length);
+    assert.equal(readouts.length, bars.length);
+    assert.equal(scene.width, width);
+    for (const row of data) {
+      const group = bars.filter(({ meta }) => meta.category === row.label).sort((a, b) => a.attrs.y - b.attrs.y);
+      group.forEach(({ attrs, meta }, index) => {
+        const previous = group[index - 1]?.attrs;
+        if (previous) assert.ok(attrs.y - (previous.y + previous.height) >= 3 - 1e-8);
+        const label = readouts.find((item) => item.meta.category === meta.category && item.meta.series === meta.series);
+        assert.ok(Math.abs(label.attrs.y - 4 - (attrs.y + attrs.height / 2)) < 1e-8, 'the bar shares the label center');
+      });
+    }
+  }
+});
+
+// 意图：只有两组柱时，宽画布不把它们拉向两侧；窄屏保留四位小数读数和请求宽度。
+test('sparse solid grouped columns compact without obscuring readouts', () => {
+  const data = [{ label: 'First', a: 0.001522, b: 0.001897 }, { label: 'Second', a: 0.000418, b: 0.000452 }];
+  const format = { format: 'percent', decimals: 4 };
+  const spec = table('column', data, { category: 'label', value: ['a', 'b'] }, { fields: { a: format, b: format } });
+  for (const width of [360, 800]) {
+    const scene = K.layout(spec, { width });
+    const bars = elements(scene, 'rect').filter(({ meta }) => meta?.kind === 'record');
+    const readouts = elements(scene, 'text').filter(({ meta }) => meta?.kind === 'value');
+    const categoryLabels = elements(scene, 'text').filter(({ meta }) => meta?.kind === 'category');
+    assert.equal(bars.length, 4);
+    assert.equal(scene.width, width);
+    assert.deepEqual(readouts.map(({ text }) => text), ['0.1522%', '0.1897%', '0.0418%', '0.0452%']);
+    assert.ok(separated(boxesOf(readouts)), 'readouts do not intersect');
+    const centers = data.map(({ label }) => {
+      const [left, right] = bars.filter(({ meta }) => meta.category === label).sort((a, b) => a.attrs.x - b.attrs.x);
+      const gap = right.attrs.x - (left.attrs.x + left.attrs.width);
+      assert.ok(gap > 0 && gap <= left.attrs.width, 'the two columns form one visible group');
+      const center = (left.attrs.x + right.attrs.x + right.attrs.width) / 2;
+      assert.ok(Math.abs(categoryLabels.find(({ meta }) => meta.label === label).attrs.x - center) < 1e-8);
+      return center;
+    });
+    if (width === 800) assert.ok(centers[1] - centers[0] < width / 4, 'a wide viewport does not stretch two sparse groups');
+  }
+});
+
 // 意图：同一坐标的相同末端读数只出现一次，不同读数按行高错开，文字框互不相交。
 test('line end labels share identical values and never overlap each other', () => {
   const spec = table('line', ['A', 'B'].flatMap((x) => ['one', 'two', 'three'].map((series) => ({ x, series, v: series === 'three' ? 4 : 2 }))), { category: 'x', series: 'series', value: 'v' });

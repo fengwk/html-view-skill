@@ -6,11 +6,13 @@
 
 - 必需角色：`category`、`value`；可选：`series`、`id`。`value` 可为字段名或字段名数组。
 - `stack` 可用 `absolute` / `percent`；`variant` 可用 `solid` / `rungs` / `pictorial` / `lollipop`。rungs、pictorial 要求 `unitMark: {value, label}`（pictorial 还要求受控 `icon` ID）；数值不得为负。`sort` 可按 category 或单个 value 字段排序。
+- 实心分组横条自动留出同组条间距，不需要设置条高或间距。
 
 ## 图型 `column`
 
 - 必需角色：`category`、`value`；可选：`series`、`id`。`value` 可为字段名或字段名数组。
 - 可用 `stack`、`variant`、`unitMark`、`sort` 同 `bar`。超过 24 个类别时仅支持单系列 `solid` column，最多 60 类；bar 最多 24 类。
+- 无注释的实心分组柱图在空间富余时按类名和数值标签收紧绘图区；空间不足时仍使用可用宽度。图框宽度和纵轴刻度不变。
 
 ## 图型 `dumbbell`
 

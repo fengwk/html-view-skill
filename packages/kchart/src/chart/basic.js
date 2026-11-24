@@ -428,6 +428,7 @@ const bars = (spec, ctx) => {
   const annotationCount = (spec.annotations || []).filter((item) => item.label || item.text).length;
   const layout = base(ctx, spec, data, spec.chart, (horizontal ? 14 : 38) + Math.min(2, annotationCount) * 16, 30, 46, 14, legend);
   const categoryN = data.categories.length, seriesN = data.series.length;
+  const solidGrouped = !stacked && seriesN > 1 && (!spec.variant || spec.variant === 'solid');
   if (stacked && data.series.some((series) => series.values.some((value) => value == null))) ctx.fit('堆叠图不支持缺失值', '补齐数值后再使用stack，或去掉stack');
   const stackTotal = (categoryIndex) => data.series.reduce((sum, series) => sum + series.values[categoryIndex], 0);
   if (spec.stack === 'percent' && data.categories.some((_, index) => !(stackTotal(index) > 0))) ctx.fit('百分比堆叠的每类合计必须大于0', '补充正数或改用普通堆叠');
@@ -469,6 +470,10 @@ const bars = (spec, ctx) => {
     });
     layout.children.push(ctx.line(x(0), plot.top, x(0), plot.bottom, { stroke: ctx.color('axis') }));
     const groupH = (plot.bottom - plot.top) / categoryN;
+    const pitch = Math.max(12, (groupH - 12) / seriesN);
+    // 实心分组横条按中心距预留 3px，读数和条形共用同一中心；装饰变体保留原槽位尺寸。
+    const barH = Math.min(18, solidGrouped ? pitch - 3 : groupH / seriesN - 3);
+    const halfBar = solidGrouped ? barH / 2 : Math.min(9, groupH / seriesN / 2);
     data.categories.forEach((category, ci) => {
       const center = plot.top + groupH * (ci + 0.5);
       const lines = ctx.wrap(String(category), Math.max(16, labelCap - 8), 12, 500);
@@ -484,9 +489,9 @@ const bars = (spec, ctx) => {
       } else data.series.forEach((series, si) => {
         const value = series.values[ci]; if (value == null) return;
         const row = sourceAt(ci, series), record = row?.[spec.encode.id] ?? `${ci}`, style = emphasisStyle(ctx, spec, series.id, series.field || series.id, record, si, seriesN === 1);
-        const cy = center + (si - (seriesN - 1) / 2) * Math.max(12, (groupH - 12) / seriesN);
+        const cy = center + (si - (seriesN - 1) / 2) * pitch;
         const end = x(value);
-        if (value !== 0) layout.children.push(rounded(ctx, Math.min(x(0), end), cy - Math.min(9, groupH / seriesN / 2), Math.abs(end - x(0)), Math.min(18, groupH / seriesN - 3), style.fill, { kind: 'record', record, series: series.id, category, value, label: String(category) }, style.opacity));
+        if (value !== 0) layout.children.push(rounded(ctx, Math.min(x(0), end), cy - halfBar, Math.abs(end - x(0)), barH, style.fill, { kind: 'record', record, series: series.id, category, value, label: String(category) }, style.opacity));
         layout.children.push(ctx.text(end + (value >= 0 ? 6 : -6), cy + 4, ctx.format(value, field), { anchor: value >= 0 ? 'start' : 'end', fill: ctx.color('fg'), meta: { kind: 'value', record, category, series: series.id, value, label: ctx.format(value, field) } }));
       });
     });
@@ -530,6 +535,18 @@ const bars = (spec, ctx) => {
   // 柱槽低于可读最小宽度才加宽；类别名抽稀后不再按每个类别 48px 占位。
   const minGroup = Math.max(18, seriesN * (stacked ? 10 : 8));
   plot.right = Math.max(plot.right, plot.left + categoryN * minGroup);
+  const groupFill = 0.76, maxBarW = 40;
+  const withUnit = (value) => spec.stack === 'percent' ? ctx.percent(value) : ctx.format(value, field, true);
+  if (solidGrouped && !spec.annotations?.length) {
+    // 画布宽度不变，只收紧有富余空间的绘图区；柱宽封顶后仍要给完整读数和类名留够位置。
+    const valueWidth = Math.max(...values.map((value) => labelWidth(ctx, withUnit(value))));
+    const categoryWidth = Math.max(...data.categories.map((category) => labelWidth(ctx, category)));
+    const preferredSlot = Math.max(maxBarW + 8, valueWidth + 10);
+    const preferredGroup = Math.max(categoryWidth + 12, preferredSlot * seriesN / groupFill);
+    const inset = Math.max(0, plot.right - plot.left - categoryN * preferredGroup) / 2;
+    plot.left += inset;
+    plot.right -= inset;
+  }
   const y = ctx.linear(ticks.min, ticks.max, plot.bottom, plot.top);
   if (axisUnit) layout.children.push(ctx.text(plot.left - 10, Math.max(16, plot.top - 36), axisUnit, { anchor: 'end', size: 12, fill: ctx.color('muted'), meta: { kind: 'axis-unit', label: axisUnit } }));
   const yShown = [];
@@ -543,10 +560,9 @@ const bars = (spec, ctx) => {
   });
   layout.children.push(ctx.line(plot.left, y(0), plot.right, y(0), { stroke: ctx.color('axis') }));
   const groupW = (plot.right - plot.left) / categoryN;
-  const slot = stacked ? groupW * 0.62 : groupW * 0.76 / seriesN;
-  const barW = stacked ? Math.max(2, Math.min(44, slot)) : Math.max(1.5, Math.min(40, slot - (seriesN > 1 ? 3 : 0)));
+  const slot = stacked ? groupW * 0.62 : groupW * groupFill / seriesN;
+  const barW = stacked ? Math.max(2, Math.min(44, slot)) : Math.max(1.5, Math.min(maxBarW, slot - (seriesN > 1 ? 3 : 0)));
   const labelValues = stacked && spec.stack === 'percent' ? [1] : values.filter((v) => v !== 0);
-  const withUnit = (value) => spec.stack === 'percent' ? ctx.percent(value) : ctx.format(value, field, true);
   const bare = (value) => spec.stack === 'percent' ? ctx.percent(value) : ctx.format(value, field, false);
   // 单位能放进柱槽才写在读数上；否则读数只留数字，单位在绘图区外的轴题。
   const formatLabel = labelValues.every((v) => labelWidth(ctx, withUnit(v)) <= Math.max(0, slot - 2)) ? withUnit : bare;
