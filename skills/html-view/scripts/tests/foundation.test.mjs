@@ -51,7 +51,7 @@ test('browser launch reports spawn failures instead of crashing the process', { 
   });
 });
 
-test('render audit waits for KChart readiness and relayouts against the selected media', async (t) => {
+test('render audit waits for HtmlViewViz readiness and relayouts against the selected media', async (t) => {
   const directory = await mkdtemp(path.join(os.tmpdir(), 'htmlview-foundation-'));
   t.after(() => rm(directory, { recursive: true, force: true }));
   const file = path.join(directory, 'plain.html');
@@ -77,8 +77,8 @@ test('render audit waits for KChart readiness and relayouts against the selected
 
   const result = await renderCheck(file, { browser });
   assert.deepEqual(result, { failures: [], notes: [] });
-  assert.ok(evaluations.some((expression) => expression.includes('window.KChart?.ready')));
-  assert.ok(evaluations.some((expression) => expression.includes('window.KChart?.relayout')));
+  assert.ok(evaluations.some((expression) => expression.includes('window.HtmlViewViz?.ready')));
+  assert.ok(evaluations.some((expression) => expression.includes('window.HtmlViewViz?.relayout')));
   assert.ok(evaluations.some((expression) => expression.includes("matchMedia('print').matches")));
   assert.ok(media.includes('print'));
   assert.ok(media.includes(''));

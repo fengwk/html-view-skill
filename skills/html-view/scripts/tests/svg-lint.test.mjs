@@ -135,7 +135,7 @@ test('SVG：由 CLI 构建的 KChart 图卡不受手绘规则影响', { skip }, 
     try {
       await page.setViewport({ width: 1280, height: 900 });
       await page.goto(pathToFileURL(file).href);
-      await page.evaluate('KChart.ready()');
+      await page.evaluate('HtmlViewViz.ready()');
       assert.equal(await page.evaluate(`Boolean(document.querySelector('.viz-figure#visits > pre[data-viz="kchart"]')
         && document.querySelector('#visits svg text'))`), true);
       const inspect = async () => svgFailures(await page.json(inspectPageExpression({ viewport: 'desktop' })));

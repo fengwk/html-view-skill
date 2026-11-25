@@ -74,7 +74,7 @@ test('UI shell preserves select/date required-value-change behavior, navigation,
   await page.evaluate(`new Promise((resolve,reject)=>{const start=performance.now();const poll=()=>{if(!document.querySelector('#scr-overview').hidden){resolve(true);return;}if(performance.now()-start>3000){reject(Error('return navigation timed out'));return;}requestAnimationFrame(poll)};poll()})`);
   await page.evaluate(`document.querySelector('#scr-overview a[data-go="scr-insights"]').click()`);
   await page.evaluate(`new Promise((resolve,reject)=>{const start=performance.now();const poll=()=>{if(!document.querySelector('#scr-insights').hidden&&document.querySelector('#channel-retention svg')){resolve(true);return;}if(performance.now()-start>5000){reject(Error('chart did not render after screen navigation'));return;}requestAnimationFrame(poll)};poll()})`);
-  await page.evaluate('KChart.ready()');
+  await page.evaluate('HtmlViewViz.ready()');
   const beforeTheme = await page.json(`JSON.stringify({scheme:document.documentElement.dataset.scheme,svg:document.querySelector('#channel-retention svg').innerHTML,table:!!document.querySelector('#channel-retention .viz-data')})`);
   assert.equal(beforeTheme.scheme, 'light');
   assert.equal(beforeTheme.table, false, 'UI has no default readable chart table');
@@ -82,10 +82,10 @@ test('UI shell preserves select/date required-value-change behavior, navigation,
     '图嵌入现有卡片时不叠加外边距');
   const desktop = await page.evaluate(`(()=>{document.querySelector('.ui-seg[aria-label="宽度"] button:nth-child(3)').click();return {width:document.querySelector('.ui-shell').dataset.width,pressed:document.querySelector('.ui-seg[aria-label="宽度"] button:nth-child(3)').getAttribute('aria-pressed')}})()`);
   assert.deepEqual(desktop, { width: 'desktop', pressed: 'true' });
-  await page.evaluate('KChart.ready()');
+  await page.evaluate('HtmlViewViz.ready()');
   const lightDesktop = await page.json(`JSON.stringify({scheme:document.documentElement.dataset.scheme,svg:document.querySelector('#channel-retention svg').innerHTML})`);
   await page.evaluate(`document.querySelector('.ui-seg[aria-label="配色"] button:nth-child(2)').click()`);
-  await page.evaluate('KChart.ready()');
+  await page.evaluate('HtmlViewViz.ready()');
   const afterTheme = await page.json(`JSON.stringify({scheme:document.documentElement.dataset.scheme,svg:document.querySelector('#channel-retention svg').innerHTML})`);
   assert.equal(afterTheme.scheme, 'dark');
   assert.notEqual(afterTheme.svg, lightDesktop.svg, 'KChart SVG is re-laid out with the dark vizOptions theme at the same viewport width');
@@ -95,7 +95,7 @@ test('UI shell preserves select/date required-value-change behavior, navigation,
   const print = await page.json(`(async () => {
     document.documentElement.dataset.mode = 'export';
     await new Promise(requestAnimationFrame);
-    await KChart.relayout({ media: 'print' });
+    await HtmlViewViz.relayout({ media: 'print' });
     const charts = Array.from(document.querySelectorAll('.ui-shot .viz-body > svg'));
     return JSON.stringify({
       charts: charts.map(svg => ({
@@ -124,7 +124,7 @@ test('UI shell preserves select/date required-value-change behavior, navigation,
   const restored = await page.json(`(async () => {
     delete document.documentElement.dataset.mode;
     await new Promise(requestAnimationFrame);
-    await KChart.relayout({ media: 'screen' });
+    await HtmlViewViz.relayout({ media: 'screen' });
     return JSON.stringify({ shots: document.querySelectorAll('.ui-shot').length, screen: document.querySelector('#scr-insights').hidden, svg: !!document.querySelector('#channel-retention svg') });
   })()`);
   assert.deepEqual(restored, { shots: 0, screen: false, svg: true });
@@ -288,13 +288,13 @@ test('dark UI wireframes print a neutral chart status mark', async (t) => {
   await page.setViewport({ width: 390, height: 844 });
   await page.goto(pathToFileURL(file).href);
   const markColor = `selector => [...document.querySelectorAll(selector)].find(node => node.textContent === '×')?.getAttribute('fill')`;
-  await page.evaluate('KChart.ready()');
+  await page.evaluate('HtmlViewViz.ready()');
   assert.equal(await page.evaluate(`(${markColor})('.viz-body svg text')`), rendered.themes.dark.danger);
   await page.setMedia('print');
   const printed = await page.evaluate(`(async () => {
     document.documentElement.dataset.mode = 'export';
     await new Promise(requestAnimationFrame);
-    await KChart.relayout({ media: 'print' });
+    await HtmlViewViz.relayout({ media: 'print' });
     return (${markColor})('.ui-shot .viz-body svg text');
   })()`);
   assert.equal(printed, rendered.themes.light.danger);

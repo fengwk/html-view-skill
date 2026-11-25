@@ -123,8 +123,8 @@ async function prepareExport(page) {
     document.querySelectorAll('details:not(.viz-data)').forEach((item) => { item.open = true; });
     if (document.fonts && document.fonts.ready) await document.fonts.ready;
     const media = matchMedia('print').matches ? 'print' : 'screen';
-    if (window.KChart?.relayout) await window.KChart.relayout({ media });
-    if (window.KChart?.ready) await window.KChart.ready();
+    if (window.HtmlViewViz?.relayout) await window.HtmlViewViz.relayout({ media });
+    if (window.HtmlViewViz?.ready) await window.HtmlViewViz.ready();
     await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve(1))));
     return 1;
   }.toString()})()`);
@@ -134,8 +134,8 @@ async function settle(page) {
   await page.evaluate(`(${async function wait() {
     if (document.fonts && document.fonts.ready) await document.fonts.ready;
     const media = matchMedia('print').matches ? 'print' : 'screen';
-    if (window.KChart?.relayout) await window.KChart.relayout({ media });
-    if (window.KChart?.ready) await window.KChart.ready();
+    if (window.HtmlViewViz?.relayout) await window.HtmlViewViz.relayout({ media });
+    if (window.HtmlViewViz?.ready) await window.HtmlViewViz.ready();
     await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve(1))));
     return 1;
   }.toString()})()`);

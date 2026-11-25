@@ -207,7 +207,7 @@ try {
       assert.equal(audit.pass, true, `${lang} ${themeItem.id} page: ${JSON.stringify(audit.failures)}`);
       await page.setViewport({ width: WIDE, height: 900, deviceScaleFactor: PAGE_SCALE });
       await page.goto(pathToFileURL(html).href);
-      await page.evaluate('(async()=>{await document.fonts.ready;await window.KChart?.ready();return true;})()');
+      await page.evaluate('(async()=>{await document.fonts.ready;await window.HtmlViewViz?.ready();return true;})()');
       const box = await page.json(`JSON.stringify({scrollWidth:document.documentElement.scrollWidth,
         bottom:Math.max(...[...document.querySelectorAll('#main section > *')].map(node=>node.getBoundingClientRect().bottom+scrollY))})`);
       assert.ok(box.scrollWidth <= WIDE, `${lang} ${themeItem.id} page overflows: ${box.scrollWidth}px`);

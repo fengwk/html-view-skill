@@ -7,7 +7,7 @@
 // or >10% ready slowdown, 2 for tool errors. HTML bytes include inline script changes.
 // Corpus cells that no longer render at the requested width store diagnostics instead of SVG.
 // UI uses each theme's accent/scheme (the UI CLI does not accept reading themes).
-// Timing: fresh page loads to KChart.ready(), alternating order in one tab;
+// Timing: fresh page loads to HtmlViewViz.ready(), alternating order in one tab;
 // static viz has no runtime to time. Identical offline HTML is a timing control:
 // measured differences are reported as noise, not regressions. No times are stored.
 import { execFileSync, spawnSync } from 'node:child_process';
@@ -162,7 +162,7 @@ async function capture(out, corpusFile) {
         await page.setViewport(viewport(width));
         await page.setMedia(media);
         await page.goto(url);
-        if (runtime) await page.evaluate(`KChart.relayout({media:${JSON.stringify(media)}})`);
+        if (runtime) await page.evaluate(`HtmlViewViz.relayout({media:${JSON.stringify(media)}})`);
         await page.evaluate(frames);
         const figureCount = await page.evaluate(`document.querySelectorAll('svg[viewBox]').length`);
         if (!figureCount || await page.evaluate(`Boolean(document.querySelector('.viz-error'))`)) {
@@ -211,8 +211,8 @@ async function compareTiming(dirs, manifests) {
         const start = performance.now();
         window.addEventListener('load', () => {
           window.__captureReady = (async () => {
-            if (!globalThis.KChart?.ready) throw new Error('Missing KChart.ready()');
-            await KChart.ready();
+            if (!globalThis.HtmlViewViz?.ready) throw new Error('Missing HtmlViewViz.ready()');
+            await HtmlViewViz.ready();
             return performance.now() - start;
           })();
         }, {once:true});

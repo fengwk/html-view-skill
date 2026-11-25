@@ -278,11 +278,11 @@
     ui.notesBtn.setAttribute('aria-label', t('notes') + ' (' + count + ')');
   }
 
-  // KChart 自行监听尺寸；屏幕、状态和主题变更后显式请求重新排版。
+  // 图形宿主自行监听尺寸；屏幕、状态和主题变更后显式请求重新排版。
   function relayoutViz() {
-    var api = window.KChart;
+    var api = window.HtmlViewViz;
     if (!api || typeof api.relayout !== 'function') return;
-    try { api.relayout(); } catch (err) { /* KChart renders diagnostics in place. */ }
+    try { api.relayout(); } catch (err) { /* 图形宿主在原位渲染诊断。 */ }
   }
 
   function renderNotes() {
@@ -1577,7 +1577,7 @@
       if (!figure) return;
       if (ref && ref.parentNode === frame) frame.insertBefore(figure, ref);
       else frame.appendChild(figure);
-      var disposeCharts = window.KChart?.mountClones?.(figure, document);
+      var disposeCharts = window.HtmlViewViz?.mountClones?.(figure, document);
       if (disposeCharts) state.snapshot.chartDisposers.push(disposeCharts);
     }
     screens.forEach(function (screen) {
@@ -1604,7 +1604,7 @@
     // 图从声明按各自宽度重绘后，高度可能改变。用最终布局计算原型 PDF 的页高。
     var snapshot = state.snapshot;
     if (snapshot.chartDisposers.length) {
-      window.KChart.ready().then(function () {
+      window.HtmlViewViz.ready().then(function () {
         if (state.snapshot === snapshot) injectPageStyle();
       });
     }

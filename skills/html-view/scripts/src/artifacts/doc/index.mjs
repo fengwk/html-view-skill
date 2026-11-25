@@ -31,9 +31,9 @@ function validateType(type) {
   return type;
 }
 
-function parseDocShell(html, file) {
+function parseDocShell(html, file, options) {
   let doc;
-  try { doc = parseShell(html, file); }
+  try { doc = parseShell(html, file, options); }
   catch (error) { fail('BAD_SHELL', `${file} 不是有效的 htmlview 文档：${error.message}`, { next: '用 htmlview doc new 或 doc build 生成文档外壳。' }); }
   if (doc.kind !== 'doc') fail('KIND_MISMATCH', `${file} 不是 doc 产物`, { next: '选择 doc 文件，或确认重建时使用 --force' });
   return doc;
@@ -234,7 +234,7 @@ export async function style(argv) {
   const file = resolve(positionals[0]);
   if (!existsSync(file)) fail('FILE_NOT_FOUND', `文件不存在：${file}`, { next: '检查文件路径后重试' });
   const html = readFileSync(file, 'utf8');
-  const doc = parseDocShell(html, file);
+  const doc = parseDocShell(html, file, { allowMissingVizScripts: true });
   if (values.lang && !/^[A-Za-z]{2,8}(?:-[A-Za-z0-9]{1,8})*$/.test(values.lang)) fail('USAGE', `语言标签不合法：${values.lang}`, { next: '使用 BCP 47 标签，例如 zh-CN、en、ja、pt-BR' });
   const type = validateType(doc.meta['doc:type']);
   const theme = selectTheme(values, doc.themeSnapshot ?? doc.theme ?? undefined, file);

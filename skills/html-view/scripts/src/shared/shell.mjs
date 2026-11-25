@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { browserSource, createRenderer, runtimeSource, theme as resolveTheme, DEFAULT_THEME as KCHART_DEFAULT_THEME } from '../../../vendor/kchart/esm/node.js';
+import { createRenderer, theme as resolveTheme, DEFAULT_THEME as KCHART_DEFAULT_THEME } from '../../../vendor/kchart/esm/node.js';
 import { ToolError } from './output.mjs';
 import { decodeEntities, lineAt, scanElements } from './html-util.mjs';
 import { contentMarkerRegions, contentMarkers, START, END } from './content-regions.mjs';
@@ -22,6 +22,9 @@ const fingerprintInput = ({ kind, lang, theme, themeSnapshot, attrs, scheme, mod
   kind, lang, theme, ...(themeSnapshot ? { themeSnapshot } : {}), attrs, scheme, modules, styles, scripts,
 });
 const themeMetaMarkup = (snapshot) => `<meta name="htmlview:${THEME_META}" content="${escape(JSON.stringify(snapshot))}">`;
+// 生成脚本按角色识别，页面自己的脚本不带角色。
+const VIZ_ROLES = Object.freeze(['kchart', 'viz-config', 'viz']);
+const scriptTag = ({ role, type, content }) => `<script${type ? ` type="${type}"` : ''}${role === 'page' ? '' : ` data-htmlview="${role}"`}>${content}</script>`;
 
 function metaMarkup(source) {
   const elements = scanElements(source);
@@ -39,9 +42,18 @@ function metaMarkup(source) {
   return tags.map((tag) => source.slice(tag.start, tag.end)).join('\n');
 }
 
-function currentRuntime() {
-  return runtimeSource();
+function vizConfigText({ vizOptions, lang, mapAssets }) {
+  return JSON.stringify({ ...vizOptions, lang, ...(Object.keys(mapAssets).length ? { assets: mapAssets } : {}) }).replaceAll('<', '\\u003c');
 }
+function generatedVizScripts(renderer, config) {
+  return [
+    { role: 'kchart', content: renderer.bundleSource() },
+    { role: 'viz-config', type: 'application/json', content: config },
+    { role: 'viz', content: readAsset('page/viz.js') },
+  ];
+}
+// 指纹只认角色与脚本正文；script type 属于外壳结构，由 parseShell 校验。
+const hashedScripts = (scripts) => scripts.map(({ role, content }) => ({ role, content }));
 function throwVizFailures(result) {
   if (!result.failures.length) return;
   throw new ToolError('BAD_VALUE', '图形源码校验或布局失败，未生成外壳。', {
@@ -101,20 +113,14 @@ export function renderShell({
   const mapAssets = {};
   const renderer = declarations.length ? createRenderer({ specs: declarations }) : null;
   for (const declaration of declarations) if (declaration?.chart && renderer) Object.assign(mapAssets, renderer.assets(declaration) ?? {});
-  const options = JSON.stringify({ ...vizOptions, lang, ...(Object.keys(mapAssets).length ? { assets: mapAssets } : {}) }).replaceAll('<', '\\u003c');
-  // The inert metadata is the single custom snapshot; browser and CLI read the same data.
-  const mountOptions = themeSnapshot
-    ? `{...${options},theme:JSON.parse(document.head.querySelector('meta[name="htmlview:${THEME_META}"]').content)}` : options;
-  const generatedScripts = declarations.length ? [
-    browserSource(declarations), currentRuntime(),
-    `if(globalThis.KChart&&globalThis.KChart.mount)globalThis.KChart.mount(document,${mountOptions});`,
-  ] : [];
-  const allScripts = [...generatedScripts, ...scripts.map(asText)];
+  const config = vizConfigText({ vizOptions, lang, mapAssets });
+  const generatedScripts = declarations.length ? generatedVizScripts(renderer, config) : [];
+  const allScripts = [...generatedScripts, ...scripts.map((content) => ({ role: 'page', content: asText(content) }))];
   for (const css of baseStyles) if (/<\/style/i.test(css)) throw new TypeError('CSS 文本不能关闭 style 元素');
-  for (const js of allScripts) if (/<\/script/i.test(js)) throw new TypeError('脚本文本不能关闭 script 元素');
+  for (const script of allScripts) if (/<\/script/i.test(script.content)) throw new TypeError('脚本文本不能关闭 script 元素');
   const fingerprint = hash(fingerprintInput({
     kind, lang, theme: selectedTheme, themeSnapshot, attrs: normalizedAttrs(suppliedAttrs), scheme, modules,
-    styles: baseStyles, scripts: allScripts,
+    styles: baseStyles, scripts: hashedScripts(allScripts),
   }));
   const reserved = new Set(['kind', 'shell', 'modules', THEME_META]);
   const generatedMeta = [
@@ -131,12 +137,12 @@ export function renderShell({
     `<title>${escape(title)}</title>`, externalMeta,
     ...baseStyles.map((css) => `<style>${css}</style>`), '</head>', '<body>',
     asText(before), START, asText(content), END, asText(after),
-    ...allScripts.map((js) => `<script>${js}</script>`), '</body>', '</html>',
+    ...allScripts.map(scriptTag), '</body>', '</html>',
   ].join('\n');
   return `${html}\n`;
 }
 
-export function parseShell(html, file = '文件') {
+export function parseShell(html, file = '文件', { allowMissingVizScripts = false } = {}) {
   const source = String(html);
   const elements = scanElements(source);
   const rootNodes = elements.filter((element) => element.name === 'html' && !element.parent);
@@ -204,7 +210,32 @@ export function parseShell(html, file = '文件') {
   }).map((node) => source.slice(node.start, node.end)).join('\n');
   const safeExternalMeta = metaMarkup(externalMeta);
   const styles = elements.filter((element) => element.name === 'style' && element.parent === head).map((element) => source.slice(element.openEnd, element.closeStart));
-  const scripts = elements.filter((element) => element.name === 'script' && element.parent === body && (element.start < region.openStart || element.start >= region.closeEnd)).map((element) => source.slice(element.openEnd, element.closeStart));
+  // 生成脚本按 data-htmlview 角色识别；没有角色的才是页面自己的脚本。
+  const scripts = [];
+  const roles = new Map();
+  for (const element of elements.filter((node) => node.name === 'script' && node.parent === body && (node.start < region.openStart || node.start >= region.closeEnd))) {
+    const attrs = decodedAttrs(element);
+    const role = String(attrs['data-htmlview'] ?? '').trim().toLowerCase();
+    const text = source.slice(element.openEnd, element.closeStart);
+    if (!role) { scripts.push({ role: 'page', content: text }); continue; }
+    if (!VIZ_ROLES.includes(role)) throw new TypeError(`${file}：未知的 data-htmlview 脚本角色：${role}`);
+    if (roles.has(role)) throw new TypeError(`${file}：data-htmlview="${role}" 脚本重复`);
+    const type = String(attrs.type ?? '').trim().toLowerCase();
+    if (role === 'viz-config' ? type !== 'application/json' : type) throw new TypeError(`${file}：data-htmlview="${role}" 脚本的 type 无效`);
+    roles.set(role, text);
+    scripts.push({ role, content: text });
+  }
+  if (kind !== 'viz' && collectViz(content).length) {
+    const missing = VIZ_ROLES.filter((role) => !roles.has(role));
+    // style 能从内容区重新组装外壳（如界面稿刚增改图形）；其余命令要求产物已带生成脚本。
+    if (missing.length && !allowMissingVizScripts) throw new TypeError(`${file}：图形内容缺少 htmlview 生成的外壳脚本（data-htmlview=${missing.join('、')}），请从源文件重新构建产物。`);
+    if (roles.has('viz-config')) {
+      let config;
+      try { config = JSON.parse(roles.get('viz-config')); }
+      catch { throw new TypeError(`${file}：data-htmlview="viz-config" 不是合法 JSON`); }
+      if (!config || typeof config !== 'object' || Array.isArray(config)) throw new TypeError(`${file}：data-htmlview="viz-config" 必须是 JSON 对象`);
+    }
+  }
   return {
     kind, lang: htmlAttrs.lang, title: decodeEntities(source.slice(titleNodes[0].openEnd, titleNodes[0].closeStart)),
     theme, themeSnapshot, attrs: Object.fromEntries(Object.entries(htmlAttrs).filter(([key]) => !['lang', 'data-theme', 'data-scheme'].includes(key))),
@@ -232,7 +263,13 @@ export async function auditShell(html, { expected, lang, theme, requireTitle = f
   if (!vizResult.failures.length) {
     const declarations = staticViz ? [] : sourceDeclarations(shell.content);
     const currentStyles = [readingCss(shell.themeSnapshot), readAsset('page/viz.css'), ...shell.styles.slice(2)];
-    const currentScripts = declarations.length ? [browserSource(declarations), currentRuntime(), ...shell.scripts.slice(2)] : shell.scripts;
+    // 按角色重建当前生成脚本，不依赖它们在 body 中的下标。
+    const storedRoles = new Map(shell.scripts.filter((script) => script.role !== 'page').map((script) => [script.role, script.content]));
+    const pageScripts = shell.scripts.filter((script) => script.role === 'page');
+    const generated = declarations.length
+      ? generatedVizScripts(createRenderer({ specs: declarations }), storedRoles.get('viz-config') ?? '')
+      : [];
+    const currentScripts = hashedScripts([...generated, ...pageScripts]);
     const actualCurrent = hash(fingerprintInput({
       kind: shell.kind, lang: shell.lang, theme: shell.theme, themeSnapshot: shell.themeSnapshot, attrs: normalizedAttrs(shell.attrs), scheme: shell.scheme,
       modules: required, styles: currentStyles, scripts: currentScripts,

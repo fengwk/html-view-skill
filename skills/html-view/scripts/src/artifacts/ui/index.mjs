@@ -68,8 +68,8 @@ function splitSelectorList(value) {
   return parts;
 }
 
-function readUi(html, file) {
-  const doc = parseShell(html, file);
+function readUi(html, file, options) {
+  const doc = parseShell(html, file, options);
   if (doc.kind !== 'ui') failKind(file);
   const requiredMeta = ['ui-device', 'ui-fidelity', 'ui-brand', 'ui-scheme', 'ui-radius', 'ui-density'];
   const missingMeta = requiredMeta.filter((key) => doc.meta[key] == null || String(doc.meta[key]).trim() === '');
@@ -162,7 +162,7 @@ export async function style(argv) {
   const { values, positionals } = parsed;
   const file = resolve(positionals[0]);
   if (!existsSync(file)) fail('FILE_NOT_FOUND', `文件不存在：${file}`, { next: '检查路径后重试' });
-  const before = readUi(readFileSync(file, 'utf8'), file);
+  const before = readUi(readFileSync(file, 'utf8'), file, { allowMissingVizScripts: true });
   const design = normalizeDesign({ ...before.design, ...Object.fromEntries(['fidelity', 'brand', 'scheme', 'radius', 'density'].filter((key) => values[key] !== undefined).map((key) => [key, values[key]])) });
   const device = normalizeDevice(values.device ?? before.device);
   const lang = normalizeLang(values.lang ?? before.lang);

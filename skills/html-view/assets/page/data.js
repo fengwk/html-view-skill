@@ -2,9 +2,9 @@
   'use strict';
   const initialized=new WeakSet();
   function relayout(){
-    const chart=globalThis.KChart;
-    if(chart?.relayout)return chart.relayout();
-    return chart?.ready?.();
+    const viz=globalThis.HtmlViewViz;
+    if(viz?.relayout)return viz.relayout();
+    return viz?.ready?.();
   }
   function expandViews(root){
     const sections=[...root.querySelectorAll('[data-view-section]')];

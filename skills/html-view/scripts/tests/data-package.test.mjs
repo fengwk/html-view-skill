@@ -281,7 +281,7 @@ test('dashboard cards occupy complete grid rows and measure their actual column 
   for (const width of [1280, 390]) {
     await page.setViewport({ width, height: 844 });
     const layout = await page.json(`(async () => {
-      await KChart.relayout();
+      await HtmlViewViz.relayout();
       const grid = document.querySelector('[data-view-section="all"] [data-chart-grid]');
       return JSON.stringify({
         gridWidth: grid.clientWidth,
@@ -321,9 +321,9 @@ test('view runtime switches existing precomputed sections and sorts numeric cell
   const body={rows:[row('100',100),row('2',2),row('—',null)],append(item){this.rows=this.rows.filter(existing=>existing!==item);this.rows.push(item);}};
   const table={tHead:{rows:[{cells:[header]}]},tBodies:[body]};
   const root={documentElement:{lang:'en',dataset:{}},fonts:{ready:Promise.resolve()},querySelectorAll(selector){return selector==='[data-view-tab]'?tabs:selector==='[data-view-section]'?sections:selector==='table[data-sortable]'?[table]:[];}};
-  const context={document:root,KChart:{relayout(){relayout.push('layout');return Promise.resolve();}}};
+  const context={document:root,HtmlViewViz:{relayout(){relayout.push('layout');return Promise.resolve();}}};
   vm.runInNewContext(source,context);await new Promise(resolve=>setImmediate(resolve));
-  assert.ok(relayout.length>0,'runtime starts and asks KChart to lay out visible sources');
+  assert.ok(relayout.length>0,'runtime starts and asks the figure host to lay out visible sources');
   handlers['tab:web:click']();assert.deepEqual(sections.map(item=>item.hidden),[true,false]);
   assert.deepEqual(tabs.map(item=>item.attrs['aria-selected']),['false','true']);
   handlers['sort:click']();assert.deepEqual(body.rows.map(item=>item.cells[0].textContent),['2','100','—']);

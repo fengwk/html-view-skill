@@ -62,7 +62,7 @@ async function renderLocale(lang, locale) {
   async function open(file, width, height, scale = 1) {
     await page.setViewport({ width, height, deviceScaleFactor: scale, mobile: width < 600 });
     await page.goto(pathToFileURL(file).href);
-    await page.evaluate(`(async()=>{await document.fonts.ready;await window.KChart?.ready();return true;})()`);
+    await page.evaluate(`(async()=>{await document.fonts.ready;await window.HtmlViewViz?.ready();return true;})()`);
   }
   async function clip(name, selector, { height, through, margin = 0, width } = {}) {
     const bounds = await page.json(`JSON.stringify((()=>{
@@ -90,7 +90,7 @@ async function renderLocale(lang, locale) {
     channel.value='organic'; date.value='2026-11-19';
     for (const field of [channel,date]) field.dispatchEvent(new Event('change',{bubbles:true}));
     form.requestSubmit();
-    await window.KChart.ready();
+    await window.HtmlViewViz.ready();
     if (!form.checkValidity() || form.querySelector('[data-when=${JSON.stringify(locale.filtered)}]').hidden) throw new Error('未进入已筛选状态');
     // 等待短暂的提醒消失，保留稳定的已筛选状态和完整图表。
     const deadline=performance.now()+6000;

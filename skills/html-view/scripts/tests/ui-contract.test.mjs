@@ -1,13 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { copyFileSync, existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { audit, commands, style } from '../src/artifacts/ui/index.mjs';
 import { renderUi } from '../src/artifacts/ui/render.mjs';
 import { generateTokens, normalizeDesign } from '../src/artifacts/ui/theme.mjs';
-import { renderShell } from '../src/shared/shell.mjs';
+import { renderShell, parseShell } from '../src/shared/shell.mjs';
 import { ToolError } from '../src/shared/output.mjs';
 import { auditContent } from '../src/shared/static-audit.mjs';
 import { readAsset } from '../src/shared/assets.mjs';
@@ -46,6 +46,33 @@ test('UI new/style CLI responses include kind and do not advertise pseudo themes
   const themed = run('style', file, '--theme', 'paper');
   assert.equal(themed.status, 2);
   assert.equal(JSON.parse(themed.stdout).error.code, 'USAGE');
+});
+
+// 界面稿在内容区新增图表后，audit 要求产物已有生成脚本；style 负责从内容区重新组装外壳并装入图模块。
+test('UI style installs figure modules after the draft gains a chart', (t) => {
+  const directory = mkdtempSync(join(tmpdir(), 'htmlview-ui-repair-'));
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  const file = join(directory, 'repair.html');
+  const cli = new URL('../htmlview', import.meta.url).pathname;
+  const run = (...args) => spawnSync(process.execPath, [cli, ...args], { cwd: process.cwd(), encoding: 'utf8' });
+  const created = run('ui', 'new', file, '--title', '留存看板', '--device', 'mobile', '--screens', '概览');
+  assert.equal(created.status, 0, created.stdout + created.stderr);
+  const spec = JSON.stringify({ chart: 'bar', title: '虚构留存对比', data: [{ name: '首日', value: 42 }, { name: '七日', value: 18 }], encode: { category: 'name', value: 'value' } });
+  const original = readFileSync(file, 'utf8');
+  writeFileSync(file, original.replace('<div class="app-body stack">', `<div class="app-body stack"><pre data-viz="kchart">${spec}</pre>`));
+  const rejected = run('audit', file);
+  assert.equal(rejected.status, 2, rejected.stdout + rejected.stderr);
+  assert.equal(JSON.parse(rejected.stdout).error.code, 'BAD_SHELL', '缺少生成脚本的图形产物要从内容区重装外壳');
+  assert.match(JSON.parse(rejected.stdout).error.message, /重新构建/);
+  const styled = run('style', file);
+  assert.equal(styled.status, 0, styled.stdout + styled.stderr);
+  const repaired = readFileSync(file, 'utf8');
+  const parsed = parseShell(repaired);
+  assert.deepEqual(parsed.scripts.map(({ role }) => role), ['kchart', 'viz-config', 'viz', 'page']);
+  assert.equal(JSON.parse(parsed.scripts[1].content).dataTable, false, '界面稿默认不输出可读数据表');
+  const audited = run('audit', file);
+  assert.equal(audited.status, 0, audited.stdout + audited.stderr);
+  assert.equal(JSON.parse(audited.stdout).pass, true);
 });
 
 test('UI audit recognizes a control labeled by its wrapping label element', async () => {

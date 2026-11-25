@@ -692,12 +692,12 @@
   initComments();
   setActive();
   refresh();
-  if (window.KChart?.ready) window.KChart.ready().then(reindex);
+  if (window.HtmlViewViz?.ready) window.HtmlViewViz.ready().then(reindex);
   let frame = 0;
   const observer = window.MutationObserver ? new MutationObserver(() => {
     if (frame) return;
     frame = requestAnimationFrame(() => { frame = 0; reindex(); });
   }) : null;
   if (observer) observer.observe($('.main') || body || document.body, { childList: true, subtree: true });
-  if (document.fonts?.ready) document.fonts.ready.then(() => { if (window.KChart?.ready) return window.KChart.ready(); }).then(reindex);
+  if (document.fonts?.ready) document.fonts.ready.then(() => { if (window.HtmlViewViz?.ready) return window.HtmlViewViz.ready(); }).then(reindex);
 })();

@@ -14,8 +14,8 @@ async function read(filename) {
   }
 }
 
-function parse({ file, html }, next = '检查统一内容标记和 htmlview:kind；普通 HTML 可用 check、read、shot 等通用命令。') {
-  try { return parseShell(html, file); }
+function parse({ file, html }, next = '检查统一内容标记和 htmlview:kind；普通 HTML 可用 check、read、shot 等通用命令。', options) {
+  try { return parseShell(html, file, options); }
   catch (error) {
     if (!(error instanceof TypeError)) throw error;
     fail('BAD_SHELL', error.message, { next });
@@ -73,7 +73,7 @@ export async function style(argv) {
     return emit({ themes });
   }
   if (!file) fail('USAGE', '缺少 HTML 文件路径。', { next: usage });
-  const { kind } = parse(await read(file), 'style 只处理 htmlview 产物。普通 HTML 如需迁移样式，保留原文件，用 htmlview doc new 新建主题文档再迁移原有内容；已损坏的 htmlview 外壳从原始来源重建或从完整副本恢复。');
+  const { kind } = parse(await read(file), 'style 只处理 htmlview 产物。普通 HTML 如需迁移样式，保留原文件，用 htmlview doc new 新建主题文档再迁移原有内容；已损坏的 htmlview 外壳从原始来源重建或从完整副本恢复。', { allowMissingVizScripts: true });
   if (kind !== 'ui' && designOptions.some(key => values[key] !== undefined)) fail('USAGE', '设计参数仅适用于界面稿。', { next: usage });
   if (kind === 'ui' && Object.keys(themeOptions).some((key) => values[key] !== undefined)) fail('USAGE', '界面稿使用 --brand 和 --scheme 控制颜色。', { next: usage });
   if (kind === 'data' && values.lang !== undefined) fail('USAGE', '报表语言由数据包构建参数决定。', { next: '运行 htmlview data build <report.json> --out <file> --lang <lang>。' });

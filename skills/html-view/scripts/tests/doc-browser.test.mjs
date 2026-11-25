@@ -51,7 +51,7 @@ test('doc runtime renders a KChart figure and supports numbered xrefs and Review
     page = await browser.newPage();
     await page.setViewport({ width: 1500, height: 1000 });
     await page.goto(pathToFileURL(file).href);
-    await page.evaluate('KChart.ready()');
+    await page.evaluate('HtmlViewViz.ready()');
     await waitFor(page, `document.querySelector('#fig-traffic .fig-title')?.textContent.includes(${JSON.stringify(title)})`, '真实图形图题');
     await waitFor(page, `document.querySelector('a.xref')?.textContent.includes(${JSON.stringify(title)})`, '图形交叉引用');
 

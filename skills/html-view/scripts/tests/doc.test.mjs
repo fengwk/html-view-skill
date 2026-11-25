@@ -128,7 +128,7 @@ test('parts uses stable unique document chapter keys', () => {
 test('doc runtime/CSS uses the shared figure contract and contains no legacy graph engines', () => {
   const runtime = readAsset('page/doc.js');
   const styles = readAsset('page/doc.css');
-  assert.ok(runtime.includes('KChart?.ready') || runtime.includes('KChart.ready'));
+  assert.ok(runtime.includes('HtmlViewViz?.ready') || runtime.includes('HtmlViewViz.ready'));
   assert.ok(runtime.includes('MutationObserver'));
   for (const legacy of ['HtmlChart', 'HtmlGraph', 'HtmlDiagram', 'HtmlIcons', 'htmldoc', 'data-chart', '.bars']) assert.equal(runtime.includes(legacy), false, legacy);
   for (const legacy of ['chart-toggle', 'data-chart', '.bars', '.seq', '.arch', '.lg', '.svg-1x']) assert.equal(styles.includes(legacy), false, legacy);

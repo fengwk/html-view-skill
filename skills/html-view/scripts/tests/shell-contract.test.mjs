@@ -3,8 +3,9 @@ import assert from 'node:assert/strict';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { runtimeSource, structureRoles } from '../../vendor/kchart/esm/node.js';
+import { structureRoles } from '../../vendor/kchart/esm/node.js';
 import { getTheme, listThemes, themesCss, readingCss, structureProperties } from '../src/shared/themes.mjs';
+import { readAsset } from '../src/shared/assets.mjs';
 import { auditContent } from '../src/shared/static-audit.mjs';
 import { markdownToContent } from '../src/shared/markdown.mjs';
 import { auditViz, collectViz, vizMarkup } from '../src/shared/viz.mjs';
@@ -63,25 +64,43 @@ test('HTML scanners ignore script pseudo-markup, retain only external meta, and 
   assert.ok((await auditShell(html, { expected: '0'.repeat(64) })).notes.some(({ code }) => code === 'SHELL_OUTDATED'));
   assert.ok((await auditShell(html.replace(script, 'const fake = 2;'))).notes.some(({ code }) => code === 'SHELL_OUTDATED'));
   const malformed = await auditShell(html.replace('<p>Screen</p>', vizMarkup('kchart', '{bad json}')));
-  assert.ok(malformed.failures.some(({ code }) => code === 'BAD_VIZ'));
+  assert.ok(malformed.failures.some(({ code }) => code === 'BAD_SHELL'), '图形内容缺少角色脚本时拒绝旧外壳');
+  const graphic = renderShell({ kind: 'doc', content: vizMarkup('kchart', JSON.stringify({ chart: 'bar', data: [{ label: 'A', value: 1 }], encode: { category: 'label', value: 'value' } })) });
+  const brokenViz = await auditShell(graphic.replace(/<pre data-viz="kchart">[^<]*<\/pre>/, vizMarkup('kchart', '{bad json}')));
+  assert.ok(brokenViz.failures.some(({ code }) => code === 'BAD_VIZ'));
   assert.throws(() => renderShell({ kind: 'doc', content: vizMarkup('kchart', '{bad json}') }), (error) => error.code === 'BAD_VALUE' && error.details?.failures?.length > 0);
   assert.throws(() => renderShell({ kind: 'doc', theme: 'claude', attrs: { 'data-scheme': 'dark' }, content: '<p>x</p>' }), /冲突/);
 });
 
-test('shell assembles declared diagram/chart modules, local map data, and runtime code', () => {
+test('shell assembles declared diagram/chart modules, local map data, and the role scripts', () => {
   // A declared map chart must carry its local asset once and the selected module closure into the shell.
   const map = { chart: 'choropleth', data: { map: { asset: 'world' }, rows: [{ region: 'ZWE', value: 1 }] }, encode: { region: 'region', value: 'value' } };
   const content = `${vizMarkup('kchart', JSON.stringify(map))}\n${vizMarkup('mermaid', 'flowchart TD\nA --> B')}`;
-  const html = renderShell({ kind: 'doc', content });
+  const html = renderShell({ kind: 'doc', content, scripts: ['window.page=1;'] });
   const parsed = parseShell(html);
   assert.ok(parsed.modules.includes('chart/maps'));
   assert.ok(parsed.modules.some((module) => module.startsWith('diagram/')));
-  assert.match(html, /\"assets\":\{\"world\":/);
-  // The page runtime is embedded verbatim from the vendored build and mounted once: no hand-copied substitute.
-  const runtime = runtimeSource();
-  assert.equal(html.split(runtime).length - 1, 1, 'shell 内嵌且只内嵌一份 vendor 运行时');
-  assert.match(html, /globalThis\.KChart&&globalThis\.KChart\.mount\)globalThis\.KChart\.mount\(document,/);
-  assert.match(runtime, /mountClones:|relayout:/);
+  assert.match(html, /"assets":\{"world":/);
+  // 生成脚本按角色排列，页面自己的脚本留在它们之后：没有内联 mount 代码。
+  assert.deepEqual(parsed.scripts.map(({ role }) => role), ['kchart', 'viz-config', 'viz', 'page']);
+  const [kchart, config, viz] = parsed.scripts;
+  assert.match(kchart.content, /KChartPageApi\.createPageApi/);
+  assert.doesNotMatch(kchart.content, /mountClones|relayout:/);
+  assert.deepEqual(Object.keys(JSON.parse(config.content)), ['lang', 'assets']);
+  assert.equal(viz.content, readAsset('page/viz.js'));
+  assert.match(viz.content, /globalThis\.HtmlViewViz = Object\.freeze\(\{ ready, relayout, mountClones \}\)/);
+  assert.doesNotMatch(html, /KChart\.mount\(document/);
+});
+
+// 旧产物只有内联 runtime 和内联 mount，没有角色脚本；解析必须直接要求从源文件重建。
+test('parseShell rejects graphic content without the generated role scripts', () => {
+  const spec = { chart: 'bar', data: [{ label: 'A', value: 1 }], encode: { category: 'label', value: 'value' } };
+  const html = renderShell({ kind: 'doc', content: vizMarkup('kchart', JSON.stringify(spec)) });
+  assert.throws(() => parseShell(html.replace('<script data-htmlview="kchart">', '<script>')), /重新构建/);
+  assert.throws(() => parseShell(html.replace('data-htmlview="viz-config"', 'data-htmlview="other"')), /未知的 data-htmlview 脚本角色/);
+  assert.throws(() => parseShell(html.replace('type="application/json" ', '')), /type 无效/);
+  assert.throws(() => parseShell(html.replace(/<script type="application\/json" data-htmlview="viz-config">[^<]*<\/script>\n/, '')), /viz-config/);
+  assert.doesNotThrow(() => parseShell(renderShell({ kind: 'doc', content: '<p>普通正文</p>' })));
 });
 
 test('Markdown recognizes only the five visualization fences; ordinary JSON stays code', () => {

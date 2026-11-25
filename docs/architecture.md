@@ -28,7 +28,7 @@
 
 ## 布局与检查
 
-`packages/kchart/src/families.json` 登记图型，源码的 `import` 决定模块依赖；`npm run build` 据此产出 ESM 入口、逐模块的浏览器单元和 `units.json` 清单，`npm run vendor` 把 `dist/` 原样镜像到技能。DOM-free 解析与布局能在 Node 和浏览器使用；浏览器宿主用 Canvas 测字，宽度、主题或打印媒体变化后重排。结构图和数据图共享 SVG 序列化。可读字和完整几何优先；需要时放宽图内画布并允许图框内横向滚动，不将窄屏默默变成别的构图。
+`packages/kchart/src/families.json` 登记图型，源码的 `import` 决定模块依赖；`npm run build` 据此产出 ESM 入口、逐模块的浏览器单元和 `units.json` 清单，`npm run vendor` 把 `dist/` 原样镜像到技能。DOM-free 解析与布局能在 Node 和浏览器使用；图卡挂载由技能自己的 `assets/page/viz.js` 负责：它按外壳配置用 Canvas 测字、生成图题/来源/数据表，并在宽度、主题或打印媒体变化后重排，KChart 本身只负责 `render()`/`diagram()` 的渲染结果。结构图和数据图共享 SVG 序列化。可读字和完整几何优先；需要时放宽图内画布并允许图框内横向滚动，不将窄屏默默变成别的构图。
 
 `audit` 检查输入及产物完整性，`check` 检查实际设备宽度、打印版心与浏览器错误。`shot` 和 `export` 等待当前媒体布局。打印时检查与导出共用版心测量；发现横向裁切或图高超过单页时拒绝写 PDF。宽图可用 `--paper a4-landscape`，高图可用 `--paper a3-portrait`；仍放不下时交付完整 SVG 或由作者重排。自动测试不替代样张目检。
 

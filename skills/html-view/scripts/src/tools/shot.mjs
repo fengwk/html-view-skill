@@ -115,8 +115,8 @@ async function settlePage(page, exportMode = false) {
       document.querySelectorAll('details').forEach((item) => { item.open = true; });
     }
     if (document.fonts && document.fonts.ready) await document.fonts.ready;
-    if (window.KChart?.relayout) await window.KChart.relayout({ media: 'screen' });
-    if (window.KChart?.ready) await window.KChart.ready();
+    if (window.HtmlViewViz?.relayout) await window.HtmlViewViz.relayout({ media: 'screen' });
+    if (window.HtmlViewViz?.ready) await window.HtmlViewViz.ready();
     await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve(1))));
     return 1;
   }.toString()})(${JSON.stringify(exportMode)})`);
