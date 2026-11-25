@@ -81,7 +81,7 @@ kbd { display: inline-block; min-width: 1.7em; padding: 0 5px; border: 1px solid
 html[data-mode="export"] .side,
 html[data-mode="export"] .toc-mobile,
 html[data-mode="export"] .skip,
-html[data-mode="export"] .copy,
+html[data-mode="export"] .code-copy,
 html[data-mode="export"] .h-anchor,
 html[data-mode="export"] .scroll-hint,
 html[data-mode="export"] .table-hint,
@@ -176,7 +176,12 @@ tbody td { color: var(--fg-2); }
 .code { overflow: hidden; background: var(--block-bg); }
 .code-head { display: flex; align-items: center; gap: var(--sp-2); min-height: 32px; padding: 0 var(--sp-2) 0 var(--sp-3); border-bottom: 1px solid var(--line); color: var(--fg-4); font-size: var(--fs-micro); }
 .code-name { color: var(--fg-3); font-family: var(--font-mono); }
-.code-head .copy { margin-left: auto; }
+/* 复制图标与图形一致：平时隐藏，悬停或键盘聚焦代码块时出现；触屏没有悬停，常显。 */
+.code-copy { display: grid; place-items: center; box-sizing: border-box; flex: none; width: 28px; height: 28px; margin-left: auto; padding: 0; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface); color: var(--fg-3); cursor: pointer; opacity: 0; pointer-events: none; transition: opacity .15s ease, color .15s ease, border-color .15s ease; }
+.code:hover .code-copy, .code:focus-within .code-copy { opacity: 1; pointer-events: auto; }
+.code-copy:hover { color: var(--fg-1); border-color: var(--line-2); }
+.code-copy > svg { display: block; }
+@media (hover: none) and (pointer: coarse) { .code-copy { opacity: 1; pointer-events: auto; } }
 .code pre { margin: 0; padding: var(--sp-3) var(--sp-4); overflow-x: auto; border: 0; border-radius: 0; background: none; color: var(--fg-1); font-family: var(--font-mono); font-size: var(--fs-small); line-height: 1.65; tab-size: 2; scrollbar-width: thin; }
 .code pre code { padding: 0; border: 0; background: none; font-size: inherit; overflow-wrap: normal; }
 /* 代码着色：Prism 的 token 类（运行时加了 prism- 前缀）按类别取 --tk-* 颜色，默认是主题语义色，打印时随打印配色一起换。
@@ -358,7 +363,7 @@ details.fold > .fold-body { padding: var(--sp-2) var(--sp-3) var(--sp-1); border
     --num-color: var(--fg-4); --block-bg: var(--surface); --node-bg: #ffffff; --code-bg: var(--surface-2);
   }
   html[data-scheme="light"] { --bg: #ffffff; }
-  .side, .toc-mobile, .btn:not(.screen .btn), .h-anchor, .skip, .scroll-hint, .table-hint, .cm-editor, .cm-panel { display: none !important; }
+  .side, .toc-mobile, .btn:not(.screen .btn), .code-copy, .h-anchor, .skip, .scroll-hint, .table-hint, .cm-editor, .cm-panel { display: none !important; }
   ::highlight(doc-comment), ::highlight(doc-comment-active) { background: none; }
   .stats { grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); }
   body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }

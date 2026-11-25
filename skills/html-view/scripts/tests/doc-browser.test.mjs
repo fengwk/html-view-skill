@@ -144,6 +144,51 @@ test('Cloud Music report keeps long identifiers and passes rendered checks', { s
   }
 });
 
+// 意图：代码块复制与图形一致——只有图标，平时隐藏，悬停或聚焦显示，触屏常显，导出隐藏；点击复制代码原文。
+test('doc code blocks copy through a hover-revealed icon', { skip: !chrome && '未找到可执行 Chrome；设置 CHROME_PATH 后自动启用此浏览器回归' }, async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'htmlview-doc-code-copy-'));
+  const code = 'const a = 1;\nconsole.log(a < 2);';
+  let browser;
+  try {
+    const source = join(dir, 'code.md');
+    const file = join(dir, 'code.html');
+    writeFileSync(source, `# 代码复制\n\n段落。\n\n\`\`\`js\n${code}\n\`\`\`\n`);
+    await buildDoc([source, '--out', file, '--theme', 'paper', '--lang', 'zh-CN']);
+    browser = await launchBrowser({ chromePath: chrome });
+    const page = await browser.newPage();
+    await page.setViewport({ width: 1100, height: 800 });
+    await page.goto(pathToFileURL(file).href);
+    const button = `document.querySelector('.code .code-head > .code-copy')`;
+    const opacity = `getComputedStyle(${button}).opacity`;
+    assert.deepEqual(await page.json(`JSON.stringify({count:document.querySelectorAll('.code-copy').length,text:${button}.textContent,label:${button}.getAttribute('aria-label'),icon:!!${button}.querySelector(':scope > svg[aria-hidden="true"]'),old:document.querySelectorAll('.code .btn').length})`),
+      { count: 1, text: '', label: '复制代码', icon: true, old: 0 });
+    await page.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 1, y: 1 });
+    assert.equal(await page.evaluate(opacity), '0', '未悬停时隐藏');
+    const center = await page.json(`JSON.stringify((()=>{const r=document.querySelector('.code pre').getBoundingClientRect();return {x:r.left+r.width/2,y:r.top+r.height/2};})())`);
+    await page.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: center.x, y: center.y });
+    await waitFor(page, `${opacity} === '1'`, '悬停代码块显示图标');
+    await page.evaluate(`Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: (text) => { window.__copied = text; return Promise.resolve(); } } })`);
+    await page.evaluate(`${button}.click()`);
+    await waitFor(page, 'typeof window.__copied === "string"', '复制代码');
+    assert.equal(await page.evaluate('window.__copied'), code);
+    await waitFor(page, `${button}.getAttribute('aria-label') === '已复制'`, '复制成功提示');
+    await waitFor(page, `${button}.getAttribute('aria-label') === '复制代码'`, '按钮状态恢复');
+    await page.evaluate('document.activeElement?.blur()');
+    await page.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 1, y: 1 });
+    await waitFor(page, `${opacity} === '0'`, '移开后隐藏');
+    await page.send('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 5 });
+    await waitFor(page, `${opacity} === '1'`, '触屏常显');
+    await page.evaluate(`document.documentElement.dataset.mode = 'export'`);
+    assert.equal(await page.evaluate(`getComputedStyle(${button}).display`), 'none', '导出隐藏');
+    await page.evaluate(`delete document.documentElement.dataset.mode`);
+    await page.setMedia('print');
+    assert.equal(await page.evaluate(`getComputedStyle(${button}).display`), 'none', '打印隐藏');
+  } finally {
+    await browser?.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 // 意图：文档样式排在主题之后，不能把主题专属的编号色、编号样式与圆角重设回默认值。
 test('doc pages keep each theme file\'s numbering and radius', { skip: !chrome && '未找到可执行 Chrome；设置 CHROME_PATH 后自动启用此浏览器回归' }, async () => {
   const dir = mkdtempSync(join(tmpdir(), 'htmlview-doc-theme-'));

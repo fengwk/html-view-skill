@@ -13,7 +13,7 @@
     sectionLink: '本节链接：',
     contents: '文档目录',
     brokenRef: (id) => '〔引用失效：' + id + '〕',
-    copy: '复制',
+    copy: '复制代码',
     copied: '已复制',
     copyFailed: '复制失败',
     scrollHint: '可横向滚动 →',
@@ -40,7 +40,7 @@
     sectionLink: 'Section link: ',
     contents: 'Document contents',
     brokenRef: (id) => '[Broken reference: ' + id + ']',
-    copy: 'Copy',
+    copy: 'Copy code',
     copied: 'Copied',
     copyFailed: 'Copy failed',
     scrollHint: 'Scroll horizontally →',
@@ -306,16 +306,32 @@
     setTimeout(() => { btn.textContent = idle; }, 1600);
   };
 
-  /* 代码复制 */
+  /* 代码复制：与图形一致，按钮只显示图标，文字放在 aria-label 与 title；成功换对勾，失败换叉 */
+  const COPY_ICONS = {
+    copy: '<rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"/>',
+    copied: '<path d="M20 6 9 17l-5-5"/>',
+    failed: '<path d="M18 6 6 18M6 6l12 12"/>',
+  };
+  const COPY_LABELS = { copy: T.copy, copied: T.copied, failed: T.copyFailed };
+  const setCopyState = (btn, state) => {
+    btn.innerHTML = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + COPY_ICONS[state] + '</svg>';
+    btn.setAttribute('aria-label', COPY_LABELS[state]);
+    btn.title = COPY_LABELS[state];
+  };
   $$('.code').forEach((block) => {
     const pre = $('pre', block);
     const head = $('.code-head', block);
     if (!pre || !head) return;
     const btn = document.createElement('button');
     btn.type = 'button';
-    btn.className = 'btn btn-sm copy';
-    btn.textContent = T.copy;
-    btn.addEventListener('click', async () => flashCopied(btn, await copyText(pre.textContent), T.copy));
+    btn.className = 'code-copy';
+    setCopyState(btn, 'copy');
+    let timer;
+    btn.addEventListener('click', async () => {
+      setCopyState(btn, (await copyText(pre.textContent)) ? 'copied' : 'failed');
+      clearTimeout(timer);
+      timer = setTimeout(() => setCopyState(btn, 'copy'), 1600);
+    });
     head.append(btn);
   });
 
