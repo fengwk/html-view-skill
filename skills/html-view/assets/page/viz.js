@@ -33,7 +33,7 @@
     }
     return embeddedThemes.get(doc);
   };
-  const languageOf = (doc, options) => options.lang || configOf(doc).lang || doc.documentElement.lang || 'zh-CN';
+  const languageOf = (doc) => configOf(doc).lang || doc.documentElement.lang || 'zh-CN';
   const isZh = (lang) => /^zh(?:-|$)/i.test(String(lang));
   const mediaOf = doc => mediaOverrides.get(doc) ?? (
     printEvents.has(doc) || doc.defaultView.matchMedia?.('print').matches ? 'print' : 'screen'
@@ -113,7 +113,7 @@
     if (syntax === 'kchart') return { source, spec: JSON.parse(source), diagram: false };
     return { source, spec: null, diagram: true };
   };
-  const mountSource = (pre, options) => {
+  const mountSource = (pre) => {
     const doc = pre.ownerDocument;
     const syntax = pre.getAttribute('data-viz') || '';
     const figure = doc.createElement('figure');
@@ -142,15 +142,15 @@
     let prefix = basePrefix;
     while (usedPrefixes.has(prefix)) prefix = `${basePrefix}-${++prefixSequence}`;
     usedPrefixes.add(prefix);
-    const state = { figure, body, pre, options, prefix, width: 0, observer: null, detached: () => {}, pending: false, done: Promise.resolve() };
-    const lang = languageOf(doc, options);
+    const state = { figure, body, pre, prefix, width: 0, observer: null, detached: () => {}, pending: false, done: Promise.resolve() };
+    const lang = languageOf(doc);
     const render = (force = false) => {
       state.pending = false;
       const rect = body.getBoundingClientRect();
       if (!rect.width || !body.clientWidth) return;
       const config = configOf(doc);
       const width = innerWidth(body);
-      const media = options.media || mediaOf(doc);
+      const media = mediaOf(doc);
       const screenScheme = doc.documentElement.dataset.scheme === 'dark' ? 'dark' : 'light';
       const scheme = media === 'print' ? (config.printScheme ?? screenScheme) : screenScheme;
       const printTheme = media === 'print' ? config.printThemes?.[screenScheme] : undefined;
@@ -221,15 +221,15 @@
     render(true);
     return state;
   };
-  const mount = (root = document, options = {}) => {
+  const mount = (root = document) => {
     const doc = docOf(root);
     const host = rootElement(root);
     const existing = mountedRoots.get(host);
     if (existing) return existing.dispose;
     const figures = [];
-    for (const pre of host.querySelectorAll?.('pre[data-viz]:not([hidden])') || []) figures.push(mountSource(pre, options));
+    for (const pre of host.querySelectorAll?.('pre[data-viz]:not([hidden])') || []) figures.push(mountSource(pre));
     const states = new Set(figures);
-    const mountedRoot = { root: host, doc, options, states, dispose: null };
+    const mountedRoot = { root: host, doc, states, dispose: null };
     mounted.add(mountedRoot);
     const scheduleAll = () => states.forEach((state) => {
       const win = doc.defaultView;
@@ -252,14 +252,13 @@
   };
   // 导出克隆的 SVG 不继承原节点的监听器或可用宽度；从声明重新挂载。
   const mountClones = (root, sourceRoot = docOf(root)) => {
-    const { options } = mountedRoots.get(rootElement(sourceRoot)) ?? {};
-    if (!options || mountedRoots.has(root)) return mountedRoots.get(root)?.dispose;
+    if (!mountedRoots.has(rootElement(sourceRoot)) || mountedRoots.has(root)) return mountedRoots.get(root)?.dispose;
     for (const pre of root.querySelectorAll('.viz-figure > pre[data-viz][hidden]')) {
       const figure = pre.parentNode;
       pre.hidden = false;
       figure.replaceWith(pre);
     }
-    if (root.querySelector('pre[data-viz]:not([hidden])')) return mount(root, options);
+    if (root.querySelector('pre[data-viz]:not([hidden])')) return mount(root);
   };
   const relayout = ({ media } = {}) => {
     if (media != null && media !== 'print' && media !== 'screen') throw new TypeError('media 必须为 screen 或 print');
