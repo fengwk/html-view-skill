@@ -201,6 +201,19 @@ test('period-less summary datasets use every row, skip period comparisons, and t
   assert.ok(validateReport({...report,datasets:[{...report.datasets[1],periodField:''}]}).issues.some(i=>i.where==='datasets[0].periodField'),'empty strings are still rejected; only null opts out of the period dimension');
 });
 
+// 意图：叙述里指向存在文件的相对链接按产物位置改写，找不到的原样保留；改写发生在取指纹前，audit 仍通过。
+test('narrative relative links are rewritten for an output in another directory', async t => {
+  const {dir,reportPath}=await createPackage(t);
+  await writeFile(path.join(dir,'notes.md'),'# Notes\n');
+  await writeFile(path.join(dir,'narrative.md'),'### Synthetic narrative\n\nSee [notes](notes.md#top) and [gone](gone.md).\n');
+  const {buildPackage,audit}=await import('../src/artifacts/data/index.mjs'),out=path.join(dir,'out','report.html'),built=await buildPackage(reportPath,out);
+  assert.equal(built.ok,true,JSON.stringify(built));
+  const html=await readFile(out,'utf8');
+  assert.match(html,/<a href="\.\.\/notes\.md#top">notes<\/a>/);
+  assert.match(html,/<a href="gone\.md">gone<\/a>/);
+  assert.deepEqual((await audit(html)).failures,[]);
+});
+
 test('narrative HTML that audit would reject fails validate, so build never writes it', async t => {
   // 曾经只拦 script/style/link：带事件属性或外部图片的片段会被写进报表，直到 audit 才发现。
   const {dir,reportPath}=await createPackage(t);

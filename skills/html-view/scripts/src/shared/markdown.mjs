@@ -4,6 +4,7 @@ import { toDataUri } from './media.mjs';
 import { isZhLang, noteLabels } from './locale.mjs';
 import { keepNumberUnits } from './html-util.mjs';
 import { vizMarkup, VIZ_SYNTAXES } from './viz.mjs';
+import { relinkAnchors } from './relink.mjs';
 
 // 中日韩字符（含全角标点、假名、谚文）：软换行两侧都是它们时不插空格
 const CJK = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}\u3000-\u303f\uff00-\uffef]/u;
@@ -612,11 +613,11 @@ function stripManualNumbers(items, ctx) {
 /**
  * 把 Markdown 转成 HTML 内容区。
  * @param {string} md Markdown 原文
- * @param {{lang?: string, baseDir?: string, title?: string, renderViz?: (syntax: string, source: string, options: {id: string, lang: string}) => string}} options
+ * @param {{lang?: string, baseDir?: string, outDir?: string|null, title?: string, renderViz?: (syntax: string, source: string, options: {id: string, lang: string}) => string}} options
  * @returns {{title: string|null, content: string}}
  */
 export function markdownToContent(md, {
-  lang = 'zh', baseDir = process.cwd(), title: override = null, renderViz,
+  lang = 'zh', baseDir = process.cwd(), outDir = null, title: override = null, renderViz,
 } = {}) {
   const langKey = isZhLang(lang) ? 'zh' : 'en';
   const labels = IMPORT_LABELS[langKey];
@@ -682,5 +683,6 @@ export function markdownToContent(md, {
       '</div>',
     ].join('\n'));
   }
-  return { title, content: parts.join('\n\n') };
+  // 产物不在源目录时，指向存在文件的相对链接改成相对产物的路径。
+  return { title, content: relinkAnchors(parts.join('\n\n'), baseDir, outDir) };
 }

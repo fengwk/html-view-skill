@@ -31,7 +31,7 @@ htmlview doc build docs/notes/launch.md --out docs/plan/launch.html --type plan
 
 Markdown 标题用来生成页面标题。构建后的外壳在 `htmlview:doc:source` 记录相对 HTML 输出文件的 Markdown 源路径；只对记录的同一源文件进行原位更新。目标已存在但不是 doc 产物，或记录了其他源文件时，命令拒绝改写并保持目标不变。确需替换其他内容，先明确替换授权再传 `--force`。成功输出中的 `changedParts` 只列被更新的文首或章节，缺失的章节不会被并入其他 Markdown 手稿，也不会因比较被误报为未变化。
 
-Markdown 源的内容是唯一编辑源；构建后不要直接修改 HTML 内容区。Markdown 的 fenced code block 中，`kchart`、`mermaid`、`layers`、`blocks`、`swimlane` 转为统一 `pre[data-viz]` 源元素；普通 `json` 仍作为代码示例。Markdown 图片和相对路径资源按源文件所在目录解释。
+Markdown 源的内容是唯一编辑源；构建后不要直接修改 HTML 内容区。Markdown 的 fenced code block 中，`kchart`、`mermaid`、`layers`、`blocks`、`swimlane` 转为统一 `pre[data-viz]` 源元素；普通 `json` 仍作为代码示例。Markdown 图片和相对路径资源按源文件所在目录解释。本地图片内嵌进 HTML；相对链接指向的文件存在时，构建改写为相对 HTML 所在目录的路径，找不到的相对链接和绝对链接保持原文。
 
 除标准 Markdown 外，还支持这些写法：
 

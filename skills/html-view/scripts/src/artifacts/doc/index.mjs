@@ -139,7 +139,7 @@ export async function buildDoc(argv) {
   validateType(type);
   const theme = selectTheme(values, previous?.themeSnapshot ?? previous?.theme ?? undefined, file);
   const imported = markdownToContent(markdown, {
-    lang, baseDir: dirname(source), renderViz: undefined,
+    lang, baseDir: dirname(source), outDir: dirname(file), renderViz: undefined,
   });
   const title = imported.title || previous?.title;
   if (!title) fail('USAGE', 'Markdown 没有标题，请添加唯一的 # 标题、前言区 title，或通过 --type 外的标题参数指定标题', { next: buildUsage });
