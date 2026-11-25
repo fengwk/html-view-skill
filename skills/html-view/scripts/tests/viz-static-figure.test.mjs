@@ -44,7 +44,7 @@ const waitFor = async (page, expression, label, timeout = 5000) => page.evaluate
   poll();
 })`);
 
-// 意图：单图页把「图形源码」折叠换成复制按钮；源码元素只为读回保留，读者看不到它。
+// 意图：单图页把「图形源码」折叠换成复制图标；源码元素只为读回保留，读者看不到它。
 test('单图页源码不再折叠，改为隐藏源码与复制按钮', { skip: browserSkip }, async (t) => {
   const measured = await renderStaticFigure(DIAGRAM, { theme: 'terminal', width: 350, lang: 'zh-CN' });
   assert.doesNotMatch(measured.html, /<details|<summary/, '源码折叠必须移除');
@@ -56,8 +56,8 @@ test('单图页源码不再折叠，改为隐藏源码与复制按钮', { skip: 
   const buttons = scanElements(shell.content).filter(({ name, attrs }) => name === 'button' && attrs.id === VIZ_COPY_ID);
   assert.equal(buttons.length, 1);
   assert.equal(buttons[0].attrs.type, 'button');
-  assert.equal(buttons[0].attrs.class, 'btn btn-sm copy');
-  assert.equal(decodeEntities(innerHtml(shell.content, buttons[0])), '复制');
+  assert.deepEqual([buttons[0].attrs['aria-label'], buttons[0].attrs.title], ['复制源码', '复制源码']);
+  assert.match(innerHtml(shell.content, buttons[0]), /^<svg [^>]*aria-hidden="true"[^>]*>[\s\S]*<\/svg>$/, '按钮只含图标');
   // 页面脚本只有复制交互这一处，且按页面自己的脚本登记（外壳据此计算指纹）。
   assert.deepEqual(shell.scripts.map(({ role }) => role), ['page']);
   assert.deepEqual((await audit(measured.html)).failures, []);
@@ -69,17 +69,17 @@ test('单图页源码不再折叠，改为隐藏源码与复制按钮', { skip: 
   const bareSource = measured.html.replace(/(<pre id="viz-source" hidden>)<code>([\s\S]*?)<\/code>/, '$1$2');
   assert.notEqual(bareSource, measured.html);
   assert.ok((await audit(bareSource)).failures.some(({ code }) => code === 'BAD_VIZ'));
-  assert.match(measured.html.split('@media print').at(-1) ?? '', /\.viz-copy\{display:none\}/, '打印时隐藏复制按钮');
+  assert.match(measured.html.split('@media print').at(-1) ?? '', /\.viz-copy-row\{display:none\}/, '打印时隐藏复制按钮');
   assert.doesNotMatch(measured.html, /<link\b/i);
 
-  // 英文读者拿到英文按钮文字。
+  // 英文读者拿到英文说明。
   const english = await renderStaticFigure(DIAGRAM, { theme: 'terminal', width: 350, lang: 'en' });
   const englishContent = parseShell(english.html).content;
   const englishButton = scanElements(englishContent).find(({ name, attrs }) => name === 'button' && attrs.id === VIZ_COPY_ID);
-  assert.equal(decodeEntities(innerHtml(englishContent, englishButton)), 'Copy');
+  assert.equal(englishButton.attrs['aria-label'], 'Copy source');
 });
 
-// 意图：真实 Chrome 点按钮复制源码原文，剪贴板不可用时用隐藏文本框降级，按钮文字约 1.6 秒后恢复。
+// 意图：真实 Chrome 中图标悬停才出现；点击复制源码原文，剪贴板不可用时用隐藏文本框降级，状态约 1.6 秒后恢复。
 test('单图页复制按钮复制源码原文并在剪贴板不可用时降级', { skip: browserSkip }, async (t) => {
   const dir = tempDir(t);
   const file = join(dir, 'figure.html');
@@ -96,19 +96,31 @@ test('单图页复制按钮复制源码原文并在剪贴板不可用时降级',
 
     const clipboard = await open();
     try {
+      const opacity = `getComputedStyle(document.getElementById('${VIZ_COPY_ID}')).opacity`;
+      await clipboard.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 1, y: 1 });
+      assert.equal(await clipboard.evaluate(opacity), '0', '未悬停时隐藏');
+      const center = await clipboard.json(`JSON.stringify((()=>{const r=document.querySelector('.viz-figure').getBoundingClientRect();return {x:r.left+r.width/2,y:r.top+r.height/2};})())`);
+      await clipboard.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: center.x, y: center.y });
+      await waitFor(clipboard, `${opacity} === '1'`, '悬停图卡显示图标');
       await clipboard.evaluate(`Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: (text) => { window.__copied = text; return Promise.resolve(); } } })`);
       const started = Date.now();
       await clipboard.evaluate(`document.getElementById('${VIZ_COPY_ID}').click()`);
       await waitFor(clipboard, 'typeof window.__copied === "string"', '复制源码');
       assert.equal(await clipboard.evaluate('window.__copied'), DIAGRAM, '复制的必须是声明原文');
-      await waitFor(clipboard, `document.getElementById('${VIZ_COPY_ID}').textContent === '已复制'`, '复制成功提示');
-      await waitFor(clipboard, `document.getElementById('${VIZ_COPY_ID}').textContent === '复制'`, '按钮文字恢复');
+      await waitFor(clipboard, `document.getElementById('${VIZ_COPY_ID}').getAttribute('aria-label') === '已复制'`, '复制成功提示');
+      await waitFor(clipboard, `document.getElementById('${VIZ_COPY_ID}').getAttribute('aria-label') === '复制源码'`, '按钮状态恢复');
       const elapsed = Date.now() - started;
       assert.ok(elapsed >= 1500 && elapsed < 4000, `提示应约 1.6 秒后恢复，实际 ${elapsed}ms`);
+      // 移开后隐藏；触屏（无悬停、粗指针）常显。
+      await clipboard.evaluate('document.activeElement?.blur()');
+      await clipboard.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 1, y: 1 });
+      await waitFor(clipboard, `${opacity} === '0'`, '移开后隐藏');
+      await clipboard.send('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 5 });
+      await waitFor(clipboard, `${opacity} === '1'`, '触屏常显');
       // 源码元素真的不可见，打印时连按钮一起隐藏。
       assert.equal(await clipboard.evaluate(`getComputedStyle(document.getElementById('${VIZ_SOURCE_ID}')).display`), 'none');
       await clipboard.setMedia('print');
-      assert.equal(await clipboard.evaluate(`getComputedStyle(document.getElementById('${VIZ_COPY_ID}')).display`), 'none', '打印不输出复制按钮');
+      assert.equal(await clipboard.evaluate(`getComputedStyle(document.querySelector('.viz-copy-row')).display`), 'none', '打印不输出复制按钮');
     } finally { await clipboard.close(); }
 
     const fallback = await open();
@@ -124,7 +136,7 @@ test('单图页复制按钮复制源码原文并在剪贴板不可用时降级',
       await waitFor(fallback, 'typeof window.__fallback === "object" && window.__fallback !== null', '文本框降级');
       assert.deepEqual(await fallback.json('JSON.stringify(window.__fallback)'), { command: 'copy', text: DIAGRAM });
       assert.equal(await fallback.evaluate("document.querySelectorAll('textarea').length"), 0, '降级用的文本框不能留在页面里');
-      await waitFor(fallback, `document.getElementById('${VIZ_COPY_ID}').textContent === '已复制'`, '降级后的成功提示');
+      await waitFor(fallback, `document.getElementById('${VIZ_COPY_ID}').getAttribute('aria-label') === '已复制'`, '降级后的成功提示');
     } finally { await fallback.close(); }
 
     const failure = await open();
@@ -134,8 +146,8 @@ test('单图页复制按钮复制源码原文并在剪贴板不可用时降级',
         document.execCommand = () => false;
       })()`);
       await failure.evaluate(`document.getElementById('${VIZ_COPY_ID}').click()`);
-      await waitFor(failure, `document.getElementById('${VIZ_COPY_ID}').textContent === '复制失败'`, '复制失败提示');
-      await waitFor(failure, `document.getElementById('${VIZ_COPY_ID}').textContent === '复制'`, '失败后恢复');
+      await waitFor(failure, `document.getElementById('${VIZ_COPY_ID}').getAttribute('aria-label') === '复制失败'`, '复制失败提示');
+      await waitFor(failure, `document.getElementById('${VIZ_COPY_ID}').getAttribute('aria-label') === '复制源码'`, '失败后恢复');
     } finally { await failure.close(); }
   } finally { await browser?.close(); }
 });
@@ -155,7 +167,7 @@ test('style 与 parts 仍能从单图页读回图形源码', { skip: browserSkip
   const html = readFileSync(file, 'utf8');
   const { text } = sourceOf(html);
   assert.equal(text, DIAGRAM, '换主题重建后源码必须原样保留');
-  assert.match(html, new RegExp(`<button type="button" class="btn btn-sm copy" id="${VIZ_COPY_ID}">复制</button>`));
+  assert.match(html, new RegExp(`<button type="button" id="${VIZ_COPY_ID}" aria-label="复制源码" title="复制源码"><svg `));
   assert.doesNotMatch(html, /<details|<summary/);
 
   const read = invoke(['read', file]);

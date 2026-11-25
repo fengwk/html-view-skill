@@ -93,7 +93,7 @@
   const cleanText = (el) => {
     if (!el) return '';
     const clone = el.cloneNode(true);
-    $$('.fig-num, .tbl-num, .scroll-hint, .copy', clone).forEach((x) => x.remove());
+    $$('.fig-num, .tbl-num, .scroll-hint, .viz-copy', clone).forEach((x) => x.remove());
     return clone.textContent.trim().replace(/\s+/g, ' ');
   };
   const addNum = (el, className, text) => {

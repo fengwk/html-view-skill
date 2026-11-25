@@ -247,7 +247,8 @@ test('viz render 识别 Mermaid 源码并输出自包含 HTML', { skip: browserS
   // 复制按钮是单图页唯一的页内脚本；源码留在图外，只供 style 与 parts 读回。
   assert.equal(html.match(/<script\b/gi)?.length, 1);
   assert.doesNotMatch(html, /<link\b/i);
-  assert.match(html, /<\/figure><div class="viz-copy"><button type="button" class="btn btn-sm copy"[^>]*>复制<\/button><\/div><pre id="viz-source" hidden>/, 'source stays in the file but outside the figure');
+  assert.match(html, /<div class="viz-shell"><div class="viz-copy-row"><button type="button" id="viz-copy" aria-label="复制源码"[^>]*><svg [\s\S]*?<\/button><\/div><figure /, 'copy icon sits above the figure');
+  assert.match(html, /<\/figure><pre id="viz-source" hidden>/, 'source stays in the file but outside the figure');
   const measured = invoke(['check', out]);
   assert.equal(measured.exitCode, 0, measured.stdout);
   assert.deepEqual(JSON.parse(measured.stdout).notes.filter(({ code }) => code === 'SCROLL_X'), []);

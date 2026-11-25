@@ -140,7 +140,7 @@ test('SVG：由 CLI 构建的 KChart 图卡不受手绘规则影响', { skip }, 
         && document.querySelector('#visits svg text'))`), true);
       const inspect = async () => svgFailures(await page.json(inspectPageExpression({ viewport: 'desktop' })));
       assert.deepEqual(await inspect(), []);
-      await page.evaluate(`Boolean(document.querySelector('#visits svg').insertAdjacentHTML('beforeend',
+      await page.evaluate(`Boolean(document.querySelector('#visits .viz-body svg').insertAdjacentHTML('beforeend',
         '<text x="20" y="25">probe</text><text x="20" y="25">probe</text><line x2="10" marker-end="url(#chart-missing-arrow)" stroke="black"/>'))`);
       assert.deepEqual(await inspect(), []);
       await page.evaluate(`document.querySelector('#visits > pre[data-viz]').remove(); true`);

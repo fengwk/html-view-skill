@@ -11,6 +11,7 @@ import { renderShell } from '../src/shared/shell.mjs';
 
 // The shipped page host is the skill asset, exactly as the shell embeds it.
 const host = readAsset('page/viz.js');
+const vizCss = readAsset('page/viz.css');
 const temp = (name) => mkdtempSync(join('/var/tmp', `htmlview-viz-${name}-`));
 const configScript = (config) => `<script type="application/json" data-htmlview="viz-config">${JSON.stringify(config)}</script>`;
 const escape = (value) => value.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
@@ -109,7 +110,7 @@ test('viz host copies the declaration from the caption, reports safe errors, and
     await interceptClipboard(page);
     const printable = await page.json('HtmlViewViz.relayout({media:"print"}).then(()=>true)');
     assert.equal(printable, true, 'print relayout is awaitable until current layout work finishes');
-    const result = await page.json(`JSON.stringify((()=>{const fig=document.querySelector('#good'),bad=document.querySelector('#bad');fig.querySelector('pre').click();const caption=fig.querySelector(':scope > figcaption'),button=caption.querySelector(':scope > button');return {title:fig.getAttribute('title'),extra:fig.getAttribute('data-extra'),className:fig.className,caption:fig.querySelector('.fig-heading')?.textContent,source:fig.querySelector('.fig-source')?.textContent,note:fig.querySelector('.fig-note')?.textContent,buttonClass:button?.className,buttonType:button?.type,buttonText:button?.textContent,buttonInCaption:button?.parentElement===caption,buttonCount:caption.querySelectorAll(':scope > button').length,captionCount:fig.querySelectorAll(':scope > figcaption').length,buttons:fig.querySelectorAll('button').length,details:fig.querySelectorAll('details').length,sourceText:fig.querySelector('pre[data-viz]')?.textContent,html:fig.innerHTML,added:window.__svgEvents.added,removed:window.__svgEvents.removed,error:bad.querySelector('.viz-error')?.textContent,images:document.querySelectorAll('img').length,pwned:window.pwned,sourceBlock:bad.querySelector('pre[data-viz-source],pre')?.textContent};})())`);
+    const result = await page.json(`JSON.stringify((()=>{const fig=document.querySelector('#good'),bad=document.querySelector('#bad');fig.querySelector('pre').click();const caption=fig.querySelector(':scope > figcaption'),button=caption.querySelector(':scope > button');return {title:fig.getAttribute('title'),extra:fig.getAttribute('data-extra'),className:fig.className,caption:fig.querySelector('.fig-heading')?.textContent,source:fig.querySelector('.fig-source')?.textContent,note:fig.querySelector('.fig-note')?.textContent,buttonClass:button?.className,buttonType:button?.type,buttonText:button?.textContent,buttonLabel:button?.getAttribute('aria-label'),buttonTitle:button?.title,buttonIcon:!!button?.querySelector(':scope > svg[aria-hidden="true"]'),buttonInCaption:button?.parentElement===caption,buttonCount:caption.querySelectorAll(':scope > button').length,captionCount:fig.querySelectorAll(':scope > figcaption').length,buttons:fig.querySelectorAll('button').length,details:fig.querySelectorAll('details').length,sourceText:fig.querySelector('pre[data-viz]')?.textContent,html:fig.innerHTML,added:window.__svgEvents.added,removed:window.__svgEvents.removed,error:bad.querySelector('.viz-error')?.textContent,images:document.querySelectorAll('img').length,pwned:window.pwned,sourceBlock:bad.querySelector('pre[data-viz-source],pre')?.textContent};})())`);
     assert.equal(result.title, 'kept');
     assert.equal(result.extra, 'yes');
     assert.match(result.className, /source-class/);
@@ -117,19 +118,21 @@ test('viz host copies the declaration from the caption, reports safe errors, and
     assert.equal(result.source, 'Source: 合成来源');
     assert.equal(result.note, 'Note: 虚构注释');
     assert.equal(result.pwned, undefined, 'inline event attributes are not copied or executed');
-    assert.equal(result.buttonClass, 'btn btn-sm copy');
+    assert.equal(result.buttonClass, 'viz-copy');
     assert.equal(result.buttonType, 'button');
-    assert.equal(result.buttonText, 'Copy', '英文页面用英文按钮文字');
+    assert.equal(result.buttonText, '', '按钮只显示图标，没有可见文字');
+    assert.equal(result.buttonIcon, true);
+    assert.deepEqual([result.buttonLabel, result.buttonTitle], ['Copy source', 'Copy source'], '英文页面用英文说明');
     assert.equal(result.buttonInCaption, true, '复制按钮是图题的直接子元素');
     assert.deepEqual({ count: result.buttonCount, captions: result.captionCount, buttons: result.buttons }, { count: 1, captions: 1, buttons: 1 });
     assert.equal(result.details, 0, '图形不再附带可折叠数据区');
     assert.equal(result.sourceText, declaration, '隐藏的源码元素保留声明原文');
-    // 拦截剪贴板：点按钮交出的是声明原文，按钮先显示已复制再恢复原文字。
+    // 拦截剪贴板：点按钮交出的是声明原文，按钮先换成已复制状态再恢复。
     await page.evaluate(`document.querySelector('#good figcaption > button').click()`);
     await waitFor(page, 'typeof window.__copied === "string"', '复制声明原文');
     assert.equal(await page.evaluate('window.__copied'), declaration, 'the copied text is the declaration verbatim');
-    await waitFor(page, `document.querySelector('#good figcaption > button').textContent === 'Copied'`, '复制成功提示');
-    await waitFor(page, `document.querySelector('#good figcaption > button').textContent === 'Copy'`, '按钮文字恢复');
+    await waitFor(page, `document.querySelector('#good figcaption > button').getAttribute('aria-label') === 'Copied'`, '复制成功提示');
+    await waitFor(page, `document.querySelector('#good figcaption > button').getAttribute('aria-label') === 'Copy source'`, '按钮状态恢复');
     assert.ok(result.added > 0, JSON.stringify(result));
     await page.evaluate('HtmlViewViz.relayout({media:"screen"})');
     const detached = await page.json('window.__svgEvents.removed');
@@ -189,7 +192,7 @@ test('viz host gives every syntax one copy button in the caption and copies the 
   const collect = (view) => view.json(`JSON.stringify([...document.querySelectorAll('figure.viz-figure')].map(figure=>{
     const caption=figure.querySelector(':scope > figcaption'),button=caption.querySelector(':scope > button'),pre=figure.querySelector('pre[data-viz]');
     return {syntax:pre.getAttribute('data-viz'),source:pre.textContent,hidden:pre.hidden,svg:!!figure.querySelector('.viz-body svg'),captions:figure.querySelectorAll('figcaption').length,
-      buttonCount:caption.querySelectorAll(':scope > button').length,allButtons:figure.querySelectorAll('button').length,buttonClass:button?.className,buttonType:button?.type,buttonText:button?.textContent,buttonInCaption:button?.parentElement===caption,details:figure.querySelectorAll('details').length};
+      buttonCount:caption.querySelectorAll(':scope > button').length,allButtons:figure.querySelectorAll('button').length,buttonClass:button?.className,buttonType:button?.type,buttonText:button?.textContent,buttonLabel:button?.getAttribute('aria-label'),buttonInCaption:button?.parentElement===caption,details:figure.querySelectorAll('details').length};
   }))`);
   const browser = await launchBrowser();
   const page = await browser.newPage();
@@ -204,30 +207,30 @@ test('viz host gives every syntax one copy button in the caption and copies the 
       for (const figure of before) {
         assert.deepEqual({
           svg: figure.svg, captions: figure.captions, buttonCount: figure.buttonCount, allButtons: figure.allButtons,
-          buttonClass: figure.buttonClass, buttonType: figure.buttonType, buttonText: figure.buttonText,
+          buttonClass: figure.buttonClass, buttonType: figure.buttonType, buttonText: figure.buttonText, buttonLabel: figure.buttonLabel,
           buttonInCaption: figure.buttonInCaption, details: figure.details,
         }, {
           svg: true, captions: 1, buttonCount: 1, allButtons: 1,
-          buttonClass: 'btn btn-sm copy', buttonType: 'button', buttonText: '复制',
+          buttonClass: 'viz-copy', buttonType: 'button', buttonText: '', buttonLabel: '复制源码',
           buttonInCaption: true, details: 0,
         }, figure.syntax);
         assert.equal(figure.hidden, true, `${figure.syntax} 的源码元素保留但不可见`);
         assert.equal(figure.source, expected.get(figure.syntax), `${figure.syntax} 的源码元素与声明逐字一致`);
       }
-      // 点每个按钮：交出的是声明原文，按钮先显示已复制再恢复。
+      // 点每个按钮：交出的是声明原文，按钮先换成已复制状态再恢复。
       for (const { syntax } of before) {
         const selector = `figure.viz-figure:has(pre[data-viz="${syntax}"]) figcaption > button`;
         await page.evaluate(`(()=>{window.__copied=undefined;document.querySelector(${JSON.stringify(selector)}).click()})()`);
         await waitFor(page, 'typeof window.__copied === "string"', `${syntax} 复制声明原文`);
         assert.equal(await page.evaluate('window.__copied'), expected.get(syntax), `${syntax} 复制内容必须与声明一致`);
-        await waitFor(page, `document.querySelector(${JSON.stringify(selector)}).textContent === '已复制'`, `${syntax} 复制成功提示`);
-        await waitFor(page, `document.querySelector(${JSON.stringify(selector)}).textContent === '复制'`, `${syntax} 按钮文字恢复`);
+        await waitFor(page, `document.querySelector(${JSON.stringify(selector)}).getAttribute('aria-label') === '已复制'`, `${syntax} 复制成功提示`);
+        await waitFor(page, `document.querySelector(${JSON.stringify(selector)}).getAttribute('aria-label') === '复制源码'`, `${syntax} 按钮状态恢复`);
       }
       // 重排会重新绘制图形，但复制按钮仍然只有一个。
       await page.evaluate('HtmlViewViz.relayout({media:"screen"})');
       const after = await collect(page);
-      assert.deepEqual(after.map(({ syntax, buttonCount, allButtons, buttonText, details }) => ({ syntax, buttonCount, allButtons, buttonText, details })),
-        before.map(({ syntax }) => ({ syntax, buttonCount: 1, allButtons: 1, buttonText: '复制', details: 0 })));
+      assert.deepEqual(after.map(({ syntax, buttonCount, allButtons, buttonLabel, details }) => ({ syntax, buttonCount, allButtons, buttonLabel, details })),
+        before.map(({ syntax }) => ({ syntax, buttonCount: 1, allButtons: 1, buttonLabel: '复制源码', details: 0 })));
     }
   } finally {
     await page.close();
@@ -258,9 +261,9 @@ test('viz host falls back to a hidden textarea when the clipboard API is denied'
     await waitFor(page, 'typeof window.__fallback === "object" && window.__fallback !== null', '文本框降级');
     assert.deepEqual(await page.json('JSON.stringify(window.__fallback)'), { command: 'copy', text: declaration });
     assert.equal(await page.evaluate("document.querySelectorAll('textarea').length"), 0, '降级用的文本框不能留在页面里');
-    await waitFor(page, `${button}.textContent === '已复制'`, '降级后的成功提示');
+    await waitFor(page, `${button}.getAttribute('aria-label') === '已复制'`, '降级后的成功提示');
 
-    // 两种复制方式都失败时，按钮说明复制失败，随后恢复原文字。
+    // 两种复制方式都失败时，按钮说明复制失败，随后恢复。
     await page.goto(pathToFileURL(file).href);
     await page.evaluate('HtmlViewViz.ready()');
     await page.evaluate(`(() => {
@@ -268,8 +271,48 @@ test('viz host falls back to a hidden textarea when the clipboard API is denied'
       document.execCommand = () => false;
     })()`);
     await page.evaluate(`${button}.click()`);
-    await waitFor(page, `${button}.textContent === '复制失败'`, '复制失败提示');
-    await waitFor(page, `${button}.textContent === '复制'`, '失败后恢复');
+    await waitFor(page, `${button}.getAttribute('aria-label') === '复制失败'`, '复制失败提示');
+    await waitFor(page, `${button}.getAttribute('aria-label') === '复制源码'`, '失败后恢复');
+  } finally {
+    await page.close();
+    await browser.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+// 意图：复制图标平时不可见也不可点，鼠标悬停图卡或键盘聚焦时出现；触屏设备（无悬停、粗指针）常显。
+// headless Chrome 报告 hover:none 与 pointer:none，属于非触屏，图标保持隐藏，样张截图因此不带图标。
+test('viz host reveals the copy icon on hover or focus and keeps it visible without hover support', async () => {
+  const spec = { chart: 'bar', title: '悬停显示', data: [{ label: 'A', value: 1 }], encode: { category: 'label', value: 'value' } };
+  const renderer = createRenderer({ specs: [spec] });
+  const dir = temp('copy-hover');
+  const file = join(dir, 'fixture.html');
+  writeFileSync(file, `<!doctype html><html lang="zh-CN"><meta charset="utf-8"><style>${vizCss}</style><body style="margin:40px"><pre data-viz="kchart">${JSON.stringify(spec)}</pre><script>${renderer.bundleSource()}</script>${configScript({ lang: 'zh-CN' })}<script>${host}</script></body></html>`, 'utf8');
+  const visibility = `JSON.stringify((()=>{const s=getComputedStyle(document.querySelector('.viz-copy'));return {opacity:s.opacity,pointer:s.pointerEvents};})())`;
+  const browser = await launchBrowser();
+  const page = await browser.newPage();
+  try {
+    await page.setViewport({ width: 900, height: 700 });
+    await page.goto(pathToFileURL(file).href);
+    await page.evaluate('HtmlViewViz.ready()');
+    await page.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 1, y: 1 });
+    assert.deepEqual(await page.json(visibility), { opacity: '0', pointer: 'none' }, '未悬停时隐藏');
+    const box = await page.json(`JSON.stringify((()=>{const r=document.querySelector('figure.viz-figure .viz-body').getBoundingClientRect();return {x:r.left+r.width/2,y:r.top+r.height/2};})())`);
+    await page.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: box.x, y: box.y });
+    await waitFor(page, `getComputedStyle(document.querySelector('.viz-copy')).opacity === '1'`, '悬停图卡显示图标');
+    assert.equal(await page.evaluate(`getComputedStyle(document.querySelector('.viz-copy')).pointerEvents`), 'auto');
+    await page.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 1, y: 1 });
+    await waitFor(page, `getComputedStyle(document.querySelector('.viz-copy')).opacity === '0'`, '移开后隐藏');
+    await page.evaluate(`document.querySelector('.viz-copy').focus()`);
+    await waitFor(page, `getComputedStyle(document.querySelector('.viz-copy')).opacity === '1'`, '键盘聚焦显示图标');
+    await page.evaluate(`document.activeElement.blur()`);
+    await waitFor(page, `getComputedStyle(document.querySelector('.viz-copy')).opacity === '0'`, '失焦后隐藏');
+    // 触屏模拟让 pointer 变为 coarse（setEmulatedMedia 模拟不了 pointer）。
+    await page.send('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 5 });
+    assert.equal(await page.evaluate(`matchMedia('(hover:none) and (pointer:coarse)').matches`), true, '已进入触屏媒体条件');
+    await waitFor(page, `getComputedStyle(document.querySelector('.viz-copy')).opacity === '1'`, '触屏常显');
+    await page.setMedia('print');
+    assert.equal(await page.evaluate(`getComputedStyle(document.querySelector('.viz-copy')).display`), 'none', '打印不输出复制图标');
   } finally {
     await page.close();
     await browser.close();

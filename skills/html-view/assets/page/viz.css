@@ -3,14 +3,19 @@
 .viz.viz-figure { margin:var(--sp-5) 0; overflow:hidden; border-radius:var(--card-radius); background:var(--surface); }
 .viz-figure > figcaption { display:grid; grid-template-columns:minmax(0, 1fr) auto; align-items:baseline; gap:2px var(--sp-3); padding:18px 20px 0; overflow-wrap:anywhere; }
 .viz-figure > figcaption > .fig-heading { grid-area:1 / 1; }
-.viz-figure > figcaption > .copy { grid-area:1 / 2; }
+/* 复制图标平时隐藏，悬停或键盘聚焦图卡时出现；负外边距让它不撑高标题行。触屏没有悬停，常显。 */
+.viz-figure > figcaption > .viz-copy { grid-area:1 / 2; align-self:start; display:grid; place-items:center; box-sizing:border-box; width:28px; height:28px; margin:-4px -6px -4px 0; padding:0; border:1px solid var(--line); border-radius:var(--radius-sm); background:var(--surface); color:var(--fg-3); cursor:pointer; opacity:0; pointer-events:none; transition:opacity .15s ease, color .15s ease, border-color .15s ease; }
+.viz-figure:hover > figcaption > .viz-copy, .viz-figure:focus-within > figcaption > .viz-copy { opacity:1; pointer-events:auto; }
+.viz-figure > figcaption > .viz-copy:hover { color:var(--fg-1); border-color:var(--line-2); }
+.viz-copy > svg { display:block; }
+@media (hover:none) and (pointer:coarse) { .viz-figure > figcaption > .viz-copy { opacity:1; pointer-events:auto; } }
 .fig-title { flex:1 1 auto; min-width:0; color:var(--fg-1); font-size:var(--fs-dense); line-height:1.5; font-weight:650; letter-spacing:-.005em; }
 .viz-figure > figcaption > .fig-sub { grid-column:1 / -1; color:var(--fg-3); font-size:var(--fs-small); line-height:1.5; }
 .viz-body.fig-body { min-width:0; overflow-x:auto; overflow-y:hidden; padding:14px 20px 18px; -webkit-overflow-scrolling:touch; scrollbar-width:thin; scrollbar-color:var(--line-2) transparent; }
 .viz-body > svg { display:block; max-width:none; height:auto; flex:none; }
-html[data-mode="export"] .viz-figure > figcaption > .copy { display:none; }
+html[data-mode="export"] .viz-figure > figcaption > .viz-copy { display:none; }
 @media print {
-  .viz-figure > figcaption > .copy { display:none; }
+  .viz-figure > figcaption > .viz-copy { display:none; }
   .viz.viz-figure { break-inside:avoid; }
   .viz-body.fig-body { overflow:visible; padding:12px 16px 14px; }
   .viz-figure > figcaption { padding:14px 16px 0; }

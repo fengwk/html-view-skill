@@ -112,17 +112,30 @@ export async function measureFigure(source, { theme, width, lang, standalone }) 
   return { ...measured, lang, title: fallback.scene.heading ?? fallback.scene.title ?? 'KChart' };
 }
 
-// 单图页不加载 doc.js：复制按钮的交互自带一段页内脚本，剪贴板接口不可用时用隐藏文本框加 execCommand 降级。
+// 复制按钮只显示图标，文字放在 aria-label 与 title；与 assets/page/viz.js 的图标一致。
+const COPY_ICONS = {
+  copy: '<rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"/>',
+  copied: '<path d="M20 6 9 17l-5-5"/>',
+  failed: '<path d="M18 6 6 18M6 6l12 12"/>',
+};
+const copyIcon = (state) => `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${COPY_ICONS[state]}</svg>`;
+const copyLabels = (lang) => (/^zh(?:-|$)/i.test(lang)
+  ? { copy: '复制源码', copied: '已复制', failed: '复制失败' }
+  : { copy: 'Copy source', copied: 'Copied', failed: 'Copy failed' });
+
+// 单图页不加载 viz.js：复制按钮的交互自带一段页内脚本，剪贴板接口不可用时用隐藏文本框加 execCommand 降级。
 export function copyButtonScript(lang) {
-  const labels = /^zh(?:-|$)/i.test(lang)
-    ? { copied: '已复制', failed: '复制失败' }
-    : { copied: 'Copied', failed: 'Copy failed' };
+  const states = Object.fromEntries(Object.entries(copyLabels(lang)).map(([state, label]) => [state, { label, icon: copyIcon(state) }]));
   return `(() => {
-  const labels = ${JSON.stringify(labels).replaceAll('<', '\\u003c')};
+  const states = ${JSON.stringify(states).replaceAll('<', '\\u003c')};
   const button = document.getElementById('${VIZ_COPY_ID}');
   const source = document.getElementById('${VIZ_SOURCE_ID}');
   if (!button || !source) return;
-  const idle = button.textContent;
+  const show = (state) => {
+    button.innerHTML = states[state].icon;
+    button.setAttribute('aria-label', states[state].label);
+    button.title = states[state].label;
+  };
   const copyText = async (text) => {
     try {
       await navigator.clipboard.writeText(text);
@@ -143,31 +156,36 @@ export function copyButtonScript(lang) {
   let timer;
   button.addEventListener('click', async () => {
     const ok = await copyText(source.textContent);
-    button.textContent = ok ? labels.copied : labels.failed;
+    show(ok ? 'copied' : 'failed');
     clearTimeout(timer);
-    timer = setTimeout(() => { button.textContent = idle; }, 1600);
+    timer = setTimeout(() => show('copy'), 1600);
   });
 })();`;
 }
 
 export async function renderStaticFigure(source, { theme, width, lang }) {
   const measured = await measureFigure(source, { theme, width, lang, standalone: true });
-  const copyLabel = /^zh(?:-|$)/i.test(measured.lang) ? '复制' : 'Copy';
-  // 源码留在图外，打印可以换页；它只供 style/审计读取，读者拿到的是一行复制按钮。
+  const copyLabel = copyLabels(measured.lang).copy;
+  // 源码留在图外，只供 style/审计读取；读者悬停图卡时右上角出现复制图标，触屏常显。
   const style = `body{font:14px/1.6 var(--font-sans);text-autospace:no-autospace}
 body>main{max-width:${measured.width + 34}px;margin:auto;padding:16px}
 .viz-shell{border:1px solid var(--line);border-radius:var(--radius);background:var(--surface)}
 .viz-shell figure{margin:0}.viz-shell .viz-body{overflow:auto}
-.viz-copy{display:flex;justify-content:flex-end;padding:0 16px 12px}
+.viz-copy-row{display:flex;justify-content:flex-end;padding:8px 8px 0}
+#${VIZ_COPY_ID}{display:grid;place-items:center;box-sizing:border-box;width:28px;height:28px;padding:0;border:1px solid var(--line);border-radius:var(--radius-sm);background:var(--surface);color:var(--fg-3);cursor:pointer;opacity:0;pointer-events:none;transition:opacity .15s ease,color .15s ease,border-color .15s ease}
+.viz-shell:hover #${VIZ_COPY_ID},.viz-shell:focus-within #${VIZ_COPY_ID}{opacity:1;pointer-events:auto}
+#${VIZ_COPY_ID}:hover{color:var(--fg-1);border-color:var(--line-2)}
+#${VIZ_COPY_ID}>svg{display:block}
+@media (hover:none) and (pointer:coarse){#${VIZ_COPY_ID}{opacity:1;pointer-events:auto}}
 .viz-shell pre[hidden]{display:none}
 .viz-static-print{display:none}
-@media print{.viz-figure{break-inside:avoid}.viz-static-screen{display:none}.viz-static-print{display:block}.viz-copy{display:none}}`;
+@media print{.viz-figure{break-inside:avoid}.viz-static-screen{display:none}.viz-static-print{display:block}.viz-copy-row{display:none}}`;
   const svg = measured.printSvg
     ? `<div class="viz-static-screen">${measured.svg}</div><div class="viz-static-print">${measured.printSvg}</div>` : measured.svg;
-  const button = `<div class="viz-copy"><button type="button" class="btn btn-sm copy" id="${VIZ_COPY_ID}">${copyLabel}</button></div>`;
+  const button = `<div class="viz-copy-row"><button type="button" id="${VIZ_COPY_ID}" aria-label="${copyLabel}" title="${copyLabel}">${copyIcon('copy')}</button></div>`;
   // code 避免 HTML 解析 pre 时丢掉源码开头的换行；字符引用保留原始 CR。
   const sourceHtml = escapeHtml(source).replaceAll('\r', '&#13;');
-  const content = `<main><div class="viz-shell"><figure class="viz-figure"><div class="viz-body">${svg}</div></figure>${button}<pre id="${VIZ_SOURCE_ID}" hidden><code>${sourceHtml}</code></pre></div></main>`;
+  const content = `<main><div class="viz-shell">${button}<figure class="viz-figure"><div class="viz-body">${svg}</div></figure><pre id="${VIZ_SOURCE_ID}" hidden><code>${sourceHtml}</code></pre></div></main>`;
   const html = renderShell({
     kind: 'viz', lang: measured.lang, title: measured.title, theme,
     meta: { [VIZ_WIDTH]: String(width) }, content, styles: [style], scripts: [copyButtonScript(measured.lang)],

@@ -93,19 +93,33 @@
       finally { area.remove(); }
     }
   };
+  // 复制按钮只显示图标，文字放在 aria-label 与 title；成功换对勾，失败换叉。
+  const ICON = {
+    copy: '<rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"/>',
+    copied: '<path d="M20 6 9 17l-5-5"/>',
+    failed: '<path d="M18 6 6 18M6 6l12 12"/>',
+  };
+  const setCopyState = (button, labels, state) => {
+    button.innerHTML = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICON[state]}</svg>`;
+    button.setAttribute('aria-label', labels[state]);
+    button.title = labels[state];
+    button.dataset.state = state;
+  };
   const appendCopy = (caption, pre, lang) => {
     const doc = pre.ownerDocument;
     const button = doc.createElement('button');
-    const [idle, copied, failed] = isZh(lang) ? ['复制', '已复制', '复制失败'] : ['Copy', 'Copied', 'Copy failed'];
+    const labels = isZh(lang)
+      ? { copy: '复制源码', copied: '已复制', failed: '复制失败' }
+      : { copy: 'Copy source', copied: 'Copied', failed: 'Copy failed' };
     button.type = 'button';
-    button.className = 'btn btn-sm copy';
-    button.textContent = idle;
+    button.className = 'viz-copy';
+    setCopyState(button, labels, 'copy');
     let timer;
     button.addEventListener('click', async () => {
       const ok = await copyText(doc, pre.textContent);
-      button.textContent = ok ? copied : failed;
+      setCopyState(button, labels, ok ? 'copied' : 'failed');
       clearTimeout(timer);
-      timer = setTimeout(() => { button.textContent = idle; }, 1600);
+      timer = setTimeout(() => setCopyState(button, labels, 'copy'), 1600);
     });
     caption.append(button);
   };
