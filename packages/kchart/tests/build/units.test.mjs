@@ -6,6 +6,11 @@ const dist = new URL('../../dist/', import.meta.url);
 const units = JSON.parse(readFileSync(new URL('units.json', dist), 'utf8'));
 const code = new Map(Object.entries(units).map(([id, { file }]) => [id, readFileSync(new URL(file, dist), 'utf8')]));
 
+// The page runtime is gone, so the build must not keep shipping a unit for it.
+it('builds no page-runtime unit', () => {
+  expect(Object.keys(units)).not.toContain('runtime');
+});
+
 // Every IIFE runs in a fresh VM after its transitive dependencies, with only direct dependency slots visible to it.
 it.each(Object.entries(units))('evaluates %s with its declared dependencies', (id, { deps, bytes }) => {
   const values = Object.create(null);
@@ -25,7 +30,7 @@ it.each(Object.entries(units))('evaluates %s with its declared dependencies', (i
   }
   expect(Buffer.byteLength(code.get(id))).toBe(bytes);
   evaluate(id);
-  if (id !== 'runtime') expect(values[id]).toBeDefined();
-  expect(new Set(Object.keys(values))).toEqual(new Set([...done].filter(unit => unit !== 'runtime')));
+  expect(values[id]).toBeDefined();
+  expect(new Set(Object.keys(values))).toEqual(done);
   expect(deps).not.toContain(id);
 });

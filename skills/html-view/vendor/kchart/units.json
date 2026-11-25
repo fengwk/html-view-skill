@@ -731,10 +731,5 @@
       "chart/fields"
     ],
     "bytes": 12414
-  },
-  "runtime": {
-    "file": "units/runtime.js",
-    "deps": [],
-    "bytes": 8024
   }
 }

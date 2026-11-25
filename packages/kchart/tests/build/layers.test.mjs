@@ -7,7 +7,7 @@ const src = resolve(import.meta.dirname, '../../src');
 const files = readdirSync(src, { recursive: true }).filter(file => file.endsWith('.js'));
 const allowed = {
   core: ['core'], chart: ['core', 'chart'], diagram: ['core', 'chart', 'diagram'],
-  interaction: ['core'], runtime: ['core', 'chart', 'diagram', 'interaction'],
+  interaction: ['core'],
 };
 const layer = file => file.split(/[\\/]/)[0].replace(/\.js$/, '');
 

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { runInNewContext } from 'node:vm';
 import { test } from 'vitest';
-import { browserSource, diagram, validate } from '../dist/esm/node.js';
+import { createRenderer, diagram, validate } from '../dist/esm/node.js';
 import { render } from '../dist/esm/mermaid.js';
 import { checkScene } from './helpers/geometry.mjs';
 
@@ -67,7 +67,7 @@ test('native radar retains its 3–6 dimensions limit', () => {
 test('info shows the package version with or without showInfo', async () => {
   const { version } = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
   const env = {};
-  runInNewContext(browserSource([{ source: 'info' }]), env);
+  runInNewContext(createRenderer({ specs: [{ source: 'info' }] }).bundleSource(), env);
   const options = { width: 360, frame: false, prefix: 'info-test' };
   for (const source of ['info', 'info showInfo', 'info\nshowInfo']) {
     const { scene, svg, diagnostics } = diagram(source, options);

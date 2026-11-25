@@ -10,7 +10,7 @@ export { registerIcons } from './src/core/icons.js';
 export { catalog } from './src/chart/catalog.js';
 export { theme, themes, resolveThemeConfig, validateThemeSnapshot, DEFAULT_THEME, FONT_FAMILY, defaultStyle } from './src/core/theme.js';
 
-const modulesByPath = import.meta.glob(['./src/**/*.js', '!./src/runtime.js'], { eager: true });
+const modulesByPath = import.meta.glob('./src/**/*.js', { eager: true });
 const dist = new URL(/* @vite-ignore */ '../', import.meta.url);
 const read = (file) => readFileSync(new URL(file, dist), 'utf8');
 const manifest = JSON.parse(read('units.json'));
@@ -120,14 +120,6 @@ function browserScript(roots, diagramOnly = false) {
   return `/* KChart ${label} */\n;(() => {\nconst KChartUnits = Object.create(null);\n${units}\n${script('page-api.js')}\nglobalThis.KChart = KChartPageApi.createPageApi(KChartUnits, ${literal(unloadedVariants(roots))}, ${literal(types)}, ${diagramOnly});\n})();\n`;
 }
 
-export function browserSource(specs) {
-  return browserScript(modulesFor(specs));
-}
-
-export function runtimeSource() {
-  return script(manifest.runtime.file);
-}
-
 const mapFiles = new Map([
   ['world', 'world.geojson'],
   ['us-states', 'us-states.geojson'],
@@ -174,7 +166,6 @@ function rendererFor(roots, diagramOnly, readMap) {
       if (!map && mapFiles.has(spec?.data?.map?.asset)) map = assets(spec);
       return plain(api.render(spec, { ...options, assets: map }));
     },
-    dataTable: (spec, options) => plain(api.dataTable(spec, options)),
     theme: api.theme,
     themes: api.themes,
     palette: (theme) => plain(modules['core/theme'].paletteOf(api.theme(theme))),
@@ -197,7 +188,6 @@ export const render = (spec, options) => defaultRenderer().render(spec, options)
 export const parse = (text) => defaultRenderer().parse(text);
 export const validate = (spec) => defaultRenderer().validate(spec);
 export const schema = (chart) => defaultRenderer().schema(chart);
-export const dataTable = (spec, options) => defaultRenderer().dataTable(spec, options);
 
 let diagramRenderer;
 const defaultDiagrams = () => (diagramRenderer ??= rendererFor(dependencyOrder(diagramRoots()), true, readMapFile));

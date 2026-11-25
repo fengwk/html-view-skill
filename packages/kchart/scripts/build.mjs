@@ -149,7 +149,7 @@ for (const unit of units) {
     code = code.replace(named, binding).trimEnd();
   } else {
     // A value-less module exports nothing, so nothing can read its slot: the unit stays a bare classic
-    // script. That keeps `export {}` modules such as runtime.js usable directly as a script tag body.
+    // script instead of receiving an exports container.
     if (occurrences !== 0) throw new Error(`无导出单元不应有导出容器：${unit.id}`);
     code = code.trimEnd();
   }

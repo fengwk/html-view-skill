@@ -39,8 +39,9 @@ it('splits the packed browser API into lazy family and map chunks under Vite', a
     const installed = join(fixture, 'node_modules/@fengwk/kchart');
     mkdirSync(installed, { recursive: true });
     execFileSync('tar', ['-xzf', join(fixture, packed.filename), '--strip-components=1', '-C', installed]);
-    writeFileSync(join(fixture, 'entry.js'), `import { render } from '@fengwk/kchart';
+    writeFileSync(join(fixture, 'entry.js'), `import { attach, render } from '@fengwk/kchart';
       globalThis.bar = () => render({ chart: 'bar', data: [{ k: 'A', v: 1 }], encode: { category: 'k', value: 'v' } });
+      globalThis.attach = () => attach;
       globalThis.markdown = () => import('./markdown.js');\n`);
     writeFileSync(join(fixture, 'markdown.js'), `export { render } from '@fengwk/kchart/mermaid';\n`);
     const { output } = await build({
@@ -74,6 +75,11 @@ it('splits the packed browser API into lazy family and map chunks under Vite', a
     const facade = containing('/dist/esm/mermaid.js');
     expect(staticGraph(markdown).has(facade.fileName)).toBe(true);
     expect(eager.has(facade.fileName)).toBe(false);
+    // attach() is the only DOM consumer, so the interaction layer must stay behind a dynamic import.
+    const interaction = containing('/dist/esm/interaction.js');
+    expect(interaction).toBeDefined();
+    expect(eager.has(interaction.fileName)).toBe(false);
+    expect(chunks.some(parent => parent.dynamicImports.includes(interaction.fileName))).toBe(true);
     expect(containing('/dist/esm/node.js')).toBeUndefined();
     const icons = containing('/dist/esm/assets/icons.js');
     expect(icons).toBeDefined();

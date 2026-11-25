@@ -298,12 +298,6 @@ function browserScript(roots, diagramOnly = false) {
 	const types = roots.includes(diagramEntry) ? diagramTypes : [];
 	return `/* KChart ${label} */\n;(() => {\nconst KChartUnits = Object.create(null);\n${units}\n${script("page-api.js")}\nglobalThis.KChart = KChartPageApi.createPageApi(KChartUnits, ${literal(unloadedVariants(roots))}, ${literal(types)}, ${diagramOnly});\n})();\n`;
 }
-function browserSource(specs) {
-	return browserScript(modulesFor(specs));
-}
-function runtimeSource() {
-	return script(manifest.runtime.file);
-}
 var mapFiles = /* @__PURE__ */ new Map([["world", "world.geojson"], ["us-states", "us-states.geojson"]]);
 var readMapFile = (file) => read(`assets/maps/${file}`);
 var plain = (value) => JSON.parse(JSON.stringify(value));
@@ -350,7 +344,6 @@ function rendererFor(roots, diagramOnly, readMap) {
 				assets: map
 			}));
 		},
-		dataTable: (spec, options) => plain(api.dataTable(spec, options)),
 		theme: api.theme,
 		themes: api.themes,
 		palette: (theme) => plain(modules["core/theme"].paletteOf(api.theme(theme))),
@@ -371,9 +364,8 @@ var render = (spec, options) => defaultRenderer().render(spec, options);
 var parse = (text) => defaultRenderer().parse(text);
 var validate = (spec) => defaultRenderer().validate(spec);
 var schema = (chart) => defaultRenderer().schema(chart);
-var dataTable = (spec, options) => defaultRenderer().dataTable(spec, options);
 var diagramRenderer;
 var defaultDiagrams = () => diagramRenderer ??= rendererFor(dependencyOrder(diagramRoots()), true, readMapFile);
 var diagram = (source, options) => defaultDiagrams().diagram(source, options);
 var check = (source, options) => defaultDiagrams().check(source, options);
-export { DEFAULT_THEME, FONT_FAMILY, browserSource, catalog, check, createRenderer, dataTable, defaultStyle, detectSyntax, diagram, diagramTypes, modulesFor, parse, registerIcons, render, resolveThemeConfig, runtimeSource, schema, structureRoles, theme, themes, validate, validateThemeSnapshot };
+export { DEFAULT_THEME, FONT_FAMILY, catalog, check, createRenderer, defaultStyle, detectSyntax, diagram, diagramTypes, modulesFor, parse, registerIcons, render, resolveThemeConfig, schema, structureRoles, theme, themes, validate, validateThemeSnapshot };

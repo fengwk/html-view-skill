@@ -21,9 +21,11 @@ const bars = await render({
 }, { theme: 'paper', prefix: 'bars-1' });
 ```
 
-`render(spec, options?)` and `diagram(source, options?)` resolve to `{ svg, scene, diagnostics }`. For invalid input or a layout that cannot be rendered, `svg` and `scene` are `null`; unexpected failures reject. Each diagram diagnostic has `severity`: an `error` blocks rendering, while a `warning` (for example, a skipped callback or a suggestion to split a large diagram) accompanies a rendered SVG. `check(source, { syntax, lang }?)` resolves to the parse/validation diagnostics, warnings included, without laying out the diagram. The diagram syntax defaults to `mermaid`; use `layers`, `blocks`, or `swimlane` for native diagrams. `catalog` and `diagramTypes` expose the supported types and diagram aliases synchronously.
+`render(spec, options?)` resolves to `{ svg, scene, table, diagnostics }`, and `diagram(source, options?)` to `{ svg, scene, diagnostics }`. `table` is the chart's rows already labelled and formatted for `lang`, so the host draws the data table itself; it is `null` when nothing was drawn or the data is not tabular. For invalid input or a layout that cannot be rendered, `svg` and `scene` are `null`; unexpected failures reject. Each diagram diagnostic has `severity`: an `error` blocks rendering, while a `warning` (for example, a skipped callback or a suggestion to split a large diagram) accompanies a rendered SVG. `check(source, { syntax, lang }?)` resolves to the parse/validation diagnostics, warnings included, without laying out the diagram. The diagram syntax defaults to `mermaid`; use `layers`, `blocks`, or `swimlane` for native diagrams. `catalog` and `diagramTypes` expose the supported types and diagram aliases synchronously.
 
 Render options include `width`, `lang`, `theme`, `media`, `frame`, `prefix`, and `measure(text, size, weight, fontFamily)`. Set `frame: false` if your host already supplies a figure frame. The host then shows the title: a chart's comes from its spec (`title`, `subtitle`), and a diagram returns its title as `scene.heading` without drawing it (compact embedding, below, draws it once instead). Give each inline SVG a unique `prefix`; allow horizontal scrolling if a diagram needs more room than the requested width.
+
+KChart does not mount anything: the page that owns the DOM places the SVG. For a chart whose spec declares `interaction` actions, `attach(svg, spec)` from this asynchronous entry wires them onto the SVG you placed. It loads the interaction layer on demand and resolves to a disposer that removes them.
 
 For embedding, set `compact: true` in `diagram()` (async or sync) or in the Mermaid facade’s `render()` options. It caps layout width at 720px, crops the scene to its visible content instead of centering it, and uses 12–14px text. With `frame: false`, KChart omits the outer frame and shows any diagram title once above the drawing, left-aligned and wrapped to the layout width. The default is `compact: false`.
 
@@ -66,7 +68,7 @@ console.log(diagram('flowchart LR\nA --> B').svg);
 console.log(schema('bar'));
 ```
 
-The Node entry provides synchronous `render`, `diagram`, `check`, `parse`, `validate`, `schema`, and `dataTable`. Use `createRenderer({ specs })` to select families for a set of declarations, or `createRenderer({ sources })` for a diagram-only renderer. `browserSource(specs)` (or a renderer's `bundleSource()`) generates a classic script for offline pages, exposing `globalThis.KChart`. For that classic script, supply map data via `options.assets`; the synchronous Node renderer reads built-in maps from disk. `runtimeSource()` supplies the optional offline page runtime.
+The Node entry provides synchronous `render`, `diagram`, `check`, `parse`, `validate`, and `schema`. Use `createRenderer({ specs })` to select families for a set of declarations, or `createRenderer({ sources })` for a diagram-only renderer. A renderer's `bundleSource()` is the only way to generate a classic script for offline pages, exposing `globalThis.KChart` with the render calls only. For that classic script, supply map data via `options.assets`; the synchronous Node renderer reads built-in maps from disk.
 
 ## Mermaid-style facade
 

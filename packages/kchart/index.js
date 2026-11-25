@@ -69,3 +69,9 @@ export async function diagram(source, options = {}) {
 export async function check(source, options = {}) {
   return plain((await diagramApi(source, options)).check(source, options));
 }
+
+// The interaction layer is the only code that reads the DOM, so it loads on first use.
+export async function attach(svg, spec) {
+  const { attach: attachSvg } = await import('./src/interaction.js');
+  return attachSvg(svg, spec);
+}

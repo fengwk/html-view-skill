@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'vitest';
 import vm from 'node:vm';
-import { browserSource, catalog, createRenderer, modulesFor, parse, render, schema, validate } from '../dist/esm/node.js';
+import { catalog, createRenderer, modulesFor, parse, render, schema, validate } from '../dist/esm/node.js';
 
 const bar = { chart: 'bar', title: '华东收入', data: [{ region: '华东', sales: 1200000 }], encode: { category: 'region', value: 'sales' }, unit: '元' };
 
@@ -14,7 +14,7 @@ test('完整入口与按声明选择的入口共用同一实现', () => {
   }
   const previous = {};
   const world = vm.createContext({ HtmlChart: previous, HtmlDiagram: previous, HtmlIcons: previous });
-  vm.runInContext(browserSource([bar]), world);
+  vm.runInContext(createRenderer({ specs: [bar] }).bundleSource(), world);
   assert.equal(world.HtmlChart, previous);
   assert.equal(world.HtmlDiagram, previous);
   assert.equal(world.HtmlIcons, previous);

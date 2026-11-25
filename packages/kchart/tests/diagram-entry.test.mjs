@@ -50,7 +50,7 @@ test('按声明组装只载入图型所需的依赖，浏览器与 Node 输出�
     assert.equal(env.KChart.diagram(source, options).svg, expected.svg, source);
     assert.equal(selected.diagram(source, options).svg, expected.svg, source);
     const page = {};
-    runInNewContext(chart.browserSource([item]), page);
+    runInNewContext(createRenderer({ specs: [item] }).bundleSource(), page);
     assert.equal(page.KChart.diagram(source, options).svg, expected.svg, source);
   }
 });
@@ -59,7 +59,7 @@ test('混合浏览器入口可同时渲染数据图和结构图；只组装数�
   const source = 'flowchart TD\nA --> B';
   const spec = { chart: 'bar', data: [{ key: '甲', count: 2 }], encode: { category: 'key', value: 'count' } };
   const env = {};
-  runInNewContext(chart.browserSource([{ source }, spec]), env);
+  runInNewContext(createRenderer({ specs: [{ source }, spec] }).bundleSource(), env);
   assert.equal(env.KChart.diagram(source).svg, diagram(source).svg);
   assert.equal(env.KChart.render(spec).svg, chart.render(spec).svg);
   assert.ok(!chart.modulesFor([spec]).some(id => id.startsWith('diagram/')));

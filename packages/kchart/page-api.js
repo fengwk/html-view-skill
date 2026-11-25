@@ -7,20 +7,22 @@ export function createPageApi(modules, unloaded, types, diagramOnly = false, reg
     Object.assign(api, {
       parse, validate, schema,
       catalog: modules['chart/catalog'].catalog,
-      dataTable: modules['chart/context'].dataTable,
       theme: modules['core/theme'].theme,
       themes: modules['core/theme'].themes,
       layouts: registry.layouts,
       render(spec, options = {}) {
         if (excluded.get(spec?.chart)?.includes(spec.variant)) {
           const { errors } = validate(spec);
-          if (errors.length) return { scene: null, svg: null, diagnostics: errors };
-          return { scene: null, svg: null, diagnostics: [{
+          if (errors.length) return { scene: null, svg: null, table: null, diagnostics: errors };
+          return { scene: null, svg: null, table: null, diagnostics: [{
             code: 'BAD_KCHART', path: '/variant', message: `未装入 ${spec.chart} 的变体模块`,
             fix: '以该图表声明重新组装渲染器',
           }] };
         }
-        return registry.render(spec, { frame: true, ...options });
+        const result = registry.render(spec, { frame: true, ...options });
+        // The host draws the table; rendering only reports its model, and only for a chart that drew.
+        const table = result.svg ? modules['chart/context'].dataTable(spec, { lang: options.lang }) : null;
+        return { ...result, table };
       },
       ...(modules.interaction ? { attach: modules.interaction.attach } : {}),
     });

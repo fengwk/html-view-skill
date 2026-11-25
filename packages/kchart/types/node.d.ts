@@ -1,11 +1,11 @@
 import type {
-  ChartDiagnostic, ChartSpec, CheckOptions, DiagramDiagnostic, DiagramOptions, Media,
+  ChartDiagnostic, ChartRenderResult, ChartSpec, CheckOptions, DiagramDiagnostic, DiagramOptions, Media,
   RenderOptions, RenderResult, Scene, Syntax, Theme, ThemeStyle, Tones,
 } from './index.js';
 export type * from './index.js';
 export { catalog, diagramTypes, registerIcons, theme, themes } from './index.js';
 
-export function render(spec: ChartSpec, options?: RenderOptions): RenderResult;
+export function render(spec: ChartSpec, options?: RenderOptions): ChartRenderResult;
 export function diagram(source: string, options?: DiagramOptions): RenderResult<DiagramDiagnostic>;
 export function check(source: string, options?: CheckOptions): DiagramDiagnostic[];
 export interface Validation {
@@ -15,11 +15,6 @@ export interface Validation {
 export function parse(text: string): Validation;
 export function validate(spec: unknown): Validation;
 export function schema(chart?: string): Record<string, unknown>;
-export interface DataTable {
-  columns: { key: string; label: string }[];
-  rows: { text: string; value: unknown }[][];
-}
-export function dataTable(spec: ChartSpec, options?: RenderOptions): DataTable | null;
 
 export type ThemeConfig = Partial<Theme> & { id: string; extends?: string; order?: number };
 export function resolveThemeConfig(config: ThemeConfig): Theme;
@@ -37,8 +32,6 @@ export function structureRoles(options?: { theme?: string | Theme; media?: Media
 export interface DiagramDeclaration { source: string; syntax?: Syntax }
 export type Declaration = ChartSpec | DiagramDeclaration;
 export function modulesFor(specs?: readonly Declaration[]): string[];
-export function browserSource(specs?: readonly Declaration[]): string;
-export function runtimeSource(): string;
 export function detectSyntax(source: string): Syntax;
 
 type ReadMap = (file: string) => string;
@@ -57,7 +50,6 @@ export interface ChartRenderer extends SharedRenderer, Partial<Pick<DiagramRende
   validate: typeof validate;
   schema: typeof schema;
   render: typeof render;
-  dataTable: typeof dataTable;
   palette(theme?: string | Theme): Record<string, string>;
   readonly catalog: typeof import('./index.js').catalog;
   readonly layouts: ReadonlyMap<string, (spec: ChartSpec, context: Record<string, unknown>) => Scene>;

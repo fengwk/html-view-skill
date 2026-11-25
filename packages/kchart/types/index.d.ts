@@ -96,9 +96,20 @@ export interface Scene {
   overflow?: { left: number; top: number; right: number; bottom: number };
 }
 
+/** The rows a host draws under a chart, already labelled and formatted for the render language. */
+export interface DataTable {
+  columns: { key: string; label: string }[];
+  rows: { text: string; value: unknown }[][];
+}
+
+/** Diagram results; chart renders add `table` and use ChartRenderResult. */
 export type RenderResult<D = ChartDiagnostic> =
   | { svg: string; scene: Scene; diagnostics: D[] }
   | { svg: null; scene: null; diagnostics: D[] };
+
+export type ChartRenderResult =
+  | { svg: string; scene: Scene; table: DataTable | null; diagnostics: ChartDiagnostic[] }
+  | { svg: null; scene: null; table: null; diagnostics: ChartDiagnostic[] };
 
 export interface DiagramType {
   readonly kind: string;
@@ -118,9 +129,24 @@ export interface ChartType {
   readonly requiredSpecial: readonly string[];
 }
 
-export function render(spec: ChartSpec, options?: RenderOptions): Promise<RenderResult>;
+export function render(spec: ChartSpec, options?: RenderOptions): Promise<ChartRenderResult>;
 export function diagram(source: string, options?: DiagramOptions): Promise<RenderResult<DiagramDiagnostic>>;
 export function check(source: string, options?: CheckOptions): Promise<DiagramDiagnostic[]>;
+
+/** The SVG members attach() reads; an SVGSVGElement satisfies this. */
+export interface AttachTarget {
+  readonly ownerDocument: unknown;
+  hasAttribute(name: string): boolean;
+  getAttribute(name: string): string | null;
+  setAttribute(name: string, value: string): void;
+  removeAttribute(name: string): void;
+  addEventListener(type: string, listener: (event: unknown) => void, options?: unknown): void;
+  removeEventListener(type: string, listener: (event: unknown) => void, options?: unknown): void;
+  querySelectorAll(selectors: string): ArrayLike<AttachTarget>;
+}
+
+/** Wire the spec's interaction actions onto a rendered SVG and resolve to a disposer. */
+export function attach(svg: AttachTarget, spec?: ChartSpec): Promise<() => void>;
 export function theme(idOrObject?: string | Theme, options?: { media?: Media }): Theme;
 export const themes: Readonly<Record<string, Theme>>;
 export const catalog: Readonly<Record<string, ChartType>>;

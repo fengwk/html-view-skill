@@ -9,7 +9,6 @@ function createPageApi(modules, unloaded, types, diagramOnly = false, registry =
 			validate,
 			schema,
 			catalog: modules["chart/catalog"].catalog,
-			dataTable: modules["chart/context"].dataTable,
 			theme: modules["core/theme"].theme,
 			themes: modules["core/theme"].themes,
 			layouts: registry.layouts,
@@ -19,11 +18,13 @@ function createPageApi(modules, unloaded, types, diagramOnly = false, registry =
 					if (errors.length) return {
 						scene: null,
 						svg: null,
+						table: null,
 						diagnostics: errors
 					};
 					return {
 						scene: null,
 						svg: null,
+						table: null,
 						diagnostics: [{
 							code: "BAD_KCHART",
 							path: "/variant",
@@ -32,10 +33,15 @@ function createPageApi(modules, unloaded, types, diagramOnly = false, registry =
 						}]
 					};
 				}
-				return registry.render(spec, {
+				const result = registry.render(spec, {
 					frame: true,
 					...options
 				});
+				const table = result.svg ? modules["chart/context"].dataTable(spec, { lang: options.lang }) : null;
+				return {
+					...result,
+					table
+				};
 			},
 			...modules.interaction ? { attach: modules.interaction.attach } : {}
 		});

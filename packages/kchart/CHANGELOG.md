@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.3.0
+
+KChart is a rendering layer: it returns SVG and the data behind it, and the host page owns the DOM.
+
+### Breaking
+
+- Removed the page runtime (`src/runtime.js`) and `runtimeSource()`. The offline classic script exposes the rendering calls only; `mount`, `mountClones`, `ready` and `relayout` are gone. Page mounting (figure, title, source line, data table, resize, print) is the host's job.
+- Removed the top-level `browserSource()`, the top-level `dataTable()`, `renderer.dataTable` and the page API's `dataTable`. Read the table from `render().table`, and generate an offline classic script with `createRenderer({ specs })` or `createRenderer({ sources })` and its `bundleSource()`, which is now the only bundling entry.
+
+### Changed
+
+- Async and Node `render()` now resolve to `{ svg, scene, table, diagnostics }`. `table` is the chart's rows already labelled and formatted for `lang`, and is `null` when the chart did not draw or its data is not tabular.
+
+### Added
+
+- The asynchronous entry adds `attach(svg, spec)`. It loads `src/interaction.js` on demand and wires the spec's `interaction` actions onto an SVG the host already placed, resolving to a disposer.
+
 ## 0.2.3
 
 - No runtime changes. This release verifies the npm Trusted Publishing workflow.

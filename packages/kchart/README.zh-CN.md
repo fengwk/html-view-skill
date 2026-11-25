@@ -21,9 +21,11 @@ const bars = await render({
 }, { theme: 'paper', prefix: 'bars-1' });
 ```
 
-`render(spec, options?)` 和 `diagram(source, options?)` 返回 Promise，结果为 `{ svg, scene, diagnostics }`。输入无效或无法布局时，`svg` 和 `scene` 均为 `null`；意外错误会拒绝 Promise。每条结构图诊断带 `severity`：`error` 阻止渲染；`warning` 会随 SVG 一起返回，例如跳过回调或建议拆分大图。`check(source, { syntax, lang }?)` 仅解析和校验，不执行布局，异步返回含警告在内的诊断数组。结构图默认使用 `mermaid` 语法，原生结构图使用 `layers`、`blocks` 或 `swimlane`。`catalog` 和 `diagramTypes` 可同步查询支持的图型及结构图别名。
+`render(spec, options?)` 返回 Promise，结果为 `{ svg, scene, table, diagnostics }`；`diagram(source, options?)` 的结果为 `{ svg, scene, diagnostics }`。`table` 是按 `lang` 标注并格式化后的图表数据行，由宿主自行绘制数据表；没有产出 SVG 或数据不成表时为 `null`。输入无效或无法布局时，`svg` 和 `scene` 均为 `null`；意外错误会拒绝 Promise。每条结构图诊断带 `severity`：`error` 阻止渲染；`warning` 会随 SVG 一起返回，例如跳过回调或建议拆分大图。`check(source, { syntax, lang }?)` 仅解析和校验，不执行布局，异步返回含警告在内的诊断数组。结构图默认使用 `mermaid` 语法，原生结构图使用 `layers`、`blocks` 或 `swimlane`。`catalog` 和 `diagramTypes` 可同步查询支持的图型及结构图别名。
 
 渲染选项包括 `width`、`lang`、`theme`、`media`、`frame`、`prefix` 和 `measure(text, size, weight, fontFamily)`。宿主已有图框时可设置 `frame: false`，此时题名由宿主显示：数据图取规格中的 `title`、`subtitle`；结构图把题名放在 `scene.heading` 返回，图内不再绘制（下文的 compact 嵌入模式除外，会在图形上方画一次）。每个内联 SVG 应使用不同的 `prefix`；结构图可能宽于请求值，建议让容器可以横向滚动。
+
+KChart 不负责挂载：拥有 DOM 的页面自己放置 SVG。规格声明了 `interaction` 的数据图，可由本异步入口的 `attach(svg, spec)` 把交互挂到已放置的 SVG 上；该调用按需加载交互层，并返回用于移除交互的 dispose 函数。
 
 嵌入页面时，可在异步或同步 `diagram()`、或 Mermaid 适配器的 `render()` 中传入 `compact: true`。布局宽度上限为 720px，画布贴合可见内容、不再居中，文字使用 12–14px。同时设置 `frame: false` 时，不绘制外层图框；有标题的图只在图形上方显示一次标题，左对齐并按布局宽度换行。`compact` 默认关闭。
 
@@ -66,7 +68,7 @@ console.log(diagram('flowchart LR\nA --> B').svg);
 console.log(schema('bar'));
 ```
 
-Node 入口提供同步的 `render`、`diagram`、`check`、`parse`、`validate`、`schema` 和 `dataTable`。使用 `createRenderer({ specs })` 按声明选取图族，或使用 `createRenderer({ sources })` 创建只含结构图的渲染器。`browserSource(specs)` 或渲染器的 `bundleSource()` 为离线页面生成暴露 `globalThis.KChart` 的普通脚本。该脚本需要通过 `options.assets` 注入地图，同步 Node 渲染器则从本地磁盘读取内置地图。`runtimeSource()` 提供可选的离线页面运行时。
+Node 入口提供同步的 `render`、`diagram`、`check`、`parse`、`validate` 和 `schema`。使用 `createRenderer({ specs })` 按声明选取图族，或使用 `createRenderer({ sources })` 创建只含结构图的渲染器。渲染器的 `bundleSource()` 是唯一的离线打包入口，为离线页面生成只暴露渲染调用的 `globalThis.KChart` 普通脚本。该脚本需要通过 `options.assets` 注入地图，同步 Node 渲染器则从本地磁盘读取内置地图。
 
 ## Mermaid 风格适配器
 

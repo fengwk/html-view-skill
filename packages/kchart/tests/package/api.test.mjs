@@ -38,6 +38,29 @@ it('returns the underlying diagnostics for unknown input', async () => {
   expect(await api.check('not-a-diagram')).toEqual(node.check('not-a-diagram'));
 });
 
+// The main entry loads the DOM interaction layer only when asked, and the disposer undoes its wiring.
+it('attaches interactions lazily and returns a disposer', async () => {
+  const attributes = new Map();
+  const noop = () => {};
+  const svg = {
+    ownerDocument: { documentElement: { lang: 'zh-CN' }, defaultView: { addEventListener: noop, removeEventListener: noop } },
+    viewBox: { baseVal: { width: 100, height: 100 } },
+    hasAttribute: (name) => attributes.has(name),
+    getAttribute: (name) => attributes.get(name) ?? null,
+    setAttribute: (name, value) => attributes.set(name, String(value)),
+    removeAttribute: (name) => attributes.delete(name),
+    addEventListener: noop,
+    removeEventListener: noop,
+    querySelectorAll: () => [],
+  };
+  const dispose = await api.attach(svg, { chart: 'line', interaction: ['inspect'] });
+  expect(typeof dispose).toBe('function');
+  expect(svg.hasAttribute('tabindex'), 'attach() marks the SVG focusable').toBe(true);
+  dispose();
+  expect(svg.hasAttribute('tabindex'), 'the disposer restores the SVG').toBe(false);
+  expect(() => dispose()).not.toThrow();
+});
+
 // Covers canonical alias detection, per-call precedence and the error/suppression contract.
 it('implements the Mermaid facade', async () => {
   const source = '%% comment\ngraph LR\nA --> B';
