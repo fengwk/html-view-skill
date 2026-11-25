@@ -1,0 +1,188 @@
+{
+  "title": "Kubernetes 仓库 · 2026 年 10 月",
+  "layout": "dashboard",
+  "period": {
+    "current": "2026-10",
+    "compare": [
+      "mom"
+    ],
+    "timezone": "UTC",
+    "complete": true
+  },
+  "sources": [
+    {
+      "id": "github-api",
+      "name": "GitHub REST API（kubernetes/kubernetes）",
+      "query": "GET /repos/kubernetes/kubernetes, /releases (paginated), /stats/commit_activity. Official releases = non-draft, non-prerelease tags with major version >= 1. Commit months are UTC calendar months rolled up from weekly commit_activity; Nov 2025 and Nov 2026 are incomplete in the 52-week window and are excluded. Snapshot fields are a point-in-time read, not October totals.",
+      "pulledAt": "2026-11-24T17:22:00Z"
+    }
+  ],
+  "datasets": [
+    {
+      "id": "monthly",
+      "label": "月度仓库活动",
+      "file": "data/monthly.csv",
+      "source": "github-api",
+      "periodField": "month",
+      "dimensions": {
+        "month": {
+          "type": "month",
+          "label": "月份"
+        }
+      },
+      "measures": {
+        "commits": {
+          "label": "提交数",
+          "unit": "次",
+          "kind": "sum",
+          "definition": "GitHub commit_activity 按 UTC 日历月加总的 kubernetes/kubernetes 提交数；不含观察窗两端不完整的 2025-11 与 2026-11。"
+        },
+        "official_releases": {
+          "label": "正式发布",
+          "unit": "个",
+          "kind": "sum",
+          "definition": "当月 GitHub Releases 中非 draft、非 prerelease，且主版本号 ≥ 1 的标签数量，含次版本与补丁。"
+        },
+        "minor_releases": {
+          "label": "次版本发布",
+          "unit": "个",
+          "kind": "sum",
+          "definition": "当月正式发布中补丁号为 0 的标签（如 v1.37.0）。"
+        },
+        "patch_releases": {
+          "label": "补丁发布",
+          "unit": "个",
+          "kind": "sum",
+          "definition": "当月正式发布中补丁号大于 0 的标签。"
+        }
+      }
+    },
+    {
+      "id": "snapshot",
+      "label": "2026-11-24 公开快照",
+      "file": "data/snapshot.csv",
+      "source": "github-api",
+      "periodField": null,
+      "dimensions": {
+        "as_of": {
+          "type": "category",
+          "label": "抓取日期"
+        }
+      },
+      "measures": {
+        "stars": {
+          "label": "Star",
+          "unit": "个",
+          "kind": "snapshot",
+          "definition": "GitHub stargazers_count，2026-11-24T17:22Z 的时点快照，不是 10 月合计。"
+        },
+        "forks": {
+          "label": "Fork",
+          "unit": "个",
+          "kind": "snapshot",
+          "definition": "GitHub forks_count，2026-11-24T17:22Z 的时点快照，不是 10 月合计。"
+        },
+        "open_issues_and_prs": {
+          "label": "未关闭 Issue（含 PR）",
+          "unit": "个",
+          "kind": "snapshot",
+          "definition": "GitHub open_issues_count，该字段包含未关闭的 Pull Request；2026-11-24T17:22Z 的时点快照。"
+        },
+        "watchers": {
+          "label": "Watch",
+          "unit": "个",
+          "kind": "snapshot",
+          "definition": "GitHub subscribers_count，2026-11-24T17:22Z 的时点快照。"
+        }
+      }
+    },
+    {
+      "id": "recent_releases",
+      "label": "最近 16 个正式发布",
+      "file": "data/recent_releases.csv",
+      "source": "github-api",
+      "periodField": null,
+      "dimensions": {
+        "tag": {
+          "type": "category",
+          "label": "标签"
+        },
+        "published": {
+          "type": "category",
+          "label": "发布日期（UTC）"
+        },
+        "kind": {
+          "type": "category",
+          "label": "类型"
+        }
+      },
+      "measures": {
+        "count": {
+          "label": "发布计数",
+          "unit": "个",
+          "kind": "sum",
+          "definition": "每个正式发布标签计 1，用于列表展示，不在看板 KPI 中加总。"
+        }
+      }
+    }
+  ],
+  "blocks": [
+    {
+      "type": "kpi",
+      "dataset": "monthly",
+      "measures": [
+        "commits",
+        "official_releases"
+      ]
+    },
+    {
+      "type": "chart",
+      "id": "commits-trend",
+      "chart": "line",
+      "dataset": "monthly",
+      "encode": {
+        "category": "month",
+        "value": "commits"
+      },
+      "title": "10 月提交数升至观察窗口内最高"
+    },
+    {
+      "type": "chart",
+      "id": "releases-by-month",
+      "chart": "column",
+      "dataset": "monthly",
+      "encode": {
+        "category": "month",
+        "value": [
+          "minor_releases",
+          "patch_releases"
+        ]
+      },
+      "title": "正式发布以补丁为主，10 月仍为 4 个"
+    },
+    {
+      "type": "table",
+      "dataset": "snapshot",
+      "columns": [
+        "as_of",
+        "stars",
+        "forks",
+        "open_issues_and_prs"
+      ],
+      "title": "2026-11-24 公开快照"
+    },
+    {
+      "type": "table",
+      "dataset": "recent_releases",
+      "columns": [
+        "tag",
+        "published",
+        "kind"
+      ]
+    },
+    {
+      "type": "text",
+      "file": "narrative.md"
+    }
+  ]
+}

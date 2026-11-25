@@ -1,0 +1,188 @@
+{
+  "title": "kubernetes/kubernetes · October 2026 engineering report",
+  "layout": "periodic",
+  "period": {
+    "current": "2026-10",
+    "compare": [
+      "mom"
+    ],
+    "timezone": "UTC",
+    "complete": true
+  },
+  "sources": [
+    {
+      "id": "github-api",
+      "name": "GitHub REST API · kubernetes/kubernetes",
+      "query": "GET /repos/kubernetes/kubernetes, /releases (paginated), /stats/commit_activity. Official releases = non-draft, non-prerelease tags with major version >= 1. Commit months are UTC calendar months rolled up from weekly commit_activity; Nov 2025 and Nov 2026 are incomplete in the 52-week window and are excluded. Snapshot fields are a point-in-time read, not October totals.",
+      "pulledAt": "2026-11-24T17:22:00Z"
+    }
+  ],
+  "datasets": [
+    {
+      "id": "monthly",
+      "label": "Monthly repository activity",
+      "file": "data/monthly.csv",
+      "source": "github-api",
+      "periodField": "month",
+      "dimensions": {
+        "month": {
+          "type": "month",
+          "label": "Month"
+        }
+      },
+      "measures": {
+        "commits": {
+          "label": "Commits",
+          "unit": "commits",
+          "kind": "sum",
+          "definition": "Commits on kubernetes/kubernetes, summed from GitHub commit_activity into UTC calendar months. Incomplete months at the ends of the 52-week window (2025-11 and 2026-11) are excluded."
+        },
+        "official_releases": {
+          "label": "Official releases",
+          "unit": "releases",
+          "kind": "sum",
+          "definition": "Count of GitHub Releases in the month that are not draft or prerelease, with major version >= 1, including minor and patch tags."
+        },
+        "minor_releases": {
+          "label": "Minor releases",
+          "unit": "releases",
+          "kind": "sum",
+          "definition": "Official releases in the month whose patch component is 0 (for example v1.37.0)."
+        },
+        "patch_releases": {
+          "label": "Patch releases",
+          "unit": "releases",
+          "kind": "sum",
+          "definition": "Official releases in the month whose patch component is greater than 0."
+        }
+      }
+    },
+    {
+      "id": "snapshot",
+      "label": "Public snapshot as of 2026-11-24",
+      "file": "data/snapshot.csv",
+      "source": "github-api",
+      "periodField": null,
+      "dimensions": {
+        "as_of": {
+          "type": "category",
+          "label": "Fetched on"
+        }
+      },
+      "measures": {
+        "stars": {
+          "label": "Star",
+          "unit": "stars",
+          "kind": "snapshot",
+          "definition": "GitHub stargazers_count at 2026-11-24T17:22Z; a point-in-time snapshot, not an October total."
+        },
+        "forks": {
+          "label": "Fork",
+          "unit": "forks",
+          "kind": "snapshot",
+          "definition": "GitHub forks_count at 2026-11-24T17:22Z; a point-in-time snapshot, not an October total."
+        },
+        "open_issues_and_prs": {
+          "label": "Open issues (incl. PRs)",
+          "unit": "items",
+          "kind": "snapshot",
+          "definition": "GitHub open_issues_count, which includes open pull requests; point-in-time snapshot at 2026-11-24T17:22Z."
+        },
+        "watchers": {
+          "label": "Watch",
+          "unit": "watchers",
+          "kind": "snapshot",
+          "definition": "GitHub subscribers_count at 2026-11-24T17:22Z."
+        }
+      }
+    },
+    {
+      "id": "recent_releases",
+      "label": "Latest 16 official releases",
+      "file": "data/recent_releases.csv",
+      "source": "github-api",
+      "periodField": null,
+      "dimensions": {
+        "tag": {
+          "type": "category",
+          "label": "Tag"
+        },
+        "published": {
+          "type": "category",
+          "label": "Published (UTC)"
+        },
+        "kind": {
+          "type": "category",
+          "label": "Kind"
+        }
+      },
+      "measures": {
+        "count": {
+          "label": "Release count",
+          "unit": "releases",
+          "kind": "sum",
+          "definition": "One per official release tag, used for the table only; not summed into dashboard KPIs."
+        }
+      }
+    }
+  ],
+  "blocks": [
+    {
+      "type": "kpi",
+      "dataset": "monthly",
+      "measures": [
+        "commits",
+        "official_releases"
+      ]
+    },
+    {
+      "type": "chart",
+      "id": "commits-trend",
+      "chart": "line",
+      "dataset": "monthly",
+      "encode": {
+        "category": "month",
+        "value": "commits"
+      },
+      "title": "October commits were the highest in the observation window"
+    },
+    {
+      "type": "chart",
+      "id": "releases-by-month",
+      "chart": "column",
+      "dataset": "monthly",
+      "encode": {
+        "category": "month",
+        "value": [
+          "minor_releases",
+          "patch_releases"
+        ]
+      },
+      "title": "Official releases stay patch-heavy, with 4 tags again in October"
+    },
+    {
+      "type": "table",
+      "dataset": "snapshot",
+      "columns": [
+        "as_of",
+        "stars",
+        "forks",
+        "open_issues_and_prs"
+      ],
+      "title": "Public snapshot, 24 Nov 2026"
+    },
+    {
+      "type": "table",
+      "dataset": "recent_releases",
+      "columns": [
+        "tag",
+        "published",
+        "kind"
+      ]
+    },
+    {
+      "type": "text",
+      "file": "narrative.md"
+    }
+  ]
+}

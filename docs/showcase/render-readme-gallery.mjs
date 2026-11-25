@@ -100,25 +100,47 @@ window.draw = ({spec, source, syntax}, width, theme, prefix, lang) => {
 // A diagram much wider than a cell warns LARGE_DIAGRAM at cell width; that only means it belongs in a wide row.
 const tooLarge = rendered => rendered.diagnostics.length > 0 && rendered.diagnostics.every(text => text.startsWith('LARGE_DIAGRAM:'));
 
-// Two cells in a row share one height, so pair compact samples of similar height: after sorting by height, neighbours
-// make the pairs with the least empty card space. With an odd count, the sample whose removal wastes least stays alone
-// and spans the row. Rows then follow gallery order by their earliest sample; wide samples keep their own rows.
+// Cells in one row share a height, so compact samples of similar height are paired: after sorting by height,
+// neighbours make the pairs with the least empty card space. When a compact run has an odd count of three or
+// more, the last row uses three cells instead of leaving one chart alone above a packed row. A single compact
+// leftover after a wide row still occupies a full-width row. Wide samples keep their own rows. Rows then follow
+// gallery order by their earliest sample.
 function rowsOf(entries) {
   const indexed = entries.map((entry, index) => ({ entry, index }));
-  const compact = indexed.filter(({ entry }) => entry.width !== WIDE).sort((a, b) => a.entry.render.height - b.entry.render.height);
-  const waste = list => list.reduce((sum, item, i) => (i % 2 ? sum + item.entry.render.height - list[i - 1].entry.render.height : sum), 0);
-  let single = null;
-  if (compact.length % 2) {
-    let best = Infinity;
-    for (let i = 0; i < compact.length; i += 2) {
-      const cost = waste(compact.filter((_, j) => j !== i));
-      if (cost < best) { best = cost; single = i; }
+  const rows = [];
+  let buf = [];
+  const flush = () => {
+    if (!buf.length) return;
+    const compact = [...buf].sort((a, b) => a.entry.render.height - b.entry.render.height);
+    const packed = [];
+    if (compact.length % 2 === 1 && compact.length >= 3) {
+      const last3 = compact.splice(compact.length - 3, 3);
+      for (let i = 0; i < compact.length; i += 2) packed.push([compact[i], compact[i + 1]].sort((a, b) => a.index - b.index));
+      packed.push(last3.sort((a, b) => a.index - b.index));
+    } else if (compact.length === 1) {
+      packed.push([compact[0]]);
+    } else {
+      for (let i = 0; i < compact.length; i += 2) packed.push([compact[i], compact[i + 1]].sort((a, b) => a.index - b.index));
     }
+    packed.sort((a, b) => a[0].index - b[0].index);
+    rows.push(...packed);
+    buf = [];
+  };
+  for (const item of indexed) {
+    if (item.entry.width === WIDE) { flush(); rows.push([item]); }
+    else buf.push(item);
   }
-  const rows = indexed.filter(({ entry }) => entry.width === WIDE).map(item => [item]);
-  if (single !== null) rows.push(compact.splice(single, 1));
-  for (let i = 0; i < compact.length; i += 2) rows.push([compact[i], compact[i + 1]].sort((a, b) => a.index - b.index));
-  return rows.sort((a, b) => a[0].index - b[0].index).map(row => row.map(({ entry }) => entry));
+  flush();
+  return rows.map(row => row.map(({ entry }) => entry));
+}
+
+// Homepage theme comparison: a four-theme lead row (the same set as the hero stack) and a three-theme row
+// for the remaining built-in themes, so the table never starts with a single leftover cell.
+const THEME_LEAD = ['paper', 'claude', 'tokyo', 'terminal'];
+const THEME_REST = ['obsidian', 'kanagawa', 'cloudmusic'];
+function themeRows(plates) {
+  const get = id => plates.find(entry => entry.item.id === `theme-${id}`);
+  return [THEME_LEAD.map(get), THEME_REST.map(get)];
 }
 
 // One tile per sample: the sample's own theme card, centered at its natural size. Cells in one row share a height,
@@ -134,9 +156,9 @@ async function writeTile(dir, entry, height, lang) {
   return { id: item.id, filename, width, height, title: item.title, key: item.key };
 }
 
-async function writeRows(dir, entries, lang) {
+async function writeRows(dir, entries, lang, planned = rowsOf(entries)) {
   const rows = [];
-  for (const row of rowsOf(entries)) {
+  for (const row of planned) {
     const height = Math.ceil(Math.max(...row.map(({ item, render }) => render.height + (item.swatches ? SWATCH_ROW : 0)))) + PAD_Y * 2;
     const tiles = [];
     for (const entry of row) tiles.push(await writeTile(dir, entry, height, lang));
@@ -191,7 +213,7 @@ try {
       const key = lang === 'en' ? `${cases.words.scheme[themeItem.scheme]} theme` : `${themeItem.name} · ${cases.words.scheme[themeItem.scheme]}`;
       plates.push({ item: { id, title: themeItem.en, key, swatches: true }, theme: themeItem, render, width: CELL });
     }
-    record.groups.push({ id: 'themes', title: cases.words.themes, count: themes.length, rows: await writeRows(dir, plates, lang) });
+    record.groups.push({ id: 'themes', title: cases.words.themes, count: themes.length, rows: await writeRows(dir, plates, lang, themeRows(plates)) });
 
     // The same short document in every theme, built and audited by the CLI, then captured from the top of the page
     // to the end of its content. The tab returns to the chart renderer after the map previews below.
@@ -230,13 +252,14 @@ try {
     const prefix = `docs/showcase/gallery/${lang}`;
     // GitHub keeps align, valign, width and colspan on table cells; captions stay real text for search, translation and dark mode.
     const cell = tile => `<a href="${prefix}/${tile.filename}"><img src="${prefix}/${tile.preview ?? tile.filename}" width="${tile.width}" alt="${esc(tile.title)}"></a><br><b>${esc(tile.title)}</b><br><sub><code>${esc(tile.key)}</code></sub>`;
-    // A wide sample, or the odd compact sample that closes a group, spans both columns instead of leaving an empty cell.
-    // On a phone GitHub shrinks both columns to the screen: its CSS gives images max-width:100%, a cell's width
+    // One table per row so a three-column last row does not fight a two-column row in the same table.
+    // On a phone GitHub shrinks each column to the screen: its CSS gives images max-width:100%, a cell's width
     // attribute is not a minimum, and style attributes are stripped. Every tile therefore links to its full-size SVG.
+    const cellWidth = n => n === 3 ? '33%' : n === 4 ? '25%' : '50%';
     const row = tiles => tiles.length === 1
-      ? `<tr>\n<td colspan="2" align="center">${cell(tiles[0])}</td>\n</tr>`
-      : `<tr>\n${tiles.map(tile => `<td align="center" valign="top" width="50%">${cell(tile)}</td>`).join('\n')}\n</tr>`;
-    const table = group => `<table>\n${group.rows.map(row).join('\n')}\n</table>`;
+      ? `<tr>\n<td align="center">${cell(tiles[0])}</td>\n</tr>`
+      : `<tr>\n${tiles.map(tile => `<td align="center" valign="top" width="${cellWidth(tiles.length)}">${cell(tile)}</td>`).join('\n')}\n</tr>`;
+    const table = group => group.rows.map(tiles => `<table>\n${row(tiles)}\n</table>`).join('\n\n');
     // Anchors use the language-neutral group ids, so both READMEs share one set of slugs.
     const groupMarkdown = (group, heading = true) => [heading ? `<a id="${group.id}"></a>\n\n#### ${group.title}` : '', table(group)].filter(Boolean).join('\n\n');
     const sectionIds = { chart: 'charts', diagram: 'diagrams', variant: 'variants' };
@@ -247,8 +270,9 @@ try {
     }).join('\n\n');
     await writeFile(join(out, `gallery.${lang}.md`), fragment + '\n');
     // GitHub keeps <details name>, prefixing it the same way for every block, so browsers that support exclusive
-    // details keep one theme open at a time; others fall back to independent toggles. The first built-in theme starts open.
-    const pageDetails = record.themePages.map((tile, index) => `<details name="theme-page"${index ? '' : ' open'}>\n<summary><b>${esc(tile.title)}</b> · ${esc(tile.key)}</summary>\n\n`
+    // details share a name so browsers that support exclusive details keep one theme open at a time;
+    // others fall back to independent toggles. None starts open.
+    const pageDetails = record.themePages.map((tile) => `<details name="theme-page">\n<summary><b>${esc(tile.title)}</b> · ${esc(tile.key)}</summary>\n\n`
       + `<a href="${prefix}/${tile.filename}"><img src="${prefix}/${tile.filename}" width="${tile.width}" alt="${esc(cases.words.pageAlt(tile.title))}"></a>\n\n</details>`).join('\n');
     await writeFile(join(out, `themes.${lang}.md`), [groupMarkdown(record.groups.find(group => group.id === 'themes'), false), cases.words.themePages, pageDetails].join('\n\n') + '\n');
     report.languages[lang] = record;
