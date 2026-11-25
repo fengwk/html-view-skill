@@ -12,19 +12,20 @@ function definition(shell) {
   const sources = elements.filter(({ name, attrs }) => name === 'pre' && attrs.id === VIZ_SOURCE_ID);
   const width = Number(shell.meta[VIZ_WIDTH]);
   const raw = sources.length === 1 ? innerHtml(shell.content, sources[0]) : '';
-  const source = decodeEntities(raw.startsWith('<code>') && raw.endsWith('</code>') ? raw.slice(6, -7) : raw);
+  if (!raw.startsWith('<code>') || !raw.endsWith('</code>')) return null;
+  const source = decodeEntities(raw.slice(6, -7));
   if (!source.trim() || !validVizWidth(width) || !elements.some(({ name }) => name === 'svg')) return null;
   return { source, width };
 }
 export async function audit(html, { file } = {}) {
   const shell = parseShell(html, file);
   const result = await auditShell(html, { requireTitle: true });
-  // 保留旧图页兼容性；新图页只允许生成的复制脚本，不放开任意页内脚本。
+  // 图页只运行生成的复制脚本，不放开任意页内脚本。
   const scripts = scanElements(html).filter(({ name }) => name === 'script');
-  const allowedScript = scripts.length === 1 && Object.keys(scripts[0].attrs).length === 0
+  const copyScript = scripts.length === 1 && Object.keys(scripts[0].attrs).length === 0
     && shell.scripts.length === 1 && shell.scripts[0].role === 'page'
     && shell.scripts[0].content === copyButtonScript(shell.lang);
-  if (!definition(shell) || (scripts.length && !allowedScript)) {
+  if (!definition(shell) || !copyScript) {
     result.failures.push({ code: 'BAD_VIZ', detail: '静态图页必须包含图形、图形源码与原始宽度，且只允许生成的复制脚本。', fix: '从图形源码重新运行 htmlview viz render。' });
   }
   return result;

@@ -63,6 +63,12 @@ test('单图页源码不再折叠，改为隐藏源码与复制按钮', { skip: 
   assert.deepEqual((await audit(measured.html)).failures, []);
   const modified = measured.html.replace('<script>', '<script>void 0;');
   assert.ok((await audit(modified)).failures.some(({ code }) => code === 'BAD_VIZ'));
+  // 旧图页（无复制脚本、源码未包 code）不再通过，需从源码重新生成。
+  const scriptless = measured.html.replace(/<script>[\s\S]*?<\/script>/, '');
+  assert.ok((await audit(scriptless)).failures.some(({ code }) => code === 'BAD_VIZ'));
+  const bareSource = measured.html.replace(/(<pre id="viz-source" hidden>)<code>([\s\S]*?)<\/code>/, '$1$2');
+  assert.notEqual(bareSource, measured.html);
+  assert.ok((await audit(bareSource)).failures.some(({ code }) => code === 'BAD_VIZ'));
   assert.match(measured.html.split('@media print').at(-1) ?? '', /\.viz-copy\{display:none\}/, '打印时隐藏复制按钮');
   assert.doesNotMatch(measured.html, /<link\b/i);
 
