@@ -144,7 +144,7 @@ test('one JSON file plus the build+vendor step registers a built-in theme in the
   assert.equal(scope.KChart.theme(id).accent, '#12635e');
 });
 
-// The standalone HTML remains script-free and can still be restyled from its own source and snapshot.
+// The standalone HTML carries only the copy-button script and can still be restyled from its own source and snapshot.
 test('standalone custom dark figure is portable and has a Paper print figure', { skip: !findBrowser() }, (t) => {
   const at = temp(t), config = at('dark.json'), source = at('flow.mmd'), out = at('flow.html');
   const diagram = '---\ntitle: Sample flow\n---\nflowchart LR\nA[Queue] --> B[Worker]\n';
@@ -154,7 +154,8 @@ test('standalone custom dark figure is portable and has a Paper print figure', {
   rmSync(config);
   rmSync(source);
   const initial = read(out);
-  assert.doesNotMatch(initial, /<script\b|<link\b/);
+  assert.doesNotMatch(initial, /<link\b/);
+  assert.equal(initial.match(/<script\b/g)?.length, 1, 'only the copy button ships a page script');
   assert.match(initial, /viz-static-screen"><svg[^>]+font-family="monospace"/);
   assert.match(initial, /viz-static-print"><svg[^>]*>[\s\S]*?fill="#f9fafc"/);
   assert.equal(run(['audit', out]).pass, true);

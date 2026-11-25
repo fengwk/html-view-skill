@@ -11,6 +11,7 @@ import { createRenderer, detectSyntax, theme as resolveTheme } from '../../../ve
 
 export const VIZ_WIDTH = 'viz:width';
 export const VIZ_SOURCE_ID = 'viz-source';
+export const VIZ_COPY_ID = 'viz-copy';
 export const validVizWidth = (width) => Number.isFinite(width) && width >= 120 && width <= 4000;
 const safeJson = (value) => JSON.stringify(value).replaceAll('<', '\\u003c');
 
@@ -111,21 +112,65 @@ export async function measureFigure(source, { theme, width, lang, standalone }) 
   return { ...measured, lang, title: fallback.scene.heading ?? fallback.scene.title ?? 'KChart' };
 }
 
+// 单图页不加载 doc.js：复制按钮的交互自带一段页内脚本，剪贴板接口不可用时用隐藏文本框加 execCommand 降级。
+export function copyButtonScript(lang) {
+  const labels = /^zh(?:-|$)/i.test(lang)
+    ? { copied: '已复制', failed: '复制失败' }
+    : { copied: 'Copied', failed: 'Copy failed' };
+  return `(() => {
+  const labels = ${JSON.stringify(labels).replaceAll('<', '\\u003c')};
+  const button = document.getElementById('${VIZ_COPY_ID}');
+  const source = document.getElementById('${VIZ_SOURCE_ID}');
+  if (!button || !source) return;
+  const idle = button.textContent;
+  const copyText = async (text) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch {
+      const area = document.createElement('textarea');
+      area.value = text;
+      area.setAttribute('readonly', '');
+      area.style.cssText = 'position:fixed;top:0;left:0;opacity:0';
+      document.body.append(area);
+      area.select();
+      let ok = false;
+      try { ok = document.execCommand('copy'); } catch { ok = false; }
+      area.remove();
+      return ok;
+    }
+  };
+  let timer;
+  button.addEventListener('click', async () => {
+    const ok = await copyText(source.textContent);
+    button.textContent = ok ? labels.copied : labels.failed;
+    clearTimeout(timer);
+    timer = setTimeout(() => { button.textContent = idle; }, 1600);
+  });
+})();`;
+}
+
 export async function renderStaticFigure(source, { theme, width, lang }) {
   const measured = await measureFigure(source, { theme, width, lang, standalone: true });
-  const sourceLabel = /^zh(?:-|$)/i.test(measured.lang) ? '图形源码' : 'Source';
-  // Keep the source outside the figure so print may put it on another page.
+  const copyLabel = /^zh(?:-|$)/i.test(measured.lang) ? '复制' : 'Copy';
+  // 源码留在图外，打印可以换页；它只供 style/审计读取，读者拿到的是一行复制按钮。
   const style = `body{font:14px/1.6 var(--font-sans);text-autospace:no-autospace}
 body>main{max-width:${measured.width + 34}px;margin:auto;padding:16px}
 .viz-shell{border:1px solid var(--line);border-radius:var(--radius);background:var(--surface)}
 .viz-shell figure{margin:0}.viz-shell .viz-body{overflow:auto}
-.viz-shell details{padding:12px 16px;border-top:1px solid var(--line)}
-.viz-shell pre{margin:1em 0;padding:0;border:0;background:none;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;font:inherit;font-family:monospace}
+.viz-copy{display:flex;justify-content:flex-end;padding:0 16px 12px}
+.viz-shell pre[hidden]{display:none}
 .viz-static-print{display:none}
-@media print{.viz-figure{break-inside:avoid}.viz-static-screen{display:none}.viz-static-print{display:block}}`;
+@media print{.viz-figure{break-inside:avoid}.viz-static-screen{display:none}.viz-static-print{display:block}.viz-copy{display:none}}`;
   const svg = measured.printSvg
     ? `<div class="viz-static-screen">${measured.svg}</div><div class="viz-static-print">${measured.printSvg}</div>` : measured.svg;
-  const content = `<main><div class="viz-shell"><figure class="viz-figure"><div class="viz-body">${svg}</div></figure><details><summary>${sourceLabel}</summary><pre id="${VIZ_SOURCE_ID}">${escapeHtml(source)}</pre></details></div></main>`;
-  const html = renderShell({ kind: 'viz', lang: measured.lang, title: measured.title, theme, meta: { [VIZ_WIDTH]: String(width) }, content, styles: [style] });
+  const button = `<div class="viz-copy"><button type="button" class="btn btn-sm copy" id="${VIZ_COPY_ID}">${copyLabel}</button></div>`;
+  // code 避免 HTML 解析 pre 时丢掉源码开头的换行；字符引用保留原始 CR。
+  const sourceHtml = escapeHtml(source).replaceAll('\r', '&#13;');
+  const content = `<main><div class="viz-shell"><figure class="viz-figure"><div class="viz-body">${svg}</div></figure>${button}<pre id="${VIZ_SOURCE_ID}" hidden><code>${sourceHtml}</code></pre></div></main>`;
+  const html = renderShell({
+    kind: 'viz', lang: measured.lang, title: measured.title, theme,
+    meta: { [VIZ_WIDTH]: String(width) }, content, styles: [style], scripts: [copyButtonScript(measured.lang)],
+  });
   return { ...measured, html };
 }

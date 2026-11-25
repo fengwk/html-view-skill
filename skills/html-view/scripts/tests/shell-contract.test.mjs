@@ -131,6 +131,30 @@ test('legacy Markdown structures, local images, IDs, numeric units, and front ma
   assert.equal((result.content.match(/data-viz="mermaid"/g) ?? []).length, 1);
 });
 
+// 意图：前言区不再折叠——带 title 以外字段时，整段 YAML（含 title 行、原样转义）作为普通 yaml 代码块出现在正文最前，
+// 因此与手写 ```yaml 代码块同形，文档外壳会给它加复制按钮。
+test('markdown front matter with extra keys renders the original YAML as a regular yaml code block', () => {
+  const yaml = '\ntitle: 迁移计划\nowner: team\ndesc: a<b & c\nstages:\n  - 调研\n  - 灰度\n';
+  const body = '## 目标\n\n正文。';
+  const { title, content } = markdownToContent(`---\n${yaml}\n---\n\n${body}`);
+  assert.equal(title, '迁移计划');
+  const block = content.match(/<pre data-lang="yaml"><code>[\s\S]*?<\/code><\/pre>/)?.[0];
+  assert.ok(block, '前言区应渲染出 yaml 代码块');
+  // 同一个代码块字符串也由手写 ```yaml 代码块产生：结构相同，不额外包 folding 容器。
+  const fenced = markdownToContent(`\`\`\`yaml\n${yaml}\n\`\`\`\n\n${body}`);
+  assert.equal(block, fenced.content.match(/<pre data-lang="yaml"><code>[\s\S]*?<\/code><\/pre>/)?.[0]);
+  assert.match(block, /title: 迁移计划\nowner: team/);
+  assert.match(block, /desc: a&lt;b &amp; c/);
+  // 位置同原折叠块：正文最前，先于第一个章节。
+  assert.ok(content.indexOf(block) < content.indexOf('<h2'));
+  assert.doesNotMatch(content, /Markdown 前言区|Markdown front matter|<details|<summary/);
+  // 只有简单 title 时行为不变：只作文档标题，不输出额外代码块。
+  const simple = markdownToContent('---\ntitle: 迁移计划\n---\n\n## 目标\n\n正文。');
+  assert.equal(simple.title, '迁移计划');
+  assert.doesNotMatch(simple.content, /data-lang="yaml"/);
+  assert.doesNotMatch(simple.content, /title: 迁移计划/);
+});
+
 // 意图：Markdown 表格的对齐曾生成行内 style，doc build 后 audit 必然报 INLINE_STYLE；对齐必须落到已登记的 class。
 test('markdown table alignment uses registered classes that pass the content audit', () => {
   const { content } = markdownToContent('| 批次 | 比例 | 状态 |\n| :--- | ---: | :---: |\n| 第一批 | 1% | 完成 |');

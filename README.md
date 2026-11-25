@@ -37,7 +37,7 @@ Invoke-WebRequest -UseBasicParsing -Uri 'https://raw.githubusercontent.com/fengw
 
 > 用 HTML View 把 `proposal.md` 做成一份可以批注的技术方案。保留决策和风险，画清服务之间的调用链；交付 HTML 和检查过的 PDF。
 
-> 把这些已汇总的 CSV 做成离线 Dashboard。首屏看关键指标、收入趋势和渠道差异，数字要能打开明细核对；缺失别填成 0。
+> 把这些已汇总的 CSV 做成离线 Dashboard。首屏看关键指标、收入趋势和渠道差异；缺失别填成 0。
 
 > 做一个可点的报销原型。包含列表、详情、提交失败和成功状态；在手机宽度实际走一次提交流程。
 

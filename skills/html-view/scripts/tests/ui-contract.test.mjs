@@ -69,7 +69,7 @@ test('UI style installs figure modules after the draft gains a chart', (t) => {
   const repaired = readFileSync(file, 'utf8');
   const parsed = parseShell(repaired);
   assert.deepEqual(parsed.scripts.map(({ role }) => role), ['kchart', 'viz-config', 'viz', 'page']);
-  assert.equal(JSON.parse(parsed.scripts[1].content).dataTable, false, '界面稿默认不输出可读数据表');
+  assert.equal(JSON.parse(parsed.scripts[1].content).copy, false, '界面稿不输出复制按钮');
   const audited = run('audit', file);
   assert.equal(audited.status, 0, audited.stdout + audited.stderr);
   assert.equal(JSON.parse(audited.stdout).pass, true);

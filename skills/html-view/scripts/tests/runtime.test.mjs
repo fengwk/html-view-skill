@@ -14,6 +14,18 @@ const host = readAsset('page/viz.js');
 const temp = (name) => mkdtempSync(join('/var/tmp', `htmlview-viz-${name}-`));
 const configScript = (config) => `<script type="application/json" data-htmlview="viz-config">${JSON.stringify(config)}</script>`;
 const escape = (value) => value.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
+const waitFor = (page, expression, label, timeout = 4000) => page.evaluate(`new Promise((resolve, reject) => {
+  const start = performance.now();
+  const poll = () => {
+    try { if (${expression}) { resolve(true); return; } }
+    catch (error) { reject(error); return; }
+    if (performance.now() - start > ${timeout}) { reject(new Error('等待超时：${label}')); return; }
+    requestAnimationFrame(poll);
+  };
+  poll();
+})`);
+// 无头浏览器里真实剪贴板读写不一致，只验证宿主交给剪贴板接口的文本。
+const interceptClipboard = (page) => page.evaluate(`Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: (text) => { window.__copied = text; return Promise.resolve(); } } })`);
 
 // 意图：真实 Chrome 验证宽图不按已选布局缩放、滚动后仍以图锚点居中；显示空图框后由 ResizeObserver 首次排版。
 test('viz host keeps wide SVG at 1:1, centers its anchor, and lays out a revealed figure', async () => {
@@ -79,9 +91,11 @@ test('viz host preserves 1:1 geometry for a diagram wider than the print column'
   }
 });
 
-// 意图：渲染结果的表格生成数据表；正常 HTML 属性保留，错误文案/用户源码只作为文本而不执行；交互在重排时释放。
-test('viz host renders the data table, safe errors, and disposes attachments on relayout', async () => {
+// 意图：英文页面上每个图形都在图题行右侧拿到唯一的复制按钮，点击交出声明原文；正常 HTML 属性保留，
+// 错误文案/用户源码只作为文本而不执行；交互在重排时释放。
+test('viz host copies the declaration from the caption, reports safe errors, and disposes attachments on relayout', async () => {
   const spec = { chart: 'bar', title: 'A & B', source: '合成来源', note: '虚构注释', data: [{ label: 'One', value: 2 }, { label: 'Two', value: 5 }], encode: { category: 'label', value: 'value' }, interaction: ['inspect'] };
+  const declaration = JSON.stringify(spec);
   const renderer = createRenderer({ specs: [spec] });
   const dir = temp('contract');
   const file = join(dir, 'fixture.html');
@@ -92,9 +106,10 @@ test('viz host renders the data table, safe errors, and disposes attachments on 
   try {
     await page.goto(pathToFileURL(file).href);
     await page.evaluate('HtmlViewViz.ready()');
+    await interceptClipboard(page);
     const printable = await page.json('HtmlViewViz.relayout({media:"print"}).then(()=>true)');
     assert.equal(printable, true, 'print relayout is awaitable until current layout work finishes');
-    const result = await page.json(`JSON.stringify((()=>{const fig=document.querySelector('#good'),bad=document.querySelector('#bad');fig.querySelector('pre').click();return {title:fig.getAttribute('title'),extra:fig.getAttribute('data-extra'),className:fig.className,caption:fig.querySelector('.fig-title')?.textContent,source:fig.querySelector('.fig-source')?.textContent,note:fig.querySelector('.fig-note')?.textContent,table:fig.querySelector('.viz-data table')?.textContent,values:[...fig.querySelectorAll('.viz-data td')].map(cell=>cell.getAttribute('data-value')),html:fig.innerHTML,added:window.__svgEvents.added,removed:window.__svgEvents.removed,error:bad.querySelector('.viz-error')?.textContent,images:document.querySelectorAll('img').length,pwned:window.pwned,sourceBlock:bad.querySelector('pre[data-viz-source],pre')?.textContent};})())`);
+    const result = await page.json(`JSON.stringify((()=>{const fig=document.querySelector('#good'),bad=document.querySelector('#bad');fig.querySelector('pre').click();const caption=fig.querySelector(':scope > figcaption'),button=caption.querySelector(':scope > button');return {title:fig.getAttribute('title'),extra:fig.getAttribute('data-extra'),className:fig.className,caption:fig.querySelector('.fig-heading')?.textContent,source:fig.querySelector('.fig-source')?.textContent,note:fig.querySelector('.fig-note')?.textContent,buttonClass:button?.className,buttonType:button?.type,buttonText:button?.textContent,buttonInCaption:button?.parentElement===caption,buttonCount:caption.querySelectorAll(':scope > button').length,captionCount:fig.querySelectorAll(':scope > figcaption').length,buttons:fig.querySelectorAll('button').length,details:fig.querySelectorAll('details').length,sourceText:fig.querySelector('pre[data-viz]')?.textContent,html:fig.innerHTML,added:window.__svgEvents.added,removed:window.__svgEvents.removed,error:bad.querySelector('.viz-error')?.textContent,images:document.querySelectorAll('img').length,pwned:window.pwned,sourceBlock:bad.querySelector('pre[data-viz-source],pre')?.textContent};})())`);
     assert.equal(result.title, 'kept');
     assert.equal(result.extra, 'yes');
     assert.match(result.className, /source-class/);
@@ -102,13 +117,24 @@ test('viz host renders the data table, safe errors, and disposes attachments on 
     assert.equal(result.source, 'Source: 合成来源');
     assert.equal(result.note, 'Note: 虚构注释');
     assert.equal(result.pwned, undefined, 'inline event attributes are not copied or executed');
-    assert.match(result.table, /One/, JSON.stringify(result));
-    assert.match(result.table, /Two/);
-    assert.deepEqual(result.values, ['One', '2', 'Two', '5']);
+    assert.equal(result.buttonClass, 'btn btn-sm copy');
+    assert.equal(result.buttonType, 'button');
+    assert.equal(result.buttonText, 'Copy', '英文页面用英文按钮文字');
+    assert.equal(result.buttonInCaption, true, '复制按钮是图题的直接子元素');
+    assert.deepEqual({ count: result.buttonCount, captions: result.captionCount, buttons: result.buttons }, { count: 1, captions: 1, buttons: 1 });
+    assert.equal(result.details, 0, '图形不再附带可折叠数据区');
+    assert.equal(result.sourceText, declaration, '隐藏的源码元素保留声明原文');
+    // 拦截剪贴板：点按钮交出的是声明原文，按钮先显示已复制再恢复原文字。
+    await page.evaluate(`document.querySelector('#good figcaption > button').click()`);
+    await waitFor(page, 'typeof window.__copied === "string"', '复制声明原文');
+    assert.equal(await page.evaluate('window.__copied'), declaration, 'the copied text is the declaration verbatim');
+    await waitFor(page, `document.querySelector('#good figcaption > button').textContent === 'Copied'`, '复制成功提示');
+    await waitFor(page, `document.querySelector('#good figcaption > button').textContent === 'Copy'`, '按钮文字恢复');
     assert.ok(result.added > 0, JSON.stringify(result));
     await page.evaluate('HtmlViewViz.relayout({media:"screen"})');
     const detached = await page.json('window.__svgEvents.removed');
     assert.ok(detached > 0, `redrawing detaches prior handlers: ${detached}`);
+    assert.equal(await page.json(`document.querySelectorAll('#good figcaption > button').length`), 1, '重排不会重复生成复制按钮');
     assert.ok(result.error, JSON.stringify(result));
     assert.equal(result.images, 0);
     assert.equal(result.pwned, undefined);
@@ -120,20 +146,130 @@ test('viz host renders the data table, safe errors, and disposes attachments on 
   }
 });
 
-// 意图：报表/界面稿在配置里关闭数据表时，图形仍绘制但不显示表格。
-test('viz host hides the data table when the shell config disables it', async () => {
+// 意图：界面稿在配置里关掉复制按钮时，图形照常绘制，但图题行没有按钮，也没有可折叠数据区。
+test('viz host omits the copy button when the shell config disables copy', async () => {
   const spec = { chart: 'bar', data: [{ label: 'A', value: 1 }], encode: { category: 'label', value: 'value' } };
   const renderer = createRenderer({ specs: [spec] });
-  const dir = temp('data-table-off');
+  const dir = temp('copy-off');
   const file = join(dir, 'fixture.html');
-  writeFileSync(file, `<!doctype html><html lang="zh-CN"><meta charset="utf-8"><body><pre data-viz="kchart">${JSON.stringify(spec)}</pre><script>${renderer.bundleSource()}</script>${configScript({ lang: 'zh-CN', dataTable: false })}<script>${host}</script></body></html>`, 'utf8');
+  writeFileSync(file, `<!doctype html><html lang="zh-CN"><meta charset="utf-8"><body><pre data-viz="kchart">${JSON.stringify(spec)}</pre><script>${renderer.bundleSource()}</script>${configScript({ lang: 'zh-CN', copy: false })}<script>${host}</script></body></html>`, 'utf8');
   const browser = await launchBrowser();
   const page = await browser.newPage();
   try {
     await page.goto(pathToFileURL(file).href);
     await page.evaluate('HtmlViewViz.ready()');
-    const state = await page.json(`JSON.stringify({svg:!!document.querySelector('.viz-body svg'),table:!!document.querySelector('.viz-data')})`);
-    assert.deepEqual(state, { svg: true, table: false });
+    const state = await page.json(`JSON.stringify({svg:!!document.querySelector('.viz-body svg'),buttons:document.querySelectorAll('figure button').length,figures:document.querySelectorAll('figure').length,details:document.querySelectorAll('details').length})`);
+    assert.deepEqual(state, { svg: true, buttons: 0, figures: 1, details: 0 });
+  } finally {
+    await page.close();
+    await browser.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+// 意图：五种图形都在图题行右侧生成唯一的复制按钮，点击把声明原文原样交给剪贴板；重排不会多出按钮。
+test('viz host gives every syntax one copy button in the caption and copies the exact declaration', async () => {
+  const spec = { chart: 'bar', title: '虚构渠道对比', data: [{ label: '自然流量', value: 3 }], encode: { category: 'label', value: 'value' } };
+  const diagrams = [
+    ['mermaid', '---\ntitle: 虚构提交校验\n---\nflowchart LR\n  A[提交] --> B[校验]\n'],
+    ['layers', '---\ntitle: 虚构分层\n---\n- 接入层 | 统一入口\n  - 网关: 鉴权, 限流\n- 数据层\n  - 订单库 {db}: 订单, 状态\n'],
+    ['blocks', '---\ntitle: 虚构总览\n---\nrow\n  box 入口\n    card 表单\n      字段校验\n  box 产出\n    card 回执\n'],
+    ['swimlane', '---\ntitle: 虚构泳道\n---\nswimlane LR\nlane 客户端\n  request[提交请求]\nlane 服务端\n  validate[校验]\nrequest -->|请求| validate\n'],
+  ];
+  const charts = createRenderer({ specs: [spec] });
+  const sources = createRenderer({ sources: diagrams.map(([syntax, source]) => ({ syntax, source })) });
+  const dir = temp('copy-syntaxes');
+  const renderFixture = (bundle, body) => `<!doctype html><html lang="zh-CN"><meta charset="utf-8"><body>${body}<script>${bundle}</script>${configScript({ lang: 'zh-CN' })}<script>${host}</script></body></html>`;
+  const chartFile = join(dir, 'chart.html');
+  const diagramFile = join(dir, 'diagrams.html');
+  writeFileSync(chartFile, renderFixture(charts.bundleSource(), `<pre data-viz="kchart">${JSON.stringify(spec)}</pre>`), 'utf8');
+  writeFileSync(diagramFile, renderFixture(sources.bundleSource(), diagrams.map(([syntax, source]) => `<pre data-viz="${syntax}">${escape(source)}</pre>`).join('\n')), 'utf8');
+  const expected = new Map([['kchart', JSON.stringify(spec)], ...diagrams]);
+  // 每个图形一条记录：按钮只能有一个、只能挂在图题下，源码元素隐藏保留。
+  const collect = (view) => view.json(`JSON.stringify([...document.querySelectorAll('figure.viz-figure')].map(figure=>{
+    const caption=figure.querySelector(':scope > figcaption'),button=caption.querySelector(':scope > button'),pre=figure.querySelector('pre[data-viz]');
+    return {syntax:pre.getAttribute('data-viz'),source:pre.textContent,hidden:pre.hidden,svg:!!figure.querySelector('.viz-body svg'),captions:figure.querySelectorAll('figcaption').length,
+      buttonCount:caption.querySelectorAll(':scope > button').length,allButtons:figure.querySelectorAll('button').length,buttonClass:button?.className,buttonType:button?.type,buttonText:button?.textContent,buttonInCaption:button?.parentElement===caption,details:figure.querySelectorAll('details').length};
+  }))`);
+  const browser = await launchBrowser();
+  const page = await browser.newPage();
+  try {
+    await page.setViewport({ width: 900, height: 900 });
+    for (const [target, syntaxes] of [[chartFile, ['kchart']], [diagramFile, diagrams.map(([syntax]) => syntax)]]) {
+      await page.goto(pathToFileURL(target).href);
+      await page.evaluate('HtmlViewViz.ready()');
+      await interceptClipboard(page);
+      const before = await collect(page);
+      assert.deepEqual(before.map(({ syntax }) => syntax), syntaxes, JSON.stringify(before));
+      for (const figure of before) {
+        assert.deepEqual({
+          svg: figure.svg, captions: figure.captions, buttonCount: figure.buttonCount, allButtons: figure.allButtons,
+          buttonClass: figure.buttonClass, buttonType: figure.buttonType, buttonText: figure.buttonText,
+          buttonInCaption: figure.buttonInCaption, details: figure.details,
+        }, {
+          svg: true, captions: 1, buttonCount: 1, allButtons: 1,
+          buttonClass: 'btn btn-sm copy', buttonType: 'button', buttonText: '复制',
+          buttonInCaption: true, details: 0,
+        }, figure.syntax);
+        assert.equal(figure.hidden, true, `${figure.syntax} 的源码元素保留但不可见`);
+        assert.equal(figure.source, expected.get(figure.syntax), `${figure.syntax} 的源码元素与声明逐字一致`);
+      }
+      // 点每个按钮：交出的是声明原文，按钮先显示已复制再恢复。
+      for (const { syntax } of before) {
+        const selector = `figure.viz-figure:has(pre[data-viz="${syntax}"]) figcaption > button`;
+        await page.evaluate(`(()=>{window.__copied=undefined;document.querySelector(${JSON.stringify(selector)}).click()})()`);
+        await waitFor(page, 'typeof window.__copied === "string"', `${syntax} 复制声明原文`);
+        assert.equal(await page.evaluate('window.__copied'), expected.get(syntax), `${syntax} 复制内容必须与声明一致`);
+        await waitFor(page, `document.querySelector(${JSON.stringify(selector)}).textContent === '已复制'`, `${syntax} 复制成功提示`);
+        await waitFor(page, `document.querySelector(${JSON.stringify(selector)}).textContent === '复制'`, `${syntax} 按钮文字恢复`);
+      }
+      // 重排会重新绘制图形，但复制按钮仍然只有一个。
+      await page.evaluate('HtmlViewViz.relayout({media:"screen"})');
+      const after = await collect(page);
+      assert.deepEqual(after.map(({ syntax, buttonCount, allButtons, buttonText, details }) => ({ syntax, buttonCount, allButtons, buttonText, details })),
+        before.map(({ syntax }) => ({ syntax, buttonCount: 1, allButtons: 1, buttonText: '复制', details: 0 })));
+    }
+  } finally {
+    await page.close();
+    await browser.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+// 意图：剪贴板接口不可用时退回隐藏文本框加 execCommand，两种方式都失败时按钮说明复制失败。
+test('viz host falls back to a hidden textarea when the clipboard API is denied', async () => {
+  const spec = { chart: 'bar', title: '复制降级', data: [{ label: 'A', value: 1 }], encode: { category: 'label', value: 'value' } };
+  const declaration = JSON.stringify(spec);
+  const renderer = createRenderer({ specs: [spec] });
+  const dir = temp('copy-fallback');
+  const file = join(dir, 'fixture.html');
+  writeFileSync(file, `<!doctype html><html lang="zh-CN"><meta charset="utf-8"><body><pre data-viz="kchart">${declaration}</pre><script>${renderer.bundleSource()}</script>${configScript({ lang: 'zh-CN' })}<script>${host}</script></body></html>`, 'utf8');
+  const button = `document.querySelector('figure.viz-figure figcaption > button')`;
+  const browser = await launchBrowser();
+  const page = await browser.newPage();
+  try {
+    await page.goto(pathToFileURL(file).href);
+    await page.evaluate('HtmlViewViz.ready()');
+    await page.evaluate(`(() => {
+      Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: () => Promise.reject(new Error('denied')) } });
+      document.execCommand = (command) => { window.__fallback = { command, text: document.querySelector('textarea')?.value ?? '' }; return true; };
+    })()`);
+    await page.evaluate(`${button}.click()`);
+    await waitFor(page, 'typeof window.__fallback === "object" && window.__fallback !== null', '文本框降级');
+    assert.deepEqual(await page.json('JSON.stringify(window.__fallback)'), { command: 'copy', text: declaration });
+    assert.equal(await page.evaluate("document.querySelectorAll('textarea').length"), 0, '降级用的文本框不能留在页面里');
+    await waitFor(page, `${button}.textContent === '已复制'`, '降级后的成功提示');
+
+    // 两种复制方式都失败时，按钮说明复制失败，随后恢复原文字。
+    await page.goto(pathToFileURL(file).href);
+    await page.evaluate('HtmlViewViz.ready()');
+    await page.evaluate(`(() => {
+      Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: () => Promise.reject(new Error('denied')) } });
+      document.execCommand = () => false;
+    })()`);
+    await page.evaluate(`${button}.click()`);
+    await waitFor(page, `${button}.textContent === '复制失败'`, '复制失败提示');
+    await waitFor(page, `${button}.textContent === '复制'`, '失败后恢复');
   } finally {
     await page.close();
     await browser.close();
@@ -170,7 +306,7 @@ test('viz host preserves natural scrolling and resolves titles, themes, print me
     assert.equal(notReady, true, 'ready waits for the document font promise before final layout');
     await page.evaluate('window.releaseFonts()');
     await page.evaluate('HtmlViewViz.ready()');
-    const initial = await page.json(`JSON.stringify((()=>{const body=document.querySelector('#wide .viz-body'),caption=document.querySelector('#diagram .fig-title'),figures=[...document.querySelectorAll('#explicit figure')],ids=figures.map(f=>f.querySelector('svg title')?.id);return {width:Number(body.querySelector('svg').getAttribute('width')),client:body.clientWidth,caption:caption.textContent,ids,theme:window.themeCalls[0]}})())`);
+    const initial = await page.json(`JSON.stringify((()=>{const body=document.querySelector('#wide .viz-body'),caption=document.querySelector('#diagram .fig-title'),figures=[...document.querySelectorAll('#explicit figure')],ids=figures.map(f=>f.querySelector('svg title')?.id);return {width:Number(body.querySelector('svg').getAttribute('width')),client:body.clientWidth,caption:caption.querySelector('.fig-heading')?.textContent,ids,theme:window.themeCalls[0]}})())`);
     assert.ok(initial.width > initial.client, JSON.stringify(initial));
     const scroll = await page.json('(()=>{const body=document.querySelector("#wide .viz-body");body.scrollLeft=75;return body.scrollLeft})()');
     assert.equal(scroll, 75);

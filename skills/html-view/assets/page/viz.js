@@ -78,35 +78,36 @@
     const offset = svg.getBoundingClientRect().left - body.getBoundingClientRect().left + body.scrollLeft;
     body.scrollLeft = Math.max(0, Math.min(body.scrollWidth - body.clientWidth, offset + anchor - body.clientWidth / 2));
   };
-  // 数据表由渲染结果提供：数据图从 data 生成行列，结构图没有表格。
-  const appendTable = (figure, model, lang) => {
-    if (!model?.rows?.length) return;
-    const doc = figure.ownerDocument;
-    const details = doc.createElement('details');
-    details.className = 'viz-data';
-    const summary = doc.createElement('summary');
-    const zh = isZh(lang);
-    summary.textContent = zh ? `图表数据 · ${model.rows.length} 行` : `Chart data · ${model.rows.length} ${model.rows.length === 1 ? 'row' : 'rows'}`;
-    details.append(summary);
-    const table = doc.createElement('table');
-    const head = table.createTHead().insertRow();
-    for (const { label } of model.columns) {
-      const cell = doc.createElement('th');
-      cell.scope = 'col';
-      cell.textContent = label;
-      head.append(cell);
+  const copyText = async (doc, text) => {
+    try {
+      await doc.defaultView.navigator.clipboard.writeText(text);
+      return true;
+    } catch {
+      const area = doc.createElement('textarea');
+      area.value = text;
+      area.setAttribute('readonly', '');
+      area.style.cssText = 'position:fixed;top:0;left:0;opacity:0';
+      doc.body.append(area);
+      area.select();
+      try { return doc.execCommand('copy'); } catch { return false; }
+      finally { area.remove(); }
     }
-    const body = table.createTBody();
-    for (const row of model.rows) {
-      const tr = body.insertRow();
-      row.forEach(({ text, value }) => {
-        const cell = tr.insertCell();
-        cell.textContent = text;
-        cell.setAttribute('data-value', value == null ? 'null' : typeof value === 'object' ? JSON.stringify(value) : String(value));
-      });
-    }
-    details.append(table);
-    figure.append(details);
+  };
+  const appendCopy = (caption, pre, lang) => {
+    const doc = pre.ownerDocument;
+    const button = doc.createElement('button');
+    const [idle, copied, failed] = isZh(lang) ? ['复制', '已复制', '复制失败'] : ['Copy', 'Copied', 'Copy failed'];
+    button.type = 'button';
+    button.className = 'btn btn-sm copy';
+    button.textContent = idle;
+    let timer;
+    button.addEventListener('click', async () => {
+      const ok = await copyText(doc, pre.textContent);
+      button.textContent = ok ? copied : failed;
+      clearTimeout(timer);
+      timer = setTimeout(() => { button.textContent = idle; }, 1600);
+    });
+    caption.append(button);
   };
   const readSpec = (pre, syntax) => {
     const source = pre.textContent || '';
@@ -127,10 +128,15 @@
     }
     const caption = doc.createElement('figcaption');
     caption.className = 'fig-title';
+    const heading = doc.createElement('span');
+    heading.className = 'fig-heading';
     const captionText = doc.createTextNode('');
+    heading.append(captionText);
     const subtitle = doc.createElement('span');
     subtitle.className = 'fig-sub';
-    caption.append(captionText);
+    const lang = languageOf(doc);
+    caption.append(heading);
+    if (configOf(doc).copy !== false) appendCopy(caption, pre, lang);
     figure.append(caption);
     const body = doc.createElement('div');
     body.className = 'fig-body viz-body';
@@ -143,7 +149,6 @@
     while (usedPrefixes.has(prefix)) prefix = `${basePrefix}-${++prefixSequence}`;
     usedPrefixes.add(prefix);
     const state = { figure, body, pre, prefix, width: 0, observer: null, detached: () => {}, pending: false, done: Promise.resolve() };
-    const lang = languageOf(doc);
     const render = (force = false) => {
       state.pending = false;
       const rect = body.getBoundingClientRect();
@@ -195,7 +200,6 @@
         if (!parsed.diagram && Array.isArray(spec.interaction) && spec.interaction.length > 0 && typeof K.attach === 'function') {
           state.detached = K.attach(svg, spec);
         }
-        figure.querySelector(':scope > .viz-data')?.remove();
         figure.querySelector(':scope > .fig-meta')?.remove();
         if (!parsed.diagram && (spec.source || spec.note)) {
           const meta = doc.createElement('div');
@@ -204,7 +208,6 @@
           if (spec.note) { const note = doc.createElement('span'); note.className = 'fig-note'; note.textContent = `${isZh(lang) ? '注：' : 'Note: '}${spec.note}`; meta.append(note); }
           figure.append(meta);
         }
-        if (config.dataTable !== false && !parsed.diagram) appendTable(figure, result.table, lang);
       }).catch((error) => reportError(figure, error, true, lang));
       pending = Promise.all([pending.catch(() => {}), state.done]).then(() => undefined);
     };

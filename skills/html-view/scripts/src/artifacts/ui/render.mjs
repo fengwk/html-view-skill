@@ -65,7 +65,7 @@ export function renderUi({ title = '', lang = 'zh-CN', device = 'mobile', design
     ...frame,
     scripts: [config],
     // 线框稿打印沿用浅色线框配色，不让暗色打印的默认 Paper 色板带回红色。
-    vizOptions: { themes, dataTable: false, ...(normalizedDesign.fidelity === 'wireframe'
+    vizOptions: { themes, copy: false, ...(normalizedDesign.fidelity === 'wireframe'
       ? { printScheme: 'light' } : { printThemes: { dark: darkMockupPrint } }) },
   });
   return { html, design: normalizedDesign, device: normalizedDevice, lang: normalizedLang, themes, adjusted };

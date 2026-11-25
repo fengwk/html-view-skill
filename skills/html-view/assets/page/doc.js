@@ -93,7 +93,7 @@
   const cleanText = (el) => {
     if (!el) return '';
     const clone = el.cloneNode(true);
-    $$('.fig-num, .tbl-num, .scroll-hint', clone).forEach((x) => x.remove());
+    $$('.fig-num, .tbl-num, .scroll-hint, .copy', clone).forEach((x) => x.remove());
     return clone.textContent.trim().replace(/\s+/g, ' ');
   };
   const addNum = (el, className, text) => {
@@ -112,7 +112,7 @@
       if (!titleEl) return;
       figs += 1;
       const title = cleanText(titleEl);
-      addNum(titleEl, 'fig-num', T.figureNum + ' ' + figs);
+      addNum($('.fig-heading', titleEl) || titleEl, 'fig-num', T.figureNum + ' ' + figs);
       if (fig.id) targetLabels.set(fig.id, T.figureLabel(figs, title));
     });
     let tables = 0;
@@ -639,7 +639,7 @@
   const markOverflow = () => {
     $$('.viz-figure').forEach((fig) => {
       const scroller = $('.viz-body', fig);
-      const cap = $('.fig-title', fig);
+      const cap = $('.fig-heading', fig) || $('.fig-title', fig);
       if (!scroller || !cap) return;
       const overflowing = scroller.scrollWidth > scroller.clientWidth + 1;
       let hint = $('.scroll-hint', cap);

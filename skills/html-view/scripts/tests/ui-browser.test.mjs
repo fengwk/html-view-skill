@@ -75,9 +75,9 @@ test('UI shell preserves select/date required-value-change behavior, navigation,
   await page.evaluate(`document.querySelector('#scr-overview a[data-go="scr-insights"]').click()`);
   await page.evaluate(`new Promise((resolve,reject)=>{const start=performance.now();const poll=()=>{if(!document.querySelector('#scr-insights').hidden&&document.querySelector('#channel-retention svg')){resolve(true);return;}if(performance.now()-start>5000){reject(Error('chart did not render after screen navigation'));return;}requestAnimationFrame(poll)};poll()})`);
   await page.evaluate('HtmlViewViz.ready()');
-  const beforeTheme = await page.json(`JSON.stringify({scheme:document.documentElement.dataset.scheme,svg:document.querySelector('#channel-retention svg').innerHTML,table:!!document.querySelector('#channel-retention .viz-data')})`);
+  const beforeTheme = await page.json(`JSON.stringify({scheme:document.documentElement.dataset.scheme,svg:document.querySelector('#channel-retention svg').innerHTML,copyButtons:[...document.querySelectorAll('#channel-retention figcaption button')].length})`);
   assert.equal(beforeTheme.scheme, 'light');
-  assert.equal(beforeTheme.table, false, 'UI has no default readable chart table');
+  assert.equal(beforeTheme.copyButtons, 0, '界面稿不输出复制按钮');
   assert.equal(await page.evaluate("getComputedStyle(document.querySelector('.card > #channel-retention')).marginBlockStart"), '0px',
     '图嵌入现有卡片时不叠加外边距');
   const desktop = await page.evaluate(`(()=>{document.querySelector('.ui-seg[aria-label="宽度"] button:nth-child(3)').click();return {width:document.querySelector('.ui-shell').dataset.width,pressed:document.querySelector('.ui-seg[aria-label="宽度"] button:nth-child(3)').getAttribute('aria-pressed')}})()`);
@@ -104,7 +104,7 @@ test('UI shell preserves select/date required-value-change behavior, navigation,
         displayWidth: svg.getBoundingClientRect().width,
         label: svg.getAttribute('aria-labelledby'),
       })),
-      dataTables: document.querySelectorAll('.ui-shot .viz-data').length,
+      copyButtons: document.querySelectorAll('.ui-shot figcaption button').length,
       buttons: Array.from(document.querySelectorAll('.ui-shot .screen .btn')).filter(button => !button.closest('[hidden]'))
         .map(button => getComputedStyle(button).display),
     });
@@ -113,7 +113,7 @@ test('UI shell preserves select/date required-value-change behavior, navigation,
   assert.ok(print.buttons.length > 0, 'printed screens contain visible product buttons');
   assert.ok(print.buttons.every(display => display !== 'none'), `screen buttons stay in print: ${print.buttons}`);
   assert.equal(print.charts.length, 8);
-  assert.equal(print.dataTables, 0, 'clones reuse UI host options');
+  assert.equal(print.copyButtons, 0, 'clones reuse UI host options');
   assert.equal(new Set(print.charts.map(({ label }) => label)).size, 8, 'clones have independent SVG reference IDs');
   for (const { device, width, displayWidth } of print.charts) {
     // A chart in a card is laid out at the card's sub-pixel content width; only scaling would move the drawn width.

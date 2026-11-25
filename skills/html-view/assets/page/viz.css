@@ -1,14 +1,16 @@
 /* KChart 原始 pre 是文件内唯一源码；浏览器运行时只在 DOM 中把它换成图卡。 */
 .viz-source, pre[data-viz] { display:none; }
 .viz.viz-figure { margin:var(--sp-5) 0; overflow:hidden; border-radius:var(--card-radius); background:var(--surface); }
-.viz-figure > figcaption { display:flex; flex-wrap:wrap; align-items:baseline; gap:2px var(--sp-3); padding:18px 20px 0; }
+.viz-figure > figcaption { display:grid; grid-template-columns:minmax(0, 1fr) auto; align-items:baseline; gap:2px var(--sp-3); padding:18px 20px 0; overflow-wrap:anywhere; }
+.viz-figure > figcaption > .fig-heading { grid-area:1 / 1; }
+.viz-figure > figcaption > .copy { grid-area:1 / 2; }
 .fig-title { flex:1 1 auto; min-width:0; color:var(--fg-1); font-size:var(--fs-dense); line-height:1.5; font-weight:650; letter-spacing:-.005em; }
-.fig-sub { flex:1 0 100%; color:var(--fg-3); font-size:var(--fs-small); line-height:1.5; }
+.viz-figure > figcaption > .fig-sub { grid-column:1 / -1; color:var(--fg-3); font-size:var(--fs-small); line-height:1.5; }
 .viz-body.fig-body { min-width:0; overflow-x:auto; overflow-y:hidden; padding:14px 20px 18px; -webkit-overflow-scrolling:touch; scrollbar-width:thin; scrollbar-color:var(--line-2) transparent; }
 .viz-body > svg { display:block; max-width:none; height:auto; flex:none; }
-.viz-data { margin:0 20px 16px; }
-.viz-data table { width:100%; border-collapse:collapse; }
+html[data-mode="export"] .viz-figure > figcaption > .copy { display:none; }
 @media print {
+  .viz-figure > figcaption > .copy { display:none; }
   .viz.viz-figure { break-inside:avoid; }
   .viz-body.fig-body { overflow:visible; padding:12px 16px 14px; }
   .viz-figure > figcaption { padding:14px 16px 0; }

@@ -120,7 +120,7 @@ function writeOutput(target, buffer) {
 async function prepareExport(page) {
   await page.evaluate(`(${async function prepare() {
     document.documentElement.dataset.mode = 'export';
-    document.querySelectorAll('details:not(.viz-data)').forEach((item) => { item.open = true; });
+    document.querySelectorAll('details').forEach((item) => { item.open = true; });
     if (document.fonts && document.fonts.ready) await document.fonts.ready;
     const media = matchMedia('print').matches ? 'print' : 'screen';
     if (window.HtmlViewViz?.relayout) await window.HtmlViewViz.relayout({ media });

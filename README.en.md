@@ -37,7 +37,7 @@ Invoke-WebRequest -UseBasicParsing -Uri 'https://raw.githubusercontent.com/fengw
 
 > Use HTML View to turn `proposal.md` into a technical design reviewers can comment on. Keep the decisions and risks, and draw the call chain between services. Deliver the HTML and a checked PDF.
 
-> Turn these pre-aggregated CSV files into an offline dashboard. The first screen should show the key metrics, the revenue trend and the channel differences. Every number should open into rows I can check, and missing values must not become 0.
+> Turn these pre-aggregated CSV files into an offline dashboard. The first screen should show the key metrics, the revenue trend and the channel differences. Leave missing values blank rather than treating them as zero.
 
 > Build a clickable expense-claim prototype with a list, a detail page, and failed and successful submission states. Walk through the submit flow at phone width.
 

@@ -727,7 +727,7 @@ function inspectPage(options) {
 async function preparePage(page, { exportMode = false, expandDetails = false } = {}) {
   const expression = `(${async function prepare(options) {
     if (options.exportMode) document.documentElement.dataset.mode = 'export';
-    if (options.expandDetails) document.querySelectorAll('details:not(.viz-data)').forEach((item) => { item.open = true; });
+    if (options.expandDetails) document.querySelectorAll('details').forEach((item) => { item.open = true; });
     if (window.HtmlViewViz?.ready) await window.HtmlViewViz.ready();
     if (window.HtmlViewViz?.relayout) {
       await window.HtmlViewViz.relayout({ media: matchMedia('print').matches ? 'print' : 'screen' });

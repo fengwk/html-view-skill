@@ -13,8 +13,8 @@ const isCjk = (ch) => Boolean(ch) && CJK.test(ch);
 const ALERTS = { NOTE: 'info', TIP: 'info', IMPORTANT: 'warn', WARNING: 'warn', CAUTION: 'danger' };
 
 const IMPORT_LABELS = {
-  zh: { untitled: '未命名文档', remote: '（远程图片，未内嵌）', missing: '图片未内嵌：', meta: 'Markdown 前言区（YAML）' },
-  en: { untitled: 'Untitled document', remote: ' (remote image, not embedded)', missing: 'Image not embedded: ', meta: 'Markdown front matter (YAML)' },
+  zh: { untitled: '未命名文档', remote: '（远程图片，未内嵌）', missing: '图片未内嵌：' },
+  en: { untitled: 'Untitled document', remote: ' (remote image, not embedded)', missing: 'Image not embedded: ' },
 };
 
 const langOf = (ctx) => (isZhLang(ctx?.lang) ? 'zh' : 'en');
@@ -49,7 +49,7 @@ export function plainText(md) {
   return s.replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').trim();
 }
 
-/** 简单内联 title 的值；块、锚点、标签、引用等写法返回 null，交给原始折叠内容保留。 */
+/** 简单内联 title 的值；块、锚点、标签、引用等写法返回 null，交给原文代码块保留。 */
 function simpleTitleValue(raw) {
   const value = String(raw).trim();
   if (!value) return null;
@@ -68,7 +68,7 @@ function simpleTitleValue(raw) {
 
 /**
  * 前言区：简单 title 可作文档标题；只有简单 title 且无其他内容时只作标题。
- * 其余情况把整段前言区原样留在 metadata，避免丢字段、锚点、块内容和缩进。
+ * 其余情况把整段前言区原样留在 metadata，由调用方按 yaml 代码块展示，避免丢字段、锚点、块内容和缩进。
  */
 function splitFrontMatter(md) {
   const text = String(md).replace(/^\uFEFF/, '').replace(/\r\n?/g, '\n');
@@ -85,7 +85,7 @@ function splitFrontMatter(md) {
     const m = /^([\w-]+)\s*:\s*(.*)$/.exec(line.trim());
     if (m && m[1].toLowerCase() === 'title') titleLines.push({ index, value: m[2] });
   });
-  const raw = body.join('\n').replace(/^\n+|\n+$/g, '');
+  const raw = body.join('\n');
   const metadata = raw.trim() ? raw : '';
   if (titleLines.length !== 1) return { meta: {}, lines: lines.slice(end + 1), metadata };
   const title = simpleTitleValue(titleLines[0].value);
@@ -96,18 +96,6 @@ function splitFrontMatter(md) {
     lines: lines.slice(end + 1),
     metadata: hasOtherContent ? metadata : '',
   };
-}
-
-/** 前言区原文放进折叠块，YAML 按代码转义，信息不丢也不触发 HTML。 */
-function frontMatterFold(yaml, ctx) {
-  return [
-    '<details class="fold">',
-    `<summary>${labelsOf(ctx).meta}</summary>`,
-    '<div class="fold-body">',
-    `<pre data-lang="yaml"><code>${escapeCode(yaml)}</code></pre>`,
-    '</div>',
-    '</details>',
-  ].join('\n');
 }
 
 /** 找一个强调/删除线定界符的闭合位置；不套 CommonMark 的 flanking 规则，紧贴中文标点也生效。 */
@@ -645,7 +633,8 @@ export function markdownToContent(md, {
     baseDir, levelOf, lang: langKey, title: override ?? meta.title ?? null, renderViz,
   };
   const items = renderBlocks(lines, ctx);
-  if (metadata) items.unshift({ kind: 'html', html: frontMatterFold(metadata, ctx) });
+  // 前言区原文按 ```yaml 代码块渲染，与手写代码块同形（doc.js 因此自动给复制按钮），字段不丢。
+  if (metadata) items.unshift({ kind: 'code', lang: 'yaml', code: metadata });
   stripManualNumbers(items, ctx);
   const title = ctx.title ?? null;
 

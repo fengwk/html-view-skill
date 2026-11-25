@@ -24,11 +24,11 @@
 
 `htmlview:kind` 标记产物，`htmlview:shell` 记录资源指纹。唯一内容区是 `<!-- htmlview:content -->` 和 `<!-- /htmlview:content -->` 之间的 HTML。文档和报表的 `style` 只重组外壳。Markdown 构建绑定源路径，数据报表绑定内容区哈希和随页证据。哈希用于发现改动，不是数字签名。报表只消费上游已经汇总的 CSV/JSON；比较遵循报告期间，未知不当作零，不访问数据库。
 
-图形内容保存为 `pre[data-viz]`，类型为 `kchart`、`mermaid`、`layers`、`blocks` 或 `swimlane`。保存的是转义后的声明，不是静态 SVG。没有图时不嵌入图形代码；有图时地图随文档内联，模块按照声明计算依赖闭包。`viz render` 则输出独立 SVG，或带内嵌声明的静态图页。图页打开时不运行脚本；`style` 用声明重新渲染。
+图形内容保存为 `pre[data-viz]`，类型为 `kchart`、`mermaid`、`layers`、`blocks` 或 `swimlane`。保存的是转义后的声明，不是静态 SVG。没有图时不嵌入图形代码；有图时地图随文档内联，模块按照声明计算依赖闭包。`viz render` 则输出独立 SVG，或带内嵌声明的静态图页。图页只运行复制源码按钮的脚本；`style` 用声明重新渲染。
 
 ## 布局与检查
 
-`packages/kchart/src/families.json` 登记图型，源码的 `import` 决定模块依赖；`npm run build` 据此产出 ESM 入口、逐模块的浏览器单元和 `units.json` 清单，`npm run vendor` 把 `dist/` 原样镜像到技能。DOM-free 解析与布局能在 Node 和浏览器使用；图卡挂载由技能自己的 `assets/page/viz.js` 负责：它按外壳配置用 Canvas 测字、生成图题/来源/数据表，并在宽度、主题或打印媒体变化后重排，KChart 本身只负责 `render()`/`diagram()` 的渲染结果。结构图和数据图共享 SVG 序列化。可读字和完整几何优先；需要时放宽图内画布并允许图框内横向滚动，不将窄屏默默变成别的构图。
+`packages/kchart/src/families.json` 登记图型，源码的 `import` 决定模块依赖；`npm run build` 据此产出 ESM 入口、逐模块的浏览器单元和 `units.json` 清单，`npm run vendor` 把 `dist/` 原样镜像到技能。DOM-free 解析与布局能在 Node 和浏览器使用；图卡挂载由技能自己的 `assets/page/viz.js` 负责：它按外壳配置用 Canvas 测字、生成图题、来源和复制按钮，并在宽度、主题或打印媒体变化后重排，KChart 本身只负责 `render()`/`diagram()` 的渲染结果。结构图和数据图共享 SVG 序列化。可读字和完整几何优先；需要时放宽图内画布并允许图框内横向滚动，不将窄屏默默变成别的构图。
 
 `audit` 检查输入及产物完整性，`check` 检查实际设备宽度、打印版心与浏览器错误。`shot` 和 `export` 等待当前媒体布局。打印时检查与导出共用版心测量；发现横向裁切或图高超过单页时拒绝写 PDF。宽图可用 `--paper a4-landscape`，高图可用 `--paper a3-portrait`；仍放不下时交付完整 SVG 或由作者重排。自动测试不替代样张目检。
 
