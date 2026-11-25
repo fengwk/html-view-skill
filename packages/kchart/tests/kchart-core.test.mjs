@@ -23,23 +23,6 @@ test('core loads without DOM and refuses to lay out without a validator', () => 
   assert.equal(api.util.mix('#000000', '#ffffff', 0.5), '#808080');
 });
 
-// 意图：确认纯函数数据模型复用字段 label、unit 与图表 formatter，并保留用于审计的原值。
-test('dataTable returns labeled, formatted record cells without a DOM', () => {
-  const spec = {
-    data: [{ month: '2026-11', revenue: 1284000, rate: 0.792, missing: null }],
-    fields: { month: { label: '月份' }, revenue: { label: '上月收入', unit: '元' }, rate: { label: '转化率', format: 'percent', decimals: 1 } },
-  };
-  const result = plain(api.dataTable(spec, { lang: 'zh' }));
-  assert.deepEqual(result.columns, [
-    { key: 'month', label: '月份' }, { key: 'revenue', label: '上月收入（元）' },
-    { key: 'rate', label: '转化率（%）' }, { key: 'missing', label: 'missing' },
-  ]);
-  assert.deepEqual(result.rows[0].map(({ text }) => text), ['2026-11', '128.4万元', '79.2%', '—']);
-  assert.equal(result.rows[0][1].value, 1284000);
-  assert.equal(result.rows[0][3].value, null);
-  assert.equal(api.dataTable({ data: { nodes: [] } }), null);
-});
-
 // 意图：各内置主题角色直接用对应色值；变更渲染方式不能改变用户看到的颜色。
 test('concrete theme roles preserve every built-in theme palette', () => {
   api.validate = (spec) => ({ errors: [], data: spec });

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.0
+
+### Breaking
+
+- Removed `render().table` from all chart rendering entry points. `render()` returns `{ svg, scene, diagnostics }`. Hosts that need to display data details should render them from `spec.data`.
+
 ## 0.3.0
 
 KChart is a rendering layer: it returns SVG and the data behind it, and the host page owns the DOM.

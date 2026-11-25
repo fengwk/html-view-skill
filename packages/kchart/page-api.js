@@ -13,16 +13,13 @@ export function createPageApi(modules, unloaded, types, diagramOnly = false, reg
       render(spec, options = {}) {
         if (excluded.get(spec?.chart)?.includes(spec.variant)) {
           const { errors } = validate(spec);
-          if (errors.length) return { scene: null, svg: null, table: null, diagnostics: errors };
-          return { scene: null, svg: null, table: null, diagnostics: [{
+          if (errors.length) return { scene: null, svg: null, diagnostics: errors };
+          return { scene: null, svg: null, diagnostics: [{
             code: 'BAD_KCHART', path: '/variant', message: `未装入 ${spec.chart} 的变体模块`,
             fix: '以该图表声明重新组装渲染器',
           }] };
         }
-        const result = registry.render(spec, { frame: true, ...options });
-        // The host draws the table; rendering only reports its model, and only for a chart that drew.
-        const table = result.svg ? modules['chart/context'].dataTable(spec, { lang: options.lang }) : null;
-        return { ...result, table };
+        return registry.render(spec, { frame: true, ...options });
       },
       ...(modules.interaction ? { attach: modules.interaction.attach } : {}),
     });

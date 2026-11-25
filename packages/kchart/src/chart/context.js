@@ -1,5 +1,5 @@
 import { createContext } from '../core/context.js';
-import { compactTemporal, formatPercent, isEnglish, makeFormatters, tickTexts } from '../core/format.js';
+import { compactTemporal, formatPercent, makeFormatters, tickTexts } from '../core/format.js';
 import { extent, niceScale } from '../core/scale.js';
 import { fieldReader } from './fields.js';
 
@@ -110,21 +110,5 @@ function table(spec, ctx) {
   }
   return { rows, categoryField, valueFields, series, categories };
 }
-function dataTable(spec, options = {}) {
-  const rows = Array.isArray(spec?.data) ? spec.data : Array.isArray(spec?.data?.rows) ? spec.data.rows : null;
-  if (!rows?.length || !rows.every((row) => row && typeof row === 'object' && !Array.isArray(row))) return null;
-  const keys = [...new Set(rows.flatMap((row) => Object.keys(row)))], ctx = makeContext({ ...options, spec });
-  const columns = keys.map((key) => {
-    const field = ctx.field(key), unit = field.unit || (field.format === 'percent' ? '%' : ''), label = spec.fields?.[key]?.label;
-    const suffix = unit ? (isEnglish(options.lang) ? ` (${unit})` : `（${unit}）`) : '';
-    return { key, label: label ? `${label}${suffix}` : key };
-  });
-  const tableRows = rows.map((row) => columns.map(({ key }) => {
-    const value = row[key];
-    const text = value == null ? '—' : typeof value === 'number' ? ctx.format(value, key) : typeof value === 'object' ? JSON.stringify(value) : String(value);
-    return { text, value };
-  }));
-  return { columns, rows: tableRows };
-}
 
-export { makeContext, dataTable };
+export { makeContext };

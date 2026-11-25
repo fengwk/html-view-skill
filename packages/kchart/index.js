@@ -35,15 +35,15 @@ export async function render(spec, options = {}) {
   const name = spec?.data?.map?.asset;
   const map = family === 'chart/maps' && !options.assets && typeof name === 'string'
     ? maps[`./assets/maps/${name}.geojson`] : undefined;
-  const [registryModule, chartSpec, context, layouts, variants, mapText] = await Promise.all([
-    import('./src/chart/registry.js'), import('./src/chart/spec.js'), import('./src/chart/context.js'),
+  const [registryModule, chartSpec, layouts, variants, mapText] = await Promise.all([
+    import('./src/chart/registry.js'), import('./src/chart/spec.js'),
     Promise.all([...bases].map(id => loadFamily[id]())), decorator && loadFamily[decorator.family](), map?.(),
   ]);
   const registry = registryModule.createRegistry(chartSpec.validate);
   for (const layout of layouts) layout.install(registry);
   variants?.install(registry);
   const api = createPageApi({
-    'chart/spec': chartSpec, 'chart/catalog': { catalog }, 'chart/context': context, 'core/theme': { theme, themes },
+    'chart/spec': chartSpec, 'chart/catalog': { catalog }, 'core/theme': { theme, themes },
   }, [], [], false, registry);
   const assets = mapText === undefined ? options.assets : { [name]: JSON.parse(mapText) };
   return plain(api.render(spec, { ...options, assets }));

@@ -26,7 +26,7 @@
       "core/scale",
       "chart/fields"
     ],
-    "bytes": 4657
+    "bytes": 4031
   },
   "chart/distribution": {
     "file": "units/chart/distribution.js",

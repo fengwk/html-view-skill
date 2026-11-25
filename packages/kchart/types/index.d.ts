@@ -96,20 +96,9 @@ export interface Scene {
   overflow?: { left: number; top: number; right: number; bottom: number };
 }
 
-/** The rows a host draws under a chart, already labelled and formatted for the render language. */
-export interface DataTable {
-  columns: { key: string; label: string }[];
-  rows: { text: string; value: unknown }[][];
-}
-
-/** Diagram results; chart renders add `table` and use ChartRenderResult. */
 export type RenderResult<D = ChartDiagnostic> =
   | { svg: string; scene: Scene; diagnostics: D[] }
   | { svg: null; scene: null; diagnostics: D[] };
-
-export type ChartRenderResult =
-  | { svg: string; scene: Scene; table: DataTable | null; diagnostics: ChartDiagnostic[] }
-  | { svg: null; scene: null; table: null; diagnostics: ChartDiagnostic[] };
 
 export interface DiagramType {
   readonly kind: string;
@@ -129,7 +118,7 @@ export interface ChartType {
   readonly requiredSpecial: readonly string[];
 }
 
-export function render(spec: ChartSpec, options?: RenderOptions): Promise<ChartRenderResult>;
+export function render(spec: ChartSpec, options?: RenderOptions): Promise<RenderResult>;
 export function diagram(source: string, options?: DiagramOptions): Promise<RenderResult<DiagramDiagnostic>>;
 export function check(source: string, options?: CheckOptions): Promise<DiagramDiagnostic[]>;
 

@@ -70,41 +70,42 @@ it('limits the layouts of each renderer to its declared families', () => {
   expect(line.render(gallery.charts.pie).diagnostics[0]).toMatchObject({ code: 'BAD_KCHART', path: '/chart' });
 });
 
-// The table is assembled once, in the shared page API, so every entry returns the same model.
-it('returns the labelled and formatted chart table from every entry', async () => {
-  const spec = {
-    chart: 'bar',
-    data: [{ month: '2026-11', revenue: 1284000 }],
-    encode: { category: 'month', value: 'revenue' },
-    fields: { month: { label: '月份' }, revenue: { label: '上月收入', unit: '元' } },
-  };
-  const renderOptions = { width: 780, lang: 'zh', theme: 'claude' };
-  const expected = {
-    columns: [{ key: 'month', label: '月份' }, { key: 'revenue', label: '上月收入（元）' }],
-    rows: [[{ text: '2026-11', value: '2026-11' }, { text: '128.4万元', value: 1284000 }]],
-  };
+// Exact result keys catch a reintroduced table even on paths that never draw a chart.
+const renderKeys = ['diagnostics', 'scene', 'svg'];
+it('returns only SVG, scene and diagnostics from every chart entry', async () => {
+  const spec = gallery.charts.line;
   const renderer = node.createRenderer({ specs: [spec] });
-  expect(node.render(spec, renderOptions).table).toEqual(expected);
-  expect(renderer.render(spec, renderOptions).table).toEqual(expected);
-  expect(page(renderer.bundleSource()).render(spec, renderOptions).table).toEqual(expected);
-  expect((await asyncRender(spec, renderOptions)).table).toEqual(expected);
-  // The render language picks the unit suffix, so a host can render either style from one model.
-  expect(node.render(spec, { ...renderOptions, lang: 'en' }).table.columns.map(({ label }) => label))
-    .toEqual(['月份', '上月收入 (元)']);
-  // Field formats reach the table too; 0.792 shows as 79.2%.
-  const percent = {
-    chart: 'bar',
-    data: [{ channel: 'push', rate: 0.792 }],
-    encode: { category: 'channel', value: 'rate' },
-    fields: { rate: { label: '转化率', format: 'percent', decimals: 1 } },
-  };
-  expect(node.render(percent, renderOptions).table).toEqual({
-    columns: [{ key: 'channel', label: 'channel' }, { key: 'rate', label: '转化率（%）' }],
-    rows: [[{ text: 'push', value: 'push' }, { text: '79.2%', value: 0.792 }]],
-  });
-  // Non-tabular data and a chart that never drew have no table to show.
-  expect(node.render(gallery.charts.tree, renderOptions).table).toBeNull();
-  expect(node.render({ chart: 'not-a-chart' }, renderOptions).table).toBeNull();
+  const browser = page(renderer.bundleSource());
+  for (const render of [asyncRender, node.render, renderer.render, browser.render]) {
+    const result = await render(spec, options);
+    expect(Object.keys(result).sort()).toEqual(renderKeys);
+    expect(result.svg).toMatch(/^<svg\b/);
+
+    const invalid = await render({ chart: 'not-a-chart' }, options);
+    expect(Object.keys(invalid).sort()).toEqual(renderKeys);
+    expect(invalid.svg).toBeNull();
+    expect(invalid.scene).toBeNull();
+    expect(invalid.diagnostics).not.toHaveLength(0);
+  }
+});
+
+// A base-only renderer reaches both excluded-variant branches before the registry.
+it('returns the same result shape for unloaded variants and their validation errors', () => {
+  const renderer = node.createRenderer({ specs: [gallery.charts.line] });
+  const browser = page(renderer.bundleSource());
+  const variant = gallery.variantSpec('line', 'counter');
+  const invalid = { ...variant, encode: {} };
+  const { errors } = node.validate(invalid);
+  expect(errors).not.toHaveLength(0);
+  for (const render of [renderer.render, browser.render]) {
+    const unloaded = render(variant, options);
+    expect(Object.keys(unloaded).sort()).toEqual(renderKeys);
+    expect(unloaded).toMatchObject({ svg: null, scene: null, diagnostics: [{ code: 'BAD_KCHART', path: '/variant' }] });
+
+    const rejected = render(invalid, options);
+    expect(Object.keys(rejected).sort()).toEqual(renderKeys);
+    expect(rejected).toEqual({ svg: null, scene: null, diagnostics: errors });
+  }
 });
 
 // Checks the optional interaction bundle, diagram-only bundle and the rendering-only page API.
@@ -113,6 +114,6 @@ it('preserves optional browser APIs', () => {
   expect(Object.keys(page(node.createRenderer({ sources: [source] }).bundleSource())).sort()).toEqual(diagramKeys);
   const browser = page(node.createRenderer({ specs: [{ chart: 'line', interaction: [{}] }] }).bundleSource());
   expect(Object.keys(browser).sort()).toEqual([...chartKeys, 'attach'].sort());
-  // Mounting and the data table belong to the host, so the page API must not grow them back.
-  for (const name of ['mount', 'mountClones', 'ready', 'relayout', 'dataTable']) expect(browser[name]).toBeUndefined();
+  // Mounting belongs to the host, so the page API must not grow it back.
+  for (const name of ['mount', 'mountClones', 'ready', 'relayout']) expect(browser[name]).toBeUndefined();
 });
