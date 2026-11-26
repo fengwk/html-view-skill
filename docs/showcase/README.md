@@ -6,7 +6,7 @@
 
 这里所有图都用技能内的构建镜像 `skills/html-view/vendor/kchart` 渲染，与 CLI 运行时使用同一个导入入口。升级 KChart 时先在 `packages/kchart` 改库、`npm run build` 后用 `npm run vendor` 刷新镜像，再重新生成本页的图；不要手改镜像文件。
 
-宣传视频见 [previews/html-view-promo.mp4](previews/html-view-promo.mp4)（46 秒，无声）。首页用的短 GIF 是 [previews/html-view-promo.gif](previews/html-view-promo.gif)，内容是从左到右渲染再展开多主题的前段。
+宣传视频见 [previews/html-view-promo.mp4](previews/html-view-promo.mp4)（46 秒，无声），首页 GIF 为 [previews/html-view-promo.gif](previews/html-view-promo.gif)。
 
 <a id="examples"></a>
 

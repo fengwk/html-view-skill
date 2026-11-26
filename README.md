@@ -12,9 +12,7 @@
 
 *同一份看板，四套主题叠放。图为透明背景，在 GitHub 深色和浅色模式下都可以直接叠在页面上。*
 
-<p align="center"><a href="docs/showcase/previews/html-view-promo.mp4"><img src="docs/showcase/previews/html-view-promo.gif" width="800" alt="从 Markdown 从左到右渲染，再展开 Paper、Claude、Tokyo Night、Terminal 四套主题。点击打开完整宣传视频。"></a></p>
-
-*46 秒宣传视频（无声）的前段：一次渲染，再展开多主题。点击打开完整 MP4。*
+<p align="center"><a href="docs/showcase/previews/html-view-promo.mp4"><img src="docs/showcase/previews/html-view-promo.gif" width="800" alt="宣传视频：从 Markdown 渲染，展开多主题，再展示图表和安装命令"></a></p>
 
 <a id="quick-start"></a>
 
@@ -40,34 +38,17 @@ npx skills add fengwk/html-view-skill --list
 
 当前仓库会列出 `html-view`。`npx skills` 把技能安装到规范目录，再链到各 Agent 读取技能的位置。
 
-**2. 重开 Agent。** 技能列表里会出现 `html-view`。其他安装方式见下面一节。
+**2. 重开 Agent。** 技能列表里会出现 `html-view`。
 
 **3. 说出你要的 HTML。** 例如：
 
-> 用 HTML View 把 `proposal.md` 做成一份可以批注的技术方案。保留决策和风险，画清服务之间的调用链；交付 HTML 和检查过的 PDF。
+> 把 `proposal.md` 做成能批注的技术方案，决策和风险留着，服务之间怎么调用也画出来。给我 HTML，再出一份检查过的 PDF。
 
-> 把这些已汇总的 CSV 做成离线 Dashboard。首屏看关键指标、趋势和构成；缺失别填成 0。
+> 这些 CSV 已经汇总过了，做个离线 Dashboard。首屏放关键指标、趋势和构成，缺的数空着，别填成 0。
 
-> 做一个可点的发布审批原型。包含列表、详情、校验失败和提交成功；在手机宽度实际走一次提交流程。
+> 做个能点的发布审批，要有列表、详情、校验失败和提交成功这几个页面。用手机宽度把提交流程走一遍。
 
-Agent 生成 HTML 后会运行 `htmlview audit` 检查内容和资源，再用 `htmlview check` 在桌面、手机和打印版心下实际打开。截图、导出 PDF 和渲染独立图需要本机有 Chrome 或 Chromium（可用 `CHROME_PATH` 指定）。
-
-### 其他安装方式
-
-也可以用安装脚本。在 macOS、Linux 或 WSL 的终端里执行：
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/fengwk/html-view-skill/main/scripts/install.sh | bash
-```
-
-Windows PowerShell 先下载脚本再执行：
-
-```powershell
-Invoke-WebRequest -UseBasicParsing -Uri 'https://raw.githubusercontent.com/fengwk/html-view-skill/main/scripts/install.ps1' -OutFile '.\install-html-view.ps1'
-.\install-html-view.ps1
-```
-
-脚本会把仓库放到 `~/.agents/skill-lib/html-view-skill`，并为 Codex、Pi 和 Claude Code 建好链接。细节见[安装说明](#install)。
+生成 HTML 之后，用 `htmlview audit` 检查内容和资源，再用 `htmlview check` 在桌面、手机和打印版心下打开看一下。截图、导出 PDF 或单独出图需要本机有 Chrome 或 Chromium，找不到时可以设 `CHROME_PATH`。
 
 <a id="themes"></a>
 
@@ -158,7 +139,7 @@ Invoke-WebRequest -UseBasicParsing -Uri 'https://raw.githubusercontent.com/fengw
 
 ## 交付样张
 
-下面三组完整样张都由当前技能渲染，并使用默认的 Terminal 主题。界面稿的配色由 `--brand` 和 `--scheme` 控制，不走文档主题。阅读文档整理自 Kubernetes 官方 [Cluster Architecture](https://kubernetes.io/docs/concepts/architecture/)，许可 [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)，作者 The Kubernetes Authors。看板和月报的数字来自 [kubernetes/kubernetes](https://github.com/kubernetes/kubernetes) 的公开 GitHub 元数据，抓取于 2026-11-24T17:22Z；该仓库为 Apache-2.0。发布审批是示意流程，不代表 Kubernetes 项目的真实发布流程。口径和复现方式见 [SOURCES.md](docs/showcase/SOURCES.md) 与 [样张目录](docs/showcase/README.md)。
+下面三组完整样张都由当前技能渲染，并使用默认的 Terminal 主题。界面稿的配色由 `--brand` 和 `--scheme` 控制，不走文档主题。
 
 | 产物 | 打开文件后，你能做什么 |
 |---|---|
@@ -300,5 +281,3 @@ node skills/html-view/scripts/htmlview export k8s-control-plane.html --format pd
 ## 许可
 
 自有源码与文档采用 [MIT License](LICENSE)。Prism 保留其[上游 MIT 许可](skills/html-view/assets/vendor/prism.js)；图标、品牌商标和 Natural Earth 地图数据的条款见[第三方资产声明](packages/kchart/NOTICE.md)；看板设计指南的出处见[致谢](NOTICE.md)。
-
-阅读文档样张依据 Kubernetes 官方 [Cluster Architecture](https://kubernetes.io/docs/concepts/architecture/)，许可 [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)，© The Kubernetes Authors。看板与月报数字来自 `kubernetes/kubernetes` 的公开 GitHub 元数据，该仓库为 Apache-2.0。详见 [SOURCES.md](docs/showcase/SOURCES.md)。

@@ -6,7 +6,7 @@ The product shots on the repository homepage were rendered by the current skill.
 
 Every render here uses the skill's build mirror at `skills/html-view/vendor/kchart`, the same import the CLI uses at runtime. To upgrade KChart, change the library in `packages/kchart`, run `npm run build`, refresh the mirror with `npm run vendor`, and regenerate these images; never edit the mirror by hand.
 
-The promo video is at [previews/html-view-promo.mp4](previews/html-view-promo.mp4) (46 seconds, silent). The short GIF on the homepage is [previews/html-view-promo.gif](previews/html-view-promo.gif), covering the left-to-right render and the multi-theme fan-out.
+The promo video is at [previews/html-view-promo.mp4](previews/html-view-promo.mp4) (46 seconds, silent). The homepage GIF is [previews/html-view-promo.gif](previews/html-view-promo.gif).
 
 <a id="examples"></a>
 

@@ -12,9 +12,7 @@ Give your agent Markdown, pre-aggregated CSV/JSON or a product flow, and it hand
 
 *The same dashboard in four themes. The image is a transparent PNG, so it sits on GitHub’s dark and light backgrounds alike.*
 
-<p align="center"><a href="docs/showcase/previews/html-view-promo.mp4"><img src="docs/showcase/previews/html-view-promo.gif" width="800" alt="A left-to-right render of the Markdown, then a fan-out of the Paper, Claude, Tokyo Night and Terminal themes. Click to open the full promo video."></a></p>
-
-*The opening of the 46-second silent promo: one render, then the four themes. Click to open the full MP4.*
+<p align="center"><a href="docs/showcase/previews/html-view-promo.mp4"><img src="docs/showcase/previews/html-view-promo.gif" width="800" alt="Promo video: render the Markdown, fan out the themes, then show charts and the install command"></a></p>
 
 <a id="quick-start"></a>
 
@@ -40,36 +38,19 @@ npx skills add fengwk/html-view-skill --list
 
 This repository currently lists `html-view`. `npx skills` installs the skill into the canonical folder and links it into each agent’s skill directory.
 
-**2. Restart your agent.** `html-view` shows up in the skill list. Other install methods are in the next section.
+**2. Restart your agent.** `html-view` shows up in the skill list.
 
 **3. Ask for the HTML you need.** For example:
 
-> Use HTML View to turn `proposal.md` into a technical design reviewers can comment on. Keep the decisions and risks, and draw the call chain between services. Deliver the HTML and a checked PDF.
+> Turn `proposal.md` into a technical design I can comment on. Keep the decisions and risks, and show how the services call each other. I need the HTML, plus a PDF you've already checked.
 
-> Turn these pre-aggregated CSV files into an offline dashboard. The first screen should show the key metrics, the trend and the breakdown. Leave missing values blank rather than treating them as zero.
+> These CSVs are already summarized. Make an offline dashboard — key metrics, trend and breakdown on the first screen. If a value is missing, leave it blank; don't treat it as zero.
 
-> Build a clickable release-approval prototype with a list, a detail page, a validation failure and a successful submission. Walk through the submit flow at phone width.
+> Make a clickable release-approval prototype: list, detail, validation error, and success. Walk through submit at phone width.
 
-After generating the HTML, the agent runs `htmlview audit` on its content and resources, then `htmlview check` to open it at desktop width, phone width and on the printed page. Screenshots, PDF export and standalone charts need Chrome or Chromium on the machine (set `CHROME_PATH` if it isn't found).
+After the HTML is generated, run `htmlview audit` to check the content and resources, then `htmlview check` to open it at desktop width, phone width, and in print layout. Screenshots, PDF export, and standalone charts need Chrome or Chromium (`CHROME_PATH` if it isn't on the PATH).
 
 The skill's own instructions are written in Chinese. Agents follow them fine, and the pages they produce use the language of your content: English input gives English headings, chart labels, number formats and PDF footers.
-
-### Other install methods
-
-You can also use the installer. On macOS, Linux or WSL, run this in a terminal:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/fengwk/html-view-skill/main/scripts/install.sh | bash
-```
-
-In Windows PowerShell, download the script, then run it:
-
-```powershell
-Invoke-WebRequest -UseBasicParsing -Uri 'https://raw.githubusercontent.com/fengwk/html-view-skill/main/scripts/install.ps1' -OutFile '.\install-html-view.ps1'
-.\install-html-view.ps1
-```
-
-The script clones the repository to `~/.agents/skill-lib/html-view-skill` and sets up the links for Codex, Pi and Claude Code. Details are in [Install details](#install).
 
 <a id="themes"></a>
 
@@ -160,7 +141,7 @@ Use `htmlview style report.html --theme obsidian` to switch to a built-in theme,
 
 ## What you get
 
-The three complete product shots below were rendered by the current skill in the default Terminal theme. Prototype colors come from `--brand` and `--scheme`, not from the document themes. The reading document is a condensed restatement of the official Kubernetes [Cluster Architecture](https://kubernetes.io/docs/concepts/architecture/) page, licensed [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/), © The Kubernetes Authors. Dashboard and monthly-report figures come from public GitHub metadata for [kubernetes/kubernetes](https://github.com/kubernetes/kubernetes), fetched at 2026-11-24T17:22Z; that repository is Apache-2.0. The release-approval flow is a sample prototype, not the real Kubernetes release process. Definitions and reproduction steps are in [SOURCES.md](docs/showcase/SOURCES.md) and the [showcase folder](docs/showcase/README.en.md).
+The three complete product shots below were rendered by the current skill in the default Terminal theme. Prototype colors come from `--brand` and `--scheme`, not from the document themes.
 
 | Output | What you can do with the file |
 |---|---|
@@ -302,5 +283,3 @@ To change KChart, work in `packages/kchart`; once `npm ci && npm test` passes, `
 ## License
 
 Original code and documentation are under the [MIT License](LICENSE). Prism keeps its [upstream MIT license](skills/html-view/assets/vendor/prism.js). Terms for icons, brand marks and Natural Earth map data are in the [third-party notice](packages/kchart/NOTICE.md). See the [acknowledgments](NOTICE.md) for the source of the dashboard design guidance.
-
-The reading-document sample is based on the official Kubernetes [Cluster Architecture](https://kubernetes.io/docs/concepts/architecture/) page, licensed [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/), © The Kubernetes Authors. Dashboard and monthly-report figures come from public GitHub metadata for `kubernetes/kubernetes`, which is Apache-2.0. See [SOURCES.md](docs/showcase/SOURCES.md).
